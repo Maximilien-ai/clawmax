@@ -1,4 +1,4 @@
-# max-openclaw
+# maxclaw
 A common repo for all max<n> OpenClaw instances.
 
 ## Convention
