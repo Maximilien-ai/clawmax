@@ -1,0 +1,88 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "{{MODEL}}"
+      },
+      "models": {
+        "{{MODEL}}": {
+          "alias": "GPT"
+        }
+      },
+      "workspace": "{{STATE_DIR}}/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  },
+  "channels": {
+    "whatsapp": {
+      "dmPolicy": "allowlist",
+      "selfChatMode": false,
+      "allowFrom": [
+        "{{ALLOW_FROM}}"
+      ],
+      "groupPolicy": "allowlist",
+      "groupAllowFrom": [
+        "{{ALLOW_FROM}}"
+      ],
+      "debounceMs": 0,
+      "mediaMaxMb": 50
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "chrome"
+  },
+  "gateway": {
+    "port": {{GATEWAY_PORT}},
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "{{GATEWAY_TOKEN}}"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
+    }
+  },
+  "skills": {
+    "install": {
+      "nodeManager": "npm"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "whatsapp": {
+        "enabled": {{WHATSAPP_ENABLED}}
+      }
+    }
+  },
+  "meta": {
+    "createdBy": "setup-instance.sh",
+    "instanceName": "{{INSTANCE_NAME}}",
+    "createdAt": "{{CREATED_AT}}"
+  }
+}
