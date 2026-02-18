@@ -212,6 +212,44 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
   return entries.sort((a, b) => a.ageMins - b.ageMins).slice(0, limit)
 }
 
+/** Read org name. Priority:
+ *  1. ORG/IDENTITY.md `**Name:**` field (structured)
+ *  2. ORG/MASTER_PLAN.md or MASTER_PLAN.md H1 (e.g. "# The Maximilien.ai Master Plan" → "Maximilien.ai")
+ */
+export function getOrgName(): string | null {
+  // 1. Try ORG/IDENTITY.md **Name:** field
+  try {
+    const identity = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'IDENTITY.md'), 'utf-8')
+    const m = identity.match(/\*\*Name[:\*\s]+\s*(.+)/m)
+    if (m) {
+      const name = m[1].replace(/\*+$/, '').trim()
+      if (name && !name.startsWith('_')) return name
+    }
+  } catch {}
+
+  // 2. Fall back to MASTER_PLAN.md H1
+  const candidates = [
+    path.join(WORKSPACE, 'ORG', 'MASTER_PLAN.md'),
+    path.join(WORKSPACE, 'MASTER_PLAN.md'),
+  ]
+  for (const p of candidates) {
+    try {
+      const content = fs.readFileSync(p, 'utf-8')
+      for (const line of content.split('\n')) {
+        const m = line.match(/^#\s+(.+)/)
+        if (!m) continue
+        const title = m[1].trim()
+        // Try to extract a "Name.tld" token (e.g. Maximilien.ai)
+        const dotMatch = title.match(/([A-Za-z0-9-]+\.[a-z]{2,})/)
+        if (dotMatch) return dotMatch[1]
+        // Fallback: strip common boilerplate words
+        return title.replace(/^The\s+/i, '').replace(/\s+Master Plan.*$/i, '').trim() || null
+      }
+    } catch {}
+  }
+  return null
+}
+
 /** Read the latest semver git tag from refs/tags/ and packed-refs. Returns null if none. */
 export function getLatestTag(): string | null {
   const tags: string[] = []

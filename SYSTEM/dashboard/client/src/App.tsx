@@ -11,6 +11,7 @@ interface SystemInfo {
   agentCount: number
   onlineCount: number
   version: string
+  orgName: string | null
 }
 
 export default function App() {
@@ -86,17 +87,36 @@ export default function App() {
 function TopBar({ system }: { system: SystemInfo | null }) {
   if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
+
+  // Split orgName at last "." to style the tld separately (e.g. "Maximilien" + ".ai")
+  let orgBase = system.orgName ?? null
+  let orgTld: string | null = null
+  if (system.orgName) {
+    const dot = system.orgName.lastIndexOf('.')
+    if (dot > 0) {
+      orgBase = system.orgName.slice(0, dot)
+      orgTld = system.orgName.slice(dot) // includes the dot
+    }
+  }
+
   return (
     <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
-      <div className="flex items-center gap-3 text-xs text-gray-500">
-        <span className="font-mono font-medium text-gray-700">{system.hostname}</span>
-        <span className="text-gray-300">·</span>
-        <span>{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
-        <span className="text-gray-300">·</span>
-        <span className="flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
-          {system.onlineCount} online
-        </span>
+      <div className="flex items-center gap-4">
+        {orgBase && (
+          <span className="text-sm font-bold text-gray-800 tracking-tight">
+            {orgBase}{orgTld && <span className="text-sky-500">{orgTld}</span>}
+          </span>
+        )}
+        <div className="flex items-center gap-3 text-xs text-gray-500">
+          <span className="font-mono text-gray-400">{system.hostname}</span>
+          <span className="text-gray-300">·</span>
+          <span>{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
+          <span className="text-gray-300">·</span>
+          <span className="flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
+            {system.onlineCount} online
+          </span>
+        </div>
       </div>
       <span className="text-xs text-gray-300 font-mono">{system.version}</span>
     </div>

@@ -67,6 +67,17 @@ export default function DocHub() {
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, SYSTEM: true })
   const [treeCollapsed, setTreeCollapsed] = useState(false)
+  // collapsedDirs: Set of "SECTION/dir" keys for collapsed subdirectories
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+
+  function toggleDir(key: string) {
+    setCollapsedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   // Edit mode
   const [editMode, setEditMode] = useState(false)
@@ -192,16 +203,23 @@ export default function DocHub() {
 
                     {!isCollapsed && (
                       <div className="py-1">
-                        {dirs.map(dir => (
+                        {dirs.map(dir => {
+                          const dirKey = `${section}/${dir}`
+                          const isDirCollapsed = dir ? collapsedDirs.has(dirKey) : false
+                          return (
                           <div key={dir}>
                             {dir && (
-                              <div className="px-4 py-1 mt-1">
-                                <span className={`text-xs font-semibold uppercase tracking-wider opacity-60 ${cfg.accent}`}>
+                              <button
+                                onClick={() => toggleDir(dirKey)}
+                                className={`w-full flex items-center justify-between px-4 py-1 mt-1 hover:bg-gray-50 transition-colors group`}
+                              >
+                                <span className={`text-xs font-semibold uppercase tracking-wider opacity-60 group-hover:opacity-100 ${cfg.accent}`}>
                                   {dir}/
                                 </span>
-                              </div>
+                                <span className={`text-xs opacity-40 group-hover:opacity-70 ${cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
+                              </button>
                             )}
-                            {tree[dir].map(displayPath => {
+                            {!isDirCollapsed && tree[dir].map(displayPath => {
                               const fullPath = section + '/' + (dir ? dir + '/' : '') + displayPath.split('/').pop()!
                               const fullEntry = sectionEntries.find(e => stripPrefix(e.path, section) === (dir ? dir + '/' + displayPath.split('/').pop()! : displayPath))
                               const actualPath = fullEntry?.path ?? fullPath
@@ -221,7 +239,8 @@ export default function DocHub() {
                               )
                             })}
                           </div>
-                        ))}
+                        )
+                        })}
                       </div>
                     )}
                   </div>

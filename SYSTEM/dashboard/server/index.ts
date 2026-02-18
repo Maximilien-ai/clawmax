@@ -5,7 +5,7 @@ import fs from 'fs'
 import os from 'os'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
-import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile } from './lib/workspace'
+import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName } from './lib/workspace'
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
@@ -38,6 +38,7 @@ app.get('/api/system', (_req, res) => {
     onlineCount: agents.filter(a => a.status === 'online').length,
     version: getLatestTag() ?? '0.1.0',
     gitBranch,
+    orgName: getOrgName() ?? null,
   })
 })
 
