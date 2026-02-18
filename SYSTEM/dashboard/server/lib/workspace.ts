@@ -212,6 +212,38 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
   return entries.sort((a, b) => a.ageMins - b.ageMins).slice(0, limit)
 }
 
+/** Read the latest semver git tag from refs/tags/ and packed-refs. Returns null if none. */
+export function getLatestTag(): string | null {
+  const tags: string[] = []
+
+  // Loose refs
+  try {
+    tags.push(...fs.readdirSync(path.join(WORKSPACE, '.git', 'refs', 'tags')))
+  } catch {}
+
+  // Packed refs (git gc moves tags here)
+  try {
+    const packed = fs.readFileSync(path.join(WORKSPACE, '.git', 'packed-refs'), 'utf-8')
+    for (const line of packed.split('\n')) {
+      const m = line.match(/^[0-9a-f]+ refs\/tags\/(.+)$/)
+      if (m && !m[1].endsWith('^{}')) tags.push(m[1])
+    }
+  } catch {}
+
+  if (tags.length === 0) return null
+
+  tags.sort((a, b) => {
+    const av = a.replace(/^v/, '').split('.').map(Number)
+    const bv = b.replace(/^v/, '').split('.').map(Number)
+    for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+      const d = (av[i] ?? 0) - (bv[i] ?? 0)
+      if (d !== 0) return d
+    }
+    return 0
+  })
+  return tags[tags.length - 1]
+}
+
 export function listAgents(): AgentInfo[] {
   const agents: AgentInfo[] = []
   let entries: fs.Dirent[]

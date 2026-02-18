@@ -44,10 +44,22 @@ function timeAgo(mins: number): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/** Dimmed file source tag shown next to section headers */
+function SourceTag({ file }: { file: string }) {
+  return (
+    <span className="ml-2 text-gray-300 font-mono text-xs font-normal normal-case tracking-normal">
+      · {file}
+    </span>
+  )
+}
+
+function Section({ title, source, children }: { title: string; source?: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</h3>
+      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center">
+        {title}
+        {source && <SourceTag file={source} />}
+      </h3>
       {children}
     </div>
   )
@@ -110,6 +122,9 @@ export default function AgentDetailPanel({
     setTimeout(() => setCooling(false), 3000)
   }
 
+  // Derive the relative agent dir path (e.g. AGENTS/max0)
+  const relDir = agent.workspacePath.split('/').slice(-2).join('/')
+
   return (
     <>
       {/* Backdrop */}
@@ -132,7 +147,10 @@ export default function AgentDetailPanel({
             </div>
             <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
             {agent.whatsapp && (
-              <span className="block text-xs text-gray-400 mt-0.5">+{agent.whatsapp}</span>
+              <span className="block text-xs text-gray-400 mt-0.5">
+                +{agent.whatsapp}
+                <span className="ml-1.5 text-gray-300 font-mono">· IDENTITY.md</span>
+              </span>
             )}
             <span className="block text-xs text-gray-300 mt-1">refreshed {refreshedLabel}</span>
           </div>
@@ -166,7 +184,7 @@ export default function AgentDetailPanel({
           {!loading && activity && (
             <>
               {/* Recent file activity */}
-              <Section title="Recent activity">
+              <Section title="Recent activity" source={relDir + '/'}>
                 <ul className="space-y-1">
                   {activity.recentFiles.map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
@@ -179,7 +197,7 @@ export default function AgentDetailPanel({
 
               {/* TODOs */}
               {activity.todos && (
-                <Section title="Active TODOs">
+                <Section title="Active TODOs" source="TODOs.md">
                   <div className="prose prose-sm max-w-none text-gray-700 [&_ul]:pl-4 [&_li]:my-0.5">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.todos}
@@ -190,7 +208,7 @@ export default function AgentDetailPanel({
 
               {/* Recently completed */}
               {activity.completed && (
-                <Section title="Recently completed">
+                <Section title="Recently completed" source="COMPLETED.md">
                   <div className="prose prose-sm max-w-none text-gray-600 [&_ul]:pl-4 [&_li]:my-0.5">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.completed}
@@ -201,7 +219,7 @@ export default function AgentDetailPanel({
 
               {/* Identity snippet */}
               {activity.identity && (
-                <Section title="Identity">
+                <Section title="Identity" source="IDENTITY.md">
                   <div className="prose prose-sm max-w-none text-gray-500 [&_p]:my-1">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.identity}
@@ -212,7 +230,7 @@ export default function AgentDetailPanel({
 
               {/* Groups */}
               {(agent.communities.length > 0 || agent.groups.length > 0) && (
-                <Section title="WhatsApp presence">
+                <Section title="WhatsApp presence" source="GROUPS.md">
                   <div className="space-y-3">
                     {agent.communities.length > 0 && (
                       <div>

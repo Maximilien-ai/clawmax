@@ -95,12 +95,29 @@ export default function DocHub() {
     setCollapsed(c => ({ ...c, [s]: !c[s] }))
   }
 
+  const [treeCollapsed, setTreeCollapsed] = useState(false)
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* File tree sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 overflow-y-auto shrink-0">
-        <div className="px-4 py-3 border-b border-gray-200">
+      <aside className={`bg-white border-r border-gray-200 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'}`}>
+        {treeCollapsed ? (
+          <div className="flex flex-col items-center pt-3">
+            <button
+              onClick={() => setTreeCollapsed(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+              title="Expand file tree"
+            >▶</button>
+          </div>
+        ) : (
+        <div className="flex flex-col h-full">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between shrink-0">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
+          <button
+            onClick={() => setTreeCollapsed(true)}
+            className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+            title="Collapse file tree"
+          >◀</button>
         </div>
 
         <div className="py-1">
@@ -174,6 +191,8 @@ export default function DocHub() {
             <p className="px-4 py-4 text-sm text-gray-400">No documents found</p>
           )}
         </div>
+        </div>
+        )}
       </aside>
 
       {/* Content area */}

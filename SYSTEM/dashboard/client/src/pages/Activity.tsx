@@ -7,6 +7,9 @@ interface ActivityEntry {
   ageMins: number
 }
 
+type SortCol = 'age' | 'agent' | 'type' | 'file'
+type SortDir = 'asc' | 'desc'
+
 const FILE_TYPES: Record<string, { label: string; cls: string }> = {
   'TODOs.md':     { label: 'tasks',     cls: 'bg-orange-50 text-orange-700' },
   'COMPLETED.md': { label: 'done',      cls: 'bg-green-50 text-green-700' },
@@ -33,6 +36,23 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
+function sortEntries(entries: ActivityEntry[], col: SortCol, dir: SortDir): ActivityEntry[] {
+  const sorted = [...entries].sort((a, b) => {
+    let cmp = 0
+    if (col === 'age') cmp = a.ageMins - b.ageMins
+    else if (col === 'agent') cmp = a.agentId.localeCompare(b.agentId)
+    else if (col === 'type') cmp = fileType(a.file).label.localeCompare(fileType(b.file).label)
+    else if (col === 'file') cmp = a.file.localeCompare(b.file)
+    return dir === 'asc' ? cmp : -cmp
+  })
+  return sorted
+}
+
+function SortIndicator({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
+  if (sortCol !== col) return <span className="ml-1 opacity-20">↕</span>
+  return <span className="ml-1 opacity-60">{sortDir === 'asc' ? '↑' : '↓'}</span>
+}
+
 export default function Activity() {
   const [feed, setFeed] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,6 +60,8 @@ export default function Activity() {
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
+  const [sortCol, setSortCol] = useState<SortCol>('age')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
@@ -55,14 +77,12 @@ export default function Activity() {
       })
   }, [])
 
-  // Initial load + auto-refresh every 30s
   useEffect(() => {
     fetchFeed()
     const interval = setInterval(fetchFeed, 30000)
     return () => clearInterval(interval)
   }, [fetchFeed])
 
-  // Live "refreshed Xs ago" ticker
   useEffect(() => {
     const ticker = setInterval(() => {
       setRefreshedLabel(secAgo(lastRefreshed))
@@ -78,8 +98,18 @@ export default function Activity() {
     setTimeout(() => setCooling(false), 3000)
   }
 
-  // Group consecutive entries by agentId to show agent headers
-  const rows = feed
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  const rows = sortEntries(feed, sortCol, sortDir)
+
+  const thCls = 'px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors text-left'
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -125,11 +155,19 @@ export default function Activity() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left">
-                <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-24">Age</th>
-                <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-24">Agent</th>
-                <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-28">Type</th>
-                <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">File</th>
+              <tr className="border-b border-gray-100">
+                <th className={`${thCls} w-24`} onClick={() => handleSort('age')}>
+                  Age<SortIndicator col="age" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className={`${thCls} w-24`} onClick={() => handleSort('agent')}>
+                  Agent<SortIndicator col="agent" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className={`${thCls} w-28`} onClick={() => handleSort('type')}>
+                  Type<SortIndicator col="type" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className={thCls} onClick={() => handleSort('file')}>
+                  File<SortIndicator col="file" sortCol={sortCol} sortDir={sortDir} />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

@@ -47,6 +47,8 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+type ViewMode = 'list' | 'grid'
+
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,6 +57,7 @@ export default function Agents() {
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -99,15 +102,34 @@ export default function Agents() {
             {agents.length} agent{agents.length !== 1 ? 's' : ''} · refreshed {refreshedLabel}
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={cooling}
-          className={`text-sm font-medium transition-colors ${
-            cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
-          }`}
-        >
-          {cooling ? 'Refreshing…' : '↻ Refresh'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setViewMode('list')}
+              title="List view"
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'list' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+            >
+              ☰
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+            >
+              ⊞
+            </button>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={cooling}
+            className={`text-sm font-medium transition-colors ${
+              cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
+            }`}
+          >
+            {cooling ? 'Refreshing…' : '↻ Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && (
@@ -128,10 +150,23 @@ export default function Agents() {
         </div>
       )}
 
-      {!loading && !error && agents.length > 0 && (
+      {!loading && !error && agents.length > 0 && viewMode === 'list' && (
         <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           {agents.map(agent => (
             <AgentCard
+              key={agent.id}
+              agent={agent}
+              selected={selectedAgent?.id === agent.id}
+              onClick={() => setSelectedAgent(agent)}
+            />
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && agents.length > 0 && viewMode === 'grid' && (
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {agents.map(agent => (
+            <AgentGridCard
               key={agent.id}
               agent={agent}
               selected={selectedAgent?.id === agent.id}
@@ -211,6 +246,28 @@ function AgentCard({ agent, selected, onClick }: { agent: Agent; selected: boole
           {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
         </span>
       </div>
+    </div>
+  )
+}
+
+function AgentGridCard({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
+  const totalGroups = agent.communities.length + agent.groups.length
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
+        <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
+      </div>
+      <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
+      <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
+      {totalGroups > 0 && (
+        <div className="mt-2 text-xs text-gray-300">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
+      )}
     </div>
   )
 }
