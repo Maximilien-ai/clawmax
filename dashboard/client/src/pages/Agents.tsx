@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import AgentDetailPanel from '../components/AgentDetailPanel'
 
 interface Agent {
   id: string
@@ -36,6 +37,7 @@ export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
 
   function fetchAgents() {
     fetch('/api/agents')
@@ -95,17 +97,34 @@ export default function Agents() {
       {!loading && !error && agents.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           {agents.map(agent => (
-            <AgentCard key={agent.id} agent={agent} />
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              selected={selectedAgent?.id === agent.id}
+              onClick={() => setSelectedAgent(agent)}
+            />
           ))}
         </div>
+      )}
+
+      {selectedAgent && (
+        <AgentDetailPanel
+          agent={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
+        />
       )}
     </div>
   )
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentCard({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
+      }`}
+    >
       {/* Top row */}
       <div className="flex items-start justify-between mb-3">
         <div>

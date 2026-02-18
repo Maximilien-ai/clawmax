@@ -67,6 +67,40 @@ export interface AgentInfo {
 }
 
 /** Discover all maxN/ directories and return agent info */
+export interface AgentActivity {
+  recentFiles: { name: string; mtime: string; ageMins: number }[]
+  todos: string | null
+  completed: string | null
+  identity: string | null
+}
+
+export function getAgentActivity(agentDir: string): AgentActivity {
+  const recentFiles: { name: string; mtime: string; ageMins: number }[] = []
+  try {
+    const entries = fs.readdirSync(agentDir, { withFileTypes: true })
+    for (const e of entries) {
+      if (!e.isFile()) continue
+      try {
+        const s = fs.statSync(path.join(agentDir, e.name))
+        const ageMins = (Date.now() - s.mtime.getTime()) / 60000
+        recentFiles.push({ name: e.name, mtime: s.mtime.toISOString(), ageMins })
+      } catch {}
+    }
+    recentFiles.sort((a, b) => a.ageMins - b.ageMins)
+  } catch {}
+
+  const readFile = (name: string): string | null => {
+    try { return fs.readFileSync(path.join(agentDir, name), 'utf-8') } catch { return null }
+  }
+
+  return {
+    recentFiles,
+    todos: readFile('TODOs.md'),
+    completed: readFile('COMPLETED.md'),
+    identity: readFile('IDENTITY.md'),
+  }
+}
+
 export function listAgents(): AgentInfo[] {
   const agents: AgentInfo[] = []
   let entries: fs.Dirent[]
