@@ -188,7 +188,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (latestMtime > 0) {
       lastHeartbeat = new Date(latestMtime).toISOString()
       const ageMins = (Date.now() - latestMtime) / 60000
-      status = ageMins < 30 ? 'online' : ageMins < 240 ? 'offline' : 'unknown'
+      status = ageMins < 60 ? 'online' : ageMins < 2880 ? 'offline' : 'unknown'
     }
   } catch {}
 

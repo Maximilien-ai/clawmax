@@ -30,10 +30,12 @@ app.get('/api/system', (_req, res) => {
     gitBranch = head.startsWith('ref: refs/heads/') ? head.replace('ref: refs/heads/', '') : head.slice(0, 7)
   } catch {}
 
+  const agents = listAgents()
   res.json({
     workspace: WORKSPACE,
     hostname: os.hostname(),
-    agentCount: listAgents().length,
+    agentCount: agents.length,
+    onlineCount: agents.filter(a => a.status === 'online').length,
     version: '0.1.0',
     gitBranch,
   })

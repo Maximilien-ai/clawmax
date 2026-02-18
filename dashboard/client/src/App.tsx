@@ -5,15 +5,26 @@ import Activity from './pages/Activity'
 
 type Page = 'agents' | 'docs' | 'activity'
 
+interface SystemInfo {
+  hostname: string
+  agentCount: number
+  onlineCount: number
+  version: string
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
-  const [hostname, setHostname] = useState<string>('localhost')
+  const [system, setSystem] = useState<SystemInfo | null>(null)
 
   useEffect(() => {
-    fetch('/api/system')
-      .then(r => r.json())
-      .then(d => { if (d.hostname) setHostname(d.hostname) })
-      .catch(() => {})
+    const load = () =>
+      fetch('/api/system')
+        .then(r => r.json())
+        .then(d => setSystem(d))
+        .catch(() => {})
+    load()
+    const t = setInterval(load, 30000)
+    return () => clearInterval(t)
   }, [])
 
   return (
@@ -36,16 +47,38 @@ export default function App() {
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-500">
-          v0.1 · <span className="text-gray-400 font-mono">{hostname}</span>
+          v0.1 · <span className="text-gray-400 font-mono">{system?.hostname ?? '…'}</span>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Top bar */}
+        <TopBar system={system} />
         {page === 'agents' && <Agents />}
         {page === 'activity' && <Activity />}
         {page === 'docs' && <DocHub />}
       </main>
+    </div>
+  )
+}
+
+function TopBar({ system }: { system: SystemInfo | null }) {
+  if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
+  const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
+  return (
+    <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
+      <div className="flex items-center gap-3 text-xs text-gray-500">
+        <span className="font-mono font-medium text-gray-700">{system.hostname}</span>
+        <span className="text-gray-300">·</span>
+        <span>{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
+        <span className="text-gray-300">·</span>
+        <span className="flex items-center gap-1">
+          <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
+          {system.onlineCount} online
+        </span>
+      </div>
+      <span className="text-xs text-gray-300 font-mono">v{system.version}</span>
     </div>
   )
 }

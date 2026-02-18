@@ -7,6 +7,17 @@ interface ActivityEntry {
   ageMins: number
 }
 
+const FILE_TYPES: Record<string, { label: string; cls: string }> = {
+  'TODOs.md':     { label: 'tasks',     cls: 'bg-orange-50 text-orange-700' },
+  'COMPLETED.md': { label: 'done',      cls: 'bg-green-50 text-green-700' },
+  'HEARTBEAT.md': { label: 'heartbeat', cls: 'bg-blue-50 text-blue-700' },
+  'IDENTITY.md':  { label: 'identity',  cls: 'bg-purple-50 text-purple-700' },
+}
+
+function fileType(name: string) {
+  return FILE_TYPES[name] ?? { label: name.replace(/\.md$/, ''), cls: 'bg-gray-100 text-gray-500' }
+}
+
 function timeAgo(mins: number): string {
   if (mins < 1) return 'just now'
   if (mins < 60) return `${Math.floor(mins)}m ago`
@@ -117,25 +128,34 @@ export default function Activity() {
               <tr className="border-b border-gray-100 text-left">
                 <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-24">Age</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-24">Agent</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider w-28">Type</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">File</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {rows.map((entry, i) => (
-                <tr key={`${entry.agentId}-${entry.file}-${i}`} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-2 text-xs text-gray-400 font-mono shrink-0">
-                    {timeAgo(entry.ageMins)}
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 text-sky-700">
-                      {entry.agentId}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-xs text-gray-600 font-mono">
-                    {entry.file}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((entry, i) => {
+                const ft = fileType(entry.file)
+                return (
+                  <tr key={`${entry.agentId}-${entry.file}-${i}`} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2 text-xs text-gray-400 font-mono shrink-0">
+                      {timeAgo(entry.ageMins)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 text-sky-700">
+                        {entry.agentId}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ft.cls}`}>
+                        {ft.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-400 font-mono">
+                      {entry.file}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

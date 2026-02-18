@@ -1,5 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+
+function secAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  return `${Math.floor(s / 60)}m ago`
+}
 
 interface Agent {
   id: string
@@ -38,25 +45,42 @@ export default function Agents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
+  const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
+  const [cooling, setCooling] = useState(false)
 
-  function fetchAgents() {
+  const fetchAgents = useCallback(() => {
     fetch('/api/agents')
       .then(r => r.json())
       .then(d => {
         setAgents(d.agents)
         setLoading(false)
+        setLastRefreshed(Date.now())
       })
       .catch(() => {
         setError('Failed to load agents')
         setLoading(false)
       })
-  }
+  }, [])
 
   useEffect(() => {
     fetchAgents()
-    const interval = setInterval(fetchAgents, 30000) // refresh every 30s
+    const interval = setInterval(fetchAgents, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [fetchAgents])
+
+  useEffect(() => {
+    const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
+    setRefreshedLabel(secAgo(lastRefreshed))
+    return () => clearInterval(ticker)
+  }, [lastRefreshed])
+
+  const handleRefresh = () => {
+    if (cooling) return
+    setCooling(true)
+    fetchAgents()
+    setTimeout(() => setCooling(false), 3000)
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -65,14 +89,17 @@ export default function Agents() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Agent Roster</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {agents.length} agent{agents.length !== 1 ? 's' : ''} in workspace
+            {agents.length} agent{agents.length !== 1 ? 's' : ''} · refreshed {refreshedLabel}
           </p>
         </div>
         <button
-          onClick={fetchAgents}
-          className="text-sm text-sky-600 hover:text-sky-800 font-medium"
+          onClick={handleRefresh}
+          disabled={cooling}
+          className={`text-sm font-medium transition-colors ${
+            cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
+          }`}
         >
-          Refresh
+          {cooling ? 'Refreshing…' : '↻ Refresh'}
         </button>
       </div>
 
