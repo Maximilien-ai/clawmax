@@ -11,3 +11,7 @@
 ## Housekeeping
 - [ ] Review TODOs.md periodically for manual edits from Max and sync changes.
 - [ ] Clean up completed tasks weekly into COMPLETED.md (create initial structure).
+
+## Recurring Checks
+- [ ] Daily weather check (morning) for Max’s location with actionable highlights.
+- [ ] Morning Hacker News scan for top stories relevant to Max’s interests/projects.

@@ -37,13 +37,13 @@ We invite you to hold us accountable to it.
 
 We believe the defining challenge of the next decade is not whether AI can be powerful — it clearly can — but whether it will be **trustworthy, transparent, and genuinely beneficial** to the people and organizations that use it.
 
-The leading AI companies — OpenAI, Anthropic, Google, and others — are doing remarkable work, and we have deep respect for what they have built. They are making AI capable at a pace that would have seemed impossible five years ago. We use their models. We build on their research. We are grateful for it.
+The leading AI companies — OpenAI, Anthropic, Meta, Google, and others — are doing remarkable work, and we have deep respect for what they have built. They are making AI capable at a pace that would have seemed impossible five years ago. We use their models. We build on their research. We are grateful for it.
 
-And yet: much of today's AI is delivered as a cloud-hosted service that requires an internet connection, a credit card, and data leaving your premises. For organizations in San Francisco or London, that is a reasonable trade. For a health clinic in rural Haiti, a university in Dhaka, or a small business in Lagos, it is often not an option at all.
+And yet: much of today's AI is delivered as a cloud-hosted service that requires an internet connection, a credit card, and data leaving your premises. For organizations in San Francisco or Paris, that is a reasonable trade. For a health clinic in rural Haiti, a university in Dhaka, or a small business in Lagos, it is often not an option at all.
 
 The access gap is not the fault of any company. It is a structural reality — and it is one that open-source models and on-premise infrastructure can help close. Meta deserves particular credit here: with the Llama series, they demonstrated at scale that releasing a capable model openly is not just possible but transformative — and they held that leadership position for the better part of two years. Following in that spirit, Mistral, DeepSeek, Qwen, Kimi-K, and others continue proving that frontier-quality AI does not require a proprietary API. The tools to run powerful AI locally, privately, and affordably exist today. They just need to be made accessible.
 
-We believe the path forward is: **AI that runs where your data lives, built on open foundations, governed by the people it serves, and accessible to anyone with a laptop and an internet connection.**
+We believe the path forward is: **AI that runs where your data lives, built on open foundations, governed by the people it serves, and accessible to anyone with a phone, a laptop, and an internet connection.**
 
 ---
 
@@ -57,7 +57,7 @@ Two things in that sentence matter equally:
 
 2. **Ethical services to humans** — AI that is private-by-default, transparent in its reasoning, honest about its limitations, and designed to benefit users rather than extract from them.
 
-Maximilien.ai is simultaneously a product company and a living demonstration that this model works. We run ourselves on our own tools. We are the first customer, the most demanding tester, and the most visible proof of concept.
+Maximilien.ai is simultaneously a product company and a living demonstration that this model works. We run ourselves on our own tools. We are client0: the first customer, the most demanding tester, and the most visible proof of concept.
 
 ---
 
@@ -125,13 +125,14 @@ Once `weave-cli` gives organizations the knowledge infrastructure they need, the
 
 **ClawMax.ai** is the answer: an open-source toolkit for standing up, managing, and coordinating networks of AI agents — each with its own identity, channel access (WhatsApp, Telegram), workspace, tool access, and memory — all orchestrated from a single configuration.
 
-ClawMax.ai is built on top of **[OpenClaw](https://github.com/maximilien/openclaw)**, the open-source AI agent runtime that provides the core execution layer, credential management, and tool infrastructure. We are grateful to the OpenClaw community for building the foundation that makes this possible. ClawMax.ai adds the operational layer on top: multi-agent coordination, identity management, channel integration, and the configuration patterns that make running a 100% AI-agent company practical. The internal implementation is `maxclaw`; the generalized, community-ready version will live at `github.com/maximilien-ai/clawmax-ai` as the product matures.
+ClawMax.ai is built on top of **[OpenClaw](https://github.com/maximilien/openclaw)**, the open-source AI agent runtime that provides the core execution layer, credential management, and tool infrastructure. We are grateful to the OpenClaw community for building the open foundation that makes this possible. ClawMax.ai adds the operational layer on top: multi-agent coordination, identity management, channel integration, and the configuration patterns that make running a 100% AI-agent company practical. The internal implementation is `maxclaw`; the generalized, community-ready version will live at `github.com/maximilien-ai/clawmax-ai` and ClawMax.ai as the product matures.
 
 **The ambition:**
-Spinning up a new AI agent should be as easy as onboarding a new team member: one command, clear permissions, audit trail included.
+Spinning up a new AI companies and AI agent should be as easy as onboarding a new team member: one command, clear permissions, audit trail included.
 
 ```bash
-./scripts/instances/setup.sh max1 --whatsapp +1415555xxxx
+./scripts/companies/setup.sh MyAgentOrg
+./scripts/instances/setup.sh agent0 --whatsapp +1415555xxxx
 ```
 
 **The demonstration:**
@@ -139,13 +140,13 @@ Maximilien.ai runs on ClawMax.ai. Every agent in our network (`max0`, `max1`, �
 
 By open-sourcing ClawMax.ai under MIT, we invite other organizations to replicate this model: small human teams directing large AI workforces, with full transparency and accountability.
 
-**Further reading:** [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw) · [OpenClaw](https://github.com/maximilien/openclaw)
+**Further reading:** [github.com/Maximilien-ai/clawmax-ai](https://github.com/Maximilien-ai/clawmax-ai) · [OpenClaw](https://github.com/maximilien/openclaw)
 
 ---
 
 ### Stage 3 — Build the ecosystem of ethical AI-agent companies
 
-In 2025, we helped organize the AI Agents Meetup SF — nine events, more than 4,000 registrations, bringing together practitioners from the biggest companies and the smallest startups to share real-world stories, not just demos. The themes that kept emerging: agent protocols, evaluation frameworks, production deployment, enterprise adoption, and the human questions underneath all of it.
+In 2025, we helped organize the AI Agents Meetup SF — ten events, more than 4,000 registrations, bringing together practitioners from the biggest companies and the smallest startups to share real-world stories, not just demos. Open to all who freely register on our lu.ma page. The themes that kept emerging: agent protocols, evaluation frameworks, production deployment, enterprise adoption, and the human questions underneath all of it.
 
 What we learned is that the practitioners who will actually shape how AI agents are deployed are hungry for community, for shared standards, and for honest accounts of what works. 2026 is the year AI agents go mainstream. The infrastructure and norms we establish now will determine whether that mainstream is trustworthy.
 
@@ -154,7 +155,7 @@ Stage 3 is about building that infrastructure of trust:
 - **Agent templates**: pre-built, auditable agent personas for common roles — legal research, customer support, software engineering, financial analysis — each with explicit scope limits and human review workflows
 - **Connector library**: integrations for the tools organizations already use, with privacy-preserving defaults
 - **Protocol leadership**: active participation in emerging agent standards (MCP and its successors) to ensure interoperability and openness
-- **A certification standard**: a lightweight, open specification for what it means to operate an "ethical AI-agent company" — transparent about AI use, accountable, auditable
+- **A certification standard**: a lightweight, open specification for what it means to operate an "ethical AI-agent company" — transparent about AI use, accountable, auditable, trustworthy, and reputable
 - **Community**: an open community of organizations sharing agent configurations, prompts, and workflows under open licenses, across languages and geographies
 
 ---
@@ -175,7 +176,7 @@ We do not yet know exactly what every future tool will be — the best product d
 
 We also look to the **Linux Foundation** and its **AAIF (Agentic AI Foundation)** sub-foundation as a model for how multi-company, cross-industry collaboration on open-source AI can be governed without sacrificing openness or fragmenting the ecosystem. Organizations like these demonstrate that you do not have to choose between broad adoption and MIT licensing — the right governance structures make both possible simultaneously. As Maximilien.ai's tools mature, we intend to engage with these bodies and explore paths to shared stewardship where it serves the community.
 
-Use cases we are actively watching: agent evaluation and benchmarking frameworks, privacy-preserving fine-tuning toolkits, multi-language document intelligence, low-bandwidth AI interfaces for emerging markets. We will build where the need is clearest and the open-source alternative is thinnest.
+Use cases we are actively watching: agent evaluation and benchmarking frameworks, privacy-preserving fine-tuning toolkits, agentic payment via cryptocurrency, trustworthy and reputable agents, multi-language document intelligence, low-bandwidth AI interfaces for emerging markets. We will build where the need is clearest and the open-source alternative is thinnest.
 
 ---
 
@@ -269,7 +270,7 @@ But it is honest, and it is ours.
 
 If you believe, as we do, that AI's most important property is not raw capability but trustworthiness — that the future should be built on open foundations, local infrastructure, and genuine human accountability — then you are the person this is written for.
 
-Contribute to `weave-cli`. Fork `maxclaw`. Come to an AI Agents meetup. Tell us what we got wrong. Hold us to this document.
+Contribute to `weave-cli`. Fork `clawmax-ai`. Come to an AI Agents meetup. Tell us what we got wrong. Hold us to this document.
 
 The future of human-AI collaboration is not yet written. We intend to write a good chapter of it — one that people in Lagos, Dhaka, São Paulo, Nairobi, Medellín, and every city the AI boom has not yet reached can be a full part of.
 
@@ -277,13 +278,13 @@ The future of human-AI collaboration is not yet written. We intend to write a go
 
 _Dr. Maximilien_
 _Founder, Maximilien.ai_
-_San Francisco, 2026_
+_San Jose, CA, March 2026_
 
 ---
 
 **Repositories & Reading:**
 - `weave-cli` — [github.com/maximilien/weave-cli](https://github.com/maximilien/weave-cli) (MIT)
-- `ClawMax.ai` / `maxclaw` — [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw) (MIT) · future: `github.com/maximilien-ai/clawmax-ai`
+- `ClawMax.ai` - `github.com/maximilien-ai/clawmax-ai` (MIT)
 - `OpenClaw` — [github.com/maximilien/openclaw](https://github.com/maximilien/openclaw) (MIT) — the open-source runtime ClawMax.ai is built on
 - AI Musings (Substack) — [maximilien.substack.com](https://maximilien.substack.com)
 - AI Agents Meetup SF — [lu.ma/ai-agents-sf](https://lu.ma/ai-agents-sf)
