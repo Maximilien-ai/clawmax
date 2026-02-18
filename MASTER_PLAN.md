@@ -191,6 +191,10 @@ Haiti is personal for me. It is where I come from. It is the measure I carry.
 
 But the vision is larger than Haiti. One billion people live in countries where the knowledge economy has barely arrived. If we build the right tools, open them under the right licenses, and invest in the communities that need them most, AI could be the first major technology wave that does not leave the global south behind.
 
+And the opportunity here is larger than simply catching up. AI agents are not just automating the old economy — they are creating an entirely new one. New markets for agent-built services, agent-operated businesses, and AI-augmented labor are emerging right now, and they have no incumbent gatekeepers. A developer in Port-au-Prince does not need to displace a Silicon Valley company to succeed in the AI agent economy; she needs only to build something valuable and have access to the tools to do it. The old barriers — capital, geography, institutional access — matter far less in a world where a well-configured agent network can produce the output of a team at a fraction of the cost.
+
+The long-term goal of Maximilien.ai is not merely to give underserved communities access to existing markets. It is to ensure they are full participants in the new AI agent market economies that are in the process of disrupting those old markets entirely. That is the difference between incremental inclusion and genuine transformation.
+
 That is worth building toward. That is worth being honest about. That is the long arc of this plan.
 
 ---
