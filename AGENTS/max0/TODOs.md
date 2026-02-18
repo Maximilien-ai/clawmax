@@ -1,5 +1,8 @@
 # TODOs
 
+## Daily Check-ins
+- [ ] Post a weekday daily check-in in the "Daily check-ins" WhatsApp group by 9 AM PT (or before noon if 9 AM is missed) covering yesterday’s completions and today’s plan.
+
 ## Legal / Trademark
 - [ ] Run USPTO + WIPO/TMview clearance searches for “WEAVE,” “WEAVE CLI,” and “WEAVE MCP,” capture conflicts, and summarize risk.
 - [ ] Draft filing plan: classes, goods/services language, specimen plan, filing basis recommendation, owner details needed.

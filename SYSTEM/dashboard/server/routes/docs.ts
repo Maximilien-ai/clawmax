@@ -3,10 +3,10 @@ import { listMarkdownFiles, readWorkspaceFile, writeWorkspaceFile } from '../lib
 
 const router = Router()
 
-// GET /api/docs — list all .md files
+// GET /api/docs — list all .md files with section classification
 router.get('/', (_req, res) => {
-  const files = listMarkdownFiles()
-  res.json({ files })
+  const entries = listMarkdownFiles()
+  res.json({ entries })
 })
 
 // GET /api/docs/content?path=relative/path.md — read a file

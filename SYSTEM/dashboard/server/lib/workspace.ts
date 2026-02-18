@@ -3,9 +3,28 @@ import path from 'path'
 
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
 
-/** Return all .md file paths relative to WORKSPACE, sorted alphabetically */
-export function listMarkdownFiles(): string[] {
-  const results: string[] = []
+/** Agents live under WORKSPACE/AGENTS/maxN/ */
+export const AGENTS_DIR = path.join(WORKSPACE, 'AGENTS')
+
+export type DocSection = 'ORG' | 'AGENTS' | 'SYSTEM'
+
+export interface DocEntry {
+  path: string       // relative to WORKSPACE
+  section: DocSection
+}
+
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
+
+/** Return all .md file paths with section classification, sorted by section then path.
+ *  ORG/ → ORG, AGENTS/ → AGENTS (per-agent docs), SYSTEM/ → SYSTEM, root → SYSTEM fallback */
+export function listMarkdownFiles(): DocEntry[] {
+  const results: DocEntry[] = []
+
+  function sectionFor(relPath: string): DocSection {
+    if (relPath.startsWith('ORG/') || relPath.startsWith('ORG\\')) return 'ORG'
+    if (relPath.startsWith('AGENTS/') || relPath.startsWith('AGENTS\\')) return 'AGENTS'
+    return 'SYSTEM'
+  }
 
   function walk(dir: string) {
     let entries: fs.Dirent[]
@@ -17,17 +36,39 @@ export function listMarkdownFiles(): string[] {
     for (const entry of entries) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        // Skip node_modules, .git, dist
-        if (['node_modules', '.git', 'dist', '.pnpm'].includes(entry.name)) continue
+        if (SKIP_DIRS.has(entry.name)) continue
         walk(full)
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        results.push(path.relative(WORKSPACE, full))
+        const rel = path.relative(WORKSPACE, full)
+        results.push({ path: rel, section: sectionFor(rel) })
       }
     }
   }
 
+  // Walk ORG, SYSTEM, and root (not AGENTS — those are scanned separately below)
   walk(WORKSPACE)
-  return results.sort()
+
+  // Walk AGENTS separately so we can classify correctly
+  function walkAgents(dir: string) {
+    let entries: fs.Dirent[]
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (['node_modules', '.git', 'dist'].includes(entry.name)) continue
+        walkAgents(full)
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        results.push({ path: path.relative(WORKSPACE, full), section: 'AGENTS' })
+      }
+    }
+  }
+  walkAgents(AGENTS_DIR)
+
+  return results.sort((a, b) => {
+    const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, SYSTEM: 2 }
+    const sd = sOrder[a.section] - sOrder[b.section]
+    return sd !== 0 ? sd : a.path.localeCompare(b.path)
+  })
 }
 
 /** Read a workspace .md file by relative path. Returns null if outside workspace or not found */
@@ -145,13 +186,13 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
   const entries: ActivityEntry[] = []
   let dirs: fs.Dirent[]
   try {
-    dirs = fs.readdirSync(WORKSPACE, { withFileTypes: true })
+    dirs = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
   } catch {
     return entries
   }
   for (const d of dirs) {
     if (!d.isDirectory() || !/^max\d+$/.test(d.name)) continue
-    const agentDir = path.join(WORKSPACE, d.name)
+    const agentDir = path.join(AGENTS_DIR, d.name)
     try {
       const files = fs.readdirSync(agentDir, { withFileTypes: true })
       for (const f of files) {
@@ -176,7 +217,7 @@ export function listAgents(): AgentInfo[] {
   let entries: fs.Dirent[]
 
   try {
-    entries = fs.readdirSync(WORKSPACE, { withFileTypes: true })
+    entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
   } catch {
     return agents
   }
@@ -185,7 +226,7 @@ export function listAgents(): AgentInfo[] {
     if (!entry.isDirectory()) continue
     if (!/^max\d+$/.test(entry.name)) continue
 
-    const agentDir = path.join(WORKSPACE, entry.name)
+    const agentDir = path.join(AGENTS_DIR, entry.name)
     const agent = readAgentInfo(entry.name, agentDir)
     agents.push(agent)
   }
