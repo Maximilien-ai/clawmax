@@ -64,7 +64,7 @@ Maximilien.ai is simultaneously a product company and a living demonstration tha
 ## The Values
 
 **Open by default.**
-The core of everything we build is released under the MIT license. Not as a marketing gesture, but because we believe the only durable foundation for trust is code you can read, fork, audit, and run yourself. Open-source is also how good technology reaches Port-au-Prince, not just Palo Alto.
+The core of everything we build is released under the MIT license. Not as a marketing gesture, but because we believe the only durable foundation for trust is code you can read, fork, audit, and run yourself. Open-source is also how good technology reaches Lagos, Medellín, and Dhaka — not just Palo Alto.
 
 **Privacy through architecture.**
 The strongest privacy guarantee is not a policy — it is a system designed so your data never leaves your control in the first place. We build on-premise first, cloud optional.
@@ -79,7 +79,7 @@ We believe a team of a few humans, well-supported by AI agents, can produce the 
 Every tool we build must be runnable by a developer in a country with expensive cloud costs and unreliable connectivity. If it only works well in a San Francisco data center, we have not finished building it.
 
 **Capitalist with purpose.**
-We believe in the market economy — unambiguously. Maximilien.ai is a for-profit company. We intend to make money, compensate our team well, and build a financially durable business. We are not a charity and we are not a social enterprise making concessions on commercial viability. We believe that the most powerful mechanism for lifting people out of poverty is not redistribution — it is expanding who gets to participate in economic opportunity. Open-source tools that let a developer in Port-au-Prince build and sell a profitable AI product are not charity: they are capitalism working correctly. We want to profit, and we want the people we serve to profit alongside us.
+We believe in the market economy — unambiguously. Maximilien.ai is a for-profit company. We intend to make money, compensate our team well, and build a financially durable business. We are not a charity and we are not a social enterprise making concessions on commercial viability. We believe that the most powerful mechanism for lifting people out of poverty is not redistribution — it is expanding who gets to participate in economic opportunity. Open-source tools that let a developer in Nairobi, Medellín, or Jakarta build and sell a profitable AI product are not charity: they are capitalism working correctly. We want to profit, and we want the people we serve to profit alongside us.
 
 **Sustainable and independent.**
 We are not optimizing for a short-term venture exit. We are building something meant to last and to remain in service of its users, wherever they are.
@@ -169,7 +169,7 @@ We do not yet know exactly what every future tool will be — the best product d
 
 - **OSS first.** Every tool Maximilien.ai publishes will have an open-source core under the MIT license. Revenue comes from services, not from locking the core.
 - **On-premise possible.** Every tool must be runnable without a cloud account. If it requires a subscription to function, we have not finished building it.
-- **Accessible by anyone, anywhere.** A developer in Lagos, a university in Dhaka, a startup in Port-au-Prince — these are not edge cases. They are the design target. Performance, documentation, and cost must reflect that.
+- **Accessible by anyone, anywhere.** A developer in Lagos, a university in Dhaka, a startup in Bogotá — these are not edge cases. They are the design target. Performance, documentation, and cost must reflect that.
 - **Model-agnostic.** Every tool will support both leading proprietary models (OpenAI, Anthropic, Google) and open-source alternatives (Llama, Mistral, DeepSeek, Qwen, Kimi-K, and whatever comes next). No vendor lock-in, by design.
 - **Composable.** Our tools are designed to work together. `weave-cli` provides the knowledge layer; `ClawMax.ai` provides the agent layer; future tools will extend both, or address entirely new problems in the AI-agent workflow.
 
@@ -183,7 +183,7 @@ Use cases we are actively watching: agent evaluation and benchmarking frameworks
 
 I have been direct about this from the beginning, and I will be direct here: technology can be a profound force for human dignity, or it can deepen existing inequalities. Which it becomes depends entirely on the choices made by the people who build it.
 
-The tools we are building — local RAG, open-source agent infrastructure, natural-language interfaces that work without a PhD in ML — are not designed primarily for Fortune 500 companies. They are designed to be the kind of tools a university in Port-au-Prince can deploy on its own servers, that a health clinic in rural Haiti can use to make its knowledge searchable, that a small business in Lagos or Dhaka or Guatemala City can use to compete.
+The tools we are building — local RAG, open-source agent infrastructure, natural-language interfaces that work without a PhD in ML — are not designed primarily for Fortune 500 companies. They are designed to be the kind of tools a university in Accra can deploy on its own servers, that a health clinic in rural Bangladesh can use to make its knowledge searchable, that a small business in Lagos, Dhaka, or Guatemala City can use to compete.
 
 The sequencing is pragmatic: we build credibility and revenue in markets that can pay for it, then we use that credibility and those resources to push the technology further toward the people who need it most. This is not charity — it is a long-term strategy for a world where AI creates broadly shared prosperity rather than concentrated power.
 
@@ -191,7 +191,7 @@ Haiti is personal for me. It is where I come from. It is the measure I carry.
 
 But the vision is larger than Haiti. One billion people live in countries where the knowledge economy has barely arrived. If we build the right tools, open them under the right licenses, and invest in the communities that need them most, AI could be the first major technology wave that does not leave the global south behind.
 
-And the opportunity here is larger than simply catching up. AI agents are not just automating the old economy — they are creating an entirely new one. New markets for agent-built services, agent-operated businesses, and AI-augmented labor are emerging right now, and they have no incumbent gatekeepers. A developer in Port-au-Prince does not need to displace a Silicon Valley company to succeed in the AI agent economy; she needs only to build something valuable and have access to the tools to do it. The old barriers — capital, geography, institutional access — matter far less in a world where a well-configured agent network can produce the output of a team at a fraction of the cost.
+And the opportunity here is larger than simply catching up. AI agents are not just automating the old economy — they are creating an entirely new one. New markets for agent-built services, agent-operated businesses, and AI-augmented labor are emerging right now, and they have no incumbent gatekeepers. A developer in Nairobi, Karachi, or São Paulo does not need to displace a Silicon Valley company to succeed in the AI agent economy; she needs only to build something valuable and have access to the tools to do it. The old barriers — capital, geography, institutional access — matter far less in a world where a well-configured agent network can produce the output of a team at a fraction of the cost.
 
 The long-term goal of Maximilien.ai is not merely to give underserved communities access to existing markets. It is to ensure they are full participants in the new AI agent market economies that are in the process of disrupting those old markets entirely. That is the difference between incremental inclusion and genuine transformation.
 
@@ -271,7 +271,7 @@ If you believe, as we do, that AI's most important property is not raw capabilit
 
 Contribute to `weave-cli`. Fork `maxclaw`. Come to an AI Agents meetup. Tell us what we got wrong. Hold us to this document.
 
-The future of human-AI collaboration is not yet written. We intend to write a good chapter of it — one that people in Port-au-Prince, and everywhere else, can be part of.
+The future of human-AI collaboration is not yet written. We intend to write a good chapter of it — one that people in Lagos, Dhaka, São Paulo, Nairobi, Medellín, and every city the AI boom has not yet reached can be a full part of.
 
 ---
 
