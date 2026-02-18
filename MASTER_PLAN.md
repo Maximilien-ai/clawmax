@@ -37,11 +37,13 @@ We invite you to hold us accountable to it.
 
 We believe the defining challenge of the next decade is not whether AI can be powerful — it clearly can — but whether it will be **trustworthy, transparent, and genuinely beneficial** to the people and organizations that use it.
 
-Most AI today is delivered as an opaque, cloud-hosted service controlled by a small number of companies. Your data leaves your premises. Your workflows depend on someone else's infrastructure. Your intellectual property trains someone else's model. The power imbalance is enormous and largely invisible.
+The leading AI companies — OpenAI, Anthropic, Google, and others — are doing remarkable work, and we have deep respect for what they have built. They are making AI capable at a pace that would have seemed impossible five years ago. We use their models. We build on their research. We are grateful for it.
 
-This imbalance falls hardest on those least able to bear it: small organizations, public institutions, universities in emerging economies, governments with no cloud budget, communities whose languages and needs are underrepresented in every major model.
+And yet: much of today's AI is delivered as a cloud-hosted service that requires an internet connection, a credit card, and data leaving your premises. For organizations in San Francisco or London, that is a reasonable trade. For a health clinic in rural Haiti, a university in Dhaka, or a small business in Lagos, it is often not an option at all.
 
-We believe a better path exists: **AI that runs where your data lives, built on open foundations, governed by the people it serves, and accessible to anyone with a laptop and an internet connection.**
+The access gap is not the fault of any company. It is a structural reality — and it is one that open-source models and on-premise infrastructure can help close. Models like Meta's Llama, Mistral, DeepSeek, Qwen, and Kimi-K are proving that frontier-quality AI does not require a proprietary API. The tools to run powerful AI locally, privately, and affordably exist today. They just need to be made accessible.
+
+We believe the path forward is: **AI that runs where your data lives, built on open foundations, governed by the people it serves, and accessible to anyone with a laptop and an internet connection.**
 
 ---
 
@@ -98,6 +100,7 @@ Vector databases are the memory layer of modern AI applications. Retrieval-Augme
 - Provides a single, unified CLI for 10+ vector databases (Weaviate, Qdrant, Milvus, Chroma, Pinecone, and more)
 - AI-powered natural language interface backed by a GPT-4o multi-agent system
 - Supports multiple embedding providers: OpenAI, sentence-transformers, Ollama (local, no API key required)
+- Works with OSS models — Llama, Mistral, DeepSeek, Qwen, Kimi-K, and others — so organizations can run full RAG pipelines with zero external API dependencies
 - Parallel document processing with intelligent PDF and image handling
 - Runs locally or against cloud instances — your choice, your data
 - Observability built in: Prometheus metrics, configurable timeouts, transparent logging
@@ -113,11 +116,13 @@ Revenue comes from support, managed deployment, and enterprise tooling built on 
 
 ---
 
-### Stage 2 — Prove the 100% AI-agent company model with `maxclaw`
+### Stage 2 — Prove the 100% AI-agent company model with `ClawMax.ai`
 
 Once `weave-cli` gives organizations the knowledge infrastructure they need, the next question becomes: _how do you operate an AI-agent workforce at scale?_
 
-**maxclaw** is the answer: an open-source toolkit for standing up, managing, and coordinating networks of AI agents — each with its own identity, channel access (WhatsApp, Telegram), workspace, tool access, and memory — all orchestrated from a single configuration.
+**ClawMax.ai** is the answer: an open-source toolkit for standing up, managing, and coordinating networks of AI agents — each with its own identity, channel access (WhatsApp, Telegram), workspace, tool access, and memory — all orchestrated from a single configuration.
+
+ClawMax.ai is built on top of **[OpenClaw](https://github.com/maximilien/openclaw)**, the open-source AI agent runtime that provides the core execution layer, credential management, and tool infrastructure. We are grateful to the OpenClaw community for building the foundation that makes this possible. ClawMax.ai adds the operational layer on top: multi-agent coordination, identity management, channel integration, and the configuration patterns that make running a 100% AI-agent company practical. The internal implementation is `maxclaw`; the generalized, community-ready version will live at `github.com/maximilien-ai/clawmax-ai` as the product matures.
 
 **The ambition:**
 Spinning up a new AI agent should be as easy as onboarding a new team member: one command, clear permissions, audit trail included.
@@ -127,11 +132,11 @@ Spinning up a new AI agent should be as easy as onboarding a new team member: on
 ```
 
 **The demonstration:**
-Maximilien.ai runs on maxclaw. Every agent in our network (`max0`, `max1`, …) is a live production instance of the same system we publish. We are simultaneously the builders and the users.
+Maximilien.ai runs on ClawMax.ai. Every agent in our network (`max0`, `max1`, …) is a live production instance of the same system we publish. We are simultaneously the builders and the users.
 
-By open-sourcing maxclaw under MIT, we invite other organizations to replicate this model: small human teams directing large AI workforces, with full transparency and accountability.
+By open-sourcing ClawMax.ai under MIT, we invite other organizations to replicate this model: small human teams directing large AI workforces, with full transparency and accountability.
 
-**Further reading:** [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw)
+**Further reading:** [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw) · [OpenClaw](https://github.com/maximilien/openclaw)
 
 ---
 
@@ -148,6 +153,24 @@ Stage 3 is about building that infrastructure of trust:
 - **Protocol leadership**: active participation in emerging agent standards (MCP and its successors) to ensure interoperability and openness
 - **A certification standard**: a lightweight, open specification for what it means to operate an "ethical AI-agent company" — transparent about AI use, accountable, auditable
 - **Community**: an open community of organizations sharing agent configurations, prompts, and workflows under open licenses, across languages and geographies
+
+---
+
+### Stage 4 — A Growing Suite of Open-Source AI Tools
+
+`weave-cli` and `ClawMax.ai` are the beginning, not the ceiling.
+
+Maximilien.ai intends to build a family of open-source tools, each following the same principles: MIT-licensed, runnable on-premise, designed for any developer anywhere in the world, and built to work with both proprietary and open-source AI models.
+
+We do not yet know exactly what every future tool will be — the best product decisions emerge from listening to the communities using the current ones. But the design principles are fixed:
+
+- **OSS first.** Every tool Maximilien.ai publishes will have an open-source core under the MIT license. Revenue comes from services, not from locking the core.
+- **On-premise possible.** Every tool must be runnable without a cloud account. If it requires a subscription to function, we have not finished building it.
+- **Accessible by anyone, anywhere.** A developer in Lagos, a university in Dhaka, a startup in Port-au-Prince — these are not edge cases. They are the design target. Performance, documentation, and cost must reflect that.
+- **Model-agnostic.** Every tool will support both leading proprietary models (OpenAI, Anthropic, Google) and open-source alternatives (Llama, Mistral, DeepSeek, Qwen, Kimi-K, and whatever comes next). No vendor lock-in, by design.
+- **Composable.** Our tools are designed to work together. `weave-cli` provides the knowledge layer; `ClawMax.ai` provides the agent layer; future tools will extend both, or address entirely new problems in the AI-agent workflow.
+
+Use cases we are actively watching: agent evaluation and benchmarking frameworks, privacy-preserving fine-tuning toolkits, multi-language document intelligence, low-bandwidth AI interfaces for emerging markets. We will build where the need is clearest and the open-source alternative is thinnest.
 
 ---
 
@@ -204,7 +227,7 @@ We make these commitments publicly:
 
 ## The Honest Risks
 
-**Concentration risk.** We depend on AI models (OpenAI, Anthropic, and others) that we do not control. Mitigation: we design for model-agnosticism and actively support local alternatives (Ollama, local Llama) so our tools work without any external API.
+**Concentration risk.** We depend on AI models (OpenAI, Anthropic, Google, and others) that we do not control. Mitigation: we design for model-agnosticism and actively support open-source alternatives — Llama, Mistral, DeepSeek, Qwen, Kimi-K, and the Ollama runtime — so our tools work without any external API dependency.
 
 **Regulation.** AI regulation is evolving rapidly. Some of what we build may require adaptation. We intend to be a cooperative, proactive participant in that process.
 
@@ -218,11 +241,12 @@ We make these commitments publicly:
 
 ## The Sequence, Simply Stated
 
-1. Build `weave-cli` — give any developer a universal, AI-powered CLI for vector databases. Open-source it. Make it work offline.
-2. Run Maximilien.ai as a 100% AI-agent company using `maxclaw`. Prove it works. Publish everything.
-3. Open-source `maxclaw` — let any organization replicate the model.
+1. Build `weave-cli` — give any developer a universal, AI-powered CLI for vector databases. Open-source it. Make it work offline with OSS models.
+2. Run Maximilien.ai as a 100% AI-agent company using `ClawMax.ai` (built on OpenClaw). Prove it works. Publish everything.
+3. Open-source `ClawMax.ai` — let any organization replicate the model at `github.com/maximilien-ai/clawmax-ai`.
 4. Build the ecosystem: templates, protocols, community, certification.
-5. Direct resources, tools, and attention toward the communities that need it most — starting with Haiti, reaching toward every place where the knowledge economy has not yet arrived.
+5. Build additional OSS tools — each MIT-licensed, on-premise possible, model-agnostic, and accessible globally.
+6. Direct resources, tools, and attention toward the communities that need it most — starting with Haiti, reaching toward every place where the knowledge economy has not yet arrived.
 
 Each step is useful on its own. Each step makes the next step easier. And underneath every step is the same belief: that technology built on open foundations, governed honestly, and designed for the many rather than the few is the only kind worth building.
 
@@ -250,6 +274,7 @@ _San Francisco, 2026_
 
 **Repositories & Reading:**
 - `weave-cli` — [github.com/maximilien/weave-cli](https://github.com/maximilien/weave-cli) (MIT)
-- `maxclaw` — [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw) (MIT)
+- `ClawMax.ai` / `maxclaw` — [github.com/Maximilien-ai/maxclaw](https://github.com/Maximilien-ai/maxclaw) (MIT) · future: `github.com/maximilien-ai/clawmax-ai`
+- `OpenClaw` — [github.com/maximilien/openclaw](https://github.com/maximilien/openclaw) (MIT) — the open-source runtime ClawMax.ai is built on
 - AI Musings (Substack) — [maximilien.substack.com](https://maximilien.substack.com)
 - AI Agents Meetup SF — [lu.ma/ai-agents-sf](https://lu.ma/ai-agents-sf)
