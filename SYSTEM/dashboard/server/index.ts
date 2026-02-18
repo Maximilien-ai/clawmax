@@ -5,7 +5,7 @@ import fs from 'fs'
 import os from 'os'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
-import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag } from './lib/workspace'
+import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile } from './lib/workspace'
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
@@ -45,6 +45,21 @@ app.get('/api/system', (_req, res) => {
 app.get('/api/activity', (_req, res) => {
   const feed = getInstallationActivity()
   res.json({ feed })
+})
+
+// Save a workspace doc file
+app.post('/api/docs/content', (req, res) => {
+  const { path: relPath, content } = req.body as { path?: string; content?: string }
+  if (!relPath || typeof content !== 'string') {
+    res.status(400).json({ ok: false, error: 'Missing path or content' })
+    return
+  }
+  const ok = writeWorkspaceFile(relPath, content)
+  if (!ok) {
+    res.status(403).json({ ok: false, error: 'Path not allowed or not a markdown file' })
+    return
+  }
+  res.json({ ok: true })
 })
 
 // API routes

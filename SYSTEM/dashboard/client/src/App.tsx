@@ -43,7 +43,7 @@ export default function App() {
         )}
         {navCollapsed && (
           <div className="py-5 border-b border-gray-700 flex justify-center">
-            <span className="text-sky-400 font-bold text-sm">C</span>
+            <span className="text-white font-bold text-xs tracking-tight">C<span className="text-sky-400">M</span></span>
           </div>
         )}
 

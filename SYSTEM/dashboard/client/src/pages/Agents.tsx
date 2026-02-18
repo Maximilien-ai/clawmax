@@ -58,6 +58,8 @@ export default function Agents() {
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  // collapsed set: agent IDs that are collapsed (default: all expanded)
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -92,14 +94,26 @@ export default function Agents() {
     setTimeout(() => setCooling(false), 3000)
   }
 
+  const toggleCollapse = (id: string) => {
+    setCollapsedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Agent Roster</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {agents.length} agent{agents.length !== 1 ? 's' : ''} · refreshed {refreshedLabel}
+          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+            {agents.length} agent{agents.length !== 1 ? 's' : ''}
+            <span className="text-gray-300">·</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
+            refreshed {refreshedLabel}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -157,6 +171,8 @@ export default function Agents() {
               key={agent.id}
               agent={agent}
               selected={selectedAgent?.id === agent.id}
+              collapsed={collapsedIds.has(agent.id)}
+              onToggle={() => toggleCollapse(agent.id)}
               onClick={() => setSelectedAgent(agent)}
             />
           ))}
@@ -186,66 +202,78 @@ export default function Agents() {
   )
 }
 
-function AgentCard({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
+function AgentCard({
+  agent, selected, collapsed, onToggle, onClick,
+}: {
+  agent: Agent
+  selected: boolean
+  collapsed: boolean
+  onToggle: () => void
+  onClick: () => void
+}) {
   return (
     <div
-      onClick={onClick}
-      className={`bg-white rounded-xl border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer ${
-        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
+      className={`bg-white rounded-xl border shadow-sm transition-all ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 hover:shadow-md'
       }`}
     >
-      {/* Top row */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-semibold text-gray-900">{agent.name}</h3>
-          <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
+      {/* Card header — always visible */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onClick}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
+          <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
+            {agent.status}
+          </span>
         </div>
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_TEXT[agent.status]}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`} />
-          {agent.status}
-        </span>
+        <button
+          onClick={e => { e.stopPropagation(); onToggle() }}
+          className="ml-2 text-gray-300 hover:text-gray-500 transition-colors text-xs shrink-0 p-1"
+          title={collapsed ? 'Expand' : 'Collapse'}
+        >
+          {collapsed ? '▶' : '▼'}
+        </button>
       </div>
 
-      {/* Details */}
-      <div className="space-y-1.5 text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <span className="text-gray-400 w-20 shrink-0">Heartbeat</span>
-          <span className="font-mono text-xs">{timeAgo(agent.lastHeartbeat)}</span>
-        </div>
-        {agent.whatsapp && (
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400 w-20 shrink-0">WhatsApp</span>
-            <span className="font-mono text-xs">+{agent.whatsapp}</span>
-          </div>
-        )}
-        {!agent.whatsapp && (
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400 w-20 shrink-0">WhatsApp</span>
-            <span className="text-gray-300 text-xs">not connected</span>
-          </div>
-        )}
-      </div>
+      {/* Collapsible body */}
+      {!collapsed && (
+        <div className="px-5 pb-4">
+          <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
 
-      {/* Groups */}
-      {(agent.communities.length > 0 || agent.groups.length > 0) && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="flex flex-wrap gap-1">
-            {agent.communities.map(c => (
-              <span key={c.name} title={c.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium cursor-default">{c.name}</span>
-            ))}
-            {agent.groups.map(g => (
-              <span key={g.name} title={g.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium cursor-default">{g.name}</span>
-            ))}
+          <div className="space-y-1.5 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 w-20 shrink-0">Heartbeat</span>
+              <span className="font-mono text-xs">{timeAgo(agent.lastHeartbeat)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 w-20 shrink-0">WhatsApp</span>
+              {agent.whatsapp
+                ? <span className="font-mono text-xs">+{agent.whatsapp}</span>
+                : <span className="text-gray-300 text-xs">not connected</span>
+              }
+            </div>
+          </div>
+
+          {(agent.communities.length > 0 || agent.groups.length > 0) && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap gap-1">
+                {agent.communities.map(c => (
+                  <span key={c.name} title={c.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium cursor-default">{c.name}</span>
+                ))}
+                {agent.groups.map(g => (
+                  <span key={g.name} title={g.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium cursor-default">{g.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <span className="text-xs text-gray-300 font-mono truncate block">
+              {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
+            </span>
           </div>
         </div>
       )}
-
-      {/* Footer path */}
-      <div className="mt-3 pt-3 border-t border-gray-100">
-        <span className="text-xs text-gray-300 font-mono truncate block">
-          {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
-        </span>
-      </div>
     </div>
   )
 }

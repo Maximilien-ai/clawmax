@@ -118,7 +118,12 @@ export default function Activity() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Installation Activity</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            All file writes across all agents · refreshed {refreshedLabel}
+            <span className="flex items-center gap-1.5">
+            All file writes across all agents
+            <span className="text-gray-300">·</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
+            refreshed {refreshedLabel}
+          </span>
           </p>
         </div>
         <button
