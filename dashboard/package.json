@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "concurrently --names server,client --prefix-colors cyan,magenta \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "ts-node server/index.ts",
-    "dev:client": "vite client",
-    "build": "tsc -p tsconfig.server.json && vite build client",
+    "dev:client": "vite",
+    "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit"
   },
