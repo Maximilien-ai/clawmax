@@ -57,6 +57,11 @@ export function writeWorkspaceFile(relPath: string, content: string): boolean {
   }
 }
 
+export interface GroupEntry {
+  name: string
+  description: string | null
+}
+
 export interface AgentInfo {
   id: string
   name: string
@@ -64,6 +69,33 @@ export interface AgentInfo {
   lastHeartbeat: string | null
   whatsapp: string | null
   workspacePath: string
+  communities: GroupEntry[]
+  groups: GroupEntry[]
+}
+
+/** Parse GROUPS.md into communities + groups arrays with optional descriptions.
+ *  Format: `- Name: Description` or `- Name` (no description) */
+export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
+  const communities: GroupEntry[] = []
+  const groups: GroupEntry[] = []
+  let section: 'communities' | 'groups' | null = null
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (/^##\s+communities/i.test(trimmed)) { section = 'communities'; continue }
+    if (/^##\s+groups/i.test(trimmed)) { section = 'groups'; continue }
+    if (trimmed.startsWith('##')) { section = null; continue }
+    const bullet = trimmed.match(/^[-*]\s+(.+)/)
+    if (bullet) {
+      const raw = bullet[1].trim()
+      const colonIdx = raw.indexOf(':')
+      const entry: GroupEntry = colonIdx >= 0
+        ? { name: raw.slice(0, colonIdx).trim(), description: raw.slice(colonIdx + 1).trim() || null }
+        : { name: raw, description: null }
+      if (section === 'communities') communities.push(entry)
+      else if (section === 'groups') groups.push(entry)
+    }
+  }
+  return { communities, groups }
 }
 
 /** Discover all maxN/ directories and return agent info */
@@ -188,7 +220,8 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (latestMtime > 0) {
       lastHeartbeat = new Date(latestMtime).toISOString()
       const ageMins = (Date.now() - latestMtime) / 60000
-      status = ageMins < 60 ? 'online' : ageMins < 2880 ? 'offline' : 'unknown'
+      // online = active today (< 24h), offline = active this week, unknown = stale
+      status = ageMins < 1440 ? 'online' : ageMins < 10080 ? 'offline' : 'unknown'
     }
   } catch {}
 
@@ -200,6 +233,16 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (waMatch) whatsapp = waMatch[1].trim()
   } catch {}
 
+  // Read groups from GROUPS.md
+  let communities: GroupEntry[] = []
+  let groups: GroupEntry[] = []
+  try {
+    const groupsContent = fs.readFileSync(path.join(agentDir, 'GROUPS.md'), 'utf-8')
+    const parsed = parseGroups(groupsContent)
+    communities = parsed.communities
+    groups = parsed.groups
+  } catch {}
+
   return {
     id,
     name,
@@ -207,5 +250,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     lastHeartbeat,
     whatsapp,
     workspacePath: agentDir,
+    communities,
+    groups,
   }
 }

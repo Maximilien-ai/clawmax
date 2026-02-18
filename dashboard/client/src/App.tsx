@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import Activity from './pages/Activity'
+import Communication from './pages/Communication'
 
-type Page = 'agents' | 'docs' | 'activity'
+type Page = 'agents' | 'activity' | 'communication' | 'docs'
 
 interface SystemInfo {
   hostname: string
@@ -41,6 +42,7 @@ export default function App() {
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-1">
           <NavItem label="Agents" icon="robot" active={page === 'agents'} onClick={() => setPage('agents')} />
+          <NavItem label="Communication" icon="comms" active={page === 'communication'} onClick={() => setPage('communication')} />
           <NavItem label="Activity" icon="activity" active={page === 'activity'} onClick={() => setPage('activity')} />
           <NavItem label="Documents" icon="docs" active={page === 'docs'} onClick={() => setPage('docs')} />
         </nav>
@@ -56,6 +58,7 @@ export default function App() {
         {/* Top bar */}
         <TopBar system={system} />
         {page === 'agents' && <Agents />}
+        {page === 'communication' && <Communication />}
         {page === 'activity' && <Activity />}
         {page === 'docs' && <DocHub />}
       </main>
@@ -91,6 +94,7 @@ function NavItem({ label, icon, active, onClick }: {
 }) {
   const icons: Record<string, string> = {
     robot: '🤖',
+    comms: '💬',
     activity: '📊',
     docs: '📄',
   }

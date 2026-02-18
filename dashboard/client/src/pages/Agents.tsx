@@ -8,6 +8,11 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
+interface GroupEntry {
+  name: string
+  description: string | null
+}
+
 interface Agent {
   id: string
   name: string
@@ -15,6 +20,8 @@ interface Agent {
   lastHeartbeat: string | null
   whatsapp: string | null
   workspacePath: string
+  communities: GroupEntry[]
+  groups: GroupEntry[]
 }
 
 const STATUS_COLORS = {
@@ -183,6 +190,20 @@ function AgentCard({ agent, selected, onClick }: { agent: Agent; selected: boole
           </div>
         )}
       </div>
+
+      {/* Groups */}
+      {(agent.communities.length > 0 || agent.groups.length > 0) && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="flex flex-wrap gap-1">
+            {agent.communities.map(c => (
+              <span key={c.name} title={c.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium cursor-default">{c.name}</span>
+            ))}
+            {agent.groups.map(g => (
+              <span key={g.name} title={g.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium cursor-default">{g.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer path */}
       <div className="mt-3 pt-3 border-t border-gray-100">

@@ -2,6 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+interface GroupEntry {
+  name: string
+  description: string | null
+}
+
 interface Agent {
   id: string
   name: string
@@ -9,6 +14,8 @@ interface Agent {
   lastHeartbeat: string | null
   whatsapp: string | null
   workspacePath: string
+  communities: GroupEntry[]
+  groups: GroupEntry[]
 }
 
 interface AgentActivity {
@@ -199,6 +206,44 @@ export default function AgentDetailPanel({
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.identity}
                     </ReactMarkdown>
+                  </div>
+                </Section>
+              )}
+
+              {/* Groups */}
+              {(agent.communities.length > 0 || agent.groups.length > 0) && (
+                <Section title="WhatsApp presence">
+                  <div className="space-y-3">
+                    {agent.communities.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1.5">Communities</p>
+                        <div className="space-y-1.5">
+                          {agent.communities.map(c => (
+                            <div key={c.name}>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{c.name}</span>
+                              {c.description && (
+                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{c.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {agent.groups.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1.5">Groups</p>
+                        <div className="space-y-1.5">
+                          {agent.groups.map(g => (
+                            <div key={g.name}>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{g.name}</span>
+                              {g.description && (
+                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{g.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Section>
               )}
