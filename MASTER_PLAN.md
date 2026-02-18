@@ -41,7 +41,7 @@ The leading AI companies — OpenAI, Anthropic, Google, and others — are doing
 
 And yet: much of today's AI is delivered as a cloud-hosted service that requires an internet connection, a credit card, and data leaving your premises. For organizations in San Francisco or London, that is a reasonable trade. For a health clinic in rural Haiti, a university in Dhaka, or a small business in Lagos, it is often not an option at all.
 
-The access gap is not the fault of any company. It is a structural reality — and it is one that open-source models and on-premise infrastructure can help close. Models like Meta's Llama, Mistral, DeepSeek, Qwen, and Kimi-K are proving that frontier-quality AI does not require a proprietary API. The tools to run powerful AI locally, privately, and affordably exist today. They just need to be made accessible.
+The access gap is not the fault of any company. It is a structural reality — and it is one that open-source models and on-premise infrastructure can help close. Meta deserves particular credit here: with the Llama series, they demonstrated at scale that releasing a capable model openly is not just possible but transformative — and they held that leadership position for the better part of two years. Following in that spirit, Mistral, DeepSeek, Qwen, Kimi-K, and others continue proving that frontier-quality AI does not require a proprietary API. The tools to run powerful AI locally, privately, and affordably exist today. They just need to be made accessible.
 
 We believe the path forward is: **AI that runs where your data lives, built on open foundations, governed by the people it serves, and accessible to anyone with a laptop and an internet connection.**
 
@@ -100,7 +100,7 @@ Vector databases are the memory layer of modern AI applications. Retrieval-Augme
 - Provides a single, unified CLI for 10+ vector databases (Weaviate, Qdrant, Milvus, Chroma, Pinecone, and more)
 - AI-powered natural language interface backed by a GPT-4o multi-agent system
 - Supports multiple embedding providers: OpenAI, sentence-transformers, Ollama (local, no API key required)
-- Works with OSS models — Llama, Mistral, DeepSeek, Qwen, Kimi-K, and others — so organizations can run full RAG pipelines with zero external API dependencies
+- Works with OSS models — Meta's Llama, Mistral, DeepSeek, Qwen, Kimi-K, and others — so organizations can run full RAG pipelines with zero external API dependencies
 - Parallel document processing with intelligent PDF and image handling
 - Runs locally or against cloud instances — your choice, your data
 - Observability built in: Prometheus metrics, configurable timeouts, transparent logging
@@ -169,6 +169,8 @@ We do not yet know exactly what every future tool will be — the best product d
 - **Accessible by anyone, anywhere.** A developer in Lagos, a university in Dhaka, a startup in Port-au-Prince — these are not edge cases. They are the design target. Performance, documentation, and cost must reflect that.
 - **Model-agnostic.** Every tool will support both leading proprietary models (OpenAI, Anthropic, Google) and open-source alternatives (Llama, Mistral, DeepSeek, Qwen, Kimi-K, and whatever comes next). No vendor lock-in, by design.
 - **Composable.** Our tools are designed to work together. `weave-cli` provides the knowledge layer; `ClawMax.ai` provides the agent layer; future tools will extend both, or address entirely new problems in the AI-agent workflow.
+
+We also look to the **Linux Foundation** and its **AIAF (AI & Data Foundation)** sub-foundation as a model for how multi-company, cross-industry collaboration on open-source AI can be governed without sacrificing openness or fragmenting the ecosystem. Organizations like these demonstrate that you do not have to choose between broad adoption and MIT licensing — the right governance structures make both possible simultaneously. As Maximilien.ai's tools mature, we intend to engage with these bodies and explore paths to shared stewardship where it serves the community.
 
 Use cases we are actively watching: agent evaluation and benchmarking frameworks, privacy-preserving fine-tuning toolkits, multi-language document intelligence, low-bandwidth AI interfaces for emerging markets. We will build where the need is clearest and the open-source alternative is thinnest.
 
