@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   root: resolve(__dirname, 'client'),
-  plugins: [react()],
+  plugins: [react({ jsxRuntime: 'automatic' })],
   server: {
     port: 5173,
     proxy: {
