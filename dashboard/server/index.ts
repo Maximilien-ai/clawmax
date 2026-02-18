@@ -2,9 +2,10 @@ import express from 'express'
 import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
-import { WORKSPACE } from './lib/workspace'
+import { WORKSPACE, listAgents, getInstallationActivity } from './lib/workspace'
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
@@ -21,7 +22,7 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-// Workspace system info
+// Workspace system info — installation identity card
 app.get('/api/system', (_req, res) => {
   let gitBranch = 'unknown'
   try {
@@ -31,8 +32,17 @@ app.get('/api/system', (_req, res) => {
 
   res.json({
     workspace: WORKSPACE,
+    hostname: os.hostname(),
+    agentCount: listAgents().length,
+    version: '0.1.0',
     gitBranch,
   })
+})
+
+// Installation-wide activity feed
+app.get('/api/activity', (_req, res) => {
+  const feed = getInstallationActivity()
+  res.json({ feed })
 })
 
 // API routes

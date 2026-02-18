@@ -1,11 +1,20 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
+import Activity from './pages/Activity'
 
-type Page = 'agents' | 'docs'
+type Page = 'agents' | 'docs' | 'activity'
 
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
+  const [hostname, setHostname] = useState<string>('localhost')
+
+  useEffect(() => {
+    fetch('/api/system')
+      .then(r => r.json())
+      .then(d => { if (d.hostname) setHostname(d.hostname) })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900">
@@ -21,18 +30,20 @@ export default function App() {
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-1">
           <NavItem label="Agents" icon="robot" active={page === 'agents'} onClick={() => setPage('agents')} />
+          <NavItem label="Activity" icon="activity" active={page === 'activity'} onClick={() => setPage('activity')} />
           <NavItem label="Documents" icon="docs" active={page === 'docs'} onClick={() => setPage('docs')} />
         </nav>
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-500">
-          v0.1 · localhost
+          v0.1 · <span className="text-gray-400 font-mono">{hostname}</span>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-hidden flex flex-col">
         {page === 'agents' && <Agents />}
+        {page === 'activity' && <Activity />}
         {page === 'docs' && <DocHub />}
       </main>
     </div>
@@ -47,6 +58,7 @@ function NavItem({ label, icon, active, onClick }: {
 }) {
   const icons: Record<string, string> = {
     robot: '🤖',
+    activity: '📊',
     docs: '📄',
   }
 

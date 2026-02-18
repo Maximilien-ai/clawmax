@@ -101,6 +101,44 @@ export function getAgentActivity(agentDir: string): AgentActivity {
   }
 }
 
+export interface ActivityEntry {
+  agentId: string
+  file: string
+  mtime: string
+  ageMins: number
+}
+
+/** Aggregated timeline of all file writes across all agent dirs, newest first */
+export function getInstallationActivity(limit = 200): ActivityEntry[] {
+  const entries: ActivityEntry[] = []
+  let dirs: fs.Dirent[]
+  try {
+    dirs = fs.readdirSync(WORKSPACE, { withFileTypes: true })
+  } catch {
+    return entries
+  }
+  for (const d of dirs) {
+    if (!d.isDirectory() || !/^max\d+$/.test(d.name)) continue
+    const agentDir = path.join(WORKSPACE, d.name)
+    try {
+      const files = fs.readdirSync(agentDir, { withFileTypes: true })
+      for (const f of files) {
+        if (!f.isFile()) continue
+        try {
+          const s = fs.statSync(path.join(agentDir, f.name))
+          entries.push({
+            agentId: d.name,
+            file: f.name,
+            mtime: s.mtime.toISOString(),
+            ageMins: (Date.now() - s.mtime.getTime()) / 60000,
+          })
+        } catch {}
+      }
+    } catch {}
+  }
+  return entries.sort((a, b) => a.ageMins - b.ageMins).slice(0, limit)
+}
+
 export function listAgents(): AgentInfo[] {
   const agents: AgentInfo[] = []
   let entries: fs.Dirent[]

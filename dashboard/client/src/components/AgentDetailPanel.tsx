@@ -46,6 +46,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+function secAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  return `${Math.floor(s / 60)}m ago`
+}
+
 export default function AgentDetailPanel({
   agent,
   onClose,
@@ -55,6 +62,9 @@ export default function AgentDetailPanel({
 }) {
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [loading, setLoading] = useState(true)
+  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
+  const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
+  const [cooling, setCooling] = useState(false)
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
@@ -66,14 +76,32 @@ export default function AgentDetailPanel({
     return () => window.removeEventListener('keydown', handleKey)
   }, [handleKey])
 
+  const fetchActivity = useCallback(() => {
+    fetch(`/api/agents/${agent.id}/activity`)
+      .then(r => r.json())
+      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
+      .catch(() => setLoading(false))
+  }, [agent.id])
+
   useEffect(() => {
     setLoading(true)
     setActivity(null)
-    fetch(`/api/agents/${agent.id}/activity`)
-      .then(r => r.json())
-      .then(d => { setActivity(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [agent.id])
+    fetchActivity()
+  }, [fetchActivity])
+
+  // Live "refreshed Xs ago" ticker
+  useEffect(() => {
+    const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
+    setRefreshedLabel(secAgo(lastRefreshed))
+    return () => clearInterval(ticker)
+  }, [lastRefreshed])
+
+  const handleRefresh = () => {
+    if (cooling) return
+    setCooling(true)
+    fetchActivity()
+    setTimeout(() => setCooling(false), 3000)
+  }
 
   return (
     <>
@@ -99,14 +127,27 @@ export default function AgentDetailPanel({
             {agent.whatsapp && (
               <span className="block text-xs text-gray-400 mt-0.5">+{agent.whatsapp}</span>
             )}
+            <span className="block text-xs text-gray-300 mt-1">refreshed {refreshedLabel}</span>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5 text-lg leading-none"
-            aria-label="Close"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2 mt-0.5">
+            <button
+              onClick={handleRefresh}
+              disabled={cooling}
+              className={`text-sm font-medium transition-colors ${
+                cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-500 hover:text-sky-700'
+              }`}
+              aria-label="Refresh"
+            >
+              ↻
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Body */}
