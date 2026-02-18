@@ -78,8 +78,11 @@ We believe a team of a few humans, well-supported by AI agents, can produce the 
 **Accessible by design.**
 Every tool we build must be runnable by a developer in a country with expensive cloud costs and unreliable connectivity. If it only works well in a San Francisco data center, we have not finished building it.
 
+**Capitalist with purpose.**
+We believe in the market economy — unambiguously. Maximilien.ai is a for-profit company. We intend to make money, compensate our team well, and build a financially durable business. We are not a charity and we are not a social enterprise making concessions on commercial viability. We believe that the most powerful mechanism for lifting people out of poverty is not redistribution — it is expanding who gets to participate in economic opportunity. Open-source tools that let a developer in Port-au-Prince build and sell a profitable AI product are not charity: they are capitalism working correctly. We want to profit, and we want the people we serve to profit alongside us.
+
 **Sustainable and independent.**
-We are not optimizing for a venture exit. We are building something meant to last and to remain in service of its users, wherever they are.
+We are not optimizing for a short-term venture exit. We are building something meant to last and to remain in service of its users, wherever they are.
 
 ---
 
@@ -170,7 +173,7 @@ We do not yet know exactly what every future tool will be — the best product d
 - **Model-agnostic.** Every tool will support both leading proprietary models (OpenAI, Anthropic, Google) and open-source alternatives (Llama, Mistral, DeepSeek, Qwen, Kimi-K, and whatever comes next). No vendor lock-in, by design.
 - **Composable.** Our tools are designed to work together. `weave-cli` provides the knowledge layer; `ClawMax.ai` provides the agent layer; future tools will extend both, or address entirely new problems in the AI-agent workflow.
 
-We also look to the **Linux Foundation** and its **AIAF (AI & Data Foundation)** sub-foundation as a model for how multi-company, cross-industry collaboration on open-source AI can be governed without sacrificing openness or fragmenting the ecosystem. Organizations like these demonstrate that you do not have to choose between broad adoption and MIT licensing — the right governance structures make both possible simultaneously. As Maximilien.ai's tools mature, we intend to engage with these bodies and explore paths to shared stewardship where it serves the community.
+We also look to the **Linux Foundation** and its **AAIF (Agentic AI Foundation)** sub-foundation as a model for how multi-company, cross-industry collaboration on open-source AI can be governed without sacrificing openness or fragmenting the ecosystem. Organizations like these demonstrate that you do not have to choose between broad adoption and MIT licensing — the right governance structures make both possible simultaneously. As Maximilien.ai's tools mature, we intend to engage with these bodies and explore paths to shared stewardship where it serves the community.
 
 Use cases we are actively watching: agent evaluation and benchmarking frameworks, privacy-preserving fine-tuning toolkits, multi-language document intelligence, low-bandwidth AI interfaces for emerging markets. We will build where the need is clearest and the open-source alternative is thinnest.
 
