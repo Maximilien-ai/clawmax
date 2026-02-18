@@ -99,15 +99,25 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (nameMatch) name = nameMatch[1].trim()
   } catch {}
 
-  // Read heartbeat
+  // Heartbeat: use the most recently modified file in the agent dir
+  // This way any file write (TODOs, COMPLETED, HEARTBEAT, etc.) counts as activity
   let lastHeartbeat: string | null = null
   let status: AgentInfo['status'] = 'unknown'
-  const heartbeatPath = path.join(agentDir, 'HEARTBEAT.md')
   try {
-    const stat = fs.statSync(heartbeatPath)
-    lastHeartbeat = stat.mtime.toISOString()
-    const ageMins = (Date.now() - stat.mtime.getTime()) / 60000
-    status = ageMins < 10 ? 'online' : ageMins < 60 ? 'offline' : 'unknown'
+    const entries = fs.readdirSync(agentDir, { withFileTypes: true })
+    let latestMtime = 0
+    for (const e of entries) {
+      if (!e.isFile()) continue
+      try {
+        const s = fs.statSync(path.join(agentDir, e.name))
+        if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+      } catch {}
+    }
+    if (latestMtime > 0) {
+      lastHeartbeat = new Date(latestMtime).toISOString()
+      const ageMins = (Date.now() - latestMtime) / 60000
+      status = ageMins < 30 ? 'online' : ageMins < 240 ? 'offline' : 'unknown'
+    }
   } catch {}
 
   // Read whatsapp number from IDENTITY.md
