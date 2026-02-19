@@ -18,7 +18,7 @@ interface FormState {
   name: string
   model: string
   whatsapp: string
-  port: number | ''
+  port: number
   profile: boolean
 }
 
@@ -28,7 +28,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
     name: '',
     model: 'claude-sonnet-4-5',
     whatsapp: '',
-    port: '',
+    port: 0,
     profile: false,
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
@@ -76,7 +76,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
       model: form.model,
     }
     if (form.whatsapp) body.whatsapp = form.whatsapp
-    if (form.port !== '') body.port = form.port
+    if (form.port > 0) body.port = form.port
     if (form.profile) body.profile = true
 
     try {
@@ -219,10 +219,10 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                   type="text"
                   value={form.whatsapp}
                   onChange={e => set('whatsapp', e.target.value.replace(/[^0-9+]/g, ''))}
-                  placeholder="14158276319"
+                  placeholder="12345…"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono"
                 />
-                <p className="mt-1 text-xs text-gray-400">International format without spaces, e.g. <code>14158276319</code></p>
+                <p className="mt-1 text-xs text-gray-400">International format, no spaces — <span className="text-amber-600 font-medium">replace with your actual number</span></p>
               </div>
             </div>
           )}
@@ -234,8 +234,8 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
                 <input
                   type="number"
-                  value={form.port}
-                  onChange={e => set('port', e.target.value ? parseInt(e.target.value, 10) : '')}
+                  value={form.port || ''}
+                  onChange={e => set('port', e.target.value ? parseInt(e.target.value, 10) : 0)}
                   placeholder={String(suggested?.port ?? 18789)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono"
                 />
