@@ -17,6 +17,7 @@ type Step = 1 | 2 | 3 | 4
 interface FormState {
   name: string
   model: string
+  cloneFrom: string
   whatsapp: string
   port: number
   profile: boolean
@@ -27,18 +28,20 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
   const [form, setForm] = useState<FormState>({
     name: '',
     model: 'claude-sonnet-4-5',
+    cloneFrom: '',
     whatsapp: '',
     port: 0,
     profile: false,
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
+  const [existingAgents, setExistingAgents] = useState<string[]>([])
   const [logs, setLogs] = useState<string[]>([])
   const [provisioning, setProvisioning] = useState(false)
   const [done, setDone] = useState(false)
   const [provError, setProvError] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
-  // Fetch suggested ID + port on mount
+  // Fetch suggested ID + port and existing agents list on mount
   useEffect(() => {
     fetch('/api/agents/next')
       .then(r => r.json())
@@ -46,6 +49,10 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
         setSuggested(d)
         setForm(f => ({ ...f, name: d.id, port: d.port }))
       })
+      .catch(() => {})
+    fetch('/api/agents')
+      .then(r => r.json())
+      .then(d => setExistingAgents((d.agents as { id: string }[]).map(a => a.id)))
       .catch(() => {})
   }, [])
 
@@ -75,6 +82,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
       name: form.name,
       model: form.model,
     }
+    if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
     if (form.profile) body.profile = true
@@ -132,6 +140,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
   const preview = {
     name: form.name || suggested?.id || '…',
     model: form.model,
+    ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
     ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
     port: form.port !== '' ? form.port : suggested?.port ?? '…',
     profile_mode: form.profile ? 1 : 0,
@@ -206,6 +215,20 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                   {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
+              {existingAgents.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Clone from <span className="text-gray-400">(optional)</span></label>
+                  <select
+                    value={form.cloneFrom}
+                    onChange={e => set('cloneFrom', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
+                  >
+                    <option value="">— Fresh setup —</option>
+                    {existingAgents.map(id => <option key={id} value={id}>{id}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-400">Copies SOUL, IDENTITY, TOOLS, USER, AGENTS, BOOTSTRAP from the selected agent.</p>
+                </div>
+              )}
             </div>
           )}
 

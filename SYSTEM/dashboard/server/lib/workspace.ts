@@ -487,3 +487,29 @@ export function deleteAgent(id: string, removeStateDir: boolean): { steps: strin
 
   return { steps, errors }
 }
+
+/** Files to copy when cloning an agent — behaviour/persona docs only, no runtime state */
+const CLONE_FILES = ['SOUL.md', 'IDENTITY.md', 'TOOLS.md', 'USER.md', 'AGENTS.md', 'BOOTSTRAP.md']
+
+/**
+ * Pre-populate a new agent workspace by copying template files from a source agent.
+ * Creates the target directory if needed. Skips files that don't exist in the source.
+ * Returns the list of files that were successfully copied.
+ */
+export function cloneAgentFiles(sourceWorkspacePath: string, targetWorkspacePath: string): string[] {
+  const copied: string[] = []
+  try {
+    fs.mkdirSync(targetWorkspacePath, { recursive: true })
+  } catch {}
+  for (const file of CLONE_FILES) {
+    const src = path.join(sourceWorkspacePath, file)
+    const dst = path.join(targetWorkspacePath, file)
+    try {
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, dst)
+        copied.push(file)
+      }
+    } catch {}
+  }
+  return copied
+}

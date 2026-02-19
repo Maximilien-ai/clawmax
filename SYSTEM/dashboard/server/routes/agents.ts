@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, WORKSPACE } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
 
 const router = Router()
 
@@ -21,8 +21,8 @@ router.get('/next', async (_req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile } = req.body as {
-    name?: string; model?: string; whatsapp?: string; port?: number; profile?: boolean
+  const { name, model, whatsapp, port, profile, cloneFrom } = req.body as {
+    name?: string; model?: string; whatsapp?: string; port?: number; profile?: boolean; cloneFrom?: string
   }
 
   if (!name || !/^[a-z][a-z0-9_-]*$/.test(name)) {
@@ -38,6 +38,16 @@ router.post('/provision', (req, res) => {
 
   const send = (type: string, data: string) => {
     res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+  }
+
+  // Clone source agent files before provisioning
+  if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
+    const srcPath = path.join(AGENTS_DIR, cloneFrom)
+    const dstPath = path.join(AGENTS_DIR, name)
+    const copied = cloneAgentFiles(srcPath, dstPath)
+    if (copied.length > 0) {
+      send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
+    }
   }
 
   const scriptPath = path.join(WORKSPACE, 'SYSTEM', 'scripts', 'instances', 'setup.sh')
