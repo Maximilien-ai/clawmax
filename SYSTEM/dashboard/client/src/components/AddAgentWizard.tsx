@@ -176,13 +176,11 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
         </div>
 
         {/* Step labels */}
-        <div className="px-6 pb-3 flex items-center shrink-0">
+        <div className="px-6 pb-3 flex justify-between shrink-0">
           {['Identity', 'Channel', 'Deployment', 'Provision'].map((label, i) => (
-            <React.Fragment key={label}>
-              <span className={`text-xs text-center whitespace-nowrap ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}
-                style={{ width: 24 }}>{label}</span>
-              {i < 3 && <div className="flex-1" />}
-            </React.Fragment>
+            <span key={label} className={`text-xs ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}>
+              {label}
+            </span>
           ))}
         </div>
 

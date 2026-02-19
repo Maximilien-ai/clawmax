@@ -65,10 +65,18 @@ router.post('/provision', (req, res) => {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  // Send SSE comment pings every 2s to keep the proxy connection alive during long runs
+  const keepalive = setInterval(() => {
+    try { res.write(': keepalive\n\n') } catch {}
+  }, 2000)
+
+  const cleanup = () => clearInterval(keepalive)
+
   child.stdout!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
   child.stderr!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
 
   child.on('close', (code, signal) => {
+    cleanup()
     if (code === 0) {
       send('done', 'ok')
     } else {
@@ -78,11 +86,12 @@ router.post('/provision', (req, res) => {
   })
 
   child.on('error', (err) => {
+    cleanup()
     send('error', err.message)
     res.end()
   })
 
-  req.on('close', () => { child.kill() })
+  req.on('close', () => { cleanup(); child.kill() })
 })
 
 // DELETE /api/agents/:id
