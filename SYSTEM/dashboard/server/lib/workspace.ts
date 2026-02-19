@@ -494,9 +494,16 @@ const CLONE_FILES = ['SOUL.md', 'IDENTITY.md', 'TOOLS.md', 'USER.md', 'AGENTS.md
 /**
  * Pre-populate a new agent workspace by copying template files from a source agent.
  * Creates the target directory if needed. Skips files that don't exist in the source.
+ * If srcName and targetName are provided, replaces the source agent name with the target
+ * name in the cloned IDENTITY.md so the new agent has the correct name.
  * Returns the list of files that were successfully copied.
  */
-export function cloneAgentFiles(sourceWorkspacePath: string, targetWorkspacePath: string): string[] {
+export function cloneAgentFiles(
+  sourceWorkspacePath: string,
+  targetWorkspacePath: string,
+  srcName?: string,
+  targetName?: string,
+): string[] {
   const copied: string[] = []
   try {
     fs.mkdirSync(targetWorkspacePath, { recursive: true })
@@ -509,6 +516,15 @@ export function cloneAgentFiles(sourceWorkspacePath: string, targetWorkspacePath
         fs.copyFileSync(src, dst)
         copied.push(file)
       }
+    } catch {}
+  }
+  // Patch agent name in IDENTITY.md so the new agent isn't named after the source
+  if (srcName && targetName && copied.includes('IDENTITY.md')) {
+    const identityPath = path.join(targetWorkspacePath, 'IDENTITY.md')
+    try {
+      let content = fs.readFileSync(identityPath, 'utf-8')
+      content = content.replace(new RegExp(`\\b${srcName}\\b`, 'g'), targetName)
+      fs.writeFileSync(identityPath, content, 'utf-8')
     } catch {}
   }
   return copied

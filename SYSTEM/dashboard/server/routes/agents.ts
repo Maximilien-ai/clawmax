@@ -44,7 +44,7 @@ router.post('/provision', (req, res) => {
   if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
     const srcPath = path.join(AGENTS_DIR, cloneFrom)
     const dstPath = path.join(AGENTS_DIR, name)
-    const copied = cloneAgentFiles(srcPath, dstPath)
+    const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, name)
     if (copied.length > 0) {
       send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
     }
@@ -91,7 +91,8 @@ router.post('/provision', (req, res) => {
     res.end()
   })
 
-  req.on('close', () => { cleanup(); child.kill() })
+  // Don't kill setup.sh if the browser/proxy drops — let it always run to completion
+  req.on('close', () => { cleanup() })
 })
 
 // DELETE /api/agents/:id
