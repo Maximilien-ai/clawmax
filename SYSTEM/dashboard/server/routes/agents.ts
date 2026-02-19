@@ -168,6 +168,54 @@ router.get('/:id/activity', (req, res) => {
   res.json(activity)
 })
 
+// DELETE /api/agents/:id/whatsapp — unlink: delete credentials dir + clear WA line from IDENTITY.md
+router.delete('/:id/whatsapp', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ ok: false, error: 'Invalid agent id' })
+    return
+  }
+
+  const HOME = process.env.HOME || ''
+  const profileStateDir = path.join(HOME, `.openclaw-${id}`)
+  const isProfile = fs.existsSync(profileStateDir)
+  const stateDir = isProfile ? profileStateDir : path.join(HOME, '.openclaw')
+  const credsDir = path.join(stateDir, 'credentials', 'whatsapp', 'default')
+
+  const steps: string[] = []
+  const errors: string[] = []
+
+  // Remove credentials directory
+  try {
+    if (fs.existsSync(credsDir)) {
+      fs.rmSync(credsDir, { recursive: true, force: true })
+      steps.push(`Removed credentials: ${credsDir}`)
+    } else {
+      steps.push('No credentials directory found')
+    }
+  } catch (e) {
+    errors.push(`Failed to remove credentials: ${e}`)
+  }
+
+  // Remove WhatsApp line from IDENTITY.md
+  const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+  try {
+    if (fs.existsSync(identityPath)) {
+      let content = fs.readFileSync(identityPath, 'utf-8')
+      const before = content
+      content = content.replace(/^[^\n]*WhatsApp[^\n]*\n?/gim, '')
+      if (content !== before) {
+        fs.writeFileSync(identityPath, content, 'utf-8')
+        steps.push('Removed WhatsApp line from IDENTITY.md')
+      }
+    }
+  } catch (e) {
+    errors.push(`Failed to update IDENTITY.md: ${e}`)
+  }
+
+  res.json({ ok: errors.length === 0, steps, errors })
+})
+
 // POST /api/agents/:id/whatsapp/pair — run whatsapp-pair.mjs and stream output via SSE
 router.post('/:id/whatsapp/pair', (req, res) => {
   const { id } = req.params

@@ -110,6 +110,7 @@ export interface AgentInfo {
   status: 'online' | 'offline' | 'unknown'
   lastHeartbeat: string | null
   whatsapp: string | null
+  isProfile: boolean
   workspacePath: string
   communities: GroupEntry[]
   groups: GroupEntry[]
@@ -346,6 +347,9 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (waMatch) whatsapp = waMatch[1].trim()
   } catch {}
 
+  // Profile mode: agent has its own ~/.openclaw-<id>/ state dir
+  const isProfile = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
+
   // Read groups from GROUPS.md
   let communities: GroupEntry[] = []
   let groups: GroupEntry[] = []
@@ -362,6 +366,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     status,
     lastHeartbeat,
     whatsapp,
+    isProfile,
     workspacePath: agentDir,
     communities,
     groups,
@@ -519,11 +524,16 @@ export function cloneAgentFiles(
     } catch {}
   }
   // Patch agent name in IDENTITY.md so the new agent isn't named after the source
-  if (srcName && targetName && copied.includes('IDENTITY.md')) {
+  // Also remove the WhatsApp number — cloned agents must pair their own number
+  if (copied.includes('IDENTITY.md')) {
     const identityPath = path.join(targetWorkspacePath, 'IDENTITY.md')
     try {
       let content = fs.readFileSync(identityPath, 'utf-8')
-      content = content.replace(new RegExp(`\\b${srcName}\\b`, 'g'), targetName)
+      if (srcName && targetName) {
+        content = content.replace(new RegExp(`\\b${srcName}\\b`, 'g'), targetName)
+      }
+      // Remove any WhatsApp line entirely
+      content = content.replace(/^[^\n]*WhatsApp[^\n]*\n?/gim, '')
       fs.writeFileSync(identityPath, content, 'utf-8')
     } catch {}
   }
