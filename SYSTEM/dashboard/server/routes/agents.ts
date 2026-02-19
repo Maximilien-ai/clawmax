@@ -52,13 +52,18 @@ router.post('/provision', (req, res) => {
   const child = spawn('bash', [scriptPath, ...args], {
     cwd: WORKSPACE,
     env: { ...process.env, TERM: 'dumb' },
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
 
-  child.stdout.on('data', (chunk: Buffer) => send('log', chunk.toString()))
-  child.stderr.on('data', (chunk: Buffer) => send('log', chunk.toString()))
+  child.stdout!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
+  child.stderr!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
 
-  child.on('close', (code) => {
-    send('done', code === 0 ? 'ok' : `exit code ${code}`)
+  child.on('close', (code, signal) => {
+    if (code === 0) {
+      send('done', 'ok')
+    } else {
+      send('done', signal ? `killed by signal ${signal}` : `exit code ${code}`)
+    }
     res.end()
   })
 
