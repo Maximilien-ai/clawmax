@@ -270,6 +270,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  let linkedWritten = false
   const handleChunk = (chunk: Buffer) => {
     const text = chunk.toString()
     send('log', text)
@@ -280,6 +281,19 @@ router.post('/:id/whatsapp/pair', (req, res) => {
     }
     if (/linked!/i.test(text) || /✅/.test(text)) {
       send('linked', 'ok')
+      // Write phone number to IDENTITY.md so the dashboard can display it
+      if (!linkedWritten) {
+        linkedWritten = true
+        const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+        try {
+          if (fs.existsSync(identityPath)) {
+            let content = fs.readFileSync(identityPath, 'utf-8')
+            content = content.replace(/^[^\n]*WhatsApp[^\n]*\n?/gim, '')
+            content = content.trimEnd() + `\n- **WhatsApp:** +${phone}\n`
+            fs.writeFileSync(identityPath, content, 'utf-8')
+          }
+        } catch {}
+      }
     }
   }
 
