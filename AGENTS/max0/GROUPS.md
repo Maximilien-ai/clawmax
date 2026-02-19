@@ -6,3 +6,4 @@
 ## Groups
 - Max assist: Personal assistant group for task requests, reminders, and daily support
 - Daily checkins: Morning and evening check-in group for status updates and coordination
+- Test: Development testing group for feature validation and debugging

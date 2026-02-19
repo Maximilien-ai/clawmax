@@ -343,7 +343,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
   let whatsapp: string | null = null
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
-    const waMatch = identity.match(/WhatsApp[:\s]+\+?(\d[\d\s\-]+)/i)
+    const waMatch = identity.match(/WhatsApp[^0-9+\n]*\+?(\d[\d\s\-]+)/i)
     if (waMatch) whatsapp = waMatch[1].trim()
   } catch {}
 
