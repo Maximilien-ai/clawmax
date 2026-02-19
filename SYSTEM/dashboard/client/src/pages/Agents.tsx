@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import AddAgentWizard from '../components/AddAgentWizard'
+import DeleteAgentPanel from '../components/DeleteAgentPanel'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -60,6 +62,8 @@ export default function Agents() {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+  const [showAddWizard, setShowAddWizard] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -143,6 +147,13 @@ export default function Agents() {
           >
             {cooling ? 'Refreshing…' : '↻ Refresh'}
           </button>
+          <button
+            onClick={() => setShowAddWizard(true)}
+            className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
+            title="Add new agent"
+          >
+            <span className="text-base leading-none">+</span> Add Agent
+          </button>
         </div>
       </div>
 
@@ -174,6 +185,7 @@ export default function Agents() {
               collapsed={collapsedIds.has(agent.id)}
               onToggle={() => toggleCollapse(agent.id)}
               onClick={() => setSelectedAgent(agent)}
+              onDelete={() => setDeleteTarget(agent.id)}
             />
           ))}
         </div>
@@ -198,18 +210,34 @@ export default function Agents() {
           onClose={() => setSelectedAgent(null)}
         />
       )}
+
+      {showAddWizard && (
+        <AddAgentWizard
+          onClose={() => setShowAddWizard(false)}
+          onDone={() => fetchAgents()}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteAgentPanel
+          agentId={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => { fetchAgents(); setSelectedAgent(null) }}
+        />
+      )}
     </div>
   )
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick,
+  agent, selected, collapsed, onToggle, onClick, onDelete,
 }: {
   agent: Agent
   selected: boolean
   collapsed: boolean
   onToggle: () => void
   onClick: () => void
+  onDelete: () => void
 }) {
   return (
     <div
@@ -226,13 +254,22 @@ function AgentCard({
             {agent.status}
           </span>
         </div>
-        <button
-          onClick={e => { e.stopPropagation(); onToggle() }}
-          className="ml-2 text-gray-300 hover:text-gray-500 transition-colors text-xs shrink-0 p-1"
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '▶' : '▼'}
-        </button>
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          <button
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-1 rounded hover:bg-red-50"
+            title="Delete agent"
+          >
+            🗑
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onToggle() }}
+            className="text-gray-300 hover:text-gray-500 transition-colors text-xs p-1"
+            title={collapsed ? 'Expand' : 'Collapse'}
+          >
+            {collapsed ? '▶' : '▼'}
+          </button>
+        </div>
       </div>
 
       {/* Collapsible body */}

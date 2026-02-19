@@ -1,0 +1,342 @@
+import React, { useEffect, useRef, useState } from 'react'
+
+const MODELS = [
+  'claude-sonnet-4-5',
+  'claude-opus-4',
+  'gpt-4o',
+  'gpt-4o-mini',
+]
+
+interface WizardProps {
+  onClose: () => void
+  onDone: () => void
+}
+
+type Step = 1 | 2 | 3 | 4
+
+interface FormState {
+  name: string
+  model: string
+  whatsapp: string
+  port: number | ''
+  profile: boolean
+}
+
+export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
+  const [step, setStep] = useState<Step>(1)
+  const [form, setForm] = useState<FormState>({
+    name: '',
+    model: 'claude-sonnet-4-5',
+    whatsapp: '',
+    port: '',
+    profile: false,
+  })
+  const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
+  const [provisioning, setProvisioning] = useState(false)
+  const [done, setDone] = useState(false)
+  const [provError, setProvError] = useState<string | null>(null)
+  const logRef = useRef<HTMLDivElement>(null)
+
+  // Fetch suggested ID + port on mount
+  useEffect(() => {
+    fetch('/api/agents/next')
+      .then(r => r.json())
+      .then(d => {
+        setSuggested(d)
+        setForm(f => ({ ...f, name: d.id, port: d.port }))
+      })
+      .catch(() => {})
+  }, [])
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [logs])
+
+  function set<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setForm(f => ({ ...f, [k]: v }))
+  }
+
+  const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
+  const canNext: Record<Step, boolean> = {
+    1: nameOk && form.model.length > 0,
+    2: true, // whatsapp is optional
+    3: true, // port/profile optional
+    4: false, // provision button handles this
+  }
+
+  async function provision() {
+    setProvisioning(true)
+    setProvError(null)
+    setLogs([])
+
+    const body: Record<string, unknown> = {
+      name: form.name,
+      model: form.model,
+    }
+    if (form.whatsapp) body.whatsapp = form.whatsapp
+    if (form.port !== '') body.port = form.port
+    if (form.profile) body.profile = true
+
+    try {
+      const resp = await fetch('/api/agents/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!resp.ok || !resp.body) {
+        setProvError('Server error')
+        setProvisioning(false)
+        return
+      }
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read()
+        if (streamDone) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const msg = JSON.parse(line.slice(6)) as { type: string; data: string }
+            if (msg.type === 'log' || msg.type === 'start') {
+              setLogs(l => [...l, msg.data])
+            } else if (msg.type === 'done') {
+              if (msg.data === 'ok') {
+                setDone(true)
+              } else {
+                setProvError(`Setup failed: ${msg.data}`)
+              }
+              setProvisioning(false)
+            } else if (msg.type === 'error') {
+              setProvError(msg.data)
+              setProvisioning(false)
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      setProvError(String(e))
+      setProvisioning(false)
+    }
+  }
+
+  // Config preview JSON
+  const preview = {
+    name: form.name || suggested?.id || '…',
+    model: form.model,
+    ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
+    port: form.port !== '' ? form.port : suggested?.port ?? '…',
+    profile_mode: form.profile ? 1 : 0,
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-2xl w-[560px] max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <h2 className="text-base font-semibold text-gray-800">Add Agent</h2>
+          <button
+            onClick={onClose}
+            disabled={provisioning}
+            className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+          >×</button>
+        </div>
+
+        {/* Step indicators */}
+        <div className="px-6 pt-4 pb-2 flex items-center gap-2 shrink-0">
+          {([1, 2, 3, 4] as Step[]).map(s => (
+            <React.Fragment key={s}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                s < step ? 'bg-sky-600 text-white' :
+                s === step ? 'bg-sky-100 text-sky-700 ring-2 ring-sky-400' :
+                'bg-gray-100 text-gray-400'
+              }`}>
+                {s < step ? '✓' : s}
+              </div>
+              {s < 4 && <div className={`flex-1 h-0.5 rounded ${s < step ? 'bg-sky-400' : 'bg-gray-200'}`} />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Step labels */}
+        <div className="px-6 pb-3 flex items-center gap-2 shrink-0">
+          {['Identity', 'Channel', 'Deployment', 'Provision'].map((label, i) => (
+            <React.Fragment key={label}>
+              <span className={`text-xs text-center ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}
+                style={{ width: 24, textAlign: 'center' }}>{label}</span>
+              {i < 3 && <div className="flex-1" />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 pb-4">
+
+          {/* Step 1: Identity + Model */}
+          {step === 1 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Agent name <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => set('name', e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  placeholder={suggested?.id ?? 'max1'}
+                  className={`w-full px-3 py-2 text-sm border rounded-md outline-none transition-colors font-mono ${
+                    form.name && !nameOk ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-sky-400'
+                  }`}
+                />
+                <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Model <span className="text-red-400">*</span></label>
+                <select
+                  value={form.model}
+                  onChange={e => set('model', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
+                >
+                  {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Channel (WhatsApp) */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500">Optionally link a WhatsApp number to this agent. Leave blank to skip.</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp number <span className="text-gray-400">(optional)</span></label>
+                <input
+                  type="text"
+                  value={form.whatsapp}
+                  onChange={e => set('whatsapp', e.target.value.replace(/[^0-9+]/g, ''))}
+                  placeholder="14158276319"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono"
+                />
+                <p className="mt-1 text-xs text-gray-400">International format without spaces, e.g. <code>14158276319</code></p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Deployment */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
+                <input
+                  type="number"
+                  value={form.port}
+                  onChange={e => set('port', e.target.value ? parseInt(e.target.value, 10) : '')}
+                  placeholder={String(suggested?.port ?? 18789)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono"
+                />
+                <p className="mt-1 text-xs text-gray-400">Suggested: <strong>{suggested?.port ?? '…'}</strong></p>
+              </div>
+              <div className="flex items-start gap-3">
+                <input
+                  id="profile-mode"
+                  type="checkbox"
+                  checked={form.profile}
+                  onChange={e => set('profile', e.target.checked)}
+                  className="mt-0.5"
+                />
+                <label htmlFor="profile-mode" className="text-sm text-gray-700 cursor-pointer">
+                  <span className="font-medium">Profile mode</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">
+                    Isolated state dir <code>~/.openclaw-{form.name || 'name'}/</code> (same machine). Leave unchecked for shared state.
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Review + Provision */}
+          {step === 4 && (
+            <div className="space-y-4">
+              {!provisioning && !done && !provError && (
+                <>
+                  <p className="text-sm text-gray-600">Review the configuration and click <strong>Provision</strong> to run <code>setup.sh</code>.</p>
+                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-gray-700 overflow-x-auto">
+                    {JSON.stringify(preview, null, 2)}
+                  </pre>
+                </>
+              )}
+
+              {/* Log stream */}
+              {(provisioning || logs.length > 0) && (
+                <div
+                  ref={logRef}
+                  className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-48 overflow-y-auto whitespace-pre-wrap"
+                >
+                  {logs.join('')}
+                  {provisioning && <span className="animate-pulse">▌</span>}
+                </div>
+              )}
+
+              {provError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{provError}</div>
+              )}
+
+              {done && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+                  Agent <code>{form.name}</code> provisioned successfully!
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
+          <button
+            onClick={() => step > 1 && !provisioning && setStep(s => (s - 1) as Step)}
+            disabled={step === 1 || provisioning}
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Back
+          </button>
+
+          <div className="flex items-center gap-2">
+            {step < 4 && (
+              <button
+                onClick={() => setStep(s => (s + 1) as Step)}
+                disabled={!canNext[step]}
+                className="text-sm px-4 py-1.5 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                Next
+              </button>
+            )}
+            {step === 4 && !done && (
+              <button
+                onClick={provision}
+                disabled={provisioning}
+                className={`text-sm px-4 py-1.5 rounded font-medium transition-colors ${
+                  provisioning ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+              >
+                {provisioning ? 'Provisioning…' : 'Provision'}
+              </button>
+            )}
+            {done && (
+              <button
+                onClick={() => { onDone(); onClose() }}
+                className="text-sm px-4 py-1.5 rounded bg-sky-600 text-white hover:bg-sky-700 font-medium transition-colors"
+              >
+                Done
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

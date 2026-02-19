@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import net from 'net'
 
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
 
@@ -217,13 +218,14 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
  *  2. ORG/MASTER_PLAN.md or MASTER_PLAN.md H1 (e.g. "# The Maximilien.ai Master Plan" → "Maximilien.ai")
  */
 export function getOrgName(): string | null {
-  // 1. Try ORG/IDENTITY.md **Name:** field
+  // 1. Try ORG/IDENTITY.md **Name:** field (value may be on same line or next line)
   try {
     const identity = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'IDENTITY.md'), 'utf-8')
-    const m = identity.match(/\*\*Name[:\*\s]+\s*(.+)/m)
+    // Match "**Name:**" then capture value on same line OR next non-empty line
+    const m = identity.match(/\*\*Name[:\*\s]*\*?\*?\s*\n?\s*([^\n_*\(].+)/m)
     if (m) {
       const name = m[1].replace(/\*+$/, '').trim()
-      if (name && !name.startsWith('_')) return name
+      if (name && !name.startsWith('_') && !name.startsWith('(')) return name
     }
   } catch {}
 
@@ -364,4 +366,124 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     communities,
     groups,
   }
+}
+
+/** Return the next available maxN agent ID (e.g. "max3" if max0/max1/max2 exist) */
+export function getNextAgentId(): string {
+  let maxN = -1
+  try {
+    const dirs = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
+    for (const d of dirs) {
+      if (!d.isDirectory()) continue
+      const m = d.name.match(/^max(\d+)$/)
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (n > maxN) maxN = n
+      }
+    }
+  } catch {}
+  return `max${maxN + 1}`
+}
+
+/** Find first unused TCP port >= startPort */
+export function findFreePort(startPort = 18789): Promise<number> {
+  return new Promise((resolve) => {
+    function tryPort(p: number) {
+      const srv = net.createServer()
+      srv.listen(p, '127.0.0.1', () => { srv.close(() => resolve(p)) })
+      srv.on('error', () => tryPort(p + 100))
+    }
+    tryPort(startPort)
+  })
+}
+
+export interface AgentImpact {
+  todoCount: number
+  communityCount: number
+  groupCount: number
+  whatsapp: string | null
+  hasStateDir: boolean
+}
+
+/** Summarise what deleting an agent would affect (for the confirmation UI) */
+export function getAgentImpact(id: string, agentDir: string): AgentImpact {
+  let todoCount = 0
+  try {
+    const todos = fs.readFileSync(path.join(agentDir, 'TODOs.md'), 'utf-8')
+    // Count bullet lines as a rough proxy
+    todoCount = todos.split('\n').filter(l => /^[-*]\s+/.test(l.trim())).length
+  } catch {}
+
+  let communityCount = 0
+  let groupCount = 0
+  let whatsapp: string | null = null
+  try {
+    const info = readAgentInfo(id, agentDir)
+    communityCount = info.communities.length
+    groupCount = info.groups.length
+    whatsapp = info.whatsapp
+  } catch {}
+
+  // profile-mode state dir: ~/.openclaw-<id>
+  const hasStateDir = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
+
+  return { todoCount, communityCount, groupCount, whatsapp, hasStateDir }
+}
+
+/** Delete an agent's workspace dir and optionally its profile state dir.
+ *  Returns { steps, errors }. */
+export function deleteAgent(id: string, removeStateDir: boolean): { steps: string[]; errors: string[] } {
+  const steps: string[] = []
+  const errors: string[] = []
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) return { steps, errors: ['Invalid agent id'] }
+
+  const agentDir = path.join(AGENTS_DIR, id)
+
+  // Remove workspace AGENTS dir
+  try {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+    steps.push(`Removed workspace AGENTS/${id}/`)
+  } catch (e) {
+    errors.push(`Failed to remove workspace: ${e}`)
+  }
+
+  // Optionally remove profile state dir (~/.openclaw-<id>)
+  if (removeStateDir) {
+    const stateDir = path.join(process.env.HOME || '', `.openclaw-${id}`)
+    if (fs.existsSync(stateDir)) {
+      try {
+        fs.rmSync(stateDir, { recursive: true, force: true })
+        steps.push(`Removed state dir ~/.openclaw-${id}/`)
+      } catch (e) {
+        errors.push(`Failed to remove state dir: ${e}`)
+      }
+    } else {
+      steps.push(`State dir ~/.openclaw-${id}/ not found (skipped)`)
+    }
+  }
+
+  // Remove Desktop shortcut
+  const desktop = path.join(process.env.HOME || '', 'Desktop', id)
+  try {
+    if (fs.existsSync(desktop)) { fs.unlinkSync(desktop); steps.push(`Removed ~/Desktop/${id}`) }
+  } catch {}
+
+  // Remove alias block from ~/.zshrc
+  const zshrc = path.join(process.env.HOME || '', '.zshrc')
+  try {
+    if (fs.existsSync(zshrc)) {
+      const content = fs.readFileSync(zshrc, 'utf-8')
+      const cleaned = content.replace(
+        new RegExp(`\\n# OpenClaw — ${id}\\n(?:alias ${id}[^\\n]*\\n)*`, 'g'),
+        '\n'
+      )
+      if (cleaned !== content) {
+        fs.writeFileSync(zshrc, cleaned, 'utf-8')
+        steps.push(`Removed ${id} aliases from ~/.zshrc`)
+      }
+    }
+  } catch {}
+
+  return { steps, errors }
 }
