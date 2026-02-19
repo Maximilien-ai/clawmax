@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -317,6 +317,132 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   })
 
   req.on('close', () => { cleanup() })
+})
+
+/** Call a single RPC method on the openclaw gateway via WebSocket (Node 22+ built-in WebSocket) */
+function callGatewayRpc(port: number, token: string, method: string, params: unknown = {}): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { try { ws.close() } catch {} reject(new Error('gateway timeout')) }, 8000)
+    // @ts-ignore — Node 22+ built-in WebSocket
+    const ws = new (globalThis.WebSocket as typeof WebSocket)(`ws://127.0.0.1:${port}`)
+    let stage: 'challenge' | 'connecting' | 'ready' = 'challenge'
+    const reqId = String(Date.now())
+
+    ws.onmessage = (ev: MessageEvent) => {
+      let msg: Record<string, unknown>
+      try { msg = JSON.parse(ev.data as string) } catch { return }
+
+      if (stage === 'challenge' && msg.type === 'event' && msg.event === 'connect.challenge') {
+        stage = 'connecting'
+        ws.send(JSON.stringify({
+          type: 'req', id: 'connect-1', method: 'connect',
+          params: {
+            minProtocol: 1, maxProtocol: 99,
+            client: { id: 'dashboard', version: '1.0', platform: 'node', mode: 'default' },
+            role: 'operator', scopes: ['operator.read'],
+            auth: { token },
+          },
+        }))
+        return
+      }
+
+      if (stage === 'connecting' && msg.type === 'res' && msg.id === 'connect-1') {
+        if (!msg.ok) { clearTimeout(timer); ws.close(); reject(new Error(`connect failed: ${JSON.stringify(msg.error)}`)); return }
+        stage = 'ready'
+        ws.send(JSON.stringify({ type: 'req', id: reqId, method, params }))
+        return
+      }
+
+      if (stage === 'ready' && msg.type === 'res' && msg.id === reqId) {
+        clearTimeout(timer)
+        ws.close()
+        if (msg.ok) resolve(msg.payload)
+        else reject(new Error(`${method} failed: ${JSON.stringify(msg.error)}`))
+      }
+    }
+
+    ws.onerror = () => { clearTimeout(timer); reject(new Error('gateway connection failed')) }
+    ws.onclose = () => { clearTimeout(timer) }
+  })
+}
+
+// GET /api/agents/:id/wa-groups — fetch live WA groups from the running gateway
+router.get('/:id/wa-groups', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const cfg = getAgentGatewayConfig(id)
+  if (!cfg) {
+    return res.status(503).json({ error: 'No gateway config found for agent' })
+  }
+
+  try {
+    const result = await callGatewayRpc(cfg.port, cfg.token, 'sessions.list', {
+      includeDerivedTitles: true,
+      limit: 500,
+    }) as { sessions?: Array<{ key: string; kind: string; subject?: string; displayName?: string; derivedTitle?: string; channel?: string }> }
+
+    const sessions = result?.sessions ?? []
+
+    const nameOf = (s: { key: string; subject?: string; displayName?: string; derivedTitle?: string }) =>
+      (s.subject || s.displayName || s.derivedTitle || s.key.split(':').pop() || s.key).trim()
+
+    const waGroups = sessions
+      .filter(s => s.kind === 'group' && s.key.includes(':whatsapp:'))
+      .map(s => ({ name: nameOf(s), key: s.key }))
+      .filter((g, i, arr) => arr.findIndex(x => x.name === g.name) === i)
+
+    const waCommunities = sessions
+      .filter(s => s.kind === 'community' && s.key.includes(':whatsapp:'))
+      .map(s => ({ name: nameOf(s), key: s.key }))
+      .filter((g, i, arr) => arr.findIndex(x => x.name === g.name) === i)
+
+    res.json({ groups: waGroups, communities: waCommunities })
+  } catch (err) {
+    res.status(503).json({ error: String(err) })
+  }
+})
+
+// POST /api/agents/:id/groups/sync — write merged groups back to GROUPS.md
+router.post('/:id/groups/sync', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ ok: false, error: 'Invalid agent id' })
+  }
+
+  const { communities, groups } = req.body as {
+    communities?: Array<{ name: string; description: string | null }>
+    groups?: Array<{ name: string; description: string | null }>
+  }
+
+  if (!Array.isArray(groups)) {
+    return res.status(400).json({ ok: false, error: 'groups must be an array' })
+  }
+
+  const groupsPath = path.join(AGENTS_DIR, id, 'GROUPS.md')
+
+  const commLines = (communities ?? []).map(c => `- ${c.name}${c.description ? ': ' + c.description : ''}`)
+  const groupLines = groups.map(g => `- ${g.name}${g.description ? ': ' + g.description : ''}`)
+
+  const content = [
+    '# GROUPS.md - WhatsApp Presence',
+    '',
+    '## Communities',
+    ...commLines,
+    '',
+    '## Groups',
+    ...groupLines,
+    '',
+  ].join('\n')
+
+  try {
+    fs.writeFileSync(groupsPath, content, 'utf-8')
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) })
+  }
 })
 
 export default router

@@ -373,6 +373,24 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
   }
 }
 
+/** Return the gateway config (port + auth token) for a given agent */
+export function getAgentGatewayConfig(id: string): { port: number; token: string } | null {
+  const HOME = process.env.HOME || ''
+  const isProfile = fs.existsSync(path.join(HOME, `.openclaw-${id}`))
+  const configPath = isProfile
+    ? path.join(HOME, `.openclaw-${id}`, 'openclaw.json')
+    : path.join(HOME, '.openclaw', 'openclaw.json')
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const port = config?.gateway?.port ?? 18889
+    const token = config?.gateway?.auth?.token ?? ''
+    if (!token) return null
+    return { port, token }
+  } catch {
+    return null
+  }
+}
+
 /** Return the next available maxN agent ID (e.g. "max3" if max0/max1/max2 exist) */
 export function getNextAgentId(): string {
   let maxN = -1

@@ -3,6 +3,7 @@ import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
+import SyncGroupsPanel from '../components/SyncGroupsPanel'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -67,6 +68,7 @@ export default function Agents() {
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
+  const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -190,6 +192,7 @@ export default function Agents() {
               onClick={() => setSelectedAgent(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onLinkWa={() => setLinkWaTarget(agent)}
+              onSyncGroups={() => setSyncGroupsTarget(agent)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -244,12 +247,23 @@ export default function Agents() {
           onLinked={() => fetchAgents()}
         />
       )}
+
+      {syncGroupsTarget && (
+        <SyncGroupsPanel
+          agentId={syncGroupsTarget.id}
+          agentName={syncGroupsTarget.name}
+          localGroups={syncGroupsTarget.groups}
+          localCommunities={syncGroupsTarget.communities}
+          onClose={() => setSyncGroupsTarget(null)}
+          onSynced={() => fetchAgents()}
+        />
+      )}
     </div>
   )
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onUnlinkWa,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa,
 }: {
   agent: Agent
   selected: boolean
@@ -258,6 +272,7 @@ function AgentCard({
   onClick: () => void
   onDelete: () => void
   onLinkWa: () => void
+  onSyncGroups: () => void
   onUnlinkWa: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
@@ -348,8 +363,20 @@ function AgentCard({
             </div>
           </div>
 
-          {(agent.communities.length > 0 || agent.groups.length > 0) && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-400">Groups</span>
+              {agent.whatsapp && (
+                <button
+                  onClick={e => { e.stopPropagation(); onSyncGroups() }}
+                  className="text-xs px-1.5 py-0.5 rounded text-sky-500 hover:text-sky-700 hover:bg-sky-50 transition-colors font-medium"
+                  title="Sync groups from WhatsApp"
+                >
+                  ↻ Sync
+                </button>
+              )}
+            </div>
+            {(agent.communities.length > 0 || agent.groups.length > 0) ? (
               <div className="flex flex-wrap gap-1">
                 {agent.communities.map(c => (
                   <span key={c.name} title={c.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium cursor-default">{c.name}</span>
@@ -358,8 +385,10 @@ function AgentCard({
                   <span key={g.name} title={g.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium cursor-default">{g.name}</span>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-gray-300">No groups configured</p>
+            )}
+          </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <span className="text-xs text-gray-300 font-mono truncate block">
