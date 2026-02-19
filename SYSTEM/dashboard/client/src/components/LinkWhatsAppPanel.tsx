@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 interface Props {
   agentId: string
   agentName: string
+  isProfile?: boolean
   onClose: () => void
   onLinked: () => void
 }
 
-export default function LinkWhatsAppPanel({ agentId, agentName, onClose, onLinked }: Props) {
+export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClose, onLinked }: Props) {
   const [phone, setPhone] = useState('')
   const [pairing, setPairing] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
@@ -98,6 +99,13 @@ export default function LinkWhatsAppPanel({ agentId, agentName, onClose, onLinke
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+          {/* Non-profile mode warning */}
+          {!isProfile && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+              <strong>Shared credentials warning:</strong> This agent is not in profile mode, so its WA credentials are shared with all other non-profile agents on this machine. Pairing here will overwrite any existing shared session — other non-profile agents will lose their WA connection immediately. Use profile mode for isolated accounts.
+            </div>
+          )}
 
           {/* Phone input (shown before pairing starts) */}
           {!pairing && !linked && (

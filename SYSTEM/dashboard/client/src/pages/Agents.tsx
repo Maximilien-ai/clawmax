@@ -22,6 +22,7 @@ interface Agent {
   status: 'online' | 'offline' | 'unknown'
   lastHeartbeat: string | null
   whatsapp: string | null
+  isProfile: boolean
   workspacePath: string
   communities: GroupEntry[]
   groups: GroupEntry[]
@@ -189,6 +190,11 @@ export default function Agents() {
               onClick={() => setSelectedAgent(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onLinkWa={() => setLinkWaTarget(agent)}
+              onUnlinkWa={() => {
+                fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
+                  .then(() => fetchAgents())
+                  .catch(() => {})
+              }}
             />
           ))}
         </div>
@@ -233,6 +239,7 @@ export default function Agents() {
         <LinkWhatsAppPanel
           agentId={linkWaTarget.id}
           agentName={linkWaTarget.name}
+          isProfile={linkWaTarget.isProfile}
           onClose={() => setLinkWaTarget(null)}
           onLinked={() => fetchAgents()}
         />
@@ -242,7 +249,7 @@ export default function Agents() {
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onUnlinkWa,
 }: {
   agent: Agent
   selected: boolean
@@ -251,7 +258,9 @@ function AgentCard({
   onClick: () => void
   onDelete: () => void
   onLinkWa: () => void
+  onUnlinkWa: () => void
 }) {
+  const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   return (
     <div
       className={`bg-white rounded-xl border shadow-sm transition-all ${
@@ -295,19 +304,47 @@ function AgentCard({
               <span className="text-gray-400 w-20 shrink-0">Heartbeat</span>
               <span className="font-mono text-xs">{timeAgo(agent.lastHeartbeat)}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 w-20 shrink-0">WhatsApp</span>
-              {agent.whatsapp
-                ? <span className="font-mono text-xs">+{agent.whatsapp}</span>
-                : (
-                  <button
-                    onClick={e => { e.stopPropagation(); onLinkWa() }}
-                    className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors font-medium"
-                  >
-                    Link WA
-                  </button>
+            <div className="flex items-start gap-2">
+              <span className="text-gray-400 w-20 shrink-0 mt-0.5">WhatsApp</span>
+              {agent.whatsapp ? (
+                confirmUnlink ? (
+                  <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
+                    <p className="text-xs text-amber-700 font-medium">This will permanently delete WA credentials from disk. The agent will immediately stop receiving and sending WhatsApp messages and must be re-linked to resume.</p>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => { onUnlinkWa(); setConfirmUnlink(false) }}
+                        className="text-xs px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 font-medium transition-colors"
+                      >
+                        Yes, unlink
+                      </button>
+                      <button
+                        onClick={() => setConfirmUnlink(false)}
+                        className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-xs">+{agent.whatsapp}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setConfirmUnlink(true) }}
+                      className="text-xs text-gray-300 hover:text-red-400 transition-colors"
+                      title="Unlink WhatsApp"
+                    >
+                      ×
+                    </button>
+                  </div>
                 )
-              }
+              ) : (
+                <button
+                  onClick={e => { e.stopPropagation(); onLinkWa() }}
+                  className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors font-medium"
+                >
+                  Link WA
+                </button>
+              )}
             </div>
           </div>
 
