@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
+import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -64,6 +65,7 @@ export default function Agents() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -186,6 +188,7 @@ export default function Agents() {
               onToggle={() => toggleCollapse(agent.id)}
               onClick={() => setSelectedAgent(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
+              onLinkWa={() => setLinkWaTarget(agent)}
             />
           ))}
         </div>
@@ -225,12 +228,21 @@ export default function Agents() {
           onDeleted={() => { fetchAgents(); setSelectedAgent(null) }}
         />
       )}
+
+      {linkWaTarget && (
+        <LinkWhatsAppPanel
+          agentId={linkWaTarget.id}
+          agentName={linkWaTarget.name}
+          onClose={() => setLinkWaTarget(null)}
+          onLinked={() => fetchAgents()}
+        />
+      )}
     </div>
   )
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa,
 }: {
   agent: Agent
   selected: boolean
@@ -238,6 +250,7 @@ function AgentCard({
   onToggle: () => void
   onClick: () => void
   onDelete: () => void
+  onLinkWa: () => void
 }) {
   return (
     <div
@@ -286,7 +299,14 @@ function AgentCard({
               <span className="text-gray-400 w-20 shrink-0">WhatsApp</span>
               {agent.whatsapp
                 ? <span className="font-mono text-xs">+{agent.whatsapp}</span>
-                : <span className="text-gray-300 text-xs">not connected</span>
+                : (
+                  <button
+                    onClick={e => { e.stopPropagation(); onLinkWa() }}
+                    className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors font-medium"
+                  >
+                    Link WA
+                  </button>
+                )
               }
             </div>
           </div>
