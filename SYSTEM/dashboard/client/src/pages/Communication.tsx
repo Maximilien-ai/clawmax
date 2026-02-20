@@ -197,13 +197,16 @@ function ChannelCard({
         <p className="text-xs text-gray-500 mb-3 leading-relaxed">{description}</p>
       )}
 
-      <div className={`space-y-1.5 ${description ? '' : 'mt-1'}`}>
-        {members.map(agent => (
-          <div key={agent.id} className="flex items-center gap-2">
+      <div className={`flex flex-wrap gap-1.5 ${description ? '' : 'mt-1'}`}>
+        {[...members].sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
+          <span
+            key={agent.id}
+            title={`${agent.name} (${agent.id}) - ${agent.status}`}
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-gray-50 text-gray-700 border border-gray-200 font-medium cursor-default"
+          >
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT_MAP[agent.status]}`} />
-            <span className="text-xs text-gray-700 font-medium">{agent.name}</span>
-            <span className="text-xs text-gray-400 font-mono">({agent.id})</span>
-          </div>
+            {agent.name}
+          </span>
         ))}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
@@ -28,6 +28,7 @@ interface Agent {
   workspacePath: string
   communities: GroupEntry[]
   groups: GroupEntry[]
+  tags: string[]
 }
 
 const STATUS_COLORS = {
@@ -71,6 +72,7 @@ export default function Agents() {
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -114,6 +116,46 @@ export default function Agents() {
     })
   }
 
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    agents.forEach(a => a.tags.forEach(t => tags.add(t)))
+    return Array.from(tags).sort()
+  }, [agents])
+
+  const filteredAgents = useMemo(() => {
+    if (selectedTags.size === 0) return agents
+    return agents.filter(a => a.tags.some(t => selectedTags.has(t)))
+  }, [agents, selectedTags])
+
+  const groupedAgents = useMemo(() => {
+    const groups = new Map<string, Agent[]>()
+
+    // Group agents by each of their tags
+    allTags.forEach(tag => {
+      const agentsWithTag = filteredAgents.filter(a => a.tags.includes(tag))
+      if (agentsWithTag.length > 0) {
+        groups.set(tag, agentsWithTag)
+      }
+    })
+
+    // Add untagged agents
+    const untagged = filteredAgents.filter(a => a.tags.length === 0)
+    if (untagged.length > 0) {
+      groups.set('__untagged__', untagged)
+    }
+
+    return groups
+  }, [filteredAgents, allTags])
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       {/* Header */}
@@ -121,7 +163,8 @@ export default function Agents() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Agent Roster</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
-            {agents.length} agent{agents.length !== 1 ? 's' : ''}
+            {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
+            {selectedTags.size > 0 && <span className="text-gray-300">({agents.length} total)</span>}
             <span className="text-gray-300">·</span>
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
             refreshed {refreshedLabel}
@@ -164,6 +207,36 @@ export default function Agents() {
         </div>
       </div>
 
+      {/* Tag filters */}
+      {allTags.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+          <button
+            onClick={() => setSelectedTags(new Set())}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              selectedTags.size === 0
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            All
+          </button>
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => toggleTag(tag)}
+              className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                selectedTags.has(tag)
+                  ? 'bg-sky-600 text-white border border-sky-600'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && (
         <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
           Loading agents...
@@ -182,9 +255,22 @@ export default function Agents() {
         </div>
       )}
 
-      {!loading && !error && agents.length > 0 && viewMode === 'list' && (
+      {!loading && !error && agents.length > 0 && filteredAgents.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+          <span className="text-4xl mb-4">🔍</span>
+          <p className="text-sm">No agents match the selected tags</p>
+          <button
+            onClick={() => setSelectedTags(new Set())}
+            className="text-xs mt-2 text-sky-600 hover:text-sky-800 font-medium"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && filteredAgents.length > 0 && viewMode === 'list' && (
         <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-          {agents.map(agent => (
+          {filteredAgents.map(agent => (
             <AgentCard
               key={agent.id}
               agent={agent}
@@ -206,9 +292,35 @@ export default function Agents() {
         </div>
       )}
 
-      {!loading && !error && agents.length > 0 && viewMode === 'grid' && (
+      {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size === 0 && (
+        <div className="space-y-6">
+          {Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => (
+            <div key={tag}>
+              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+                {tag === '__untagged__' ? 'Untagged' : tag}
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  {tagAgents.length} agent{tagAgents.length !== 1 ? 's' : ''}
+                </span>
+              </h2>
+              <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {tagAgents.map(agent => (
+                  <AgentGridCard
+                    key={`${tag}-${agent.id}`}
+                    agent={agent}
+                    selected={selectedAgent?.id === agent.id}
+                    onClick={() => setSelectedAgent(agent)}
+                    onChat={() => setChatTarget(agent)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size > 0 && (
         <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {agents.map(agent => (
+          {filteredAgents.map(agent => (
             <AgentGridCard
               key={agent.id}
               agent={agent}
@@ -411,6 +523,19 @@ function AgentCard({
             )}
           </div>
 
+          {agent.tags.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <span className="text-xs text-gray-400 mb-1 block">Tags</span>
+              <div className="flex flex-wrap gap-1">
+                {agent.tags.map(tag => (
+                  <span key={tag} className="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 font-medium">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mt-3 pt-3 border-t border-gray-100">
             <span className="text-xs text-gray-300 font-mono truncate block">
               {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
@@ -447,6 +572,18 @@ function AgentGridCard({ agent, selected, onClick, onChat }: { agent: Agent; sel
       <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
       {totalGroups > 0 && (
         <div className="mt-2 text-xs text-gray-300">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
+      )}
+      {agent.tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-0.5">
+          {agent.tags.slice(0, 2).map(tag => (
+            <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">
+              {tag}
+            </span>
+          ))}
+          {agent.tags.length > 2 && (
+            <span className="text-xs px-1.5 py-0.5 text-gray-300">+{agent.tags.length - 2}</span>
+          )}
+        </div>
       )}
     </div>
   )
