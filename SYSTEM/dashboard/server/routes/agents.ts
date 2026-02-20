@@ -178,6 +178,24 @@ router.post('/provision', (req, res) => {
     }
   }
 
+  // Check if agent is already registered in openclaw.json
+  const HOME = process.env.HOME || ''
+  const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
+  let isRegistered = false
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list || []
+    isRegistered = agentList.some((a: any) => a.id === name)
+  } catch {}
+
+  if (isRegistered) {
+    // Agent already registered - skip openclaw agents add
+    send('log', `Agent "${name}" is already registered\n`)
+    send('done', 'ok')
+    res.end()
+    return
+  }
+
   // Build openclaw agents add command
   const workspaceArg = path.join(WORKSPACE, 'AGENTS', name)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')

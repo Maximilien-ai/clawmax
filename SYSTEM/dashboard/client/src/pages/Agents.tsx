@@ -71,6 +71,7 @@ export default function Agents() {
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
+  const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
@@ -302,27 +303,57 @@ export default function Agents() {
 
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size === 0 && (
         <div className="space-y-6">
-          {Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => (
-            <div key={tag}>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
-                {tag === '__untagged__' ? 'Untagged' : tag}
-                <span className="ml-2 text-xs font-normal text-gray-400">
-                  {tagAgents.length} agent{tagAgents.length !== 1 ? 's' : ''}
-                </span>
-              </h2>
-              <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {tagAgents.map(agent => (
-                  <AgentGridCard
-                    key={`${tag}-${agent.id}`}
-                    agent={agent}
-                    selected={selectedAgent?.id === agent.id}
-                    onClick={() => setSelectedAgent(agent)}
-                    onChat={() => setChatTarget(agent)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          {(() => {
+            const shownAgentIds = new Set<string>()
+            return Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => {
+              // Split agents into those we can show (not shown yet) and those already shown
+              const agentsToShow = tagAgents.filter(a => !shownAgentIds.has(a.id))
+              const alreadyShownAgents = tagAgents.filter(a => shownAgentIds.has(a.id))
+
+              // Mark these agents as shown for future groups
+              agentsToShow.forEach(a => shownAgentIds.add(a.id))
+
+              return (
+                <div key={tag}>
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+                    {tag === '__untagged__' ? 'Untagged' : tag}
+                    <span className="ml-2 text-xs font-normal text-gray-400">
+                      {tagAgents.length} agent{tagAgents.length !== 1 ? 's' : ''}
+                    </span>
+                  </h2>
+                  <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    {agentsToShow.map(agent => (
+                      <AgentGridCard
+                        key={`${tag}-${agent.id}`}
+                        agent={agent}
+                        selected={selectedAgent?.id === agent.id}
+                        onClick={() => setSelectedAgent(agent)}
+                        onChat={() => setChatTarget(agent)}
+                        onDelete={() => setDeleteTarget(agent.id)}
+                        onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                      />
+                    ))}
+                  </div>
+                  {alreadyShownAgents.length > 0 && (
+                    <div className="mt-3 px-1 text-xs text-gray-400">
+                      Also in this group:{' '}
+                      {alreadyShownAgents.map((agent, idx) => (
+                        <span key={agent.id}>
+                          {idx > 0 && ', '}
+                          <button
+                            onClick={() => setSelectedAgent(agent)}
+                            className="text-sky-500 hover:text-sky-700 hover:underline"
+                          >
+                            {agent.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          })()}
         </div>
       )}
 
@@ -335,6 +366,8 @@ export default function Agents() {
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
               onChat={() => setChatTarget(agent)}
+              onDelete={() => setDeleteTarget(agent.id)}
+              onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
             />
           ))}
         </div>
@@ -350,8 +383,9 @@ export default function Agents() {
 
       {showAddWizard && (
         <AddAgentWizard
-          onClose={() => setShowAddWizard(false)}
+          onClose={() => { setShowAddWizard(false); setCloneFromAgent(null); }}
           onDone={() => fetchAgents()}
+          defaultCloneFrom={cloneFromAgent || undefined}
         />
       )}
 
@@ -555,7 +589,7 @@ function AgentCard({
   )
 }
 
-function AgentGridCard({ agent, selected, onClick, onChat }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void }) {
+function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -567,32 +601,56 @@ function AgentGridCard({ agent, selected, onClick, onChat }: { agent: Agent; sel
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onChat(); }}
-          className="ml-auto text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
-          aria-label="Chat with agent"
-          title="Chat with agent"
-        >
-          💬
-        </button>
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onClone(); }}
+            className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
+            aria-label="Clone agent"
+            title="Clone agent"
+          >
+            📋
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onChat(); }}
+            className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+            aria-label="Chat with agent"
+            title="Chat with agent"
+          >
+            💬
+          </button>
+        </div>
       </div>
       <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
       <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
       {totalGroups > 0 && (
         <div className="mt-2 text-xs text-gray-300">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
       )}
-      {agent.tags.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-0.5">
-          {agent.tags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">
-              {tag}
-            </span>
-          ))}
-          {agent.tags.length > 2 && (
-            <span className="text-xs px-1.5 py-0.5 text-gray-300">+{agent.tags.length - 2}</span>
+      <div className="mt-1.5 flex items-start justify-between gap-1">
+        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
+          {agent.tags.length > 0 ? (
+            <>
+              {agent.tags.slice(0, 2).map(tag => (
+                <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">
+                  {tag}
+                </span>
+              ))}
+              {agent.tags.length > 2 && (
+                <span className="text-xs px-1.5 py-0.5 text-gray-300">+{agent.tags.length - 2}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-xs text-gray-200 invisible">placeholder</span>
           )}
         </div>
-      )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="text-gray-200 hover:text-red-400 transition-colors text-xs p-0.5 rounded hover:bg-red-50 shrink-0"
+          aria-label="Delete agent"
+          title="Delete agent"
+        >
+          🗑
+        </button>
+      </div>
     </div>
   )
 }

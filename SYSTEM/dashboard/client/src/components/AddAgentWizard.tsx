@@ -19,6 +19,7 @@ const PREDEFINED_TAGS = [
 interface WizardProps {
   onClose: () => void
   onDone: () => void
+  defaultCloneFrom?: string
 }
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -41,12 +42,12 @@ interface GeneratedFiles {
   tools: string
 }
 
-export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
+export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: WizardProps) {
   const [step, setStep] = useState<Step>(1)
   const [form, setForm] = useState<FormState>({
     name: '',
     model: 'anthropic/claude-sonnet-4-5',
-    cloneFrom: '',
+    cloneFrom: defaultCloneFrom || '',
     whatsapp: '',
     port: 0,
     tags: [],

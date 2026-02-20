@@ -5,4 +5,5 @@
 - **Vibe:** calm
 - **Emoji:** agent
 - **Avatar:**
+- **Tags:** assistant
 - **WhatsApp:** +14158276319

@@ -114,6 +114,7 @@ export interface AgentInfo {
   workspacePath: string
   communities: GroupEntry[]
   groups: GroupEntry[]
+  tags: string[]
 }
 
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions.
@@ -139,6 +140,21 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
     }
   }
   return { communities, groups }
+}
+
+/** Parse Tags from IDENTITY.md **Tags:** field.
+ *  Format: `**Tags:** tag1, tag2, tag3` (comma-separated) */
+export function parseTags(content: string): string[] {
+  const tagsMatch = content.match(/\*\*Tags[:\*\s]*\*?\*?\s*\n?\s*([^\n]+)/mi)
+  if (!tagsMatch) return []
+
+  const tagsStr = tagsMatch[1].trim()
+  if (!tagsStr) return []
+
+  return tagsStr
+    .split(',')
+    .map(t => t.trim())
+    .filter(t => t.length > 0)
 }
 
 /** Discover all maxN/ directories and return agent info */
@@ -193,7 +209,8 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
     return entries
   }
   for (const d of dirs) {
-    if (!d.isDirectory() || !/^max\d+$/.test(d.name)) continue
+    if (!d.isDirectory()) continue
+    if (d.name.startsWith('.') || d.name.startsWith('_')) continue
     const agentDir = path.join(AGENTS_DIR, d.name)
     try {
       const files = fs.readdirSync(agentDir, { withFileTypes: true })
@@ -310,7 +327,8 @@ export function listAgents(): AgentInfo[] {
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
-    if (!/^max\d+$/.test(entry.name)) continue
+    // Skip hidden directories and common non-agent directories
+    if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
 
     const agentDir = path.join(AGENTS_DIR, entry.name)
     // Look up the registered ID from openclaw.json, fall back to directory name
@@ -375,6 +393,13 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     groups = parsed.groups
   } catch {}
 
+  // Read tags from IDENTITY.md
+  let tags: string[] = []
+  try {
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    tags = parseTags(identity)
+  } catch {}
+
   return {
     id,
     name,
@@ -385,6 +410,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     workspacePath: agentDir,
     communities,
     groups,
+    tags,
   }
 }
 
