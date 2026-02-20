@@ -86,6 +86,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<Array<{ field: string; message: string; value?: any }>>([])
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
@@ -147,13 +148,16 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
   function cancelEdit() {
     setEditMode(false)
+    setDraft(content)
     setSaveError(null)
+    setValidationErrors([])
   }
 
   function saveFile() {
     if (!selected) return
     setSaving(true)
     setSaveError(null)
+    setValidationErrors([])
     setSaveSuccess(false)
     fetch('/api/docs/content', {
       method: 'POST',
@@ -170,6 +174,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
           setTimeout(() => setSaveSuccess(false), 3000)
         } else {
           setSaveError(d.error ?? 'Save failed')
+          if (d.validationErrors && Array.isArray(d.validationErrors)) {
+            setValidationErrors(d.validationErrors)
+          }
         }
       })
       .catch(() => { setSaving(false); setSaveError('Save failed') })
@@ -378,6 +385,29 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 )}
               </div>
             </div>
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-2 mb-2">
+                  <span className="text-red-600 font-semibold text-sm">❌ Validation Failed</span>
+                </div>
+                <div className="space-y-2">
+                  {validationErrors.map((err, idx) => (
+                    <div key={idx} className="text-sm">
+                      <span className="font-mono text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{err.field}</span>
+                      <span className="text-gray-700 ml-2">{err.message}</span>
+                      {err.value !== undefined && (
+                        <span className="text-gray-500 ml-2 italic">({JSON.stringify(err.value)})</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-600 mt-3">
+                  Please fix the errors above and try saving again. The document will not be saved until all validation errors are resolved.
+                </p>
+              </div>
+            )}
 
             {/* View or Edit */}
             {editMode ? (

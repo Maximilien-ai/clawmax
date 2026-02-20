@@ -7,7 +7,8 @@ import os from 'os'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
-import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName } from './lib/workspace'
+import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
@@ -57,6 +58,99 @@ app.post('/api/docs/content', (req, res) => {
     res.status(400).json({ ok: false, error: 'Missing path or content' })
     return
   }
+
+  // Validate content before saving if it's a schema-backed file
+  const fileName = relPath.split('/').pop()
+
+  if (fileName === 'COMMUNITIES.md') {
+    const { communities } = parseGroups(content)
+    const validation = validateCommunities(communities)
+    if (!validation.valid) {
+      // Enhance error messages with actual names
+      const enhancedErrors = validation.errors.map(err => {
+        const match = err.field.match(/^communities\.(\d+)\.?(.*)/)
+        if (match) {
+          const idx = parseInt(match[1])
+          let subfield = match[2]
+          const community = communities[idx]
+          const name = community?.name || `#${idx}`
+
+          // Further enhance array field errors (e.g., tags.0 -> tag "value")
+          const arrayMatch = subfield?.match(/^(tags|channels)\.(\d+)$/)
+          if (arrayMatch && community) {
+            const arrayField = arrayMatch[1] as 'tags' | 'channels'
+            const arrayIdx = parseInt(arrayMatch[2])
+            const value = community[arrayField]?.[arrayIdx]
+            if (value) {
+              subfield = `${arrayField.slice(0, -1)} "${value}"`
+            }
+          }
+
+          return {
+            ...err,
+            field: subfield ? `Community "${name}" → ${subfield}` : `Community "${name}"`
+          }
+        }
+        return err
+      })
+      res.status(400).json({
+        ok: false,
+        error: 'Validation failed',
+        validationErrors: enhancedErrors
+      })
+      return
+    }
+  } else if (fileName === 'GROUPS.md') {
+    const { groups } = parseGroups(content)
+    const validation = validateGroups(groups)
+    if (!validation.valid) {
+      // Enhance error messages with actual names
+      const enhancedErrors = validation.errors.map(err => {
+        const match = err.field.match(/^groups\.(\d+)\.?(.*)/)
+        if (match) {
+          const idx = parseInt(match[1])
+          let subfield = match[2]
+          const group = groups[idx]
+          const name = group?.name || `#${idx}`
+
+          // Further enhance array field errors (e.g., tags.0 -> tag "value")
+          const arrayMatch = subfield?.match(/^(tags|channels)\.(\d+)$/)
+          if (arrayMatch && group) {
+            const arrayField = arrayMatch[1] as 'tags' | 'channels'
+            const arrayIdx = parseInt(arrayMatch[2])
+            const value = group[arrayField]?.[arrayIdx]
+            if (value) {
+              subfield = `${arrayField.slice(0, -1)} "${value}"`
+            }
+          }
+
+          return {
+            ...err,
+            field: subfield ? `Group "${name}" → ${subfield}` : `Group "${name}"`
+          }
+        }
+        return err
+      })
+      res.status(400).json({
+        ok: false,
+        error: 'Validation failed',
+        validationErrors: enhancedErrors
+      })
+      return
+    }
+  } else if (fileName === 'IDENTITY.md') {
+    const identity = parseIdentity(content)
+    const validation = validateIdentity(identity)
+    if (!validation.valid) {
+      res.status(400).json({
+        ok: false,
+        error: 'Validation failed',
+        validationErrors: validation.errors
+      })
+      return
+    }
+  }
+
   const ok = writeWorkspaceFile(relPath, content)
   if (!ok) {
     res.status(403).json({ ok: false, error: 'Path not allowed or not a markdown file' })

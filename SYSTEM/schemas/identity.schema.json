@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Identity Schema",
+  "description": "Schema for validating agent IDENTITY.md files",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$",
+      "minLength": 1,
+      "description": "Agent ID (lowercase, alphanumeric, dash, underscore)"
+    },
+    "creature": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent's role or persona"
+    },
+    "vibe": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent's personality or working style"
+    },
+    "emoji": {
+      "type": "string",
+      "pattern": "^[\\u{1F300}-\\u{1F9FF}]$",
+      "description": "Single emoji representing the agent"
+    },
+    "whatsapp": {
+      "type": ["string", "null"],
+      "pattern": "^$|^\\+?[1-9]\\d{1,14}$",
+      "description": "WhatsApp phone number in E.164 format or empty string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9_-]+$"
+      },
+      "uniqueItems": true,
+      "description": "Tags for categorizing the agent (lowercase, alphanumeric, dash, underscore)"
+    }
+  }
+}

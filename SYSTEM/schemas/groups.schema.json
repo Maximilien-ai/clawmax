@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Groups Markdown Schema",
+  "description": "Schema for validating GROUPS.md files",
+  "type": "object",
+  "properties": {
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the group"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Description of the group's purpose"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "uniqueItems": true,
+            "description": "Tags for categorizing the group (lowercase, alphanumeric, dash, underscore)"
+          },
+          "community": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Parent community this group belongs to"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["whatsapp", "slack", "discord", "email", "teams"]
+            },
+            "uniqueItems": true,
+            "description": "Communication channels linked to this group"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Communities Markdown Schema",
+  "description": "Schema for validating COMMUNITIES.md files",
+  "type": "object",
+  "properties": {
+    "communities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the community"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Description of the community's purpose"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "uniqueItems": true,
+            "description": "Tags for categorizing the community (lowercase, alphanumeric, dash, underscore)"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["whatsapp", "slack", "discord", "email", "teams"]
+            },
+            "uniqueItems": true,
+            "description": "Communication channels linked to this community"
+          }
+        }
+      }
+    }
+  }
+}

@@ -359,6 +359,33 @@ export function parseTags(content: string): string[] {
     .filter(t => t.length > 0)
 }
 
+/** Parse IDENTITY.md content into structured data */
+export function parseIdentity(content: string): any {
+  const identity: any = {}
+
+  const nameMatch = content.match(/\*\*Name:\*\*\s*([^\n]+)/i)
+  if (nameMatch) identity.name = nameMatch[1].trim()
+
+  const creatureMatch = content.match(/\*\*Creature:\*\*\s*([^\n]+)/i)
+  if (creatureMatch) identity.creature = creatureMatch[1].trim()
+
+  const vibeMatch = content.match(/\*\*Vibe:\*\*\s*([^\n]+)/i)
+  if (vibeMatch) identity.vibe = vibeMatch[1].trim()
+
+  const emojiMatch = content.match(/\*\*Emoji:\*\*\s*([^\n]+)/i)
+  if (emojiMatch) identity.emoji = emojiMatch[1].trim()
+
+  const whatsappMatch = content.match(/\*\*WhatsApp:\*\*\s*([^\n]*)/i)
+  if (whatsappMatch) {
+    const value = whatsappMatch[1].trim()
+    identity.whatsapp = value || null
+  }
+
+  identity.tags = parseTags(content)
+
+  return identity
+}
+
 /** Discover all maxN/ directories and return agent info */
 export interface AgentActivity {
   recentFiles: { name: string; mtime: string; ageMins: number }[]
