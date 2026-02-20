@@ -797,4 +797,153 @@ router.get('/:id/chat/messages', async (req, res) => {
   }
 })
 
+// Clear agent chat messages (archives them first)
+router.delete('/:id/chat/messages', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const sessionKey = `agent:${id}:dashboard-chat`
+
+  try {
+    const HOME = process.env.HOME || ''
+    const sessionsDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions')
+    const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
+
+    if (!fs.existsSync(sessionsIndexPath)) {
+      return res.json({ ok: true, archived: false })
+    }
+
+    const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
+    let actualSessionId: string | null = null
+
+    if (sessionsIndex[sessionKey]?.sessionId) {
+      actualSessionId = sessionsIndex[sessionKey].sessionId
+    }
+
+    if (!actualSessionId) {
+      return res.json({ ok: true, archived: false })
+    }
+
+    const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
+
+    if (fs.existsSync(jsonlPath)) {
+      // Archive the session file
+      const archiveDir = path.join(sessionsDir, 'archive')
+      if (!fs.existsSync(archiveDir)) {
+        fs.mkdirSync(archiveDir, { recursive: true })
+      }
+
+      const timestamp = Date.now()
+      const date = new Date(timestamp).toISOString().split('T')[0]
+      const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
+
+      fs.copyFileSync(jsonlPath, archiveFile)
+      fs.unlinkSync(jsonlPath)
+
+      // Remove session from index
+      delete sessionsIndex[sessionKey]
+      fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+
+      return res.json({ ok: true, archived: true })
+    }
+
+    res.json({ ok: true, archived: false })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Get archived chat sessions
+router.get('/:id/chat/archives', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  try {
+    const HOME = process.env.HOME || ''
+    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+
+    if (!fs.existsSync(archiveDir)) {
+      return res.json({ archives: [] })
+    }
+
+    const files = fs.readdirSync(archiveDir)
+      .filter(f => f.endsWith('.jsonl'))
+      .map(filename => {
+        const fullPath = path.join(archiveDir, filename)
+        const timestampMatch = filename.match(/_(\d+)\.jsonl$/)
+        const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
+
+        // Count messages in archive
+        let messageCount = 0
+        try {
+          const content = fs.readFileSync(fullPath, 'utf-8')
+          const lines = content.trim().split('\n').filter(l => l.trim())
+          messageCount = lines.filter(l => {
+            try {
+              const obj = JSON.parse(l)
+              return obj.type === 'message'
+            } catch {
+              return false
+            }
+          }).length
+        } catch {
+          // ignore
+        }
+
+        return { filename, timestamp, messageCount }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+
+    res.json({ archives: files })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Get specific archived chat
+router.get('/:id/chat/archives/:filename', async (req, res) => {
+  const { id, filename } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  try {
+    const HOME = process.env.HOME || ''
+    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+    const filePath = path.join(archiveDir, filename)
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archive not found' })
+    }
+
+    const jsonlContent = fs.readFileSync(filePath, 'utf-8')
+    const lines = jsonlContent.trim().split('\n').filter(l => l.trim())
+
+    const messages: { role: 'user' | 'assistant'; content: string; timestamp?: number }[] = []
+
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line)
+        if (obj.type === 'message' && obj.data?.content) {
+          messages.push({
+            role: obj.data.role || 'user',
+            content: obj.data.content,
+            timestamp: obj.meta?.timestamp || Date.now()
+          })
+        }
+      } catch {
+        continue
+      }
+    }
+
+    res.json({ messages })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 export default router

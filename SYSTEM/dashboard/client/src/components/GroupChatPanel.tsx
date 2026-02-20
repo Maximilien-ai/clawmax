@@ -50,6 +50,7 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
   const [showArchives, setShowArchives] = useState(false)
   const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -531,6 +532,8 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
                       .map(m => `[${new Date(m.timestamp).toLocaleString()}] ${m.from}: ${m.content}`)
                       .join('\n\n')
                     navigator.clipboard.writeText(text)
+                    setCopyFeedback(true)
+                    setTimeout(() => setCopyFeedback(false), 2000)
                   }}
                   className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
                   title="Copy to clipboard"
@@ -584,6 +587,13 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
                 Back to Current Chat
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Copy Feedback Toast */}
+        {copyFeedback && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-20">
+            ✓ Messages copied to clipboard
           </div>
         )}
       </div>

@@ -18,7 +18,13 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [showArchives, setShowArchives] = useState(false)
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number }>>([])
+  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -81,7 +87,65 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
       setError(String(e))
     } finally {
       setSending(false)
+      setTimeout(() => inputRef.current?.focus(), 0)
     }
+  }
+
+  async function clearMessages() {
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/messages`, { method: 'DELETE' })
+      const data = await r.json()
+      if (data.ok) {
+        setMessages([])
+        setShowClearConfirm(false)
+        fetchArchives()
+      }
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  async function fetchArchives() {
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/archives`)
+      const data = await r.json()
+      setArchives(data.archives || [])
+    } catch (e) {
+      console.error('Failed to fetch archives:', e)
+    }
+  }
+
+  async function viewArchive(filename: string) {
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`)
+      const data = await r.json()
+      setViewingArchive({ filename, messages: data.messages || [] })
+    } catch (e) {
+      console.error('Failed to load archive:', e)
+    }
+  }
+
+  function copyToClipboard(msgs: Message[]) {
+    const text = msgs
+      .map(m => `[${m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}] ${m.role === 'user' ? 'You' : agentName}: ${m.content}`)
+      .join('\n\n')
+    navigator.clipboard.writeText(text)
+    setCopyFeedback(true)
+    setTimeout(() => setCopyFeedback(false), 2000)
+  }
+
+  function downloadArchive(msgs: Message[], filename: string) {
+    const text = msgs
+      .map(m => `[${m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}] ${m.role === 'user' ? 'You' : agentName}: ${m.content}`)
+      .join('\n\n')
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const date = filename.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().split('T')[0]
+    a.download = `${agentName}_chat_${date}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -102,12 +166,28 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
               <span className="font-mono">{agentName}</span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { fetchArchives(); setShowArchives(true); }}
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              title="View chat history"
+            >
+              📜 History
+            </button>
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              title="Clear messages"
+            >
+              🗑️ Clear
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -164,6 +244,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         <div className="px-6 py-4 border-t border-gray-100 shrink-0">
           <div className="flex gap-2">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -185,6 +266,132 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
             </button>
           </div>
         </div>
+
+        {/* Clear Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+              <h3 className="text-base font-semibold mb-2">Clear Chat History?</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Messages will be archived. You can view them in History.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={clearMessages}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Archives List Modal */}
+        {showArchives && !viewingArchive && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold">Chat Archives</h3>
+                <button
+                  onClick={() => setShowArchives(false)}
+                  className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {archives.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">No archives yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {archives.map(archive => (
+                      <button
+                        key={archive.filename}
+                        onClick={() => viewArchive(archive.filename)}
+                        className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="text-sm font-medium">
+                          {new Date(archive.timestamp).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {archive.messageCount} messages
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Archive Viewer Modal */}
+        {viewingArchive && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold">Archived Chat</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyToClipboard(viewingArchive.messages)}
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋 Copy
+                  </button>
+                  <button
+                    onClick={() => downloadArchive(viewingArchive.messages, viewingArchive.filename)}
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="Download as text file"
+                  >
+                    💾 Download
+                  </button>
+                  <button
+                    onClick={() => setViewingArchive(null)}
+                    className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4">
+                {viewingArchive.messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
+                        msg.role === 'user'
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <p className="text-xs text-gray-500 mb-1">
+                        {msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Copy Feedback Toast */}
+        {copyFeedback && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-20">
+            ✓ Messages copied to clipboard
+          </div>
+        )}
       </div>
     </div>
   )
