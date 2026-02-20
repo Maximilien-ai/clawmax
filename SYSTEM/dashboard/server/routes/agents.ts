@@ -131,8 +131,14 @@ router.post('/generate', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom } = req.body as {
-    name?: string; model?: string; whatsapp?: string; port?: number; profile?: boolean; cloneFrom?: string
+  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles } = req.body as {
+    name?: string
+    model?: string
+    whatsapp?: string
+    port?: number
+    profile?: boolean
+    cloneFrom?: string
+    generatedFiles?: { identity: string; soul: string; tools: string }
   }
 
   if (!name || !/^[a-z][a-z0-9_-]*$/.test(name)) {
@@ -148,6 +154,18 @@ router.post('/provision', (req, res) => {
 
   const send = (type: string, data: string) => {
     res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+  }
+
+  // Write AI-generated files before provisioning
+  if (generatedFiles) {
+    const dstPath = path.join(AGENTS_DIR, name)
+    fs.mkdirSync(dstPath, { recursive: true })
+
+    fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), generatedFiles.identity)
+    fs.writeFileSync(path.join(dstPath, 'SOUL.md'), generatedFiles.soul)
+    fs.writeFileSync(path.join(dstPath, 'TOOLS.md'), generatedFiles.tools)
+
+    send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
   }
 
   // Clone source agent files before provisioning

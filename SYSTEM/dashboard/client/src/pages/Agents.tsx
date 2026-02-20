@@ -64,7 +64,10 @@ export default function Agents() {
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem('agents-view-mode')
+    return (saved === 'list' || saved === 'grid') ? saved : 'list'
+  })
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
@@ -99,6 +102,11 @@ export default function Agents() {
     setRefreshedLabel(secAgo(lastRefreshed))
     return () => clearInterval(ticker)
   }, [lastRefreshed])
+
+  // Save view mode preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('agents-view-mode', viewMode)
+  }, [viewMode])
 
   const handleRefresh = () => {
     if (cooling) return
