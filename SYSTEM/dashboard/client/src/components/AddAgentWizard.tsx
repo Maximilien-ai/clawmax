@@ -7,12 +7,21 @@ const MODELS = [
   'openai/gpt-4o-mini',
 ]
 
+const PREDEFINED_TAGS = [
+  'assistant',
+  'engineer',
+  'project-manager',
+  'analyst',
+  'designer',
+  'researcher',
+]
+
 interface WizardProps {
   onClose: () => void
   onDone: () => void
 }
 
-type Step = 1 | 2 | 3 | 4
+type Step = 1 | 2 | 3 | 4 | 5
 
 interface FormState {
   name: string
@@ -20,6 +29,16 @@ interface FormState {
   cloneFrom: string
   whatsapp: string
   port: number
+  tags: string[]
+  customTag: string
+  aiDescription: string
+  useAI: boolean
+}
+
+interface GeneratedFiles {
+  identity: string
+  soul: string
+  tools: string
 }
 
 export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
@@ -30,6 +49,10 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
     cloneFrom: '',
     whatsapp: '',
     port: 0,
+    tags: [],
+    customTag: '',
+    aiDescription: '',
+    useAI: false,
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
@@ -38,6 +61,9 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
   const [done, setDone] = useState(false)
   const [provError, setProvError] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
+  const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
 
   // Fetch suggested ID + port and existing agents list on mount
   useEffect(() => {
@@ -66,9 +92,43 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const canNext: Record<Step, boolean> = {
     1: nameOk && form.model.length > 0,
-    2: true, // whatsapp is optional
-    3: true, // port/profile optional
-    4: false, // provision button handles this
+    2: true, // AI generation is optional
+    3: true, // whatsapp is optional
+    4: true, // port/profile optional
+    5: false, // provision button handles this
+  }
+
+  async function generateWithAI() {
+    if (!form.aiDescription.trim()) return
+    setGenerating(true)
+    setGenError(null)
+
+    try {
+      const resp = await fetch('/api/agents/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: form.aiDescription,
+          name: form.name,
+          tags: form.tags,
+        }),
+      })
+
+      if (!resp.ok) {
+        const err = await resp.text()
+        setGenError(err || 'Generation failed')
+        setGenerating(false)
+        return
+      }
+
+      const files = await resp.json() as GeneratedFiles
+      setGeneratedFiles(files)
+      set('useAI', true)
+      setGenerating(false)
+    } catch (e) {
+      setGenError(String(e))
+      setGenerating(false)
+    }
   }
 
   async function provision() {
@@ -83,6 +143,8 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
+    if (form.tags.length > 0) body.tags = form.tags
+    if (generatedFiles) body.generatedFiles = generatedFiles
     body.profile = true  // always use profile mode (isolated ~/.openclaw-<name>/ state dir)
 
     try {
@@ -159,7 +221,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
 
         {/* Step indicators */}
         <div className="px-6 pt-4 pb-2 flex items-center gap-2 shrink-0">
-          {([1, 2, 3, 4] as Step[]).map(s => (
+          {([1, 2, 3, 4, 5] as Step[]).map(s => (
             <React.Fragment key={s}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 s < step ? 'bg-sky-600 text-white' :
@@ -168,14 +230,14 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
               }`}>
                 {s < step ? '✓' : s}
               </div>
-              {s < 4 && <div className={`flex-1 h-0.5 rounded ${s < step ? 'bg-sky-400' : 'bg-gray-200'}`} />}
+              {s < 5 && <div className={`flex-1 h-0.5 rounded ${s < step ? 'bg-sky-400' : 'bg-gray-200'}`} />}
             </React.Fragment>
           ))}
         </div>
 
         {/* Step labels */}
         <div className="px-6 pb-3 flex justify-between shrink-0">
-          {['Identity', 'Channel', 'Deployment', 'Provision'].map((label, i) => (
+          {['Identity', 'AI Agent', 'Channel', 'Deploy', 'Provision'].map((label, i) => (
             <span key={label} className={`text-xs ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}>
               {label}
             </span>
@@ -225,11 +287,169 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                   <p className="mt-1 text-xs text-gray-400">Copies SOUL, IDENTITY, TOOLS, USER, AGENTS, BOOTSTRAP from the selected agent.</p>
                 </div>
               )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tags <span className="text-gray-400">(optional)</span></label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {PREDEFINED_TAGS.map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        if (form.tags.includes(tag)) {
+                          set('tags', form.tags.filter(t => t !== tag))
+                        } else {
+                          set('tags', [...form.tags, tag])
+                        }
+                      }}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        form.tags.includes(tag)
+                          ? 'bg-sky-100 border-sky-400 text-sky-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.customTag}
+                    onChange={e => set('customTag', e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && form.customTag.trim()) {
+                        e.preventDefault()
+                        const tag = form.customTag.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+                        if (tag && !form.tags.includes(tag)) {
+                          set('tags', [...form.tags, tag])
+                          set('customTag', '')
+                        }
+                      }
+                    }}
+                    placeholder="Add custom tag (press Enter)"
+                    className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-md outline-none focus:border-sky-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tag = form.customTag.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+                      if (tag && !form.tags.includes(tag)) {
+                        set('tags', [...form.tags, tag])
+                        set('customTag', '')
+                      }
+                    }}
+                    disabled={!form.customTag.trim()}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded border border-gray-200 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+                {form.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {form.tags.map(tag => (
+                      <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-sky-50 border border-sky-200 rounded">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => set('tags', form.tags.filter(t => t !== tag))}
+                          className="text-sky-600 hover:text-sky-800"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-gray-400">Tags help organize agents (e.g., assistant, engineer, project-manager)</p>
+              </div>
             </div>
           )}
 
-          {/* Step 2: Channel (WhatsApp) */}
+          {/* Step 2: AI Generation (Optional) */}
           {step === 2 && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Optionally use AI to generate your agent's personality files (IDENTITY, SOUL, TOOLS). Skip this step to clone or create from scratch.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Describe your agent <span className="text-gray-400">(optional)</span></label>
+                <textarea
+                  value={form.aiDescription}
+                  onChange={e => set('aiDescription', e.target.value)}
+                  placeholder="e.g., A friendly project manager who helps track tasks and deadlines..."
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 h-24 resize-none"
+                  disabled={generating || !!generatedFiles}
+                />
+              </div>
+
+              <button
+                onClick={generateWithAI}
+                disabled={!form.aiDescription.trim() || generating || !!generatedFiles}
+                className={`w-full px-4 py-2 text-sm rounded font-medium transition-colors ${
+                  generating || !!generatedFiles
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : !form.aiDescription.trim()
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-sky-600 text-white hover:bg-sky-700'
+                }`}
+              >
+                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : 'Generate with AI'}
+              </button>
+
+              {genError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{genError}</div>
+              )}
+
+              {generatedFiles && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                    <span>✓</span>
+                    <span>Files generated successfully</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <details className="bg-gray-50 border border-gray-200 rounded-lg">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100">
+                        IDENTITY.md Preview
+                      </summary>
+                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200">
+                        {generatedFiles.identity}
+                      </pre>
+                    </details>
+
+                    <details className="bg-gray-50 border border-gray-200 rounded-lg">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100">
+                        SOUL.md Preview
+                      </summary>
+                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200">
+                        {generatedFiles.soul}
+                      </pre>
+                    </details>
+
+                    <details className="bg-gray-50 border border-gray-200 rounded-lg">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100">
+                        TOOLS.md Preview
+                      </summary>
+                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200">
+                        {generatedFiles.tools}
+                      </pre>
+                    </details>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setGeneratedFiles(null)
+                      set('useAI', false)
+                    }}
+                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Start over
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Channel (WhatsApp) */}
+          {step === 3 && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500">Optionally link a WhatsApp number to this agent. Leave blank to skip.</p>
               <div>
@@ -246,8 +466,8 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
             </div>
           )}
 
-          {/* Step 3: Deployment */}
-          {step === 3 && (
+          {/* Step 4: Deployment */}
+          {step === 4 && (
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
@@ -266,8 +486,8 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
             </div>
           )}
 
-          {/* Step 4: Review + Provision */}
-          {step === 4 && (
+          {/* Step 5: Review + Provision */}
+          {step === 5 && (
             <div className="space-y-4">
               {!provisioning && !done && !provError && (
                 <>
@@ -313,7 +533,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
           </button>
 
           <div className="flex items-center gap-2">
-            {step < 4 && (
+            {step < 5 && (
               <button
                 onClick={() => setStep(s => (s + 1) as Step)}
                 disabled={!canNext[step]}
@@ -322,7 +542,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                 Next
               </button>
             )}
-            {step === 4 && !done && (
+            {step === 5 && !done && (
               <button
                 onClick={provision}
                 disabled={provisioning}
