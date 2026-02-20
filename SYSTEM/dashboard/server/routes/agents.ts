@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
+import { generateAgentFiles } from '../lib/ai-generator'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -100,6 +101,32 @@ router.get('/next', async (_req, res) => {
   const n = parseInt(id.replace('max', ''), 10)
   const port = await findFreePort(18789 + n * 100)
   res.json({ id, port })
+})
+
+// POST /api/agents/generate — AI-generate agent files
+router.post('/generate', async (req, res) => {
+  const { description, name, tags } = req.body as {
+    description?: string
+    name?: string
+    tags?: string[]
+  }
+
+  if (!description || !name) {
+    res.status(400).json({ error: 'Missing required fields' })
+    return
+  }
+
+  try {
+    const files = await generateAgentFiles({
+      description,
+      name,
+      tags: tags || [],
+    })
+    res.json(files)
+  } catch (err) {
+    console.error('AI generation error:', err)
+    res.status(500).json({ error: String(err) })
+  }
 })
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
