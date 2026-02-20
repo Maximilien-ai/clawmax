@@ -194,15 +194,16 @@ main() {
 
   if [ "$DRY_RUN" = "0" ]; then
     mkdir -p "$state_dir"
+    local agents_dir="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/AGENTS"
     sed \
       -e "s|{{INSTANCE_NAME}}|$INSTANCE_NAME|g" \
       -e "s|{{STATE_DIR}}|$state_dir|g" \
+      -e "s|{{AGENTS_DIR}}|$agents_dir|g" \
       -e "s|{{GATEWAY_PORT}}|$GATEWAY_PORT|g" \
       -e "s|{{GATEWAY_TOKEN}}|$gateway_token|g" \
       -e "s|{{ALLOW_FROM}}|$ALLOW_FROM|g" \
       -e "s|{{MODEL}}|$MODEL|g" \
       -e "s|{{WHATSAPP_ENABLED}}|$whatsapp_enabled|g" \
-      -e "s|{{CREATED_AT}}|$(date -u +%Y-%m-%dT%H:%M:%SZ)|g" \
       "$TMPL_DIR/openclaw.json.tmpl" > "$config_path"
     ok "Config written: $config_path"
 

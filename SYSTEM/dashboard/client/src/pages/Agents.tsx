@@ -4,6 +4,7 @@ import AddAgentWizard from '../components/AddAgentWizard'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
+import ChatPanel from '../components/ChatPanel'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -69,6 +70,7 @@ export default function Agents() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
+  const [chatTarget, setChatTarget] = useState<Agent | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -193,6 +195,7 @@ export default function Agents() {
               onDelete={() => setDeleteTarget(agent.id)}
               onLinkWa={() => setLinkWaTarget(agent)}
               onSyncGroups={() => setSyncGroupsTarget(agent)}
+              onChat={() => setChatTarget(agent)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -211,6 +214,7 @@ export default function Agents() {
               agent={agent}
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
+              onChat={() => setChatTarget(agent)}
             />
           ))}
         </div>
@@ -220,6 +224,7 @@ export default function Agents() {
         <AgentDetailPanel
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
+          onChat={() => setChatTarget(selectedAgent)}
         />
       )}
 
@@ -258,12 +263,20 @@ export default function Agents() {
           onSynced={() => fetchAgents()}
         />
       )}
+
+      {chatTarget && (
+        <ChatPanel
+          agentId={chatTarget.id}
+          agentName={chatTarget.name}
+          onClose={() => setChatTarget(null)}
+        />
+      )}
     </div>
   )
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat,
 }: {
   agent: Agent
   selected: boolean
@@ -274,6 +287,7 @@ function AgentCard({
   onLinkWa: () => void
   onSyncGroups: () => void
   onUnlinkWa: () => void
+  onChat: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   return (
@@ -292,6 +306,13 @@ function AgentCard({
           </span>
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0">
+          <button
+            onClick={e => { e.stopPropagation(); onChat() }}
+            className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
+            title="Chat with agent"
+          >
+            💬
+          </button>
           <button
             onClick={e => { e.stopPropagation(); onDelete() }}
             className="text-gray-200 hover:text-red-400 transition-colors text-xs p-1 rounded hover:bg-red-50"
@@ -401,18 +422,26 @@ function AgentCard({
   )
 }
 
-function AgentGridCard({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
+function AgentGridCard({ agent, selected, onClick, onChat }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+      className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
       }`}
     >
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onChat(); }}
+          className="ml-auto text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+          aria-label="Chat with agent"
+          title="Chat with agent"
+        >
+          💬
+        </button>
       </div>
       <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
       <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>

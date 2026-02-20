@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -35,6 +35,55 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
     if (baileys && boom) return { baileys, boom }
   }
   return { baileys: null, boom: null }
+}
+
+/** Register a new agent in openclaw.json */
+function registerAgentInConfig(agentId: string, profile: boolean): { ok: boolean; error?: string } {
+  try {
+    const HOME = process.env.HOME || ''
+    const configPath = profile
+      ? path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
+      : path.join(HOME, '.openclaw', 'openclaw.json')
+
+    // Read existing config
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+
+    // Check if agent already registered
+    if (config.agents?.list?.some((a: any) => a.id === agentId)) {
+      return { ok: true } // Already registered, that's fine
+    }
+
+    // Add new agent entry
+    const workspacePath = path.join(WORKSPACE, 'AGENTS', agentId)
+    const agentDir = profile
+      ? path.join(HOME, `.openclaw-${agentId}`, 'agents', agentId, 'agent')
+      : path.join(HOME, '.openclaw', 'agents', agentId, 'agent')
+
+    // Ensure agent directory exists
+    fs.mkdirSync(agentDir, { recursive: true })
+
+    const newAgent = {
+      id: agentId,
+      default: false,
+      workspace: workspacePath,
+      agentDir
+    }
+
+    if (!config.agents) config.agents = {}
+    if (!config.agents.list) config.agents.list = []
+    config.agents.list.push(newAgent)
+
+    // Write back
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
 }
 
 const router = Router()
@@ -84,16 +133,27 @@ router.post('/provision', (req, res) => {
     }
   }
 
-  const scriptPath = path.join(WORKSPACE, 'SYSTEM', 'scripts', 'instances', 'setup.sh')
-  const args: string[] = [name]
-  if (model) args.push('--model', model)
+  // Build openclaw agents add command
+  const workspaceArg = path.join(WORKSPACE, 'AGENTS', name)
+  const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')
+
+  // Normalize model name - ensure it has a provider prefix (default to openai/)
+  let normalizedModel = model
+  if (model && !model.includes('/')) {
+    normalizedModel = `openai/${model}`
+    send('log', `Normalized model from "${model}" to "${normalizedModel}"\n`)
+  }
+
+  const args: string[] = ['agents', 'add', name, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
+  if (normalizedModel) args.push('--model', normalizedModel)
   if (whatsapp) args.push('--whatsapp', whatsapp)
-  if (port) args.push('--port', String(port))
-  if (profile) args.push('--profile')
+  // --port is not supported by openclaw agents add command
+  // Profile support removed - not currently used
 
-  send('start', `Running setup for agent: ${name}`)
+  send('start', `Creating agent: ${name}`)
+  send('log', `Command: openclaw ${args.join(' ')}\n`)
 
-  const child = spawn('bash', [scriptPath, ...args], {
+  const child = spawn('openclaw', args, {
     cwd: WORKSPACE,
     env: { ...process.env, TERM: 'dumb' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -112,6 +172,7 @@ router.post('/provision', (req, res) => {
   child.on('close', (code, signal) => {
     cleanup()
     if (code === 0) {
+      send('log', `Agent ${name} created successfully\n`)
       send('done', 'ok')
     } else {
       send('done', signal ? `killed by signal ${signal}` : `exit code ${code}`)
@@ -319,50 +380,26 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   req.on('close', () => { cleanup() })
 })
 
-/** Call a single RPC method on the openclaw gateway via WebSocket (Node 22+ built-in WebSocket) */
-function callGatewayRpc(port: number, token: string, method: string, params: unknown = {}): Promise<unknown> {
+/** Call a single RPC method on the openclaw gateway via the openclaw CLI */
+function callGatewayRpc(_port: number, _token: string, method: string, params: unknown = {}): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { try { ws.close() } catch {} reject(new Error('gateway timeout')) }, 8000)
-    // @ts-ignore — Node 22+ built-in WebSocket
-    const ws = new (globalThis.WebSocket as typeof WebSocket)(`ws://127.0.0.1:${port}`)
-    let stage: 'challenge' | 'connecting' | 'ready' = 'challenge'
-    const reqId = String(Date.now())
-
-    ws.onmessage = (ev: MessageEvent) => {
-      let msg: Record<string, unknown>
-      try { msg = JSON.parse(ev.data as string) } catch { return }
-
-      if (stage === 'challenge' && msg.type === 'event' && msg.event === 'connect.challenge') {
-        stage = 'connecting'
-        ws.send(JSON.stringify({
-          type: 'req', id: 'connect-1', method: 'connect',
-          params: {
-            minProtocol: 1, maxProtocol: 99,
-            client: { id: 'dashboard', version: '1.0', platform: 'node', mode: 'default' },
-            role: 'operator', scopes: ['operator.read'],
-            auth: { token },
-          },
-        }))
-        return
-      }
-
-      if (stage === 'connecting' && msg.type === 'res' && msg.id === 'connect-1') {
-        if (!msg.ok) { clearTimeout(timer); ws.close(); reject(new Error(`connect failed: ${JSON.stringify(msg.error)}`)); return }
-        stage = 'ready'
-        ws.send(JSON.stringify({ type: 'req', id: reqId, method, params }))
-        return
-      }
-
-      if (stage === 'ready' && msg.type === 'res' && msg.id === reqId) {
-        clearTimeout(timer)
-        ws.close()
-        if (msg.ok) resolve(msg.payload)
-        else reject(new Error(`${method} failed: ${JSON.stringify(msg.error)}`))
-      }
+    const args = ['gateway', 'call', method, '--json']
+    if (params && Object.keys(params as object).length > 0) {
+      args.push('--params', JSON.stringify(params))
     }
-
-    ws.onerror = () => { clearTimeout(timer); reject(new Error('gateway connection failed')) }
-    ws.onclose = () => { clearTimeout(timer) }
+    const proc = spawn('openclaw', args, { env: process.env })
+    let stdout = ''
+    let stderr = ''
+    const timer = setTimeout(() => { proc.kill(); reject(new Error('gateway timeout')) }, 10000)
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.on('close', (code: number) => {
+      clearTimeout(timer)
+      if (code !== 0) { reject(new Error(`openclaw gateway call failed (${code}): ${stderr}`)); return }
+      try { resolve(JSON.parse(stdout)) }
+      catch { reject(new Error(`invalid JSON from openclaw: ${stdout}`)) }
+    })
+    proc.on('error', (err: Error) => { clearTimeout(timer); reject(err) })
   })
 }
 
@@ -379,27 +416,65 @@ router.get('/:id/wa-groups', async (req, res) => {
   }
 
   try {
-    const result = await callGatewayRpc(cfg.port, cfg.token, 'sessions.list', {
-      includeDerivedTitles: true,
-      limit: 500,
-    }) as { sessions?: Array<{ key: string; kind: string; subject?: string; displayName?: string; derivedTitle?: string; channel?: string }> }
+    const result = await callGatewayRpc(cfg.port, cfg.token, 'groups.fetchAll', {}) as {
+      ts?: number
+      groups?: Array<{ id: string; subject: string; isParent?: boolean }>
+    }
 
-    const sessions = result?.sessions ?? []
+    const allGroups = result?.groups ?? []
 
-    const nameOf = (s: { key: string; subject?: string; displayName?: string; derivedTitle?: string }) =>
-      (s.subject || s.displayName || s.derivedTitle || s.key.split(':').pop() || s.key).trim()
+    // Baileys marks community parent groups with isParent:true — use that as primary signal.
+    // Fall back to GROUPS.md cross-reference for groups without the flag.
+    const groupsPath = path.join(AGENTS_DIR, id, 'GROUPS.md')
+    let communityNames = new Set<string>()
+    let communityDescriptions = new Map<string, string | null>()
+    let groupDescriptions = new Map<string, string | null>()
+    try {
+      const groupsContent = fs.readFileSync(groupsPath, 'utf-8')
+      const parsed = parseGroups(groupsContent)
+      communityNames = new Set(parsed.communities.map(c => c.name.toLowerCase()))
+      // Build description lookup maps (case-insensitive)
+      for (const c of parsed.communities) {
+        communityDescriptions.set(c.name.toLowerCase(), c.description)
+      }
+      for (const g of parsed.groups) {
+        groupDescriptions.set(g.name.toLowerCase(), g.description)
+      }
+    } catch {
+      // GROUPS.md may not exist yet — use only isParent flag
+    }
 
-    const waGroups = sessions
-      .filter(s => s.kind === 'group' && s.key.includes(':whatsapp:'))
-      .map(s => ({ name: nameOf(s), key: s.key }))
-      .filter((g, i, arr) => arr.findIndex(x => x.name === g.name) === i)
+    const waCommunities = allGroups
+      .filter(g => g.isParent || communityNames.has(g.subject.toLowerCase()))
+      .map(g => ({
+        name: g.subject,
+        key: g.id,
+        description: communityDescriptions.get(g.subject.toLowerCase()) ?? null
+      }))
 
-    const waCommunities = sessions
-      .filter(s => s.kind === 'community' && s.key.includes(':whatsapp:'))
-      .map(s => ({ name: nameOf(s), key: s.key }))
-      .filter((g, i, arr) => arr.findIndex(x => x.name === g.name) === i)
+    const communityNameSet = new Set(waCommunities.map(c => c.name.toLowerCase()))
+    const waGroups = allGroups
+      .filter(g => !g.isParent && !communityNameSet.has(g.subject.toLowerCase()))
+      .map(g => ({
+        name: g.subject,
+        key: g.id,
+        description: groupDescriptions.get(g.subject.toLowerCase()) ?? null
+      }))
 
-    res.json({ groups: waGroups, communities: waCommunities })
+    // Deduplicate by name (case-insensitive) - keep first occurrence
+    const dedupe = <T extends { name: string }>(arr: T[]): T[] => {
+      const seen = new Map<string, T>()
+      for (const item of arr) {
+        const key = item.name.toLowerCase()
+        if (!seen.has(key)) seen.set(key, item)
+      }
+      return Array.from(seen.values())
+    }
+
+    const dedupedCommunities = dedupe(waCommunities)
+    const dedupedGroups = dedupe(waGroups)
+
+    res.json({ groups: dedupedGroups, communities: dedupedCommunities })
   } catch (err) {
     res.status(503).json({ error: String(err) })
   }
@@ -442,6 +517,183 @@ router.post('/:id/groups/sync', (req, res) => {
     res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) })
+  }
+})
+
+// POST /api/agents/:id/chat/messages — send a message to the agent via dashboard chat
+router.post('/:id/chat/messages', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const { message } = req.body as { message?: string }
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'message is required' })
+  }
+
+  const sessionKey = `agent:${id}:dashboard-chat`
+
+  try {
+    // Check if we have an existing session mapping
+    const HOME = process.env.HOME || ''
+    const sessionsPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
+    let actualSessionId: string | null = null
+
+    if (fs.existsSync(sessionsPath)) {
+      try {
+        const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+        // Try direct lookup first
+        if (sessions[sessionKey]?.sessionId) {
+          actualSessionId = sessions[sessionKey].sessionId
+        } else {
+          // Search for entry where sessionId equals our key
+          for (const [key, entry] of Object.entries(sessions)) {
+            if (typeof entry === 'object' && entry !== null && (entry as any).sessionId === sessionKey) {
+              actualSessionId = sessionKey
+              break
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to read sessions.json:', e)
+      }
+    }
+
+    // Use the actual UUID session ID if found, otherwise use the key (will create new session)
+    const sessionId = actualSessionId || sessionKey
+
+    // Run the agent turn with the message
+    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json']
+    const proc = spawn('openclaw', args, { env: process.env })
+
+    let stdout = ''
+    let stderr = ''
+    const timer = setTimeout(() => { proc.kill(); }, 600000) // 10 min timeout
+
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+
+    proc.on('close', (code: number) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        return res.status(500).json({ error: `Agent command failed: ${stderr}` })
+      }
+
+      try {
+        const result = JSON.parse(stdout)
+        // Extract the response text and sessionId from the payloads
+        const responseText = result?.result?.payloads?.[0]?.text || 'No response from agent'
+        const actualSessionId = result?.result?.meta?.agentMeta?.sessionId
+
+        // If we got a sessionId, save it to sessions.json for future retrieval
+        if (actualSessionId) {
+          try {
+            let sessions: Record<string, any> = {}
+            if (fs.existsSync(sessionsPath)) {
+              sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+            }
+            // Save using sessionKey as the key, with actualSessionId as the value
+            sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
+            fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
+          } catch (e) {
+            console.error('Failed to update sessions.json:', e)
+          }
+        }
+
+        res.json({ ok: true, result: { response: responseText } })
+      } catch {
+        res.status(500).json({ error: `Invalid JSON from agent: ${stdout}` })
+      }
+    })
+
+    proc.on('error', (err: Error) => {
+      clearTimeout(timer)
+      res.status(500).json({ error: String(err) })
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/agents/:id/chat/messages — fetch dashboard chat history
+router.get('/:id/chat/messages', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const sessionKey = `agent:${id}:dashboard-chat`
+
+  try {
+    const HOME = process.env.HOME || ''
+    const sessionsIndexPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
+
+    // Check if sessions index exists
+    if (!fs.existsSync(sessionsIndexPath)) {
+      return res.json({ messages: [] })
+    }
+
+    // Read sessions index
+    const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
+
+    // Find the session entry - it might be keyed by sessionKey directly OR we need to find it
+    let actualSessionId: string | null = null
+
+    // First try direct lookup
+    if (sessionsIndex[sessionKey]?.sessionId) {
+      actualSessionId = sessionsIndex[sessionKey].sessionId
+    } else {
+      // Search through all entries to find one where sessionId matches our key
+      for (const [_, entry] of Object.entries(sessionsIndex)) {
+        if (typeof entry === 'object' && entry !== null && (entry as any).sessionId === sessionKey) {
+          actualSessionId = sessionKey
+          break
+        }
+      }
+    }
+
+    if (!actualSessionId) {
+      return res.json({ messages: [] })
+    }
+
+    // Read the JSONL file for this session
+    const jsonlPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', `${actualSessionId}.jsonl`)
+
+    if (!fs.existsSync(jsonlPath)) {
+      return res.json({ messages: [] })
+    }
+
+    // Parse JSONL and extract message entries
+    const jsonlContent = fs.readFileSync(jsonlPath, 'utf-8')
+    const lines = jsonlContent.trim().split('\n').filter(l => l.trim())
+    const messages: any[] = []
+
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line)
+        if (entry.type === 'message' && entry.message) {
+          const msg = entry.message
+          const contentArray = Array.isArray(msg.content) ? msg.content : [msg.content]
+          const textContent = contentArray
+            .map((c: any) => (typeof c === 'string' ? c : c.text || c.content || JSON.stringify(c)))
+            .join('\n')
+
+          messages.push({
+            role: msg.role,
+            content: textContent,
+            timestamp: msg.timestamp || entry.timestamp || Date.now()
+          })
+        }
+      } catch (e) {
+        // Skip malformed lines
+        continue
+      }
+    }
+
+    res.json({ messages })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
   }
 })
 

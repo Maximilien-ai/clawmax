@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 
 const MODELS = [
-  'claude-sonnet-4-5',
-  'claude-opus-4',
-  'gpt-4o',
-  'gpt-4o-mini',
+  'anthropic/claude-sonnet-4-5',
+  'anthropic/claude-opus-4',
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
 ]
 
 interface WizardProps {
@@ -20,18 +20,16 @@ interface FormState {
   cloneFrom: string
   whatsapp: string
   port: number
-  profile: boolean
 }
 
 export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
   const [step, setStep] = useState<Step>(1)
   const [form, setForm] = useState<FormState>({
     name: '',
-    model: 'claude-sonnet-4-5',
+    model: 'anthropic/claude-sonnet-4-5',
     cloneFrom: '',
     whatsapp: '',
     port: 0,
-    profile: false,
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
@@ -85,7 +83,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
-    if (form.profile) body.profile = true
+    body.profile = true  // always use profile mode (isolated ~/.openclaw-<name>/ state dir)
 
     try {
       const resp = await fetch('/api/agents/provision', {
@@ -143,7 +141,7 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
     ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
     ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
     port: form.port !== '' ? form.port : suggested?.port ?? '…',
-    profile_mode: form.profile ? 1 : 0,
+    state_dir: `~/.openclaw-${form.name || suggested?.id || '…'}`,
   }
 
   return (
@@ -262,20 +260,8 @@ export default function AddAgentWizard({ onClose, onDone }: WizardProps) {
                 />
                 <p className="mt-1 text-xs text-gray-400">Suggested: <strong>{suggested?.port ?? '…'}</strong></p>
               </div>
-              <div className="flex items-start gap-3">
-                <input
-                  id="profile-mode"
-                  type="checkbox"
-                  checked={form.profile}
-                  onChange={e => set('profile', e.target.checked)}
-                  className="mt-0.5"
-                />
-                <label htmlFor="profile-mode" className="text-sm text-gray-700 cursor-pointer">
-                  <span className="font-medium">Profile mode</span>
-                  <span className="block text-xs text-gray-400 mt-0.5">
-                    Isolated state dir <code>~/.openclaw-{form.name || 'name'}/</code> (same machine). Leave unchecked for shared state.
-                  </span>
-                </label>
+              <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-700">
+                State will be isolated under <code className="font-mono">~/.openclaw-{form.name || suggested?.id || 'name'}/</code> with its own gateway and credentials.
               </div>
             </div>
           )}

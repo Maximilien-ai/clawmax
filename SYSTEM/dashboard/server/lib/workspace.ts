@@ -295,12 +295,27 @@ export function listAgents(): AgentInfo[] {
     return agents
   }
 
+  // Build a map from workspace path → registered agent ID from openclaw.json
+  const workspaceToIdMap = new Map<string, string>()
+  try {
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list || []
+    for (const agent of agentList) {
+      if (agent.workspace) {
+        workspaceToIdMap.set(agent.workspace, agent.id)
+      }
+    }
+  } catch {}
+
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     if (!/^max\d+$/.test(entry.name)) continue
 
     const agentDir = path.join(AGENTS_DIR, entry.name)
-    const agent = readAgentInfo(entry.name, agentDir)
+    // Look up the registered ID from openclaw.json, fall back to directory name
+    const registeredId = workspaceToIdMap.get(agentDir) || entry.name
+    const agent = readAgentInfo(registeredId, agentDir)
     agents.push(agent)
   }
 
@@ -508,17 +523,32 @@ export function deleteAgent(id: string, removeStateDir: boolean): { steps: strin
     }
   } catch {}
 
+  // Remove agent from openclaw.json
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  try {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (config.agents?.list) {
+        const originalLength = config.agents.list.length
+        config.agents.list = config.agents.list.filter((a: any) => a.id !== id)
+        if (config.agents.list.length < originalLength) {
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+          steps.push(`Removed ${id} from openclaw.json`)
+        }
+      }
+    }
+  } catch (e) {
+    errors.push(`Failed to remove from openclaw.json: ${e}`)
+  }
+
   return { steps, errors }
 }
 
-/** Files to copy when cloning an agent — behaviour/persona docs only, no runtime state */
-const CLONE_FILES = ['SOUL.md', 'IDENTITY.md', 'TOOLS.md', 'USER.md', 'AGENTS.md', 'BOOTSTRAP.md']
-
 /**
- * Pre-populate a new agent workspace by copying template files from a source agent.
+ * Pre-populate a new agent workspace by copying all .md files from a source agent.
  * Creates the target directory if needed. Skips files that don't exist in the source.
- * If srcName and targetName are provided, replaces the source agent name with the target
- * name in the cloned IDENTITY.md so the new agent has the correct name.
+ * If srcName and targetName are provided, replaces all occurrences of the source agent
+ * name with the target name across all files. Also removes WhatsApp numbers from IDENTITY.md.
  * Returns the list of files that were successfully copied.
  */
 export function cloneAgentFiles(
@@ -531,29 +561,39 @@ export function cloneAgentFiles(
   try {
     fs.mkdirSync(targetWorkspacePath, { recursive: true })
   } catch {}
-  for (const file of CLONE_FILES) {
+
+  // Get all .md files from source directory
+  let filesToCopy: string[] = []
+  try {
+    filesToCopy = fs.readdirSync(sourceWorkspacePath)
+      .filter(f => f.endsWith('.md'))
+  } catch {
+    return copied
+  }
+
+  // Copy each file
+  for (const file of filesToCopy) {
     const src = path.join(sourceWorkspacePath, file)
     const dst = path.join(targetWorkspacePath, file)
     try {
       if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dst)
+        let content = fs.readFileSync(src, 'utf-8')
+
+        // Replace source agent name with target agent name
+        if (srcName && targetName) {
+          content = content.replace(new RegExp(`\\b${srcName}\\b`, 'g'), targetName)
+        }
+
+        // For IDENTITY.md, also remove WhatsApp number
+        if (file === 'IDENTITY.md') {
+          content = content.replace(/^[^\n]*WhatsApp[^\n]*\n?/gim, '')
+        }
+
+        fs.writeFileSync(dst, content, 'utf-8')
         copied.push(file)
       }
     } catch {}
   }
-  // Patch agent name in IDENTITY.md so the new agent isn't named after the source
-  // Also remove the WhatsApp number — cloned agents must pair their own number
-  if (copied.includes('IDENTITY.md')) {
-    const identityPath = path.join(targetWorkspacePath, 'IDENTITY.md')
-    try {
-      let content = fs.readFileSync(identityPath, 'utf-8')
-      if (srcName && targetName) {
-        content = content.replace(new RegExp(`\\b${srcName}\\b`, 'g'), targetName)
-      }
-      // Remove any WhatsApp line entirely
-      content = content.replace(/^[^\n]*WhatsApp[^\n]*\n?/gim, '')
-      fs.writeFileSync(identityPath, content, 'utf-8')
-    } catch {}
-  }
+
   return copied
 }

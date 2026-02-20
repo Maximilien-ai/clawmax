@@ -8,6 +8,7 @@ interface GroupEntry {
 interface LiveEntry {
   name: string
   key: string
+  description: string | null
 }
 
 type DiffKind = 'both' | 'local_only'
@@ -36,7 +37,9 @@ function buildDiff(live: LiveEntry[], local: GroupEntry[]): DiffEntry[] {
   for (const l of live) {
     const lk = l.name.toLowerCase()
     const localMatch = local.find(g => g.name.toLowerCase() === lk)
-    entries.push({ name: l.name, kind: 'both', description: localMatch?.description ?? null, selected: true })
+    // Prefer local description, fallback to WA description
+    const description = localMatch?.description ?? l.description ?? null
+    entries.push({ name: l.name, kind: 'both', description, selected: true })
   }
 
   // Items in local config but not in WA (orphaned)
@@ -140,8 +143,17 @@ export default function SyncGroupsPanel({ agentId, agentName, localGroups, local
 
   async function applySync() {
     setSaving(true)
-    const groups = groupDiff.filter(e => e.selected).map(e => ({ name: e.name, description: e.description }))
-    const communities = commDiff.filter(e => e.selected).map(e => ({ name: e.name, description: e.description }))
+    // Deduplicate by name (case-insensitive)
+    const dedupeByName = (arr: { name: string; description: string | null }[]) => {
+      const seen = new Map<string, { name: string; description: string | null }>()
+      for (const item of arr) {
+        const key = item.name.toLowerCase()
+        if (!seen.has(key)) seen.set(key, item)
+      }
+      return Array.from(seen.values())
+    }
+    const groups = dedupeByName(groupDiff.filter(e => e.selected).map(e => ({ name: e.name, description: e.description })))
+    const communities = dedupeByName(commDiff.filter(e => e.selected).map(e => ({ name: e.name, description: e.description })))
     try {
       const r = await fetch(`/api/agents/${agentId}/groups/sync`, {
         method: 'POST',

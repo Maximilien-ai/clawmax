@@ -1,5 +1,12 @@
 {
   "agents": {
+    "list": [
+      {
+        "id": "{{INSTANCE_NAME}}",
+        "default": true,
+        "workspace": "{{AGENTS_DIR}}/{{INSTANCE_NAME}}"
+      }
+    ],
     "defaults": {
       "model": {
         "primary": "{{MODEL}}"
@@ -9,7 +16,7 @@
           "alias": "GPT"
         }
       },
-      "workspace": "{{STATE_DIR}}/workspace",
+      "workspace": "{{AGENTS_DIR}}/{{INSTANCE_NAME}}",
       "compaction": {
         "mode": "safeguard"
       },
@@ -79,10 +86,5 @@
         "enabled": {{WHATSAPP_ENABLED}}
       }
     }
-  },
-  "meta": {
-    "createdBy": "setup-instance.sh",
-    "instanceName": "{{INSTANCE_NAME}}",
-    "createdAt": "{{CREATED_AT}}"
   }
 }

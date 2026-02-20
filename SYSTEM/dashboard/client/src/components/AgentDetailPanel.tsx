@@ -75,9 +75,11 @@ function secAgo(ts: number): string {
 export default function AgentDetailPanel({
   agent,
   onClose,
+  onChat,
 }: {
   agent: Agent
   onClose: () => void
+  onChat: () => void
 }) {
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,15 +128,9 @@ export default function AgentDetailPanel({
   const relDir = agent.workspacePath.split('/').slice(-2).join('/')
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 z-40"
-        onClick={onClose}
-      />
-
+    <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose}>
       {/* Panel */}
-      <aside className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col overflow-hidden">
+      <aside className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
@@ -155,6 +151,14 @@ export default function AgentDetailPanel({
             <span className="block text-xs text-gray-300 mt-1">refreshed {refreshedLabel}</span>
           </div>
           <div className="flex items-center gap-2 mt-0.5">
+            <button
+              onClick={onChat}
+              className="text-sm font-medium text-sky-500 hover:text-sky-700 transition-colors"
+              aria-label="Chat with agent"
+              title="Chat with agent"
+            >
+              💬
+            </button>
             <button
               onClick={handleRefresh}
               disabled={cooling}
@@ -236,7 +240,7 @@ export default function AgentDetailPanel({
                       <div>
                         <p className="text-xs text-gray-400 mb-1.5">Communities</p>
                         <div className="space-y-1.5">
-                          {agent.communities.map(c => (
+                          {[...agent.communities].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
                             <div key={c.name}>
                               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{c.name}</span>
                               {c.description && (
@@ -251,7 +255,7 @@ export default function AgentDetailPanel({
                       <div>
                         <p className="text-xs text-gray-400 mb-1.5">Groups</p>
                         <div className="space-y-1.5">
-                          {agent.groups.map(g => (
+                          {[...agent.groups].sort((a, b) => a.name.localeCompare(b.name)).map(g => (
                             <div key={g.name}>
                               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{g.name}</span>
                               {g.description && (
@@ -276,6 +280,6 @@ export default function AgentDetailPanel({
           </span>
         </div>
       </aside>
-    </>
+    </div>
   )
 }

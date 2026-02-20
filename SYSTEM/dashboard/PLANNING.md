@@ -108,6 +108,13 @@ Config location:
 
 ## Backlog
 
+### Browser Relay Bug (Known Issue)
+- Chrome extension relay (`cdpPort` 18892) connects successfully but Playwright's `browserContext.newCDPSession()` calls `Target.attachToBrowserTarget` which Chrome rejects with `"Not allowed"` from a tab-level debugger session
+- Workaround applied in `background.js`: intercepts `Target.attachToBrowserTarget` and returns the active tab's session ID; also added `Target.getTargets` synthetic handler
+- Extension still not working end-to-end — the gateway logs still show the error even after extension reload
+- Root cause: Chrome's extension debugger API only supports tab-level sessions; browser-level CDP requires `--remote-debugging-port` on Chrome startup
+- Next steps to investigate: (1) check if Playwright's `connectOverCDP` can work with tab-level sessions, (2) test if the `background.js` patch is actually being loaded by Chrome, (3) consider launching Chrome with `--remote-debugging-port=9222` as an alternative
+
 ### Templates
 - `SYSTEM/templates/` directory for reusable agent templates
 - Replace/augment "Clone from" dropdown with template selector
