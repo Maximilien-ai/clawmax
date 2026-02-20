@@ -679,6 +679,43 @@ router.post('/:id/chat/messages', async (req, res) => {
   }
 })
 
+// PATCH /api/agents/:id/tags — update agent tags in IDENTITY.md
+router.patch('/:id/tags', (req, res) => {
+  const { id } = req.params
+  const { tags } = req.body
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  if (!Array.isArray(tags)) {
+    return res.status(400).json({ error: 'Tags must be an array' })
+  }
+
+  const agentDir = path.join(AGENTS_DIR, id)
+  const identityPath = path.join(agentDir, 'IDENTITY.md')
+
+  try {
+    // Read current IDENTITY.md
+    const content = fs.readFileSync(identityPath, 'utf-8')
+
+    // Update tags line
+    const tagsLine = tags.length > 0 ? tags.join(', ') : 'untagged'
+    const updatedContent = content.replace(
+      /^-\s+\*\*Tags:\*\*\s+.+$/m,
+      `- **Tags:** ${tagsLine}`
+    )
+
+    // Write back
+    fs.writeFileSync(identityPath, updatedContent, 'utf-8')
+
+    res.json({ ok: true, tags })
+  } catch (err) {
+    console.error('Failed to update tags:', err)
+    res.status(500).json({ error: 'Failed to update tags' })
+  }
+})
+
 // GET /api/agents/:id/chat/messages — fetch dashboard chat history
 router.get('/:id/chat/messages', async (req, res) => {
   const { id } = req.params

@@ -14,10 +14,37 @@ interface SystemInfo {
   orgName: string | null
 }
 
+interface NavItem {
+  id: Page
+  label: string
+  icon: string
+}
+
+const DEFAULT_NAV_ORDER: NavItem[] = [
+  { id: 'agents', label: 'Agents', icon: 'robot' },
+  { id: 'docs', label: 'Documents', icon: 'docs' },
+  { id: 'communication', label: 'Communication', icon: 'comms' },
+  { id: 'activity', label: 'Activity', icon: 'activity' },
+]
+
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
+  const [docFile, setDocFile] = useState<string | undefined>(undefined)
+  const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
+  const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
+    const saved = localStorage.getItem('nav-order')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {
+        return DEFAULT_NAV_ORDER
+      }
+    }
+    return DEFAULT_NAV_ORDER
+  })
+  const [draggedNavIndex, setDraggedNavIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const load = () =>
@@ -29,6 +56,26 @@ export default function App() {
     const t = setInterval(load, 30000)
     return () => clearInterval(t)
   }, [])
+
+  const handleNavDragStart = (index: number) => {
+    setDraggedNavIndex(index)
+  }
+
+  const handleNavDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedNavIndex === null || draggedNavIndex === index) return
+
+    const newOrder = [...navOrder]
+    const [removed] = newOrder.splice(draggedNavIndex, 1)
+    newOrder.splice(index, 0, removed)
+    setNavOrder(newOrder)
+    setDraggedNavIndex(index)
+  }
+
+  const handleNavDragEnd = () => {
+    setDraggedNavIndex(null)
+    localStorage.setItem('nav-order', JSON.stringify(navOrder))
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900">
@@ -50,10 +97,19 @@ export default function App() {
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-1">
-          <NavItem label="Agents" icon="robot" active={page === 'agents'} onClick={() => setPage('agents')} collapsed={navCollapsed} />
-          <NavItem label="Communication" icon="comms" active={page === 'communication'} onClick={() => setPage('communication')} collapsed={navCollapsed} />
-          <NavItem label="Activity" icon="activity" active={page === 'activity'} onClick={() => setPage('activity')} collapsed={navCollapsed} />
-          <NavItem label="Documents" icon="docs" active={page === 'docs'} onClick={() => setPage('docs')} collapsed={navCollapsed} />
+          {navOrder.map((item, index) => (
+            <NavItemDraggable
+              key={item.id}
+              label={item.label}
+              icon={item.icon}
+              active={page === item.id}
+              onClick={() => setPage(item.id)}
+              collapsed={navCollapsed}
+              onDragStart={() => handleNavDragStart(index)}
+              onDragOver={(e) => handleNavDragOver(e, index)}
+              onDragEnd={handleNavDragEnd}
+            />
+          ))}
         </nav>
 
         {/* Footer / collapse toggle */}
@@ -75,10 +131,10 @@ export default function App() {
       <main className="flex-1 overflow-hidden flex flex-col min-w-0">
         {/* Top bar */}
         <TopBar system={system} />
-        {page === 'agents' && <Agents />}
-        {page === 'communication' && <Communication />}
+        {page === 'agents' && <Agents onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} initialAgentId={initialAgentId} />}
+        {page === 'communication' && <Communication onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }} />}
         {page === 'activity' && <Activity />}
-        {page === 'docs' && <DocHub />}
+        {page === 'docs' && <DocHub initialFile={docFile} />}
       </main>
     </div>
   )
@@ -123,12 +179,15 @@ function TopBar({ system }: { system: SystemInfo | null }) {
   )
 }
 
-function NavItem({ label, icon, active, onClick, collapsed }: {
+function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
   label: string
   icon: string
   active: boolean
   onClick: () => void
   collapsed: boolean
+  onDragStart: () => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragEnd: () => void
 }) {
   const icons: Record<string, string> = {
     robot: '🤖',
@@ -139,9 +198,13 @@ function NavItem({ label, icon, active, onClick, collapsed }: {
 
   return (
     <button
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-move ${
         collapsed ? 'justify-center' : ''
       } ${
         active

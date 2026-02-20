@@ -56,7 +56,7 @@ function timeAgo(iso: string | null): string {
 
 type ViewMode = 'list' | 'grid'
 
-export default function Agents() {
+export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigateToDoc?: (file: string) => void; initialAgentId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +77,10 @@ export default function Agents() {
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [tagToRemove, setTagToRemove] = useState<{ agentId: string; tag: string; isPrimary: boolean } | null>(null)
+  const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
+  const [showSecondaryTags, setShowSecondaryTags] = useState(false)
+  const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -109,6 +113,23 @@ export default function Agents() {
     localStorage.setItem('agents-view-mode', viewMode)
   }, [viewMode])
 
+  // Select initial agent if provided and scroll to it
+  useEffect(() => {
+    if (initialAgentId && agents.length > 0) {
+      const agent = agents.find(a => a.id === initialAgentId)
+      if (agent) {
+        setSelectedAgent(agent)
+        // Scroll to agent card after a brief delay to ensure DOM is updated
+        setTimeout(() => {
+          const element = document.getElementById(`agent-card-${initialAgentId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+      }
+    }
+  }, [initialAgentId, agents])
+
   const handleRefresh = () => {
     if (cooling) return
     setCooling(true)
@@ -127,9 +148,39 @@ export default function Agents() {
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
-    agents.forEach(a => a.tags.forEach(t => tags.add(t)))
-    return Array.from(tags).sort()
+    const primaryTags = new Set<string>() // Tags that are first for at least one agent
+
+    agents.forEach(a => {
+      a.tags.forEach(t => tags.add(t))
+      if (a.tags.length > 0) {
+        primaryTags.add(a.tags[0]) // First tag is primary
+      }
+    })
+
+    // Sort: primary tags first (alphabetically), then secondary tags (alphabetically)
+    return Array.from(tags).sort((a, b) => {
+      const aIsPrimary = primaryTags.has(a)
+      const bIsPrimary = primaryTags.has(b)
+
+      if (aIsPrimary && !bIsPrimary) return -1
+      if (!aIsPrimary && bIsPrimary) return 1
+      return a.localeCompare(b)
+    })
   }, [agents])
+
+  const { primaryTags, secondaryTags } = useMemo(() => {
+    const primary = new Set<string>()
+    agents.forEach(a => {
+      if (a.tags.length > 0) {
+        primary.add(a.tags[0])
+      }
+    })
+
+    const pTags = allTags.filter(t => primary.has(t))
+    const sTags = allTags.filter(t => !primary.has(t))
+
+    return { primaryTags: pTags, secondaryTags: sTags }
+  }, [allTags, agents])
 
   const filteredAgents = useMemo(() => {
     if (selectedTags.size === 0) return agents
@@ -139,8 +190,8 @@ export default function Agents() {
   const groupedAgents = useMemo(() => {
     const groups = new Map<string, Agent[]>()
 
-    // Group agents by each of their tags
-    allTags.forEach(tag => {
+    // Only group by PRIMARY tags (tags that appear as first tag for at least one agent)
+    primaryTags.forEach(tag => {
       const agentsWithTag = filteredAgents.filter(a => a.tags.includes(tag))
       if (agentsWithTag.length > 0) {
         groups.set(tag, agentsWithTag)
@@ -154,7 +205,7 @@ export default function Agents() {
     }
 
     return groups
-  }, [filteredAgents, allTags])
+  }, [filteredAgents, primaryTags])
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => {
@@ -163,6 +214,41 @@ export default function Agents() {
       else next.add(tag)
       return next
     })
+  }
+
+  const removeTag = async (agentId: string, tagToRemove: string) => {
+    const agent = agents.find(a => a.id === agentId)
+    if (!agent) return
+
+    const newTags = agent.tags.filter(t => t !== tagToRemove)
+
+    try {
+      const res = await fetch(`/api/agents/${agentId}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      })
+
+      if (res.ok) {
+        // Refresh agents to get updated tags
+        fetchAgents()
+      }
+    } catch (err) {
+      console.error('Failed to remove tag:', err)
+    }
+  }
+
+  const handleRemoveTag = (agentId: string, tag: string) => {
+    const agent = agents.find(a => a.id === agentId)
+    if (!agent) return
+
+    const isPrimary = agent.tags[0] === tag
+
+    if (isPrimary) {
+      setTagToRemove({ agentId, tag, isPrimary })
+    } else {
+      removeTag(agentId, tag)
+    }
   }
 
   return (
@@ -218,31 +304,58 @@ export default function Agents() {
 
       {/* Tag filters */}
       {allTags.length > 0 && (
-        <div className="mb-6 flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
-          <button
-            onClick={() => setSelectedTags(new Set())}
-            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-              selectedTags.size === 0
-                ? 'bg-sky-600 text-white border border-sky-600'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
-            }`}
-          >
-            All
-          </button>
-          {allTags.map(tag => (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
             <button
-              key={tag}
-              onClick={() => toggleTag(tag)}
+              onClick={() => setSelectedTags(new Set())}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                selectedTags.has(tag)
+                selectedTags.size === 0
                   ? 'bg-sky-600 text-white border border-sky-600'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
               }`}
             >
-              {tag}
+              All
             </button>
-          ))}
+            {primaryTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  selectedTags.has(tag)
+                    ? 'bg-sky-600 text-white border border-sky-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {secondaryTags.length > 0 && (
+              <button
+                onClick={() => setShowSecondaryTags(!showSecondaryTags)}
+                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600"
+              >
+                {showSecondaryTags ? '▼' : '▶'} Secondary tags ({secondaryTags.length})
+              </button>
+            )}
+          </div>
+          {showSecondaryTags && secondaryTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap mt-2 pl-28">
+              {secondaryTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    selectedTags.has(tag)
+                      ? 'bg-sky-600 text-white border border-sky-600'
+                      : 'bg-white text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -291,6 +404,9 @@ export default function Agents() {
               onLinkWa={() => setLinkWaTarget(agent)}
               onSyncGroups={() => setSyncGroupsTarget(agent)}
               onChat={() => setChatTarget(agent)}
+              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+              onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
+              onManageTags={() => setTagManageTarget(agent)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -306,23 +422,32 @@ export default function Agents() {
           {(() => {
             const shownAgentIds = new Set<string>()
             return Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => {
-              // Split agents into those we can show (not shown yet) and those already shown
-              const agentsToShow = tagAgents.filter(a => !shownAgentIds.has(a.id))
-              const alreadyShownAgents = tagAgents.filter(a => shownAgentIds.has(a.id))
+              // Split agents by primary (first tag matches) vs secondary
+              const primaryAgents = tagAgents.filter(a => a.tags[0] === tag && !shownAgentIds.has(a.id))
+              const secondaryAgentsNotShown = tagAgents.filter(a => a.tags[0] !== tag && !shownAgentIds.has(a.id))
+              const alreadyShownPrimary = tagAgents.filter(a => a.tags[0] === tag && shownAgentIds.has(a.id))
+              const alreadyShownSecondary = tagAgents.filter(a => a.tags[0] !== tag && shownAgentIds.has(a.id))
 
-              // Mark these agents as shown for future groups
-              agentsToShow.forEach(a => shownAgentIds.add(a.id))
+              // Mark primary agents as shown
+              primaryAgents.forEach(a => shownAgentIds.add(a.id))
+
+              const isExpanded = expandedSecondaryAgents.has(tag)
+
+              // If expanded, mark secondary agents as shown too
+              if (isExpanded) {
+                secondaryAgentsNotShown.forEach(a => shownAgentIds.add(a.id))
+              }
 
               return (
                 <div key={tag}>
                   <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
                     {tag === '__untagged__' ? 'Untagged' : tag}
                     <span className="ml-2 text-xs font-normal text-gray-400">
-                      {tagAgents.length} agent{tagAgents.length !== 1 ? 's' : ''}
+                      {primaryAgents.length} agent{primaryAgents.length !== 1 ? 's' : ''}
                     </span>
                   </h2>
                   <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                    {agentsToShow.map(agent => (
+                    {primaryAgents.map(agent => (
                       <AgentGridCard
                         key={`${tag}-${agent.id}`}
                         agent={agent}
@@ -331,13 +456,53 @@ export default function Agents() {
                         onChat={() => setChatTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                        onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+                        onManageTags={() => setTagManageTarget(agent)}
                       />
                     ))}
                   </div>
-                  {alreadyShownAgents.length > 0 && (
+
+                  {/* Secondary agents (collapsible) */}
+                  {secondaryAgentsNotShown.length > 0 && (
+                    <div className="mt-3 px-1">
+                      <button
+                        onClick={() => {
+                          setExpandedSecondaryAgents(prev => {
+                            const next = new Set(prev)
+                            if (next.has(tag)) next.delete(tag)
+                            else next.add(tag)
+                            return next
+                          })
+                        }}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {isExpanded ? '▼' : '▶'} Additional agents ({secondaryAgentsNotShown.length})
+                      </button>
+                      {isExpanded && (
+                        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 mt-2">
+                          {secondaryAgentsNotShown.map(agent => (
+                            <AgentGridCard
+                              key={`${tag}-secondary-${agent.id}`}
+                              agent={agent}
+                              selected={selectedAgent?.id === agent.id}
+                              onClick={() => setSelectedAgent(agent)}
+                              onChat={() => setChatTarget(agent)}
+                              onDelete={() => setDeleteTarget(agent.id)}
+                              onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+                              onManageTags={() => setTagManageTarget(agent)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Already shown agents */}
+                  {(alreadyShownPrimary.length > 0 || alreadyShownSecondary.length > 0) && (
                     <div className="mt-3 px-1 text-xs text-gray-400">
                       Also in this group:{' '}
-                      {alreadyShownAgents.map((agent, idx) => (
+                      {[...alreadyShownPrimary, ...alreadyShownSecondary].map((agent, idx) => (
                         <span key={agent.id}>
                           {idx > 0 && ', '}
                           <button
@@ -368,6 +533,8 @@ export default function Agents() {
               onChat={() => setChatTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+              onManageTags={() => setTagManageTarget(agent)}
             />
           ))}
         </div>
@@ -425,12 +592,179 @@ export default function Agents() {
           onClose={() => setChatTarget(null)}
         />
       )}
+
+      {tagToRemove && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Primary Tag</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              You're removing the primary tag <span className="font-semibold text-sky-600">"{tagToRemove.tag}"</span>.
+              {(() => {
+                const agent = agents.find(a => a.id === tagToRemove.agentId)
+                const remainingTags = agent?.tags.filter(t => t !== tagToRemove.tag) || []
+                if (remainingTags.length > 0) {
+                  return ` The new primary tag will be "${remainingTags[0]}".`
+                } else {
+                  return ' This agent will become untagged.'
+                }
+              })()}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setTagToRemove(null)}
+                className="px-4 py-2 text-sm rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  removeTag(tagToRemove.agentId, tagToRemove.tag)
+                  setTagToRemove(null)
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Remove Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tagManageTarget && (
+        <TagManageModal
+          agent={tagManageTarget}
+          onClose={() => setTagManageTarget(null)}
+          onSave={async (tags) => {
+            try {
+              const res = await fetch(`/api/agents/${tagManageTarget.id}/tags`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tags }),
+              })
+              if (res.ok) {
+                fetchAgents()
+                setTagManageTarget(null)
+              }
+            } catch (err) {
+              console.error('Failed to update tags:', err)
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () => void; onSave: (tags: string[]) => void }) {
+  const [tags, setTags] = React.useState<string[]>(agent.tags)
+  const [newTag, setNewTag] = React.useState('')
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const newTags = [...tags]
+    const [removed] = newTags.splice(draggedIndex, 1)
+    newTags.splice(index, 0, removed)
+    setTags(newTags)
+    setDraggedIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
+
+  const addTag = () => {
+    if (!newTag.trim()) return
+    if (tags.includes(newTag.trim())) return
+    setTags([...tags, newTag.trim()])
+    setNewTag('')
+  }
+
+  const removeTagAtIndex = (index: number) => {
+    setTags(tags.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Manage Tags</h3>
+        <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
+
+        <div className="space-y-2 mb-4">
+          {tags.length > 0 ? (
+            tags.map((tag, index) => (
+              <div
+                key={`${tag}-${index}`}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`flex items-center gap-2 p-2 rounded border ${
+                  index === 0 ? 'border-sky-400 bg-sky-50' : 'border-gray-200 bg-white'
+                } cursor-move hover:shadow-sm transition-shadow`}
+              >
+                <span className="text-gray-400 text-xs">☰</span>
+                <span className={`flex-1 text-sm ${index === 0 ? 'font-semibold text-sky-700' : 'text-gray-700'}`}>
+                  {tag}
+                  {index === 0 && <span className="ml-1.5 text-xs text-sky-500">(primary)</span>}
+                </span>
+                <button
+                  onClick={() => removeTagAtIndex(index)}
+                  className="text-gray-400 hover:text-red-500 transition-colors text-sm"
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-4">No tags yet</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={newTag}
+            onChange={e => setNewTag(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTag()}
+            placeholder="Add new tag..."
+            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400"
+          />
+          <button
+            onClick={addTag}
+            className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+          >
+            Add
+          </button>
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(tags)}
+            className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags,
 }: {
   agent: Agent
   selected: boolean
@@ -442,10 +776,14 @@ function AgentCard({
   onSyncGroups: () => void
   onUnlinkWa: () => void
   onChat: () => void
+  onViewDocs?: () => void
+  onRemoveTag: (tag: string) => void
+  onManageTags: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   return (
     <div
+      id={`agent-card-${agent.id}`}
       className={`bg-white rounded-xl border shadow-sm transition-all ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 hover:shadow-md'
       }`}
@@ -460,6 +798,15 @@ function AgentCard({
           </span>
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0">
+          {onViewDocs && (
+            <button
+              onClick={e => { e.stopPropagation(); onViewDocs() }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50"
+              title="View agent documents"
+            >
+              📄
+            </button>
+          )}
           <button
             onClick={e => { e.stopPropagation(); onChat() }}
             className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
@@ -565,18 +912,36 @@ function AgentCard({
             )}
           </div>
 
-          {agent.tags.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <span className="text-xs text-gray-400 mb-1 block">Tags</span>
-              <div className="flex flex-wrap gap-1">
-                {agent.tags.map(tag => (
-                  <span key={tag} className="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 font-medium">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-400">Tags</span>
+              <button
+                onClick={e => { e.stopPropagation(); onManageTags(); }}
+                className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+                title="Manage tags"
+              >
+                +
+              </button>
             </div>
-          )}
+            <div className="flex flex-wrap gap-1">
+              {agent.tags.length > 0 ? (
+                agent.tags.map(tag => (
+                  <span key={tag} className="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 font-medium inline-flex items-center gap-1">
+                    {tag}
+                    <button
+                      onClick={e => { e.stopPropagation(); onRemoveTag(tag); }}
+                      className="text-sky-400 hover:text-sky-700 transition-colors leading-none"
+                      title="Remove tag"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-gray-300">untagged</span>
+              )}
+            </div>
+          </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <span className="text-xs text-gray-300 font-mono truncate block">
@@ -589,10 +954,11 @@ function AgentCard({
   )
 }
 
-function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void }) {
+function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
+      id={`agent-card-${agent.id}`}
       onClick={onClick}
       className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
@@ -602,14 +968,16 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone }: 
         <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
         <div className="ml-auto flex items-center gap-0.5">
-          <button
-            onClick={(e) => { e.stopPropagation(); onClone(); }}
-            className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
-            aria-label="Clone agent"
-            title="Clone agent"
-          >
-            📋
-          </button>
+          {onViewDocs && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
+              aria-label="View documents"
+              title="View agent documents"
+            >
+              📄
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onChat(); }}
             className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
@@ -621,35 +989,53 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone }: 
         </div>
       </div>
       <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
-      <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
+      <div className="flex items-center gap-2">
+        <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
+        {agent.whatsapp && (
+          <div className="flex items-center gap-0.5" title={`WhatsApp: +${agent.whatsapp}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+            <span className="text-xs text-green-600">WA</span>
+          </div>
+        )}
+      </div>
       {totalGroups > 0 && (
         <div className="mt-2 text-xs text-gray-300">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
       )}
       <div className="mt-1.5 flex items-start justify-between gap-1">
-        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0">
+        <div className="flex flex-wrap gap-0.5 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
           {agent.tags.length > 0 ? (
             <>
               {agent.tags.slice(0, 2).map(tag => (
-                <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">
+                <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 cursor-pointer hover:bg-sky-100 transition-colors">
                   {tag}
                 </span>
               ))}
               {agent.tags.length > 2 && (
-                <span className="text-xs px-1.5 py-0.5 text-gray-300">+{agent.tags.length - 2}</span>
+                <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer">+{agent.tags.length - 2}</span>
               )}
             </>
           ) : (
-            <span className="text-xs text-gray-200 invisible">placeholder</span>
+            <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer hover:text-sky-500 transition-colors">+ add tags</span>
           )}
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="text-gray-200 hover:text-red-400 transition-colors text-xs p-0.5 rounded hover:bg-red-50 shrink-0"
-          aria-label="Delete agent"
-          title="Delete agent"
-        >
-          🗑
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onClone(); }}
+            className="text-gray-200 hover:text-purple-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
+            aria-label="Clone agent"
+            title="Clone agent"
+          >
+            📋
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-0.5 rounded hover:bg-red-50"
+            aria-label="Delete agent"
+            title="Delete agent"
+          >
+            🗑
+          </button>
+        </div>
       </div>
     </div>
   )

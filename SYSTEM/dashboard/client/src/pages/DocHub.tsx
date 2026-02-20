@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -59,7 +59,7 @@ function stripPrefix(fullPath: string, section: DocSection): string {
   return fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath
 }
 
-export default function DocHub() {
+export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [entries, setEntries] = useState<DocEntry[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState<string>('')
@@ -69,6 +69,8 @@ export default function DocHub() {
   const [treeCollapsed, setTreeCollapsed] = useState(false)
   // collapsedDirs: Set of "SECTION/dir" keys for collapsed subdirectories
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+  const [agentFilter, setAgentFilter] = useState<string>('')
+  const selectedButtonRef = useRef<HTMLButtonElement | null>(null)
 
   function toggleDir(key: string) {
     setCollapsedDirs(prev => {
@@ -92,11 +94,19 @@ export default function DocHub() {
       .then(d => {
         const list: DocEntry[] = d.entries ?? []
         setEntries(list)
+        // If initialFile provided, load it; otherwise load MASTER_PLAN
+        if (initialFile) {
+          const targetFile = list.find(e => e.path === initialFile)
+          if (targetFile) {
+            loadFile(targetFile.path)
+            return
+          }
+        }
         const mp = list.find(e => e.path === 'ORG/MASTER_PLAN.md') ?? list.find(e => e.path.endsWith('MASTER_PLAN.md'))
         if (mp) loadFile(mp.path)
       })
       .catch(() => setError('Failed to load file list'))
-  }, [])
+  }, [initialFile])
 
   function loadFile(path: string) {
     setSelected(path)
@@ -105,6 +115,23 @@ export default function DocHub() {
     setEditMode(false)
     setSaveError(null)
     setSaveSuccess(false)
+
+    // Auto-expand section and directory if needed
+    const section = path.split('/')[0] as DocSection
+    if (collapsed[section]) {
+      setCollapsed(c => ({ ...c, [section]: false }))
+    }
+    const dirMatch = path.match(/^[^/]+\/([^/]+)\//)
+    if (dirMatch) {
+      const dir = dirMatch[1]
+      const dirKey = `${section}/${dir}`
+      setCollapsedDirs(prev => {
+        const next = new Set(prev)
+        next.delete(dirKey)
+        return next
+      })
+    }
+
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
       .then(r => r.json())
       .then(d => { setContent(d.content); setLoading(false) })
@@ -152,6 +179,13 @@ export default function DocHub() {
     setCollapsed(c => ({ ...c, [s]: !c[s] }))
   }
 
+  // Auto-scroll to selected file when it changes
+  useEffect(() => {
+    if (selected && selectedButtonRef.current) {
+      selectedButtonRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [selected])
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* File tree sidebar */}
@@ -166,19 +200,58 @@ export default function DocHub() {
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between shrink-0">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
-              <button
-                onClick={() => setTreeCollapsed(true)}
-                className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
-                title="Collapse file tree"
-              >◀</button>
+            <div className="px-4 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
+                <button
+                  onClick={() => setTreeCollapsed(true)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+                  title="Collapse file tree"
+                >◀</button>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Filter agents (e.g., max0, engineer*)"
+                  value={agentFilter}
+                  onChange={e => setAgentFilter(e.target.value)}
+                  className="w-full text-xs px-2 py-1 pr-6 border border-gray-200 rounded focus:outline-none focus:border-sky-400"
+                />
+                {agentFilter && (
+                  <button
+                    onClick={() => setAgentFilter('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs leading-none p-0.5"
+                    title="Clear filter"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="py-1">
               {SECTION_ORDER.map(section => {
                 const cfg = SECTION_CONFIG[section]
-                const sectionEntries = entries.filter(e => e.section === section)
+                let sectionEntries = entries.filter(e => e.section === section)
+
+                // Apply agent filter for AGENTS section
+                if (section === 'AGENTS' && agentFilter.trim()) {
+                  const filterLower = agentFilter.trim().toLowerCase()
+                  const isWildcard = filterLower.endsWith('*')
+                  const filterPrefix = isWildcard ? filterLower.slice(0, -1) : filterLower
+
+                  sectionEntries = sectionEntries.filter(e => {
+                    const agentMatch = e.path.match(/^AGENTS\/([^/]+)/)
+                    if (!agentMatch) return false
+                    const agentId = agentMatch[1].toLowerCase()
+
+                    if (isWildcard) {
+                      return agentId.startsWith(filterPrefix)
+                    } else {
+                      return agentId === filterPrefix || agentId.includes(filterPrefix)
+                    }
+                  })
+                }
                 if (sectionEntries.length === 0) return null
 
                 const displayPaths = sectionEntries.map(e => stripPrefix(e.path, section))
@@ -225,12 +298,14 @@ export default function DocHub() {
                               const actualPath = fullEntry?.path ?? fullPath
                               const name = displayPath.split('/').pop()!
                               const isPinned = actualPath.endsWith('MASTER_PLAN.md')
+                              const isSelected = selected === actualPath
                               return (
                                 <button
                                   key={actualPath}
+                                  ref={isSelected ? selectedButtonRef : null}
                                   onClick={() => loadFile(actualPath)}
                                   className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
-                                    selected === actualPath ? cfg.selectedCls : cfg.itemCls
+                                    isSelected ? cfg.selectedCls : cfg.itemCls
                                   }`}
                                 >
                                   {isPinned && <span className="text-xs text-amber-500">★</span>}

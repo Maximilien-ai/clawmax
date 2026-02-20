@@ -6,6 +6,7 @@ import fs from 'fs'
 import os from 'os'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
+import channelsRouter from './routes/channels'
 import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName } from './lib/workspace'
 
 const app = express()
@@ -67,6 +68,7 @@ app.post('/api/docs/content', (req, res) => {
 // API routes
 app.use('/api/docs', docsRouter)
 app.use('/api/agents', agentsRouter)
+app.use('/api', channelsRouter)
 
 // Serve built client in production
 const clientDist = path.join(__dirname, '..', '..', 'dist', 'client')

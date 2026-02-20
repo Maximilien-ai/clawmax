@@ -102,6 +102,70 @@ export function writeWorkspaceFile(relPath: string, content: string): boolean {
 export interface GroupEntry {
   name: string
   description: string | null
+  tags: string[]
+  community: string | null  // For groups only - which community they belong to
+  channels: string[]  // Communication channels: 'whatsapp', 'slack', 'discord', etc.
+}
+
+/** Update tags for a community or group in its markdown file (verbose format only).
+ *  Returns true on success, false if entry not found or file error */
+export function updateGroupTags(type: 'community' | 'group', name: string, newTags: string[]): boolean {
+  try {
+    const filePath = type === 'community'
+      ? path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+      : path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const lines = content.split('\n')
+
+    let inTargetEntry = false
+    let foundEntry = false
+    const newLines: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const trimmed = line.trim()
+
+      // Check if we're entering a new entry section
+      if (trimmed.startsWith('###')) {
+        const entryName = trimmed.replace(/^###\s+/, '').trim()
+        // If we were in target entry and now hit a different entry, exit
+        if (inTargetEntry && entryName !== name) {
+          inTargetEntry = false
+        }
+        // Check if this is the start of our target entry
+        if (entryName === name) {
+          inTargetEntry = true
+          foundEntry = true
+        }
+        newLines.push(line)
+        continue
+      }
+
+      // If we hit a section header ##, exit the current entry
+      if (trimmed.startsWith('##')) {
+        inTargetEntry = false
+        newLines.push(line)
+        continue
+      }
+
+      // If we're in the target entry and this is the Tags line, replace it
+      if (inTargetEntry && trimmed.match(/^-\s+\*\*Tags:\*\*/i)) {
+        newLines.push(`- **Tags:** ${newTags.join(', ')}`)
+        continue
+      }
+
+      newLines.push(line)
+    }
+
+    if (!foundEntry) return false
+
+    fs.writeFileSync(filePath, newLines.join('\n'), 'utf-8')
+    return true
+  } catch (err) {
+    console.error(`Error updating ${type} tags:`, err)
+    return false
+  }
 }
 
 export interface AgentInfo {
@@ -117,28 +181,166 @@ export interface AgentInfo {
   tags: string[]
 }
 
-/** Parse GROUPS.md into communities + groups arrays with optional descriptions.
- *  Format: `- Name: Description` or `- Name` (no description) */
+/** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
+ *  Supports two formats:
+ *  1. Compact: `- Name: Description [tag1, tag2] @CommunityName 📱 💬`
+ *  2. Verbose:
+ *     ### Name
+ *     - **Description:** ...
+ *     - **Tags:** tag1, tag2
+ *     - **Community:** CommunityName
+ *     - **Channels:** whatsapp, slack
+ */
 export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
   const communities: GroupEntry[] = []
   const groups: GroupEntry[] = []
   let section: 'communities' | 'groups' | null = null
+
+  // Channel name to emoji mapping (for backward compat)
+  const channelEmojis: Record<string, string> = {
+    '📱': 'whatsapp',
+    '💬': 'slack',
+    '💠': 'discord',
+    '📧': 'email',
+    '💼': 'teams'
+  }
+
+  // Parse verbose format (### Name with field bullets)
+  let currentName: string | null = null
+  let currentDescription: string | null = null
+  let currentTags: string[] = []
+  let currentCommunity: string | null = null
+  let currentChannels: string[] = []
+
+  const flushEntry = () => {
+    if (!currentName || !section) return
+    const entry: GroupEntry = {
+      name: currentName,
+      description: currentDescription,
+      tags: currentTags,
+      community: section === 'groups' ? currentCommunity : null,
+      channels: currentChannels
+    }
+    if (section === 'communities') communities.push(entry)
+    else if (section === 'groups') groups.push(entry)
+
+    // Reset
+    currentName = null
+    currentDescription = null
+    currentTags = []
+    currentCommunity = null
+    currentChannels = []
+  }
+
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
-    if (/^##\s+communities/i.test(trimmed)) { section = 'communities'; continue }
-    if (/^##\s+groups/i.test(trimmed)) { section = 'groups'; continue }
-    if (trimmed.startsWith('##')) { section = null; continue }
+
+    // Verbose format: ### Name (CHECK THIS FIRST before ## checks!)
+    if (trimmed.startsWith('###')) {
+      flushEntry()
+      currentName = trimmed.replace(/^###\s+/, '').trim()
+      continue
+    }
+
+    // Section headers
+    if (/^##\s+communities/i.test(trimmed)) {
+      flushEntry()
+      section = 'communities'
+      continue
+    }
+    if (/^##\s+groups/i.test(trimmed)) {
+      flushEntry()
+      section = 'groups'
+      continue
+    }
+    if (trimmed.startsWith('##')) {
+      flushEntry()
+      section = null
+      continue
+    }
+
+    // Verbose format: field bullets
+    if (trimmed.startsWith('-') && trimmed.includes('**')) {
+      const descMatch = trimmed.match(/\*\*Description:\*\*\s*(.+)/i)
+      if (descMatch) {
+        currentDescription = descMatch[1].trim()
+        continue
+      }
+
+      const tagsMatch = trimmed.match(/\*\*Tags:\*\*\s*(.+)/i)
+      if (tagsMatch) {
+        currentTags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t.length > 0)
+        continue
+      }
+
+      const communityMatch = trimmed.match(/\*\*Community:\*\*\s*(.+)/i)
+      if (communityMatch) {
+        currentCommunity = communityMatch[1].trim()
+        continue
+      }
+
+      const channelsMatch = trimmed.match(/\*\*Channels:\*\*\s*(.+)/i)
+      if (channelsMatch) {
+        currentChannels = channelsMatch[1].split(',').map(c => c.trim()).filter(c => c.length > 0)
+        continue
+      }
+    }
+
+    // Compact format: - Name: Description [tags] @Community 📱
     const bullet = trimmed.match(/^[-*]\s+(.+)/)
-    if (bullet) {
-      const raw = bullet[1].trim()
+    if (bullet && !trimmed.includes('**')) {
+      flushEntry()
+      let raw = bullet[1].trim()
+
+      // Extract channel indicators (📱 💬 💠 etc.)
+      const channels: string[] = []
+      for (const [emoji, channelName] of Object.entries(channelEmojis)) {
+        if (raw.includes(emoji)) {
+          channels.push(channelName)
+          raw = raw.replace(new RegExp(emoji, 'g'), '').trim()
+        }
+      }
+
+      // Extract community link (@CommunityName)
+      let community: string | null = null
+      const communityMatch = raw.match(/@([^\[\]]+)$/)
+      if (communityMatch) {
+        community = communityMatch[1].trim()
+        raw = raw.slice(0, communityMatch.index).trim()
+      }
+
+      // Extract tags [tag1, tag2]
+      let tags: string[] = []
+      const tagsMatch = raw.match(/\[([^\]]+)\]\s*$/)
+      if (tagsMatch) {
+        tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t.length > 0)
+        raw = raw.slice(0, tagsMatch.index).trim()
+      }
+
+      // Extract name and description
       const colonIdx = raw.indexOf(':')
       const entry: GroupEntry = colonIdx >= 0
-        ? { name: raw.slice(0, colonIdx).trim(), description: raw.slice(colonIdx + 1).trim() || null }
-        : { name: raw, description: null }
+        ? {
+            name: raw.slice(0, colonIdx).trim(),
+            description: raw.slice(colonIdx + 1).trim() || null,
+            tags,
+            community: section === 'groups' ? community : null,
+            channels
+          }
+        : {
+            name: raw,
+            description: null,
+            tags,
+            community: section === 'groups' ? community : null,
+            channels
+          }
+
       if (section === 'communities') communities.push(entry)
       else if (section === 'groups') groups.push(entry)
     }
   }
+
+  flushEntry() // Flush last entry
   return { communities, groups }
 }
 
@@ -383,14 +585,20 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
   // Profile mode: agent has its own ~/.openclaw-<id>/ state dir
   const isProfile = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
 
-  // Read groups from GROUPS.md
-  let communities: GroupEntry[] = []
+  // Read groups from agent GROUPS.md (only groups, no communities for agents)
   let groups: GroupEntry[] = []
   try {
     const groupsContent = fs.readFileSync(path.join(agentDir, 'GROUPS.md'), 'utf-8')
     const parsed = parseGroups(groupsContent)
-    communities = parsed.communities
     groups = parsed.groups
+  } catch {}
+
+  // Communities come from ORG/COMMUNITIES.md (organization-level)
+  let communities: GroupEntry[] = []
+  try {
+    const communitiesContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md'), 'utf-8')
+    const parsed = parseGroups(communitiesContent)
+    communities = parsed.communities
   } catch {}
 
   // Read tags from IDENTITY.md

@@ -1,4 +1,4 @@
-# GROUPS.md - WhatsApp Presence
+# GROUPS.md - Organization Groups
 
 ## Groups
 
@@ -28,7 +28,7 @@
 
 ### Maximilien.ai - OpenClaw
 - **Description:** OpenClaw project development
-- **Tags:** dev, openclaw
+- **Tags:** dev, openclaw, ai
 - **Community:** Engineering Team
 - **Channels:** whatsapp, slack
 
@@ -49,3 +49,15 @@
 - **Tags:** testing, qa
 - **Community:** Engineering Team
 - **Channels:** whatsapp
+
+### Product Roadmap
+- **Description:** Product planning and features
+- **Tags:** product, roadmap
+- **Community:** Product & Design
+- **Channels:** slack
+
+### Design Reviews
+- **Description:** UI/UX design feedback
+- **Tags:** design, review
+- **Community:** Product & Design
+- **Channels:** slack
