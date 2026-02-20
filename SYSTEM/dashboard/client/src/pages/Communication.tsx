@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import GroupChatPanel from '../components/GroupChatPanel'
 
 interface GroupEntry {
   name: string
@@ -56,6 +57,7 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [tagManageTarget, setTagManageTarget] = useState<Channel | null>(null)
+  const [chatPanelChannel, setChatPanelChannel] = useState<Channel | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -422,7 +424,7 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {communities.map(channel => (
-                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} />
+                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
                 ))}
               </div>
             </div>
@@ -437,12 +439,17 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {groups.map(channel => (
-                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} />
+                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
                 ))}
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* Group Chat Panel */}
+      {chatPanelChannel && (
+        <GroupChatPanel channel={chatPanelChannel} onClose={() => setChatPanelChannel(null)} />
       )}
 
       {tagManageTarget && (
@@ -582,7 +589,26 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
   )
 }
 
+interface Message {
+  id: string
+  from: string
+  content: string
+  timestamp: number
+  mentions: string[]
+}
+
 function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const [messageText, setMessageText] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [sending, setSending] = useState(false)
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionPosition, setMentionPosition] = useState(0)
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+  const [typingAgents, setTypingAgents] = useState<Set<string>>(new Set())
+  const textareaRef = useState<HTMLTextAreaElement | null>(null)[0]
+
   const typeStyle = channel.type === 'community'
     ? 'bg-purple-50 text-purple-700 border-purple-200'
     : 'bg-indigo-50 text-indigo-700 border-indigo-200'
@@ -595,8 +621,135 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
     teams: '💼'
   }
 
+  // Fetch messages when expanded
+  useEffect(() => {
+    if (expanded) {
+      fetchMessages()
+    }
+  }, [expanded])
+
+  const fetchMessages = async () => {
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
+        : `/api/groups/${encodeURIComponent(channel.name)}/messages`
+      const res = await fetch(endpoint)
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.messages || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch messages:', err)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || sending) return
+
+    // Extract @mentions
+    const mentionRegex = /@(\w+)/g
+    const matches = Array.from(messageText.matchAll(mentionRegex))
+    const mentionedNames = matches.map(m => m[1])
+
+    // Check for @all
+    const hasAll = mentionedNames.some(name => name.toLowerCase() === 'all')
+
+    // Find agents that match the mentions (or all if @all is used)
+    const mentionedAgents = hasAll
+      ? channel.members
+      : channel.members.filter(agent =>
+          mentionedNames.some(name =>
+            agent.name.toLowerCase().includes(name.toLowerCase()) ||
+            agent.id.toLowerCase() === name.toLowerCase()
+          )
+        )
+
+    setSending(true)
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
+        : `/api/groups/${encodeURIComponent(channel.name)}/messages`
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: messageText,
+          mentions: mentionedAgents.map(a => a.id)
+        })
+      })
+
+      if (res.ok) {
+        setMessageText('')
+        setShowMentions(false)
+        fetchMessages()
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Handle @mention autocomplete
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value
+    setMessageText(text)
+
+    // Check for @ mentions
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = text.substring(0, cursorPos)
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex !== -1 && lastAtIndex === cursorPos - 1) {
+      // Just typed @
+      setShowMentions(true)
+      setMentionQuery('')
+      setMentionPosition(lastAtIndex)
+      setSelectedMentionIndex(0)
+    } else if (lastAtIndex !== -1) {
+      // Check if we're in a mention
+      const afterAt = textBeforeCursor.substring(lastAtIndex + 1)
+      if (/^\w*$/.test(afterAt)) {
+        setShowMentions(true)
+        setMentionQuery(afterAt)
+        setMentionPosition(lastAtIndex)
+        setSelectedMentionIndex(0)
+      } else {
+        setShowMentions(false)
+      }
+    } else {
+      setShowMentions(false)
+    }
+  }
+
+  const insertMention = (agentName: string) => {
+    const before = messageText.substring(0, mentionPosition)
+    const after = messageText.substring(mentionPosition + mentionQuery.length + 1)
+    setMessageText(`${before}@${agentName} ${after}`)
+    setShowMentions(false)
+  }
+
+  // Build mention list: @all first, then matching agents
+  const filteredMentionAgents = showMentions
+    ? (() => {
+        const agents = channel.members.filter(agent =>
+          agent.name.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+          agent.id.toLowerCase().includes(mentionQuery.toLowerCase())
+        )
+
+        // Add @all option if it matches the query
+        const mentions: Array<{ id: string; name: string; status: string; isAll?: boolean }> = []
+        if ('all'.includes(mentionQuery.toLowerCase())) {
+          mentions.push({ id: 'all', name: 'all', status: 'online', isAll: true })
+        }
+
+        return [...mentions, ...agents]
+      })()
+    : []
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
@@ -662,7 +815,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {[...channel.members].sort((a, b) => a.name.localeCompare(b.name)).map(agent => {
           const isSelected = selectedAgents.has(agent.id)
           return (
@@ -685,11 +838,162 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
           )
         })}
       </div>
+
+      {/* Messaging Section */}
+      <div className="border-t border-gray-100 pt-3 -mx-4 px-4 -mb-4 pb-4">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded(!expanded)
+          }}
+          className="w-full flex items-center justify-between text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            💬 Messages
+            {messages.length > 0 && (
+              <span className="bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-xs">
+                {messages.length}
+              </span>
+            )}
+          </span>
+          <span className={`transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
+        </button>
+
+        {expanded && (
+          <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
+            {/* Message History */}
+            {messages.length > 0 || typingAgents.size > 0 ? (
+              <div className="bg-gray-50 rounded-lg p-3 max-h-60 overflow-y-auto space-y-2">
+                {messages.map((msg) => (
+                  <div key={msg.id} className="bg-white rounded p-2 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-700">{msg.from}</span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                ))}
+                {/* Typing indicators */}
+                {Array.from(typingAgents).map((agentId) => {
+                  const agent = channel.members.find(a => a.id === agentId)
+                  return agent ? (
+                    <div key={`typing-${agentId}`} className="bg-white rounded p-2 shadow-sm border-l-2 border-sky-400">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-700">{agent.name}</span>
+                        <span className="flex gap-0.5">
+                          <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </span>
+                      </div>
+                    </div>
+                  ) : null
+                })}
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <p className="text-xs text-gray-400">No messages yet</p>
+              </div>
+            )}
+
+            {/* Message Input */}
+            <div className="relative">
+              <textarea
+                ref={(el) => {
+                  if (el) {
+                    el.style.height = 'auto'
+                    el.style.height = el.scrollHeight + 'px'
+                  }
+                }}
+                value={messageText}
+                onChange={handleTextChange}
+                onKeyDown={(e) => {
+                  if (showMentions && filteredMentionAgents.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setSelectedMentionIndex((prev) =>
+                        prev < filteredMentionAgents.length - 1 ? prev + 1 : prev
+                      )
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setSelectedMentionIndex((prev) => prev > 0 ? prev - 1 : 0)
+                    } else if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      insertMention(filteredMentionAgents[selectedMentionIndex].name)
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setShowMentions(false)
+                    }
+                  } else if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendMessage()
+                  }
+                }}
+                placeholder="Type a message... use @name or @all to mention agents"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent"
+                rows={2}
+                disabled={sending}
+              />
+
+              {/* @Mention Dropdown */}
+              {showMentions && filteredMentionAgents.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10">
+                  {filteredMentionAgents.map((agent, index) => (
+                    <button
+                      key={agent.id}
+                      onClick={() => insertMention(agent.name)}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                        index === selectedMentionIndex
+                          ? 'bg-sky-100 text-sky-900'
+                          : 'hover:bg-sky-50'
+                      } ${
+                        'isAll' in agent && agent.isAll
+                          ? 'font-semibold border-b border-gray-100'
+                          : ''
+                      }`}
+                    >
+                      {!('isAll' in agent && agent.isAll) && (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                      )}
+                      <span className="font-medium">
+                        {'isAll' in agent && agent.isAll ? '👥 @all' : agent.name}
+                      </span>
+                      {!('isAll' in agent && agent.isAll) && (
+                        <span className="text-xs text-gray-400">({agent.id})</span>
+                      )}
+                      {('isAll' in agent && agent.isAll) && (
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {channel.members.length} agents
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-gray-400">
+                  {messageText.length > 0 && `${messageText.length} chars`}
+                </span>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!messageText.trim() || sending}
+                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
   const typeColor = channel.type === 'community' ? 'border-purple-300 bg-purple-50' : 'border-indigo-300 bg-indigo-50'
   const onlineCount = channel.members.filter(m => m.status === 'online').length
 
@@ -706,6 +1010,16 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
       <div className="flex items-center gap-1.5 mb-2">
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
         <span className="font-semibold text-gray-900 text-sm truncate flex-1">{channel.name}</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenChat?.()
+          }}
+          className="shrink-0 text-sky-600 hover:text-sky-700 hover:bg-white/50 rounded p-1 transition-colors"
+          title="Open chat"
+        >
+          💬
+        </button>
         {channel.channels.length > 0 && (
           <div className="flex gap-0.5">
             {channel.channels.map(ch => (
