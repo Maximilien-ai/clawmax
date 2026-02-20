@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1771624331033-j6u4ldf52",
+    "from": "User",
+    "content": "@ceo status",
+    "timestamp": 1771624331033,
+    "mentions": [
+      "ceo"
+    ]
+  },
+  {
+    "id": "1771624335362-td3evrnv7",
+    "from": "ceo",
+    "content": "Here's your current status:\n\n- **Version:** OpenClaw 2026.2.16\n- **Time:** Friday, February 20th, 2026 — 1:52 PM (PST)\n- **Model:** openai/gpt-4o\n- **Context Usage:** 0%\n- **Transcript Size:** 1.5 KB, 6 messages\n- **Session:** agent:ceo:main, just updated\n- **Runtime Mode:** direct, thinking off\n\nLet me know if there's anything else you need!",
+    "timestamp": 1771624335362,
+    "mentions": []
+  }
+]

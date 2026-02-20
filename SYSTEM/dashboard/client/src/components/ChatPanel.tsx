@@ -20,14 +20,16 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number }>>([])
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchMessages()
+    fetchArchivesList() // Fetch archives on mount to enable/disable history button
   }, [agentId])
 
   useEffect(() => {
@@ -115,13 +117,37 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
     }
   }
 
+  async function fetchArchivesList() {
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/archives`)
+      const data = await r.json()
+      setArchives(data.archives || [])
+    } catch (err) {
+      console.error('Failed to fetch archives list:', err)
+    }
+  }
+
   async function viewArchive(filename: string) {
     try {
       const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`)
       const data = await r.json()
       setViewingArchive({ filename, messages: data.messages || [] })
+      setShowArchives(false)
     } catch (e) {
       console.error('Failed to load archive:', e)
+    }
+  }
+
+  async function deleteArchive(filename: string) {
+    try {
+      await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { method: 'DELETE' })
+      setArchives(archives.filter(a => a.filename !== filename))
+      setDeleteConfirm(null)
+      if (viewingArchive?.filename === filename) {
+        setViewingArchive(null)
+      }
+    } catch (e) {
+      console.error('Failed to delete archive:', e)
     }
   }
 
@@ -169,8 +195,13 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { fetchArchives(); setShowArchives(true); }}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              title="View chat history"
+              disabled={archives.length === 0}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                archives.length === 0
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              title={archives.length === 0 ? 'No chat history yet' : 'View chat history'}
             >
               📜 History
             </button>
@@ -271,9 +302,9 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {showClearConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
-              <h3 className="text-base font-semibold mb-2">Clear Chat History?</h3>
+              <h3 className="text-base font-semibold mb-2">Clear Chat?</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Messages will be archived. You can view them in History.
+                This will archive all current messages and start a fresh chat. You can view archived chats anytime from History.
               </p>
               <div className="flex gap-2 justify-end">
                 <button
@@ -286,7 +317,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                   onClick={clearMessages}
                   className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                 >
-                  Clear
+                  Clear & Archive
                 </button>
               </div>
             </div>
@@ -312,18 +343,29 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                 ) : (
                   <div className="space-y-2">
                     {archives.map(archive => (
-                      <button
+                      <div
                         key={archive.filename}
-                        onClick={() => viewArchive(archive.filename)}
-                        className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                        className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                       >
-                        <div className="text-sm font-medium">
-                          {new Date(archive.timestamp).toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {archive.messageCount} messages
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => viewArchive(archive.filename)}
+                          className="flex-1 text-left p-3"
+                        >
+                          <div className="text-sm font-medium">
+                            {archive.title || 'Untitled conversation'}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
+                          className="p-3 text-red-400 hover:text-red-600 transition-colors"
+                          title="Delete archive"
+                        >
+                          🗑
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -334,7 +376,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
 
         {/* Archive Viewer Modal */}
         {viewingArchive && (
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-20">
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold">Archived Chat</h3>
@@ -354,6 +396,13 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                     💾 Download
                   </button>
                   <button
+                    onClick={() => setDeleteConfirm(viewingArchive.filename)}
+                    className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete archive"
+                  >
+                    🗑 Delete
+                  </button>
+                  <button
                     onClick={() => setViewingArchive(null)}
                     className="text-gray-400 hover:text-gray-600 text-lg leading-none"
                   >
@@ -362,25 +411,57 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                 </div>
               </div>
               <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4">
-                {viewingArchive.messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
-                        msg.role === 'user'
-                          ? 'bg-sky-600 text-white'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <p className="text-xs text-gray-500 mb-1">
-                        {msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}
-                      </p>
-                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                    </div>
+                {viewingArchive.messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                    No messages in this archive
                   </div>
-                ))}
+                ) : (
+                  viewingArchive.messages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
+                          msg.role === 'user'
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-500 mb-1">
+                          {msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}
+                        </p>
+                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+              <h3 className="text-base font-semibold mb-2">Delete Archive?</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                This archive will be permanently deleted. This action cannot be undone.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteArchive(deleteConfirm)}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>

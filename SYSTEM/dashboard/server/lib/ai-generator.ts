@@ -198,3 +198,51 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
 
   return { identity, soul, tools }
 }
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export async function generateArchiveTitle(messages: Message[]): Promise<string> {
+  if (messages.length === 0) return 'Empty conversation'
+
+  // Fallback: use first user message
+  const fallbackTitle = (() => {
+    const firstUserMsg = messages.find(m => m.role === 'user')
+    return firstUserMsg ? firstUserMsg.content.slice(0, 50) : 'Conversation'
+  })()
+
+  // Only use LLM if API key is available
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey || apiKey.trim() === '') {
+    return fallbackTitle
+  }
+
+  // Extract first 5 messages for context
+  const contextMessages = messages.slice(0, 5).map(m => `${m.role}: ${m.content}`).join('\n')
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Generate a concise, descriptive title (max 50 characters) for this chat conversation. The title should capture the main topic or purpose of the conversation. Be specific and informative. Respond with only the title, no quotes or extra text.`
+        },
+        {
+          role: 'user',
+          content: `Generate a title for this conversation:\n\n${contextMessages}`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 20,
+    })
+
+    const title = completion.choices[0].message.content?.trim() || ''
+    return title.slice(0, 50) // Ensure max 50 chars
+  } catch (err) {
+    console.error('Failed to generate archive title:', err)
+    return fallbackTitle
+  }
+}

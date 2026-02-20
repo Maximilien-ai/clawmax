@@ -27,6 +27,8 @@ interface Channel {
 interface Props {
   channel: Channel
   onClose: () => void
+  mode?: 'overlay' | 'pane'
+  onExpand?: () => void
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -35,7 +37,7 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function GroupChatPanel({ channel, onClose }: Props) {
+export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -48,14 +50,16 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
   const [typingAgents, setTypingAgents] = useState<Set<string>>(new Set())
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number }>>([])
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchMessages()
+    fetchArchivesList()
     // Poll for new messages every 2 seconds
     const interval = setInterval(fetchMessages, 2000)
     return () => clearInterval(interval)
@@ -259,6 +263,13 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
         setMessages([])
         setShowClearConfirm(false)
         fetchMessages()
+        // Refresh archives list to show the new archive
+        const archivesEndpoint = channel.type === 'community'
+          ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
+          : `/api/groups/${encodeURIComponent(channel.name)}/archives`
+        const archivesR = await fetch(archivesEndpoint)
+        const archivesData = await archivesR.json()
+        setArchives(archivesData.archives || [])
       }
     } catch (err) {
       console.error('Failed to clear messages:', err)
@@ -280,6 +291,37 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
     }
   }
 
+  async function fetchArchivesList() {
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
+        : `/api/groups/${encodeURIComponent(channel.name)}/archives`
+
+      const r = await fetch(endpoint)
+      const data = await r.json()
+      setArchives(data.archives || [])
+    } catch (err) {
+      console.error('Failed to fetch archives list:', err)
+    }
+  }
+
+  async function deleteArchive(filename: string) {
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}/archives/${filename}`
+        : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
+
+      await fetch(endpoint, { method: 'DELETE' })
+      setArchives(archives.filter(a => a.filename !== filename))
+      setDeleteConfirm(null)
+      if (viewingArchive?.filename === filename) {
+        setViewingArchive(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete archive:', err)
+    }
+  }
+
   async function viewArchive(filename: string) {
     try {
       const endpoint = channel.type === 'community'
@@ -295,9 +337,11 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
     }
   }
 
+  const isOverlay = mode === 'overlay'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/20" onClick={onClose}>
-      <div className="bg-white h-full w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"} onClick={isOverlay ? onClose : undefined}>
+      <div className={`bg-white h-full ${isOverlay ? 'w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex-1">
@@ -311,8 +355,13 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
           <div className="flex items-center gap-2">
             <button
               onClick={fetchArchives}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              title="View archived chats"
+              disabled={archives.length === 0}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                archives.length === 0
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              title={archives.length === 0 ? 'No archived chats yet' : 'View archived chats'}
             >
               📂 History
             </button>
@@ -324,6 +373,15 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
             >
               🗑️ Clear
             </button>
+            {mode === 'pane' && onExpand && (
+              <button
+                onClick={onExpand}
+                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                title="Expand to full view"
+              >
+                ⤢ Expand
+              </button>
+            )}
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
@@ -485,23 +543,29 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-2">
                   {archives.map(archive => (
-                    <button
+                    <div
                       key={archive.filename}
-                      onClick={() => viewArchive(archive.filename)}
-                      className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-800">
-                          {new Date(archive.timestamp).toLocaleDateString()}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {archive.messageCount} messages
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(archive.timestamp).toLocaleTimeString()}
-                      </div>
-                    </button>
+                      <button
+                        onClick={() => viewArchive(archive.filename)}
+                        className="flex-1 text-left p-3"
+                      >
+                        <div className="text-sm font-medium">
+                          {archive.title || 'Untitled conversation'}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
+                        className="p-3 text-red-400 hover:text-red-600 transition-colors"
+                        title="Delete archive"
+                      >
+                        🗑
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -586,6 +650,32 @@ export default function GroupChatPanel({ channel, onClose }: Props) {
               >
                 Back to Current Chat
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+              <h3 className="text-base font-semibold mb-2">Delete Archive?</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                This archive will be permanently deleted. This action cannot be undone.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteArchive(deleteConfirm)}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         )}

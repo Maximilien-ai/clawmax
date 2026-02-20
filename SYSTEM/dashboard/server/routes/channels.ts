@@ -233,15 +233,15 @@ router.delete('/groups/:name/messages', (req, res) => {
 })
 
 // Get archives list
-router.get('/communities/:name/archives', (req, res) => {
+router.get('/communities/:name/archives', async (req, res) => {
   const { name } = req.params
-  const archives = getArchives('community', decodeURIComponent(name))
+  const archives = await getArchives('community', decodeURIComponent(name))
   res.json({ archives })
 })
 
-router.get('/groups/:name/archives', (req, res) => {
+router.get('/groups/:name/archives', async (req, res) => {
   const { name } = req.params
-  const archives = getArchives('group', decodeURIComponent(name))
+  const archives = await getArchives('group', decodeURIComponent(name))
   res.json({ archives })
 })
 
@@ -256,6 +256,21 @@ router.get('/groups/:name/archives/:filename', (req, res) => {
   const { name, filename } = req.params
   const messages = getArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ messages })
+})
+
+// Delete archive
+router.delete('/communities/:name/archives/:filename', (req, res) => {
+  const { name, filename } = req.params
+  const { deleteArchivedMessages } = require('../lib/messages')
+  const success = deleteArchivedMessages('community', decodeURIComponent(name), filename)
+  res.json({ ok: success })
+})
+
+router.delete('/groups/:name/archives/:filename', (req, res) => {
+  const { name, filename } = req.params
+  const { deleteArchivedMessages } = require('../lib/messages')
+  const success = deleteArchivedMessages('group', decodeURIComponent(name), filename)
+  res.json({ ok: success })
 })
 
 export default router

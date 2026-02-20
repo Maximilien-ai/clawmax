@@ -789,7 +789,7 @@ function AgentCard({
       }`}
     >
       {/* Card header — always visible */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onClick}>
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0">
           <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>

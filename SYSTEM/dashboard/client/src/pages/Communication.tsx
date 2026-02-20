@@ -215,7 +215,12 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <>
+    <div className="flex-1 flex h-full">
+      <div
+        className={`${chatPanelChannel && viewMode === 'list' ? 'flex-1' : 'flex-1'} overflow-y-auto p-6`}
+        onClick={() => chatPanelChannel && viewMode === 'list' && setChatPanelChannel(null)}
+      >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -383,7 +388,7 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
 
       {/* List view */}
       {!loading && filteredChannels.length > 0 && viewMode === 'list' && (
-        <div className="space-y-8">
+        <div className={`space-y-8 ${chatPanelChannel ? 'flex-1 overflow-y-auto pr-6' : ''}`}>
           {communities.length > 0 && (
             <div>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -391,7 +396,7 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
               </h2>
               <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 {communities.map(channel => (
-                  <ChannelCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} />
+                  <ChannelCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
                 ))}
               </div>
             </div>
@@ -403,7 +408,7 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
               </h2>
               <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 {groups.map(channel => (
-                  <ChannelCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} />
+                  <ChannelCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
                 ))}
               </div>
             </div>
@@ -446,37 +451,54 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
           )}
         </div>
       )}
+      </div>
 
-      {/* Group Chat Panel */}
-      {chatPanelChannel && (
-        <GroupChatPanel channel={chatPanelChannel} onClose={() => setChatPanelChannel(null)} />
-      )}
-
-      {tagManageTarget && (
-        <TagManageModal
-          channel={tagManageTarget}
-          onClose={() => setTagManageTarget(null)}
-          onSave={async (tags) => {
-            try {
-              const endpoint = tagManageTarget.type === 'community'
-                ? `/api/communities/${encodeURIComponent(tagManageTarget.name)}/tags`
-                : `/api/groups/${encodeURIComponent(tagManageTarget.name)}/tags`
-              const res = await fetch(endpoint, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tags }),
-              })
-              if (res.ok) {
-                fetchAgents()
-                setTagManageTarget(null)
-              }
-            } catch (err) {
-              console.error('Failed to update tags:', err)
-            }
-          }}
-        />
+      {/* Group Chat Panel - Right Pane (List View Only) */}
+      {chatPanelChannel && viewMode === 'list' && (
+        <div className="w-[480px] h-full flex-shrink-0 border-l border-gray-200">
+          <GroupChatPanel
+            channel={chatPanelChannel}
+            onClose={() => setChatPanelChannel(null)}
+            mode="pane"
+          />
+        </div>
       )}
     </div>
+
+    {/* Group Chat Panel - Overlay (Grid View Only) */}
+    {chatPanelChannel && viewMode === 'grid' && (
+      <GroupChatPanel
+        channel={chatPanelChannel}
+        onClose={() => setChatPanelChannel(null)}
+        mode="overlay"
+      />
+    )}
+
+    {tagManageTarget && (
+      <TagManageModal
+        channel={tagManageTarget}
+        onClose={() => setTagManageTarget(null)}
+        onSave={async (tags) => {
+          try {
+            const endpoint = tagManageTarget.type === 'community'
+              ? `/api/communities/${encodeURIComponent(tagManageTarget.name)}/tags`
+              : `/api/groups/${encodeURIComponent(tagManageTarget.name)}/tags`
+            const res = await fetch(endpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tags }),
+            })
+            if (res.ok) {
+              fetchAgents()
+              setTagManageTarget(null)
+            }
+          } catch (err) {
+            console.error('Failed to update tags:', err)
+          }
+        }}
+      />
+    )}
+  </>
   )
 }
 
@@ -597,7 +619,7 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -844,22 +866,17 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
         <button
           onClick={(e) => {
             e.stopPropagation()
-            setExpanded(!expanded)
+            onOpenChat?.()
           }}
-          className="w-full flex items-center justify-between text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
+          className="w-full flex items-center justify-center text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
         >
           <span className="flex items-center gap-1.5">
-            💬 Messages
-            {messages.length > 0 && (
-              <span className="bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-xs">
-                {messages.length}
-              </span>
-            )}
+            💬 Chat
+            <span>→</span>
           </span>
-          <span className={`transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
         </button>
 
-        {expanded && (
+        {false && (
           <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
             {/* Message History */}
             {messages.length > 0 || typingAgents.size > 0 ? (

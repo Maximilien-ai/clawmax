@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { WORKSPACE } from './workspace'
+import { generateArchiveTitle } from './ai-generator'
 
 export interface Message {
   id: string
@@ -137,7 +138,7 @@ export function clearMessages(type: 'community' | 'group', name: string): { arch
   return { archived: currentMessages.length > 0, archiveFile: currentMessages.length > 0 ? path.basename(getArchiveFile(type, name, Date.now())) : undefined }
 }
 
-export function getArchives(type: 'community' | 'group', name: string): Array<{ filename: string; timestamp: number; messageCount: number }> {
+export async function getArchives(type: 'community' | 'group', name: string): Promise<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>> {
   const subdir = type === 'community' ? 'communities' : 'groups'
   const archiveDir = path.join(MESSAGES_DIR, subdir, 'archive')
   const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
@@ -147,7 +148,7 @@ export function getArchives(type: 'community' | 'group', name: string): Array<{ 
   }
 
   try {
-    const files = fs.readdirSync(archiveDir)
+    const fileInfos = fs.readdirSync(archiveDir)
       .filter(f => f.startsWith(safeName) && f.endsWith('.json'))
       .map(filename => {
         const fullPath = path.join(archiveDir, filename)
@@ -155,18 +156,68 @@ export function getArchives(type: 'community' | 'group', name: string): Array<{ 
         const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
 
         let messageCount = 0
+        const messages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+
         try {
           const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-          messageCount = Array.isArray(data) ? data.length : 0
+          if (Array.isArray(data)) {
+            messageCount = data.length
+            // Extract messages for title generation (max first 5)
+            for (const msg of data.slice(0, 5)) {
+              if (msg.from && msg.content) {
+                // Map agent names to 'assistant' role, others to 'user'
+                const role = msg.from === 'user' ? 'user' : 'assistant'
+                messages.push({ role, content: msg.content })
+              }
+            }
+          }
         } catch {
           // ignore
         }
 
-        return { filename, timestamp, messageCount }
+        return { filename, timestamp, messageCount, messages }
       })
       .sort((a, b) => b.timestamp - a.timestamp) // newest first
 
-    return files
+    // Check for cached titles
+    const titlesPath = path.join(archiveDir, '.titles.json')
+    let cachedTitles: Record<string, string> = {}
+    try {
+      if (fs.existsSync(titlesPath)) {
+        cachedTitles = JSON.parse(fs.readFileSync(titlesPath, 'utf-8'))
+      }
+    } catch {
+      // ignore
+    }
+
+    // Generate titles (using cache when available)
+    const archives = await Promise.all(
+      fileInfos.map(async info => {
+        let title = cachedTitles[info.filename]
+
+        if (!title) {
+          // Generate new title
+          title = await generateArchiveTitle(info.messages)
+          cachedTitles[info.filename] = title
+        }
+
+        return {
+          filename: info.filename,
+          timestamp: info.timestamp,
+          messageCount: info.messageCount,
+          title
+        }
+      })
+    )
+
+    // Save updated cache
+    try {
+      fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
+    } catch (err) {
+      console.error('Failed to save title cache:', err)
+    }
+
+    return archives
   } catch (err) {
     console.error(`Failed to read archives for ${type}:${name}:`, err)
     return []
@@ -187,4 +238,34 @@ export function getArchivedMessages(type: 'community' | 'group', name: string, f
     console.error(`Failed to load archived messages from ${filename}:`, err)
   }
   return []
+}
+
+export function deleteArchivedMessages(type: 'community' | 'group', name: string, filename: string): boolean {
+  const subdir = type === 'community' ? 'communities' : 'groups'
+  const archiveDir = path.join(MESSAGES_DIR, subdir, 'archive')
+  const filePath = path.join(archiveDir, filename)
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+      console.log(`[Messages] Deleted archive ${filePath}`)
+
+      // Also remove from title cache
+      const titlesPath = path.join(archiveDir, '.titles.json')
+      if (fs.existsSync(titlesPath)) {
+        try {
+          const cachedTitles = JSON.parse(fs.readFileSync(titlesPath, 'utf-8'))
+          delete cachedTitles[filename]
+          fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
+        } catch (err) {
+          console.error('Failed to update title cache after delete:', err)
+        }
+      }
+
+      return true
+    }
+  } catch (err) {
+    console.error(`Failed to delete archived messages ${filename}:`, err)
+  }
+  return false
 }

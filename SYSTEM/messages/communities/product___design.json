@@ -70,5 +70,93 @@
     "content": "Here's the current status update:\n\n- **Focus**: Aligning product requirements with company goals.\n- **Tasks**: Actively monitoring progress and ready to assist.\n- **Availability**: Here to support you with any tasks, questions, or needs.\n\nFeel free to reach out with anything specific!",
     "timestamp": 1771609534792,
     "mentions": []
+  },
+  {
+    "id": "1771614286479-zvgzxc3ny",
+    "from": "User",
+    "content": "@all test",
+    "timestamp": 1771614286479,
+    "mentions": [
+      "agent-manager",
+      "ceo",
+      "dave",
+      "dave0",
+      "engineer",
+      "max0",
+      "product-manager",
+      "product-owner",
+      "qa-engineer",
+      "release-engineer"
+    ]
+  },
+  {
+    "id": "1771614294077-jwbrme5su",
+    "from": "agent-manager",
+    "content": "I'm here and everything is functioning well. If there's anything you need assistance with, just let me know!",
+    "timestamp": 1771614294077,
+    "mentions": []
+  },
+  {
+    "id": "1771614294730-7wwzbt0le",
+    "from": "dave0",
+    "content": "I don’t have access to the precise state or content of the last attempt unless you provide it—my workspace resets each session, and no context is automatically carried over from failed or timed-out runs. If you can briefly describe what you were doing, paste in the last instructions, or let me know what you want continued, I’ll jump right in and resume where you need.\n\nLet me know the details or paste the last message/task!",
+    "timestamp": 1771614294730,
+    "mentions": []
+  },
+  {
+    "id": "1771614296800-6hr9lzv7w",
+    "from": "dave",
+    "content": "Everything seems to be functioning properly. Let me know if there's anything specific you'd like to test or explore!",
+    "timestamp": 1771614296800,
+    "mentions": []
+  },
+  {
+    "id": "1771614296808-rqtwzg1xm",
+    "from": "engineer",
+    "content": "Everything is operating smoothly. If there's anything specific you'd like to test or any assistance you need, just let me know!",
+    "timestamp": 1771614296808,
+    "mentions": []
+  },
+  {
+    "id": "1771614296851-e21cso0mz",
+    "from": "ceo",
+    "content": "Systems are operating smoothly. If there’s anything specific you’d like to test or explore, let me know!",
+    "timestamp": 1771614296851,
+    "mentions": []
+  },
+  {
+    "id": "1771614298619-m5wlyub45",
+    "from": "release-engineer",
+    "content": "Test received. System is online and responsive.\n\nLet me know if you want to run a specific workflow or check a particular repo!",
+    "timestamp": 1771614298619,
+    "mentions": []
+  },
+  {
+    "id": "1771614298960-btmxwdg8g",
+    "from": "qa-engineer",
+    "content": "Received your \"test\" message—communication is working as expected.  \nNo QA issues or test errors detected in my current scope.\n\nIf you’d like me to run or check any specific tests, pipelines, or code branches, just provide the details. Otherwise, everything remains clear.",
+    "timestamp": 1771614298960,
+    "mentions": []
+  },
+  {
+    "id": "1771614299939-7zrc7q7vu",
+    "from": "product-manager",
+    "content": "Test received—I'm online and responding as expected.\n\nLet me know if you need a status update, project summary, or have any tasks to assign.",
+    "timestamp": 1771614299939,
+    "mentions": []
+  },
+  {
+    "id": "1771614301378-w53sa2u7d",
+    "from": "product-owner",
+    "content": "Test acknowledged! If there's anything specific you'd like to verify or check, just let me know.",
+    "timestamp": 1771614301378,
+    "mentions": []
+  },
+  {
+    "id": "1771614302345-9mdwfvzbe",
+    "from": "max0",
+    "content": "Test received—connection and broadcast are working for everyone! If you need the latest status, group updates, or want to share a team message, just let me know.",
+    "timestamp": 1771614302345,
+    "mentions": []
   }
 ]

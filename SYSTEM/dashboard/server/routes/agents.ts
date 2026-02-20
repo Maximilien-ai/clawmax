@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
-import { generateAgentFiles } from '../lib/ai-generator'
+import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -870,35 +870,94 @@ router.get('/:id/chat/archives', async (req, res) => {
       return res.json({ archives: [] })
     }
 
-    const files = fs.readdirSync(archiveDir)
+    const fileInfos = fs.readdirSync(archiveDir)
       .filter(f => f.endsWith('.jsonl'))
       .map(filename => {
         const fullPath = path.join(archiveDir, filename)
         const timestampMatch = filename.match(/_(\d+)\.jsonl$/)
         const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
 
-        // Count messages in archive
+        // Count messages and parse for LLM title generation
         let messageCount = 0
+        const messages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+
         try {
           const content = fs.readFileSync(fullPath, 'utf-8')
           const lines = content.trim().split('\n').filter(l => l.trim())
-          messageCount = lines.filter(l => {
+
+          for (const line of lines) {
             try {
-              const obj = JSON.parse(l)
-              return obj.type === 'message'
+              const obj = JSON.parse(line)
+              if (obj.type === 'message' && obj.message) {
+                messageCount++
+
+                const msg = obj.message
+                let textContent = ''
+
+                if (Array.isArray(msg.content)) {
+                  textContent = msg.content
+                    .filter((c: any) => c.type === 'text')
+                    .map((c: any) => c.text)
+                    .join(' ')
+                } else if (typeof msg.content === 'string') {
+                  textContent = msg.content
+                }
+
+                if (textContent && msg.role) {
+                  messages.push({ role: msg.role, content: textContent })
+                }
+              }
             } catch {
-              return false
+              continue
             }
-          }).length
+          }
         } catch {
           // ignore
         }
 
-        return { filename, timestamp, messageCount }
+        return { filename, timestamp, messageCount, messages }
       })
       .sort((a, b) => b.timestamp - a.timestamp)
 
-    res.json({ archives: files })
+    // Check for cached titles
+    const titlesPath = path.join(archiveDir, '.titles.json')
+    let cachedTitles: Record<string, string> = {}
+    try {
+      if (fs.existsSync(titlesPath)) {
+        cachedTitles = JSON.parse(fs.readFileSync(titlesPath, 'utf-8'))
+      }
+    } catch {
+      // ignore
+    }
+
+    // Generate titles (using cache when available)
+    const archives = await Promise.all(
+      fileInfos.map(async info => {
+        let title = cachedTitles[info.filename]
+
+        if (!title) {
+          // Generate new title
+          title = await generateArchiveTitle(info.messages)
+          cachedTitles[info.filename] = title
+        }
+
+        return {
+          filename: info.filename,
+          timestamp: info.timestamp,
+          messageCount: info.messageCount,
+          title
+        }
+      })
+    )
+
+    // Save updated cache
+    try {
+      fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
+    } catch (err) {
+      console.error('Failed to save title cache:', err)
+    }
+
+    res.json({ archives })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -928,12 +987,27 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
     for (const line of lines) {
       try {
         const obj = JSON.parse(line)
-        if (obj.type === 'message' && obj.data?.content) {
-          messages.push({
-            role: obj.data.role || 'user',
-            content: obj.data.content,
-            timestamp: obj.meta?.timestamp || Date.now()
-          })
+        if (obj.type === 'message' && obj.message) {
+          const msg = obj.message
+          let content = ''
+
+          // Handle content array format
+          if (Array.isArray(msg.content)) {
+            content = msg.content
+              .filter((c: any) => c.type === 'text')
+              .map((c: any) => c.text)
+              .join('\n')
+          } else if (typeof msg.content === 'string') {
+            content = msg.content
+          }
+
+          if (content) {
+            messages.push({
+              role: msg.role || 'user',
+              content,
+              timestamp: obj.timestamp || msg.timestamp || Date.now()
+            })
+          }
         }
       } catch {
         continue
@@ -941,6 +1015,34 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
     }
 
     res.json({ messages })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Delete archived chat
+router.delete('/:id/chat/archives/:filename', async (req, res) => {
+  const { id, filename } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  try {
+    const HOME = process.env.HOME || ''
+    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+    const filePath = path.join(archiveDir, filename)
+
+    // Security: ensure filename doesn't contain path traversal
+    if (filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({ error: 'Invalid filename' })
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archive not found' })
+    }
+
+    fs.unlinkSync(filePath)
+    res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
