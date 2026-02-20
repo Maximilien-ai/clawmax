@@ -1,0 +1,107 @@
+[
+  {
+    "id": "1771606355597-m9l87mwjo",
+    "from": "User",
+    "content": "status",
+    "timestamp": 1771606355597,
+    "mentions": []
+  },
+  {
+    "id": "1771606373565-cn63w3hsa",
+    "from": "User",
+    "content": "@ceo status",
+    "timestamp": 1771606373565,
+    "mentions": [
+      "ceo"
+    ]
+  },
+  {
+    "id": "1771606385893-12ffblhqc",
+    "from": "User",
+    "content": "@all status",
+    "timestamp": 1771606385893,
+    "mentions": [
+      "agent-manager",
+      "ceo",
+      "engineer",
+      "max0",
+      "product-manager",
+      "product-owner",
+      "qa-engineer",
+      "release-engineer"
+    ]
+  },
+  {
+    "id": "1771607212304-xyu8li6na",
+    "from": "User",
+    "content": "status",
+    "timestamp": 1771607212304,
+    "mentions": []
+  },
+  {
+    "id": "1771607225364-oiwo8ncbc",
+    "from": "User",
+    "content": "@all status",
+    "timestamp": 1771607225364,
+    "mentions": [
+      "agent-manager",
+      "ceo",
+      "engineer",
+      "max0",
+      "product-manager",
+      "product-owner",
+      "qa-engineer",
+      "release-engineer"
+    ]
+  },
+  {
+    "id": "1771607249944-dyrmk1kqr",
+    "from": "User",
+    "content": "@ceo tes",
+    "timestamp": 1771607249944,
+    "mentions": [
+      "ceo"
+    ]
+  },
+  {
+    "id": "1771607574295-lwh0lmbog",
+    "from": "User",
+    "content": "@all status",
+    "timestamp": 1771607574295,
+    "mentions": [
+      "agent-manager",
+      "ceo",
+      "engineer",
+      "max0",
+      "product-manager",
+      "product-owner",
+      "qa-engineer",
+      "release-engineer"
+    ]
+  },
+  {
+    "id": "1771607727802-s9f6iijvk",
+    "from": "User",
+    "content": "@ceo status",
+    "timestamp": 1771607727802,
+    "mentions": [
+      "ceo"
+    ]
+  },
+  {
+    "id": "1771607733568-vwvll5ous",
+    "from": "ceo",
+    "content": "Here's the current status:\n\n- **Time:** February 20th, 2026, 9:15 AM (PST)\n- **Model:** GPT-4o\n- **Context Usage:** 0%\n- **Transcript:** 7.2 KB, 13 messages\n- **Runtime:** Direct execution\n- **Thinking Mode:** Off\n- **Environment:** Secure API key usage\n\nLet me know if you need further details or assistance!",
+    "timestamp": 1771607733568,
+    "mentions": []
+  },
+  {
+    "id": "1771608798761-of416h4ed",
+    "from": "User",
+    "content": "@ceo status",
+    "timestamp": 1771608798761,
+    "mentions": [
+      "ceo"
+    ]
+  }
+]
