@@ -102,8 +102,89 @@ export function addMessage(
   return message
 }
 
-export function clearMessages(type: 'community' | 'group', name: string): void {
+function getArchiveFile(type: 'community' | 'group', name: string, timestamp: number): string {
+  const subdir = type === 'community' ? 'communities' : 'groups'
+  const archiveDir = path.join(MESSAGES_DIR, subdir, 'archive')
+  if (!fs.existsSync(archiveDir)) {
+    fs.mkdirSync(archiveDir, { recursive: true })
+  }
+  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+  const date = new Date(timestamp).toISOString().split('T')[0] // YYYY-MM-DD
+  return path.join(archiveDir, `${safeName}_${date}_${timestamp}.json`)
+}
+
+export function clearMessages(type: 'community' | 'group', name: string): { archived: boolean; archiveFile?: string } {
   const key = getStoreKey(type, name)
+  const currentMessages = messageStore[key] || loadMessagesFromFile(type, name)
+
+  // Archive current messages if any exist
+  if (currentMessages.length > 0) {
+    const timestamp = Date.now()
+    const archiveFile = getArchiveFile(type, name, timestamp)
+    try {
+      fs.writeFileSync(archiveFile, JSON.stringify(currentMessages, null, 2), 'utf-8')
+      console.log(`[Messages] Archived ${currentMessages.length} messages to ${archiveFile}`)
+    } catch (err) {
+      console.error(`Failed to archive messages for ${type}:${name}:`, err)
+      return { archived: false }
+    }
+  }
+
+  // Clear current messages
   messageStore[key] = []
   saveMessagesToFile(type, name, [])
+
+  return { archived: currentMessages.length > 0, archiveFile: currentMessages.length > 0 ? path.basename(getArchiveFile(type, name, Date.now())) : undefined }
+}
+
+export function getArchives(type: 'community' | 'group', name: string): Array<{ filename: string; timestamp: number; messageCount: number }> {
+  const subdir = type === 'community' ? 'communities' : 'groups'
+  const archiveDir = path.join(MESSAGES_DIR, subdir, 'archive')
+  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+
+  if (!fs.existsSync(archiveDir)) {
+    return []
+  }
+
+  try {
+    const files = fs.readdirSync(archiveDir)
+      .filter(f => f.startsWith(safeName) && f.endsWith('.json'))
+      .map(filename => {
+        const fullPath = path.join(archiveDir, filename)
+        const timestampMatch = filename.match(/_(\d+)\.json$/)
+        const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
+
+        let messageCount = 0
+        try {
+          const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+          messageCount = Array.isArray(data) ? data.length : 0
+        } catch {
+          // ignore
+        }
+
+        return { filename, timestamp, messageCount }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp) // newest first
+
+    return files
+  } catch (err) {
+    console.error(`Failed to read archives for ${type}:${name}:`, err)
+    return []
+  }
+}
+
+export function getArchivedMessages(type: 'community' | 'group', name: string, filename: string): Message[] {
+  const subdir = type === 'community' ? 'communities' : 'groups'
+  const archiveDir = path.join(MESSAGES_DIR, subdir, 'archive')
+  const filePath = path.join(archiveDir, filename)
+
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8')
+      return JSON.parse(data)
+    }
+  } catch (err) {
+    console.error(`Failed to load archived messages from ${filename}:`, err)
+  }
+  return []
 }

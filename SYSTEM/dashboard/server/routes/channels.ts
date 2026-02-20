@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { updateGroupTags } from '../lib/workspace'
-import { getMessages, addMessage } from '../lib/messages'
+import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 
 const router = Router()
 
@@ -132,12 +132,15 @@ router.post('/communities/:name/messages', async (req, res) => {
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
     const sessionId = `community:${decodedName}:group-chat`
+    console.log(`[Group Chat] Calling ${mentions.length} agents for community "${decodedName}":`, mentions)
 
     // Call agents in parallel
     Promise.all(
       mentions.map(async (agentId) => {
         try {
+          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
           const response = await callAgent(agentId, content, sessionId)
+          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
             // Add agent response to message history
             addMessage('community', decodedName, {
@@ -145,12 +148,15 @@ router.post('/communities/:name/messages', async (req, res) => {
               content: response,
               mentions: []
             })
+            console.log(`[Group Chat] Added ${agentId} response to history`)
+          } else {
+            console.log(`[Group Chat] Agent ${agentId} returned empty response`)
           }
         } catch (err) {
-          console.error(`Failed to get response from agent ${agentId}:`, err)
+          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
         }
       })
-    ).catch(err => console.error('Error calling agents:', err))
+    ).catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
 })
 
@@ -185,12 +191,15 @@ router.post('/groups/:name/messages', async (req, res) => {
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
     const sessionId = `group:${decodedName}:group-chat`
+    console.log(`[Group Chat] Calling ${mentions.length} agents for group "${decodedName}":`, mentions)
 
     // Call agents in parallel
     Promise.all(
       mentions.map(async (agentId) => {
         try {
+          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
           const response = await callAgent(agentId, content, sessionId)
+          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
             // Add agent response to message history
             addMessage('group', decodedName, {
@@ -198,13 +207,55 @@ router.post('/groups/:name/messages', async (req, res) => {
               content: response,
               mentions: []
             })
+            console.log(`[Group Chat] Added ${agentId} response to history`)
+          } else {
+            console.log(`[Group Chat] Agent ${agentId} returned empty response`)
           }
         } catch (err) {
-          console.error(`Failed to get response from agent ${agentId}:`, err)
+          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
         }
       })
-    ).catch(err => console.error('Error calling agents:', err))
+    ).catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
+})
+
+// Clear messages (archives them first)
+router.delete('/communities/:name/messages', (req, res) => {
+  const { name } = req.params
+  const result = clearMessages('community', decodeURIComponent(name))
+  res.json({ ok: true, ...result })
+})
+
+router.delete('/groups/:name/messages', (req, res) => {
+  const { name } = req.params
+  const result = clearMessages('group', decodeURIComponent(name))
+  res.json({ ok: true, ...result })
+})
+
+// Get archives list
+router.get('/communities/:name/archives', (req, res) => {
+  const { name } = req.params
+  const archives = getArchives('community', decodeURIComponent(name))
+  res.json({ archives })
+})
+
+router.get('/groups/:name/archives', (req, res) => {
+  const { name } = req.params
+  const archives = getArchives('group', decodeURIComponent(name))
+  res.json({ archives })
+})
+
+// Get archived messages
+router.get('/communities/:name/archives/:filename', (req, res) => {
+  const { name, filename } = req.params
+  const messages = getArchivedMessages('community', decodeURIComponent(name), filename)
+  res.json({ messages })
+})
+
+router.get('/groups/:name/archives/:filename', (req, res) => {
+  const { name, filename } = req.params
+  const messages = getArchivedMessages('group', decodeURIComponent(name), filename)
+  res.json({ messages })
 })
 
 export default router
