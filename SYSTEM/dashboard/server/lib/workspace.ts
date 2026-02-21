@@ -792,26 +792,23 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   // Profile mode: agent has its own ~/.openclaw-<id>/ state dir
   const isProfile = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
 
-  // Read communities and groups from ORG files and filter by membership
+  // Read communities and groups from ORG files
+  // NOTE: For now, we show all communities/groups to all agents.
+  // In the future, we can add Members fields to COMMUNITIES.md and GROUPS.md
+  // and filter by membership using parseGroupsWithMembers()
   let communities: GroupEntry[] = []
   let groups: GroupEntry[] = []
 
   try {
     const communitiesContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md'), 'utf-8')
-    const parsed = parseGroupsWithMembers(communitiesContent)
-    // Filter to only include communities where this agent is a member
+    const parsed = parseGroups(communitiesContent)
     communities = parsed.communities
-      .filter(c => c.members.includes(id))
-      .map(({ members, ...rest }) => rest) // Remove members field from result
   } catch {}
 
   try {
     const groupsContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'GROUPS.md'), 'utf-8')
-    const parsed = parseGroupsWithMembers(groupsContent)
-    // Filter to only include groups where this agent is a member
+    const parsed = parseGroups(groupsContent)
     groups = parsed.groups
-      .filter(g => g.members.includes(id))
-      .map(({ members, ...rest }) => rest) // Remove members field from result
   } catch {}
 
   // Read tags from IDENTITY.md
