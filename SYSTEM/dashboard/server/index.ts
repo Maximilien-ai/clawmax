@@ -102,6 +102,41 @@ app.get('/api/activity', (_req, res) => {
   res.json({ feed })
 })
 
+// System logs - SSE stream
+app.get('/api/system/logs', (_req, res) => {
+  const { spawn } = require('child_process')
+
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  })
+
+  const child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
+    env: process.env,
+  })
+
+  child.stdout.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter((l: string) => l.trim())
+    lines.forEach((line: string) => {
+      res.write(`data: ${JSON.stringify({ line })}\n\n`)
+    })
+  })
+
+  child.stderr.on('data', (data: Buffer) => {
+    res.write(`data: ${JSON.stringify({ error: data.toString() })}\n\n`)
+  })
+
+  child.on('close', () => {
+    res.end()
+  })
+
+  _req.on('close', () => {
+    child.kill()
+  })
+})
+
 // Save a workspace doc file
 app.post('/api/docs/content', (req, res) => {
   const { path: relPath, content } = req.body as { path?: string; content?: string }
