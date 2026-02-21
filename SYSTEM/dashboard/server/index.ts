@@ -10,6 +10,57 @@ import channelsRouter from './routes/channels'
 import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 
+// ============================================================================
+// Crash Protection & Error Logging
+// ============================================================================
+
+const CRASH_LOG = path.join(__dirname, 'logs', 'crash.log')
+
+function logToFile(message: string) {
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] ${message}\n`
+  try {
+    fs.appendFileSync(CRASH_LOG, logEntry, 'utf-8')
+  } catch (err) {
+    console.error('Failed to write to crash log:', err)
+  }
+}
+
+// Log server lifecycle events
+logToFile('===== SERVER STARTING =====')
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err: Error) => {
+  const message = `UNCAUGHT EXCEPTION: ${err.message}\nStack: ${err.stack || 'No stack trace'}\n`
+  logToFile(message)
+  console.error('Uncaught Exception:', err)
+  console.error('Error logged to:', CRASH_LOG)
+  process.exit(1)
+})
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: any) => {
+  const message = `UNHANDLED REJECTION: ${reason?.message || reason}\nStack: ${reason?.stack || 'No stack trace'}\n`
+  logToFile(message)
+  console.error('Unhandled Rejection:', reason)
+  console.error('Error logged to:', CRASH_LOG)
+})
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  logToFile('===== SERVER STOPPED (SIGINT) =====')
+  process.exit(0)
+})
+
+process.on('SIGTERM', () => {
+  logToFile('===== SERVER STOPPED (SIGTERM) =====')
+  process.exit(0)
+})
+
+// ============================================================================
+// Express App Setup
+// ============================================================================
+
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 
@@ -176,4 +227,6 @@ if (fs.existsSync(clientDist)) {
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`ClawMax Dashboard server running at http://localhost:${PORT}`)
   console.log(`Workspace: ${WORKSPACE}`)
+  logToFile(`Server started successfully on port ${PORT}`)
+  logToFile(`Workspace: ${WORKSPACE}`)
 })
