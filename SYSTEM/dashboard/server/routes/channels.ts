@@ -2,10 +2,44 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags } from '../lib/workspace'
+import { updateGroupTags, parseGroups } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 
 const router = Router()
+
+const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
+
+// List all communities
+router.get('/communities', (req, res) => {
+  try {
+    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+    if (!fs.existsSync(communitiesPath)) {
+      res.json({ communities: [] })
+      return
+    }
+    const content = fs.readFileSync(communitiesPath, 'utf-8')
+    const { communities } = parseGroups(content)
+    res.json({ communities })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// List all groups
+router.get('/groups', (req, res) => {
+  try {
+    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+    if (!fs.existsSync(groupsPath)) {
+      res.json({ groups: [] })
+      return
+    }
+    const content = fs.readFileSync(groupsPath, 'utf-8')
+    const { groups } = parseGroups(content)
+    res.json({ groups })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 /** Call an agent with a message and return the response */
 async function callAgent(agentId: string, message: string, sessionId: string): Promise<string> {
