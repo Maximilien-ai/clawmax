@@ -69,13 +69,16 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
 
   // Fetch suggested ID + port and existing agents list on mount
   useEffect(() => {
-    fetch('/api/agents/next')
-      .then(r => r.json())
-      .then(d => {
-        setSuggested(d)
-        setForm(f => ({ ...f, name: d.id, port: d.port }))
-      })
-      .catch(() => {})
+    // If cloning, skip initial fetch - the cloneFrom effect will handle it
+    if (!defaultCloneFrom) {
+      fetch('/api/agents/next')
+        .then(r => r.json())
+        .then(d => {
+          setSuggested(d)
+          setForm(f => ({ ...f, name: d.id, port: d.port }))
+        })
+        .catch(() => {})
+    }
     fetch('/api/agents')
       .then(r => r.json())
       .then(d => setExistingAgents((d.agents as { id: string }[]).map(a => a.id)))

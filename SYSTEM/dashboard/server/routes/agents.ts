@@ -1222,4 +1222,96 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
   }
 })
 
+// GET /api/agents/:id/logs — Stream live logs via SSE
+router.get('/:id/logs', (req, res) => {
+  const { id } = req.params
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+  if (!agent) return res.status(404).json({ error: 'Agent not found' })
+
+  const HOME = process.env.HOME || ''
+  const profileStateDir = path.join(HOME, `.openclaw-${id}`)
+  const isProfile = fs.existsSync(profileStateDir)
+
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  })
+
+  const profileFlag = isProfile ? ['--profile', id] : []
+  const child = spawn('openclaw', [...profileFlag, 'logs', '--follow', '--limit', '200'], {
+    env: process.env,
+  })
+
+  child.stdout.on('data', (data) => {
+    const lines = data.toString().split('\n').filter((l: string) => l.trim())
+    lines.forEach((line: string) => {
+      res.write(`data: ${JSON.stringify({ line })}\n\n`)
+    })
+  })
+
+  child.stderr.on('data', (data) => {
+    res.write(`data: ${JSON.stringify({ error: data.toString() })}\n\n`)
+  })
+
+  child.on('close', () => {
+    res.end()
+  })
+
+  req.on('close', () => {
+    child.kill()
+  })
+})
+
+// GET /api/agents/:id/health — Get agent health status
+router.get('/:id/health', async (req, res) => {
+  const { id } = req.params
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+  if (!agent) return res.status(404).json({ error: 'Agent not found' })
+
+  const HOME = process.env.HOME || ''
+  const profileStateDir = path.join(HOME, `.openclaw-${id}`)
+  const isProfile = fs.existsSync(profileStateDir)
+
+  try {
+    const profileFlag = isProfile ? ['--profile', id] : []
+    const { execSync } = require('child_process')
+    const result = execSync(`openclaw ${profileFlag.join(' ')} health --json`, {
+      encoding: 'utf-8',
+      timeout: 10000,
+    })
+    const health = JSON.parse(result)
+    res.json(health)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/agents/:id/gateway-status — Get gateway status
+router.get('/:id/gateway-status', async (req, res) => {
+  const { id } = req.params
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+  if (!agent) return res.status(404).json({ error: 'Agent not found' })
+
+  const HOME = process.env.HOME || ''
+  const profileStateDir = path.join(HOME, `.openclaw-${id}`)
+  const isProfile = fs.existsSync(profileStateDir)
+
+  try {
+    const profileFlag = isProfile ? ['--profile', id] : []
+    const { execSync } = require('child_process')
+    const result = execSync(`openclaw ${profileFlag.join(' ')} gateway status`, {
+      encoding: 'utf-8',
+      timeout: 10000,
+    })
+    res.json({ status: result })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

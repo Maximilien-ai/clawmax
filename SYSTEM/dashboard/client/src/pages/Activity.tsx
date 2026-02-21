@@ -62,6 +62,7 @@ export default function Activity() {
   const [cooling, setCooling] = useState(false)
   const [sortCol, setSortCol] = useState<SortCol>('age')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [debugAgent, setDebugAgent] = useState<string | null>(null)
 
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
@@ -184,9 +185,13 @@ export default function Activity() {
                       {timeAgo(entry.ageMins)}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 text-sky-700">
+                      <button
+                        onClick={() => setDebugAgent(entry.agentId)}
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer"
+                        title="View agent logs and status"
+                      >
                         {entry.agentId}
-                      </span>
+                      </button>
                     </td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ft.cls}`}>
@@ -203,6 +208,160 @@ export default function Activity() {
           </table>
         </div>
       )}
+
+      {/* Agent Debug Modal */}
+      {debugAgent && (
+        <AgentDebugModal agentId={debugAgent} onClose={() => setDebugAgent(null)} />
+      )}
+    </div>
+  )
+}
+
+// Agent Debug Modal Component
+function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () => void }) {
+  const [tab, setTab] = useState<'logs' | 'health' | 'status'>('logs')
+  const [logs, setLogs] = useState<string[]>([])
+  const [health, setHealth] = useState<any>(null)
+  const [status, setStatus] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const logsEndRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-scroll logs
+  React.useEffect(() => {
+    if (tab === 'logs' && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logs, tab])
+
+  // Fetch logs via SSE
+  React.useEffect(() => {
+    if (tab !== 'logs') return
+
+    const eventSource = new EventSource(`/api/agents/${agentId}/logs`)
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.line) {
+        setLogs(prev => [...prev, data.line])
+      }
+    }
+
+    eventSource.onerror = () => {
+      eventSource.close()
+    }
+
+    return () => {
+      eventSource.close()
+    }
+  }, [agentId, tab])
+
+  // Fetch health
+  React.useEffect(() => {
+    if (tab !== 'health') return
+    setLoading(true)
+    fetch(`/api/agents/${agentId}/health`)
+      .then(r => r.json())
+      .then(d => {
+        setHealth(d)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [agentId, tab])
+
+  // Fetch gateway status
+  React.useEffect(() => {
+    if (tab !== 'status') return
+    setLoading(true)
+    fetch(`/api/agents/${agentId}/gateway-status`)
+      .then(r => r.json())
+      .then(d => {
+        setStatus(d.status || '')
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [agentId, tab])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-white rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Agent Debug: <span className="font-mono text-sky-600">{agentId}</span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 px-6 shrink-0">
+          {(['logs', 'health', 'status'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                tab === t
+                  ? 'border-sky-600 text-sky-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-6">
+          {tab === 'logs' && (
+            <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs text-green-400 h-full overflow-auto">
+              {logs.length === 0 && <div className="text-gray-500">Waiting for logs...</div>}
+              {logs.map((line, i) => (
+                <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          )}
+
+          {tab === 'health' && (
+            <div>
+              {loading && <div className="text-gray-400">Loading health...</div>}
+              {!loading && health && (
+                <pre className="bg-gray-50 rounded-lg p-4 text-xs overflow-auto">
+                  {JSON.stringify(health, null, 2)}
+                </pre>
+              )}
+            </div>
+          )}
+
+          {tab === 'status' && (
+            <div>
+              {loading && <div className="text-gray-400">Loading status...</div>}
+              {!loading && status && (
+                <pre className="bg-gray-900 text-green-400 rounded-lg p-4 text-xs overflow-auto font-mono whitespace-pre-wrap">
+                  {status}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
