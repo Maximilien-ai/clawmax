@@ -65,6 +65,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [preFilled, setPreFilled] = useState(false)
 
   // Fetch suggested ID + port and existing agents list on mount
   useEffect(() => {
@@ -85,6 +86,28 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [logs])
+
+  // Fetch and pre-populate from cloneFrom agent's metadata
+  useEffect(() => {
+    if (!form.cloneFrom) {
+      setPreFilled(false)
+      return
+    }
+
+    fetch(`/api/agents/${form.cloneFrom}/identity`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.metadata) {
+          // Pre-populate model if it exists in metadata
+          if (data.metadata.model && data.metadata.model !== 'default') {
+            set('model', data.metadata.model)
+            setPreFilled(true)
+          }
+          // Could add more fields here (tags, etc.) when we extend metadata
+        }
+      })
+      .catch(err => console.error('Failed to fetch clone source metadata:', err))
+  }, [form.cloneFrom])
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }))
@@ -265,7 +288,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                 <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Model <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Model <span className="text-red-400">*</span>
+                  {preFilled && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from {form.cloneFrom}</span>}
+                </label>
                 <select
                   value={form.model}
                   onChange={e => set('model', e.target.value)}

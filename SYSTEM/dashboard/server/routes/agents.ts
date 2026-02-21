@@ -236,6 +236,29 @@ router.post('/provision', (req, res) => {
     cleanup()
     if (code === 0) {
       send('log', `Agent ${name} created successfully\n`)
+
+      // Save creation metadata to IDENTITY.md
+      try {
+        const identityPath = path.join(AGENTS_DIR, name, 'IDENTITY.md')
+        let identityContent = fs.readFileSync(identityPath, 'utf-8')
+
+        // Add creation metadata section
+        const metadata = `
+
+## Creation Metadata
+
+- **Created:** ${new Date().toISOString()}
+- **Created By:** ClawMax Dashboard
+- **Model:** ${model || 'default'}
+- **Cloned From:** ${cloneFrom || 'N/A'}
+`
+        identityContent += metadata
+        fs.writeFileSync(identityPath, identityContent)
+        send('log', 'Saved creation metadata to IDENTITY.md\n')
+      } catch (err: any) {
+        send('log', `Warning: Could not save metadata: ${err.message}\n`)
+      }
+
       send('done', 'ok')
     } else {
       send('done', signal ? `killed by signal ${signal}` : `exit code ${code}`)
@@ -281,6 +304,39 @@ router.get('/:id', (req, res) => {
   const agent = agents.find(a => a.id === req.params.id)
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
   res.json(agent)
+})
+
+// GET /api/agents/:id/identity — fetch IDENTITY.md with parsed metadata
+router.get('/:id/identity', (req, res) => {
+  const { id } = req.params
+  const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+
+  if (!fs.existsSync(identityPath)) {
+    return res.status(404).json({ error: 'IDENTITY.md not found' })
+  }
+
+  const content = fs.readFileSync(identityPath, 'utf-8')
+
+  // Parse creation metadata if it exists
+  const metadata: any = {}
+  const metadataMatch = content.match(/## Creation Metadata\s+([\s\S]*?)(?=\n##|\n---|\Z)/i)
+  if (metadataMatch) {
+    const metadataSection = metadataMatch[1]
+
+    // Parse each metadata field
+    const createdMatch = metadataSection.match(/\*\*Created:\*\*\s+(.+)/i)
+    const modelMatch = metadataSection.match(/\*\*Model:\*\*\s+(.+)/i)
+    const clonedFromMatch = metadataSection.match(/\*\*Cloned From:\*\*\s+(.+)/i)
+
+    if (createdMatch) metadata.created = createdMatch[1].trim()
+    if (modelMatch) metadata.model = modelMatch[1].trim()
+    if (clonedFromMatch) {
+      const clonedFrom = clonedFromMatch[1].trim()
+      metadata.clonedFrom = clonedFrom !== 'N/A' ? clonedFrom : null
+    }
+  }
+
+  res.json({ content, metadata })
 })
 
 // GET /api/agents/:id/activity — file activity + key docs for the detail panel
