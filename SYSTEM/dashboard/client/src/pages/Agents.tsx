@@ -100,7 +100,8 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
 
   useEffect(() => {
     fetchAgents()
-    const interval = setInterval(fetchAgents, 30000)
+    // Auto-refresh every 5 minutes to avoid hammering status checks
+    const interval = setInterval(fetchAgents, 300000)
     return () => clearInterval(interval)
   }, [fetchAgents])
 

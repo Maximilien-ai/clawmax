@@ -7,6 +7,15 @@ export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env
 /** Agents live under WORKSPACE/AGENTS/maxN/ */
 export const AGENTS_DIR = path.join(WORKSPACE, 'AGENTS')
 
+// Status check cache to avoid hammering lsof on every request
+interface StatusCache {
+  status: 'online' | 'offline' | 'unknown'
+  lastHeartbeat: string | null
+  timestamp: number
+}
+const statusCache = new Map<string, StatusCache>()
+const STATUS_CACHE_TTL = 5000 // 5 seconds cache
+
 export type DocSection = 'ORG' | 'AGENTS' | 'SYSTEM'
 
 export interface DocEntry {
@@ -583,16 +592,23 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
   let status: AgentInfo['status'] = 'unknown'
   let lastHeartbeat: string | null = null
 
-  // Get agent's configured port from openclaw.json
-  const gatewayConfig = getAgentGatewayConfig(id)
-  if (gatewayConfig && gatewayConfig.port) {
-    try {
-      const { execSync } = require('child_process')
-      // Check if port is listening
-      execSync(`lsof -ti:${gatewayConfig.port}`, { encoding: 'utf-8', stdio: 'pipe' })
-      status = 'online' // Port is listening, gateway is running
-      lastHeartbeat = new Date().toISOString()
-    } catch {
+  // Check cache first to avoid excessive lsof calls
+  const cached = statusCache.get(id)
+  const now = Date.now()
+  if (cached && (now - cached.timestamp) < STATUS_CACHE_TTL) {
+    status = cached.status
+    lastHeartbeat = cached.lastHeartbeat
+  } else {
+    // Cache miss or expired, check actual status
+    const gatewayConfig = getAgentGatewayConfig(id)
+    if (gatewayConfig && gatewayConfig.port) {
+      try {
+        const { execSync } = require('child_process')
+        // Check if port is listening
+        execSync(`lsof -ti:${gatewayConfig.port}`, { encoding: 'utf-8', stdio: 'pipe' })
+        status = 'online' // Port is listening, gateway is running
+        lastHeartbeat = new Date().toISOString()
+      } catch {
       // Port not listening, check file activity as fallback
       try {
         const entries = fs.readdirSync(agentDir, { withFileTypes: true })
@@ -630,6 +646,10 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
         status = ageMins < 1440 ? 'online' : ageMins < 10080 ? 'offline' : 'unknown'
       }
     } catch {}
+    }
+
+    // Update cache with fresh status
+    statusCache.set(id, { status, lastHeartbeat, timestamp: now })
   }
 
   // Read whatsapp number from IDENTITY.md
