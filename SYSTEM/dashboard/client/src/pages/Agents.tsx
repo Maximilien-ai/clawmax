@@ -78,6 +78,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
+  const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [tagToRemove, setTagToRemove] = useState<{ agentId: string; tag: string; isPrimary: boolean } | null>(null)
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
@@ -540,6 +541,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
               onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
               onManageTags={() => setTagManageTarget(agent)}
+              onManageCommunities={() => setCommunitiesTarget(agent)}
               onRestart={() => handleRestart(agent.id)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
@@ -718,6 +720,20 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
           localCommunities={syncGroupsTarget.communities}
           onClose={() => setSyncGroupsTarget(null)}
           onSynced={() => fetchAgents()}
+        />
+      )}
+
+      {communitiesTarget && (
+        <CommunitiesManager
+          agentId={communitiesTarget.id}
+          agentName={communitiesTarget.name}
+          currentCommunities={communitiesTarget.communities}
+          currentGroups={communitiesTarget.groups}
+          onClose={() => setCommunitiesTarget(null)}
+          onSave={() => {
+            fetchAgents()
+            setCommunitiesTarget(null)
+          }}
         />
       )}
 
@@ -900,7 +916,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onRestart,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onRestart,
 }: {
   agent: Agent
   selected: boolean
@@ -915,6 +931,7 @@ function AgentCard({
   onViewDocs?: () => void
   onRemoveTag: (tag: string) => void
   onManageTags: () => void
+  onManageCommunities: () => void
   onRestart: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
@@ -1032,15 +1049,24 @@ function AgentCard({
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-400">Groups</span>
-              {agent.whatsapp && (
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={e => { e.stopPropagation(); onSyncGroups() }}
-                  className="text-xs px-1.5 py-0.5 rounded text-sky-500 hover:text-sky-700 hover:bg-sky-50 transition-colors font-medium"
-                  title="Sync groups from WhatsApp"
+                  onClick={e => { e.stopPropagation(); onManageCommunities(); }}
+                  className="text-xs px-1.5 py-0.5 rounded text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-colors font-medium"
+                  title="Manage communities & groups"
                 >
-                  ↻ Sync
+                  🏘 Manage
                 </button>
-              )}
+                {agent.whatsapp && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onSyncGroups() }}
+                    className="text-xs px-1.5 py-0.5 rounded text-sky-500 hover:text-sky-700 hover:bg-sky-50 transition-colors font-medium"
+                    title="Sync groups from WhatsApp"
+                  >
+                    ↻ Sync
+                  </button>
+                )}
+              </div>
             </div>
             {(agent.communities.length > 0 || agent.groups.length > 0) ? (
               <div className="flex flex-wrap gap-1">
