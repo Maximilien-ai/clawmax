@@ -132,13 +132,6 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
     }
   }, [initialAgentId, agents])
 
-  // Fetch system status when menu opens
-  useEffect(() => {
-    if (showRestartMenu) {
-      fetchSystemStatus()
-    }
-  }, [showRestartMenu, fetchSystemStatus])
-
   const handleRefresh = () => {
     if (cooling) return
     setCooling(true)
@@ -152,6 +145,13 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
       .then(d => setSystemStatus(d))
       .catch(() => {})
   }, [])
+
+  // Fetch system status when menu opens
+  useEffect(() => {
+    if (showRestartMenu) {
+      fetchSystemStatus()
+    }
+  }, [showRestartMenu, fetchSystemStatus])
 
   const handleRestart = async (agentId: string) => {
     try {
