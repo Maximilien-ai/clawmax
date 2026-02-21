@@ -79,6 +79,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
   const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [tagToRemove, setTagToRemove] = useState<{ agentId: string; tag: string; isPrimary: boolean } | null>(null)
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
@@ -237,9 +238,32 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   }, [allTags, agents])
 
   const filteredAgents = useMemo(() => {
-    if (selectedTags.size === 0) return agents
-    return agents.filter(a => a.tags.some(t => selectedTags.has(t)))
-  }, [agents, selectedTags])
+    let filtered = agents
+
+    // Filter by search query (supports wildcards with *)
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase()
+      // Convert wildcard pattern to regex (e.g., "engin*" -> /^engin.*$/i)
+      const regexPattern = query.replace(/\*/g, '.*')
+      const regex = new RegExp(`^${regexPattern}$`, 'i')
+
+      filtered = filtered.filter(agent => {
+        // Match against name, ID, or tags
+        return (
+          regex.test(agent.name.toLowerCase()) ||
+          regex.test(agent.id.toLowerCase()) ||
+          agent.tags.some(tag => regex.test(tag.toLowerCase()))
+        )
+      })
+    }
+
+    // Filter by selected tags
+    if (selectedTags.size > 0) {
+      filtered = filtered.filter(a => a.tags.some(t => selectedTags.has(t)))
+    }
+
+    return filtered
+  }, [agents, selectedTags, searchQuery])
 
   const groupedAgents = useMemo(() => {
     const groups = new Map<string, Agent[]>()
@@ -434,6 +458,33 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
             <span className="text-base leading-none">+</span> Add Agent
           </button>
         </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search agents by name, ID, or tags (supports * wildcard)"
+            className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <div className="mt-2 text-xs text-gray-500">
+            Found {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
       {/* Tag filters */}
