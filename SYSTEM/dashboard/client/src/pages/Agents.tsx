@@ -58,7 +58,7 @@ function timeAgo(iso: string | null): string {
 
 type ViewMode = 'list' | 'grid'
 
-export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigateToDoc?: (file: string) => void; initialAgentId?: string } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -542,6 +542,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
               onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
               onManageTags={() => setTagManageTarget(agent)}
               onManageCommunities={() => setCommunitiesTarget(agent)}
+              onNavigateToGroup={onNavigateToGroup}
               onRestart={() => handleRestart(agent.id)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
@@ -916,7 +917,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onRestart,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onRestart,
 }: {
   agent: Agent
   selected: boolean
@@ -932,6 +933,7 @@ function AgentCard({
   onRemoveTag: (tag: string) => void
   onManageTags: () => void
   onManageCommunities: () => void
+  onNavigateToGroup?: (groupName: string) => void
   onRestart: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
@@ -1071,10 +1073,24 @@ function AgentCard({
             {(agent.communities.length > 0 || agent.groups.length > 0) ? (
               <div className="flex flex-wrap gap-1">
                 {agent.communities.map(c => (
-                  <span key={c.name} title={c.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium cursor-default">{c.name}</span>
+                  <button
+                    key={c.name}
+                    title={c.description ?? undefined}
+                    onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(c.name); }}
+                    className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium hover:bg-purple-100 transition-colors cursor-pointer"
+                  >
+                    {c.name}
+                  </button>
                 ))}
                 {agent.groups.map(g => (
-                  <span key={g.name} title={g.description ?? undefined} className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium cursor-default">{g.name}</span>
+                  <button
+                    key={g.name}
+                    title={g.description ?? undefined}
+                    onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
+                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium hover:bg-indigo-100 transition-colors cursor-pointer"
+                  >
+                    {g.name}
+                  </button>
                 ))}
               </div>
             ) : (

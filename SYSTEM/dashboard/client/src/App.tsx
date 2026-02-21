@@ -33,6 +33,7 @@ export default function App() {
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
+  const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
     const saved = localStorage.getItem('nav-order')
     if (saved) {
@@ -132,10 +133,17 @@ export default function App() {
         {/* Top bar */}
         <TopBar system={system} />
         <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
-          <Agents onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} initialAgentId={initialAgentId} />
+          <Agents
+            onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+            onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+            initialAgentId={initialAgentId}
+          />
         </div>
         <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
-          <Communication onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }} />
+          <Communication
+            onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+            initialGroupName={initialGroupName}
+          />
         </div>
         <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
           <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />

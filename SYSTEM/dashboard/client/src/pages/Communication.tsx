@@ -43,7 +43,7 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent }: { onNavigateToAgent?: (agentId: string) => void } = {}) {
+export default function Communication({ onNavigateToAgent, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -81,6 +81,18 @@ export default function Communication({ onNavigateToAgent }: { onNavigateToAgent
   useEffect(() => {
     localStorage.setItem('communication-view-mode', viewMode)
   }, [viewMode])
+
+  // Scroll to group when initialGroupName is provided
+  useEffect(() => {
+    if (initialGroupName && agents.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`channel-card-${initialGroupName}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    }
+  }, [initialGroupName, agents])
 
   const handleRefresh = () => {
     if (cooling) return
@@ -771,7 +783,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
     : []
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div id={`channel-card-${channel.name}`} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
