@@ -196,9 +196,14 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
     // Filter by search query (supports wildcards with *)
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase()
-      // Convert wildcard pattern to regex (e.g., "team*" -> /^team.*$/i)
+      // Convert wildcard pattern to regex
+      // If query has *, use anchors for exact matching (e.g., "team*" -> /^team.*$/i)
+      // Otherwise, use partial matching (e.g., "max" -> /max/i)
+      const hasWildcard = query.includes('*')
       const regexPattern = query.replace(/\*/g, '.*')
-      const regex = new RegExp(`^${regexPattern}$`, 'i')
+      const regex = hasWildcard
+        ? new RegExp(`^${regexPattern}$`, 'i')
+        : new RegExp(regexPattern, 'i')
 
       filtered = filtered.filter(channel => {
         // Match against channel name, description, tags, or member names

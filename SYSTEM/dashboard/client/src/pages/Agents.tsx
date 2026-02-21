@@ -243,9 +243,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
     // Filter by search query (supports wildcards with *)
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase()
-      // Convert wildcard pattern to regex (e.g., "engin*" -> /^engin.*$/i)
+      // Convert wildcard pattern to regex
+      // If query has *, use anchors for exact matching (e.g., "engin*" -> /^engin.*$/i)
+      // Otherwise, use partial matching (e.g., "max" -> /max/i)
+      const hasWildcard = query.includes('*')
       const regexPattern = query.replace(/\*/g, '.*')
-      const regex = new RegExp(`^${regexPattern}$`, 'i')
+      const regex = hasWildcard
+        ? new RegExp(`^${regexPattern}$`, 'i')
+        : new RegExp(regexPattern, 'i')
 
       filtered = filtered.filter(agent => {
         // Match against name, ID, or tags
