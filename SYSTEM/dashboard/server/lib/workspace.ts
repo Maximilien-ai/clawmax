@@ -188,6 +188,7 @@ export interface AgentInfo {
   communities: GroupEntry[]
   groups: GroupEntry[]
   tags: string[]
+  validationWarnings?: string[] // Warnings from schema validation
 }
 
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
@@ -551,11 +552,36 @@ export function listAgents(): AgentInfo[] {
   }
 
   // Build a map from workspace path → registered agent ID from openclaw.json
+  // Also validate the agents list structure
   const workspaceToIdMap = new Map<string, string>()
+  const agentValidationWarnings = new Map<string, string[]>()
+
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     const agentList = config?.agents?.list || []
+
+    // Validate openclaw.json structure
+    const { validateAgents } = require('./validator')
+    const validation = validateAgents({ agents: { list: agentList } })
+
+    // Map validation errors to agent IDs
+    if (!validation.valid) {
+      for (const error of validation.errors) {
+        // Extract agent index from field path (e.g., "agents.list.0.id" → index 0)
+        const match = error.field.match(/^agents\.list\.(\d+)/)
+        if (match) {
+          const idx = parseInt(match[1])
+          const agent = agentList[idx]
+          if (agent?.id) {
+            const warnings = agentValidationWarnings.get(agent.id) || []
+            warnings.push(`${error.field.replace(/^agents\.list\.\d+\./, '')}: ${error.message}`)
+            agentValidationWarnings.set(agent.id, warnings)
+          }
+        }
+      }
+    }
+
     for (const agent of agentList) {
       if (agent.workspace) {
         workspaceToIdMap.set(agent.workspace, agent.id)
@@ -571,14 +597,14 @@ export function listAgents(): AgentInfo[] {
     const agentDir = path.join(AGENTS_DIR, entry.name)
     // Look up the registered ID from openclaw.json, fall back to directory name
     const registeredId = workspaceToIdMap.get(agentDir) || entry.name
-    const agent = readAgentInfo(registeredId, agentDir)
+    const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId))
     agents.push(agent)
   }
 
   return agents.sort((a, b) => a.id.localeCompare(b.id))
 }
 
-function readAgentInfo(id: string, agentDir: string): AgentInfo {
+function readAgentInfo(id: string, agentDir: string, validationWarnings?: string[]): AgentInfo {
   // Read name from IDENTITY.md
   let name = id
   const identityPath = path.join(agentDir, 'IDENTITY.md')
@@ -697,6 +723,7 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     communities,
     groups,
     tags,
+    validationWarnings,
   }
 }
 

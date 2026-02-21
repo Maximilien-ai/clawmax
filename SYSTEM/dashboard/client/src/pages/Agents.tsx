@@ -29,6 +29,7 @@ interface Agent {
   communities: GroupEntry[]
   groups: GroupEntry[]
   tags: string[]
+  validationWarnings?: string[]
 }
 
 const STATUS_COLORS = {
@@ -1084,6 +1085,22 @@ function AgentCard({
               )}
             </div>
           </div>
+
+          {agent.validationWarnings && agent.validationWarnings.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                <span className="text-amber-600 text-xs shrink-0">⚠️</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-amber-800 mb-0.5">Configuration warnings</div>
+                  <ul className="text-xs text-amber-700 space-y-0.5">
+                    {agent.validationWarnings.map((warning, i) => (
+                      <li key={i}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <span className="text-xs text-gray-300 font-mono truncate block">

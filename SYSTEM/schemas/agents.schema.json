@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["agents"],
+  "properties": {
+    "agents": {
+      "type": "object",
+      "required": ["list"],
+      "properties": {
+        "list": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "workspace", "agentDir"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+                "minLength": 1,
+                "description": "Agent ID must start with a letter and contain only alphanumeric, underscore, or hyphen characters"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Agent display name"
+              },
+              "workspace": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Absolute path to agent workspace directory"
+              },
+              "agentDir": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Absolute path to agent runtime directory"
+              },
+              "model": {
+                "type": "string",
+                "description": "Optional model override (e.g., openai/gpt-4o)"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

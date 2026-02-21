@@ -96,3 +96,10 @@ export function validateGroups(groups: any[]): ValidationResult {
 export function validateIdentity(identity: any): ValidationResult {
   return validate('identity', identity)
 }
+
+/**
+ * Validate agents list from openclaw.json
+ */
+export function validateAgents(agentsData: any): ValidationResult {
+  return validate('agents', agentsData)
+}
