@@ -1222,7 +1222,40 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
   }
 })
 
-// GET /api/agents/:id/logs — Stream live logs via SSE
+// GET /api/system/logs — Stream system-wide logs via SSE
+router.get('/system/logs', (req, res) => {
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  })
+
+  const child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
+    env: process.env,
+  })
+
+  child.stdout.on('data', (data) => {
+    const lines = data.toString().split('\n').filter((l: string) => l.trim())
+    lines.forEach((line: string) => {
+      res.write(`data: ${JSON.stringify({ line })}\n\n`)
+    })
+  })
+
+  child.stderr.on('data', (data) => {
+    res.write(`data: ${JSON.stringify({ error: data.toString() })}\n\n`)
+  })
+
+  child.on('close', () => {
+    res.end()
+  })
+
+  req.on('close', () => {
+    child.kill()
+  })
+})
+
+// GET /api/agents/:id/logs — Stream live logs via SSE (agent-specific)
 router.get('/:id/logs', (req, res) => {
   const { id } = req.params
   const agents = listAgents()
