@@ -117,7 +117,7 @@ router.get('/status', async (req, res) => {
   let runningGateways = 0
   try {
     const result = execSync('ps aux | grep openclaw-gateway | grep -v grep', { encoding: 'utf-8' })
-    runningGateways = result.trim().split('\n').filter(line => line.trim()).length
+    runningGateways = result.trim().split('\n').filter((line: string) => line.trim()).length
   } catch (err) {
     // No gateways running
   }
