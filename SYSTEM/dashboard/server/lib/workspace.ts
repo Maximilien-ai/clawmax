@@ -201,6 +201,109 @@ export interface AgentInfo {
  *     - **Community:** CommunityName
  *     - **Channels:** whatsapp, slack
  */
+export interface GroupWithMembers extends GroupEntry {
+  members: string[]
+}
+
+export function parseGroupsWithMembers(content: string): { communities: GroupWithMembers[]; groups: GroupWithMembers[] } {
+  const communities: GroupWithMembers[] = []
+  const groups: GroupWithMembers[] = []
+  let section: 'communities' | 'groups' | null = null
+
+  let currentName: string | null = null
+  let currentDescription: string | null = null
+  let currentTags: string[] = []
+  let currentCommunity: string | null = null
+  let currentChannels: string[] = []
+  let currentMembers: string[] = []
+
+  const flushEntry = () => {
+    if (!currentName || !section) return
+    const entry: GroupWithMembers = {
+      name: currentName,
+      description: currentDescription,
+      tags: currentTags,
+      community: section === 'groups' ? currentCommunity : null,
+      channels: currentChannels,
+      members: currentMembers
+    }
+    if (section === 'communities') communities.push(entry)
+    else if (section === 'groups') groups.push(entry)
+
+    // Reset
+    currentName = null
+    currentDescription = null
+    currentTags = []
+    currentCommunity = null
+    currentChannels = []
+    currentMembers = []
+  }
+
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+
+    // Verbose format: ### Name
+    if (trimmed.startsWith('###')) {
+      flushEntry()
+      currentName = trimmed.replace(/^###\s+/, '').trim()
+      continue
+    }
+
+    // Section headers
+    if (/^##\s+communities/i.test(trimmed)) {
+      flushEntry()
+      section = 'communities'
+      continue
+    }
+    if (/^##\s+groups/i.test(trimmed)) {
+      flushEntry()
+      section = 'groups'
+      continue
+    }
+    if (trimmed.startsWith('##')) {
+      flushEntry()
+      section = null
+      continue
+    }
+
+    // Verbose format: field bullets
+    if (trimmed.startsWith('-') && trimmed.includes('**')) {
+      const descMatch = trimmed.match(/\*\*Description:\*\*\s*(.+)/i)
+      if (descMatch) {
+        currentDescription = descMatch[1].trim()
+        continue
+      }
+
+      const tagsMatch = trimmed.match(/\*\*Tags:\*\*\s*(.+)/i)
+      if (tagsMatch) {
+        currentTags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t.length > 0)
+        continue
+      }
+
+      const communityMatch = trimmed.match(/\*\*Community:\*\*\s*(.+)/i)
+      if (communityMatch) {
+        currentCommunity = communityMatch[1].trim()
+        continue
+      }
+
+      const channelsMatch = trimmed.match(/\*\*Channels:\*\*\s*(.+)/i)
+      if (channelsMatch) {
+        currentChannels = channelsMatch[1].split(',').map(c => c.trim()).filter(c => c.length > 0)
+        continue
+      }
+
+      const membersMatch = trimmed.match(/\*\*Members:\*\*\s*(.+)/i)
+      if (membersMatch) {
+        currentMembers = membersMatch[1].split(',').map(m => m.trim()).filter(m => m.length > 0)
+        continue
+      }
+    }
+  }
+
+  flushEntry()
+  return { communities, groups }
+}
+
 export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
   const communities: GroupEntry[] = []
   const groups: GroupEntry[] = []
@@ -689,20 +792,26 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   // Profile mode: agent has its own ~/.openclaw-<id>/ state dir
   const isProfile = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
 
-  // Read groups from agent GROUPS.md (only groups, no communities for agents)
-  let groups: GroupEntry[] = []
-  try {
-    const groupsContent = fs.readFileSync(path.join(agentDir, 'GROUPS.md'), 'utf-8')
-    const parsed = parseGroups(groupsContent)
-    groups = parsed.groups
-  } catch {}
-
-  // Communities come from ORG/COMMUNITIES.md (organization-level)
+  // Read communities and groups from ORG files and filter by membership
   let communities: GroupEntry[] = []
+  let groups: GroupEntry[] = []
+
   try {
     const communitiesContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md'), 'utf-8')
-    const parsed = parseGroups(communitiesContent)
+    const parsed = parseGroupsWithMembers(communitiesContent)
+    // Filter to only include communities where this agent is a member
     communities = parsed.communities
+      .filter(c => c.members.includes(id))
+      .map(({ members, ...rest }) => rest) // Remove members field from result
+  } catch {}
+
+  try {
+    const groupsContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'GROUPS.md'), 'utf-8')
+    const parsed = parseGroupsWithMembers(groupsContent)
+    // Filter to only include groups where this agent is a member
+    groups = parsed.groups
+      .filter(g => g.members.includes(id))
+      .map(({ members, ...rest }) => rest) // Remove members field from result
   } catch {}
 
   // Read tags from IDENTITY.md
