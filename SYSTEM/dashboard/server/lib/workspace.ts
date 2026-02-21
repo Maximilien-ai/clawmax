@@ -579,27 +579,58 @@ function readAgentInfo(id: string, agentDir: string): AgentInfo {
     if (nameMatch) name = nameMatch[1].trim()
   } catch {}
 
-  // Heartbeat: use the most recently modified file in the agent dir
-  // This way any file write (TODOs, COMPLETED, HEARTBEAT, etc.) counts as activity
-  let lastHeartbeat: string | null = null
+  // Check if agent gateway is actually running by checking if port is listening
   let status: AgentInfo['status'] = 'unknown'
-  try {
-    const entries = fs.readdirSync(agentDir, { withFileTypes: true })
-    let latestMtime = 0
-    for (const e of entries) {
-      if (!e.isFile()) continue
+  let lastHeartbeat: string | null = null
+
+  // Get agent's configured port from openclaw.json
+  const gatewayConfig = getAgentGatewayConfig(id)
+  if (gatewayConfig && gatewayConfig.port) {
+    try {
+      const { execSync } = require('child_process')
+      // Check if port is listening
+      execSync(`lsof -ti:${gatewayConfig.port}`, { encoding: 'utf-8', stdio: 'pipe' })
+      status = 'online' // Port is listening, gateway is running
+      lastHeartbeat = new Date().toISOString()
+    } catch {
+      // Port not listening, check file activity as fallback
       try {
-        const s = fs.statSync(path.join(agentDir, e.name))
-        if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+        const entries = fs.readdirSync(agentDir, { withFileTypes: true })
+        let latestMtime = 0
+        for (const e of entries) {
+          if (!e.isFile()) continue
+          try {
+            const s = fs.statSync(path.join(agentDir, e.name))
+            if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+          } catch {}
+        }
+        if (latestMtime > 0) {
+          lastHeartbeat = new Date(latestMtime).toISOString()
+          const ageMins = (Date.now() - latestMtime) / 60000
+          // offline = recent activity but no running process
+          status = ageMins < 10080 ? 'offline' : 'unknown'
+        }
       } catch {}
     }
-    if (latestMtime > 0) {
-      lastHeartbeat = new Date(latestMtime).toISOString()
-      const ageMins = (Date.now() - latestMtime) / 60000
-      // online = active today (< 24h), offline = active this week, unknown = stale
-      status = ageMins < 1440 ? 'online' : ageMins < 10080 ? 'offline' : 'unknown'
-    }
-  } catch {}
+  } else {
+    // No gateway config, fall back to file-based detection
+    try {
+      const entries = fs.readdirSync(agentDir, { withFileTypes: true })
+      let latestMtime = 0
+      for (const e of entries) {
+        if (!e.isFile()) continue
+        try {
+          const s = fs.statSync(path.join(agentDir, e.name))
+          if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+        } catch {}
+      }
+      if (latestMtime > 0) {
+        lastHeartbeat = new Date(latestMtime).toISOString()
+        const ageMins = (Date.now() - latestMtime) / 60000
+        status = ageMins < 1440 ? 'online' : ageMins < 10080 ? 'offline' : 'unknown'
+      }
+    } catch {}
+  }
 
   // Read whatsapp number from IDENTITY.md
   let whatsapp: string | null = null
