@@ -53,6 +53,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
     const saved = localStorage.getItem('communication-view-mode')
     return (saved === 'list' || saved === 'grid') ? saved : 'list'
   })
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
@@ -192,6 +193,27 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
   const filteredChannels = useMemo(() => {
     let filtered = allChannels
 
+    // Filter by search query (supports wildcards with *)
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase()
+      // Convert wildcard pattern to regex (e.g., "team*" -> /^team.*$/i)
+      const regexPattern = query.replace(/\*/g, '.*')
+      const regex = new RegExp(`^${regexPattern}$`, 'i')
+
+      filtered = filtered.filter(channel => {
+        // Match against channel name, description, tags, or member names
+        return (
+          regex.test(channel.name.toLowerCase()) ||
+          (channel.description && regex.test(channel.description.toLowerCase())) ||
+          channel.tags.some(tag => regex.test(tag.toLowerCase())) ||
+          channel.members.some(m =>
+            regex.test(m.name.toLowerCase()) ||
+            regex.test(m.id.toLowerCase())
+          )
+        )
+      })
+    }
+
     // Filter by tags
     if (selectedTags.size > 0) {
       filtered = filtered.filter(ch => ch.tags.some(t => selectedTags.has(t)))
@@ -203,7 +225,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
     }
 
     return filtered
-  }, [allChannels, selectedTags, selectedAgents])
+  }, [allChannels, selectedTags, selectedAgents, searchQuery])
 
   const communities = useMemo(() => filteredChannels.filter(ch => ch.type === 'community'), [filteredChannels])
   const groups = useMemo(() => filteredChannels.filter(ch => ch.type === 'group'), [filteredChannels])
@@ -273,6 +295,33 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
             {cooling ? 'Refreshing…' : '↻ Refresh'}
           </button>
         </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search communities/groups by name, tags, or members (supports * wildcard)"
+            className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <div className="mt-2 text-xs text-gray-500">
+            Found {filteredChannels.length} channel{filteredChannels.length !== 1 ? 's' : ''} ({communities.length} communit{communities.length !== 1 ? 'ies' : 'y'}, {groups.length} group{groups.length !== 1 ? 's' : ''})
+          </div>
+        )}
       </div>
 
       {/* Tag filters */}
