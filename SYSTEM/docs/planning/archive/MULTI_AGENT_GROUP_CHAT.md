@@ -1,9 +1,16 @@
 # Multi-Agent Group Chat Feature
 
-**Status:** Planned
+**Status:** ✅ COMPLETED (Archived 2026-02-20)
 **Priority:** High
 **Estimated Effort:** 1.5-2 hours
 **Created:** 2026-02-19
+**Completed:** 2026-02-19
+
+**Implementation:**
+- Commit `83fe654`: Complete group chat with incremental typing indicators, history & export
+- Commit `7052600`: Add group chat with @mentions and agent responses
+- File: `SYSTEM/dashboard/client/src/components/GroupChatPanel.tsx`
+- Features: Multi-agent @mentions, typing indicators, message history, export functionality
 
 ## Overview
 

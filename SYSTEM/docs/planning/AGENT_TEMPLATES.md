@@ -1,9 +1,13 @@
 # Agent Templates - Organizational Structure Templates
 
-**Status:** Planned
+**Status:** Planned → **SCHEDULED FOR NEXT WEEK** (Feb 24-28)
 **Priority:** High
 **Estimated Effort:** 3-4 hours
 **Created:** 2026-02-19
+**Scheduled Start:** 2026-02-24
+
+**Why Next Week:**
+This is a BIG feature that enables rapid agent creation and organizational scaling. Builds on schema validation infrastructure being completed this weekend.
 
 ## Overview
 
