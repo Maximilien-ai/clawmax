@@ -115,6 +115,17 @@ router.get('/status', async (req, res) => {
 
   const { execSync } = require('child_process')
   let runningGateways = 0
+  let gatewayAvailable = false
+
+  // Check if openclaw-gateway is available
+  try {
+    execSync('which openclaw-gateway', { encoding: 'utf-8' })
+    gatewayAvailable = true
+  } catch (err) {
+    // openclaw-gateway not in PATH
+  }
+
+  // Count running gateways
   try {
     const result = execSync('ps aux | grep openclaw-gateway | grep -v grep', { encoding: 'utf-8' })
     runningGateways = result.trim().split('\n').filter((line: string) => line.trim()).length
@@ -132,6 +143,7 @@ router.get('/status', async (req, res) => {
     offline,
     unknown,
     runningGateways,
+    gatewayAvailable,
     timestamp: new Date().toISOString(),
   })
 })

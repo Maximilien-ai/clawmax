@@ -82,7 +82,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
   const [showRestartMenu, setShowRestartMenu] = useState(false)
-  const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number } | null>(null)
+  const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number; gatewayAvailable: boolean } | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -383,17 +383,34 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
                     </div>
                   )}
                   {/* Restart Actions */}
+                  {systemStatus && !systemStatus.gatewayAvailable && (
+                    <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+                      <div className="text-xs text-amber-800">
+                        <span className="font-semibold">⚠️ Restart Unavailable</span>
+                        <p className="mt-1">openclaw-gateway not found in PATH</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="py-1">
                     <button
                       onClick={handleRestartAll}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      disabled={!systemStatus?.gatewayAvailable}
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                        systemStatus?.gatewayAvailable
+                          ? 'text-gray-700 hover:bg-gray-50'
+                          : 'text-gray-400 cursor-not-allowed bg-gray-50'
+                      }`}
                     >
                       <span className="text-amber-500">↻</span> Restart All Agents
                     </button>
                     <button
                       onClick={handleRestartOffline}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                      disabled={!agents.some(a => a.status === 'offline')}
+                      disabled={!systemStatus?.gatewayAvailable || !agents.some(a => a.status === 'offline')}
+                      className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                        systemStatus?.gatewayAvailable && agents.some(a => a.status === 'offline')
+                          ? 'text-gray-700 hover:bg-gray-50'
+                          : 'text-gray-400 cursor-not-allowed bg-gray-50'
+                      }`}
                     >
                       <span className="text-yellow-500">↻</span> Restart Offline Agents
                       {systemStatus && systemStatus.offline > 0 && (
