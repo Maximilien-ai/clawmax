@@ -818,6 +818,33 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     tags = parseTags(identity)
   } catch {}
 
+  // Validate TOOLS.md
+  const warnings = validationWarnings ? [...validationWarnings] : []
+  try {
+    const toolsPath = path.join(agentDir, 'TOOLS.md')
+    if (fs.existsSync(toolsPath)) {
+      const toolsContent = fs.readFileSync(toolsPath, 'utf-8')
+      const { validateTools } = require('./validator')
+      const validation = validateTools(toolsContent)
+      if (!validation.valid) {
+        warnings.push(...validation.errors.map((e: any) => `TOOLS.md: ${e.message}`))
+      }
+    }
+  } catch {}
+
+  // Validate SOUL.md
+  try {
+    const soulPath = path.join(agentDir, 'SOUL.md')
+    if (fs.existsSync(soulPath)) {
+      const soulContent = fs.readFileSync(soulPath, 'utf-8')
+      const { validateSoul } = require('./validator')
+      const validation = validateSoul(soulContent)
+      if (!validation.valid) {
+        warnings.push(...validation.errors.map((e: any) => `SOUL.md: ${e.message}`))
+      }
+    }
+  } catch {}
+
   return {
     id,
     name,
@@ -829,7 +856,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     communities,
     groups,
     tags,
-    validationWarnings,
+    validationWarnings: warnings.length > 0 ? warnings : undefined,
   }
 }
 

@@ -103,3 +103,17 @@ export function validateIdentity(identity: any): ValidationResult {
 export function validateAgents(agentsData: any): ValidationResult {
   return validate('agents', agentsData)
 }
+
+/**
+ * Validate agent TOOLS.md content
+ */
+export function validateTools(content: string): ValidationResult {
+  return validate('tools', { content })
+}
+
+/**
+ * Validate agent SOUL.md content
+ */
+export function validateSoul(content: string): ValidationResult {
+  return validate('soul', { content })
+}

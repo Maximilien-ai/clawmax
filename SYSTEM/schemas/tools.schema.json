@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Tools Schema",
+  "description": "Schema for validating agent TOOLS.md files (freeform markdown with optional structure)",
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The markdown content of TOOLS.md"
+    }
+  },
+  "required": ["content"]
+}
