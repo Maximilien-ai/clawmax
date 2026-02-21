@@ -109,6 +109,33 @@ router.get('/next', async (req, res) => {
   res.json({ id, port })
 })
 
+// GET /api/agents/status — system status with agent counts
+router.get('/status', async (req, res) => {
+  const agents = listAgents()
+
+  const { execSync } = require('child_process')
+  let runningGateways = 0
+  try {
+    const result = execSync('ps aux | grep openclaw-gateway | grep -v grep', { encoding: 'utf-8' })
+    runningGateways = result.trim().split('\n').filter(line => line.trim()).length
+  } catch (err) {
+    // No gateways running
+  }
+
+  const online = agents.filter(a => a.status === 'online').length
+  const offline = agents.filter(a => a.status === 'offline').length
+  const unknown = agents.filter(a => a.status === 'unknown').length
+
+  res.json({
+    total: agents.length,
+    online,
+    offline,
+    unknown,
+    runningGateways,
+    timestamp: new Date().toISOString(),
+  })
+})
+
 // POST /api/agents/generate — AI-generate agent files
 router.post('/generate', async (req, res) => {
   const { description, name, tags } = req.body as {
@@ -350,6 +377,71 @@ router.get('/:id/identity', (req, res) => {
   }
 
   res.json({ content, metadata })
+})
+
+// POST /api/agents/:id/restart — restart agent gateway process
+router.post('/:id/restart', async (req, res) => {
+  const { id } = req.params
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ ok: false, error: 'Invalid agent id' })
+  }
+
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    // Get agent's gateway config to find the process
+    const gatewayConfig = getAgentGatewayConfig(id)
+    if (!gatewayConfig) {
+      return res.status(404).json({ ok: false, error: 'Gateway config not found' })
+    }
+
+    const port = gatewayConfig.port || 18789
+
+    // Kill existing process on this port
+    const { execSync } = require('child_process')
+    try {
+      // Find and kill process on port
+      const pid = execSync(`lsof -ti:${port}`, { encoding: 'utf-8' }).trim()
+      if (pid) {
+        execSync(`kill -9 ${pid}`)
+      }
+    } catch (err) {
+      // Process might not be running, that's okay
+    }
+
+    // Small delay to ensure port is freed
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Start new gateway process
+    const HOME = process.env.HOME || ''
+    const profileStateDir = path.join(HOME, `.openclaw-${id}`)
+    const isProfile = fs.existsSync(profileStateDir)
+    const stateDir = isProfile ? profileStateDir : path.join(HOME, '.openclaw')
+
+    const gatewayPath = path.join(stateDir, 'openclaw.json')
+
+    // Start gateway in background
+    const child = spawn('openclaw-gateway', [], {
+      cwd: agent.workspacePath,
+      env: {
+        ...process.env,
+        OPENCLAW_STATE_DIR: stateDir,
+      },
+      detached: true,
+      stdio: 'ignore',
+    })
+
+    child.unref()
+
+    res.json({ ok: true, message: `Agent ${id} restarted successfully`, port })
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
 })
 
 // GET /api/agents/:id/activity — file activity + key docs for the detail panel

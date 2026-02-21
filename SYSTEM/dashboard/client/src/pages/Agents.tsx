@@ -81,6 +81,8 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
+  const [showRestartMenu, setShowRestartMenu] = useState(false)
+  const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number } | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -130,11 +132,59 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
     }
   }, [initialAgentId, agents])
 
+  // Fetch system status when menu opens
+  useEffect(() => {
+    if (showRestartMenu) {
+      fetchSystemStatus()
+    }
+  }, [showRestartMenu, fetchSystemStatus])
+
   const handleRefresh = () => {
     if (cooling) return
     setCooling(true)
     fetchAgents()
     setTimeout(() => setCooling(false), 3000)
+  }
+
+  const fetchSystemStatus = useCallback(() => {
+    fetch('/api/agents/status')
+      .then(r => r.json())
+      .then(d => setSystemStatus(d))
+      .catch(() => {})
+  }, [])
+
+  const handleRestart = async (agentId: string) => {
+    try {
+      const res = await fetch(`/api/agents/${agentId}/restart`, { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        // Refresh agents list after restart
+        setTimeout(() => fetchAgents(), 1000)
+      } else {
+        alert(`Failed to restart agent: ${data.error}`)
+      }
+    } catch (err) {
+      alert('Failed to restart agent')
+    }
+  }
+
+  const handleRestartAll = async () => {
+    setShowRestartMenu(false)
+    const promises = agents.map(agent =>
+      fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' })
+    )
+    await Promise.all(promises)
+    setTimeout(() => fetchAgents(), 1000)
+  }
+
+  const handleRestartOffline = async () => {
+    setShowRestartMenu(false)
+    const offlineAgents = agents.filter(a => a.status === 'offline')
+    const promises = offlineAgents.map(agent =>
+      fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' })
+    )
+    await Promise.all(promises)
+    setTimeout(() => fetchAgents(), 1000)
   }
 
   const toggleCollapse = (id: string) => {
@@ -292,6 +342,69 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
           >
             {cooling ? 'Refreshing…' : '↻ Refresh'}
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowRestartMenu(!showRestartMenu)}
+              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+              title="Restart agents"
+            >
+              ↻ Restart {showRestartMenu ? '▲' : '▼'}
+            </button>
+            {showRestartMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowRestartMenu(false)} />
+                <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                  {/* System Status */}
+                  {systemStatus && (
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <div className="text-xs font-semibold text-gray-700 mb-2">System Status</div>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between">
+                          <span>Total Agents:</span>
+                          <span className="font-medium">{systemStatus.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Online:</span>
+                          <span className="font-medium text-green-600">{systemStatus.online}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Offline:</span>
+                          <span className="font-medium text-yellow-600">{systemStatus.offline}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Unknown:</span>
+                          <span className="font-medium text-gray-400">{systemStatus.unknown}</span>
+                        </div>
+                        <div className="flex justify-between pt-1 border-t border-gray-200">
+                          <span>Running Gateways:</span>
+                          <span className="font-medium text-sky-600">{systemStatus.runningGateways}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Restart Actions */}
+                  <div className="py-1">
+                    <button
+                      onClick={handleRestartAll}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-amber-500">↻</span> Restart All Agents
+                    </button>
+                    <button
+                      onClick={handleRestartOffline}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      disabled={!agents.some(a => a.status === 'offline')}
+                    >
+                      <span className="text-yellow-500">↻</span> Restart Offline Agents
+                      {systemStatus && systemStatus.offline > 0 && (
+                        <span className="ml-auto text-xs text-gray-400">({systemStatus.offline})</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => setShowAddWizard(true)}
             className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
@@ -407,6 +520,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
               onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
               onManageTags={() => setTagManageTarget(agent)}
+              onRestart={() => handleRestart(agent.id)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -458,6 +572,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
+                        onRestart={() => handleRestart(agent.id)}
                       />
                     ))}
                   </div>
@@ -491,6 +606,7 @@ export default function Agents({ onNavigateToDoc, initialAgentId }: { onNavigate
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
                               onManageTags={() => setTagManageTarget(agent)}
+                              onRestart={() => handleRestart(agent.id)}
                             />
                           ))}
                         </div>
@@ -764,7 +880,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onRestart,
 }: {
   agent: Agent
   selected: boolean
@@ -779,6 +895,7 @@ function AgentCard({
   onViewDocs?: () => void
   onRemoveTag: (tag: string) => void
   onManageTags: () => void
+  onRestart: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   return (
@@ -813,6 +930,13 @@ function AgentCard({
             title="Chat with agent"
           >
             💬
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onRestart() }}
+            className="text-gray-300 hover:text-amber-500 transition-colors text-xs p-1 rounded hover:bg-amber-50"
+            title="Restart agent"
+          >
+            ↻
           </button>
           <button
             onClick={e => { e.stopPropagation(); onDelete() }}
@@ -954,7 +1078,7 @@ function AgentCard({
   )
 }
 
-function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void }) {
+function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -1026,6 +1150,14 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, on
             title="Clone agent"
           >
             📋
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRestart(); }}
+            className="text-gray-200 hover:text-amber-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-amber-50"
+            aria-label="Restart agent"
+            title="Restart agent"
+          >
+            ↻
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
