@@ -1314,4 +1314,131 @@ router.get('/:id/gateway-status', async (req, res) => {
   }
 })
 
+// GET /api/agents/:id/communities — get agent's current community and group memberships
+router.get('/:id/communities', (req, res) => {
+  const { id } = req.params
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  res.json({
+    communities: agent.communities.map(c => c.name),
+    groups: agent.groups.map(g => g.name),
+  })
+})
+
+// POST /api/agents/:id/communities — update agent's community and group memberships
+router.post('/:id/communities', (req, res) => {
+  const { id } = req.params
+  const { communities, groups } = req.body as { communities?: string[]; groups?: string[] }
+
+  if (!Array.isArray(communities) && !Array.isArray(groups)) {
+    return res.status(400).json({ error: 'Must provide communities or groups array' })
+  }
+
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    // Read COMMUNITIES.md and GROUPS.md
+    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+
+    let communitiesContent = ''
+    let groupsContent = ''
+
+    try {
+      communitiesContent = fs.readFileSync(communitiesPath, 'utf-8')
+    } catch {}
+    try {
+      groupsContent = fs.readFileSync(groupsPath, 'utf-8')
+    } catch {}
+
+    // Parse current communities and groups
+    const { communities: allCommunities, groups: allGroups } = parseGroups(communitiesContent + '\n' + groupsContent)
+
+    // Update communities if provided
+    if (Array.isArray(communities)) {
+      // For each community in the new list, ensure agent is in members
+      // For each community NOT in the new list, ensure agent is NOT in members
+
+      const updatedCommunities = communitiesContent.split('\n')
+      let currentCommunity: string | null = null
+
+      for (let i = 0; i < updatedCommunities.length; i++) {
+        const line = updatedCommunities[i]
+        const trimmed = line.trim()
+
+        // Track which community we're in
+        if (trimmed.startsWith('###')) {
+          currentCommunity = trimmed.replace(/^###\s+/, '').trim()
+        }
+
+        // Update members line
+        if (currentCommunity && trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+
+            // Add agent if this community is in the new list
+            if (communities.includes(currentCommunity)) {
+              membersList.push(id)
+            }
+
+            updatedCommunities[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(communitiesPath, updatedCommunities.join('\n'), 'utf-8')
+    }
+
+    // Update groups if provided
+    if (Array.isArray(groups)) {
+      const updatedGroups = groupsContent.split('\n')
+      let currentGroup: string | null = null
+
+      for (let i = 0; i < updatedGroups.length; i++) {
+        const line = updatedGroups[i]
+        const trimmed = line.trim()
+
+        // Track which group we're in
+        if (trimmed.startsWith('###')) {
+          currentGroup = trimmed.replace(/^###\s+/, '').trim()
+        }
+
+        // Update members line
+        if (currentGroup && trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+
+            // Add agent if this group is in the new list
+            if (groups.includes(currentGroup)) {
+              membersList.push(id)
+            }
+
+            updatedGroups[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(groupsPath, updatedGroups.join('\n'), 'utf-8')
+    }
+
+    res.json({ ok: true, communities, groups })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

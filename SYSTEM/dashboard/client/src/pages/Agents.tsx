@@ -5,6 +5,7 @@ import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
+import CommunitiesManager from '../components/CommunitiesManager'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
