@@ -53,7 +53,11 @@ function SortIndicator({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortC
   return <span className="ml-1 opacity-60">{sortDir === 'asc' ? '↑' : '↓'}</span>
 }
 
-export default function Activity() {
+interface ActivityProps {
+  onNavigateToDoc?: (file: string) => void
+}
+
+export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [feed, setFeed] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -207,8 +211,18 @@ export default function Activity() {
                         {ft.label}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-400 font-mono">
-                      {entry.file}
+                    <td className="px-4 py-2 text-xs font-mono">
+                      {onNavigateToDoc ? (
+                        <button
+                          onClick={() => onNavigateToDoc(`AGENTS/${entry.agentId}/${entry.file}`)}
+                          className="text-sky-600 hover:text-sky-800 hover:underline transition-colors text-left"
+                          title="Open in Documents tab"
+                        >
+                          {entry.file}
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">{entry.file}</span>
+                      )}
                     </td>
                   </tr>
                 )

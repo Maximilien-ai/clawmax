@@ -138,7 +138,7 @@ export default function App() {
           <Communication onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }} />
         </div>
         <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
-          <Activity />
+          <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
         </div>
         <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
           <DocHub initialFile={docFile} />
