@@ -91,19 +91,40 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   useEffect(() => {
     if (!form.cloneFrom) {
       setPreFilled(false)
+      // Reset to default agent name suggestion
+      fetch('/api/agents/next')
+        .then(r => r.json())
+        .then(d => setForm(f => ({ ...f, name: d.id, port: d.port })))
+        .catch(() => {})
       return
     }
 
+    // Fetch suggested name for cloned agent
+    fetch(`/api/agents/next?cloneFrom=${form.cloneFrom}`)
+      .then(r => r.json())
+      .then(d => setForm(f => ({ ...f, name: d.id, port: d.port })))
+      .catch(() => {})
+
+    // Fetch metadata to pre-populate fields
     fetch(`/api/agents/${form.cloneFrom}/identity`)
       .then(r => r.json())
       .then(data => {
         if (data.metadata) {
+          let hasPreFilled = false
+
           // Pre-populate model if it exists in metadata
           if (data.metadata.model && data.metadata.model !== 'default') {
             set('model', data.metadata.model)
-            setPreFilled(true)
+            hasPreFilled = true
           }
-          // Could add more fields here (tags, etc.) when we extend metadata
+
+          // Pre-populate tags if they exist in metadata
+          if (data.metadata.tags && Array.isArray(data.metadata.tags) && data.metadata.tags.length > 0) {
+            set('tags', data.metadata.tags)
+            hasPreFilled = true
+          }
+
+          setPreFilled(hasPreFilled)
         }
       })
       .catch(err => console.error('Failed to fetch clone source metadata:', err))

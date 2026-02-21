@@ -667,21 +667,30 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
   }
 }
 
-/** Return the next available maxN agent ID (e.g. "max3" if max0/max1/max2 exist) */
-export function getNextAgentId(): string {
+/** Return the next available agentN ID (e.g. "agent3" if agent0/agent1/agent2 exist)
+ *  If cloneFrom provided, suggests {cloneFrom}N format (e.g. "engineer2" if cloning "engineer")
+ */
+export function getNextAgentId(cloneFrom?: string): string {
+  const prefix = cloneFrom || 'agent'
   let maxN = -1
+
   try {
     const dirs = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
     for (const d of dirs) {
       if (!d.isDirectory()) continue
-      const m = d.name.match(/^max(\d+)$/)
+
+      // Match pattern: {prefix}N where N is a number
+      const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`)
+      const m = d.name.match(pattern)
+
       if (m) {
         const n = parseInt(m[1], 10)
         if (n > maxN) maxN = n
       }
     }
   } catch {}
-  return `max${maxN + 1}`
+
+  return `${prefix}${maxN + 1}`
 }
 
 /** Find first unused TCP port >= startPort */

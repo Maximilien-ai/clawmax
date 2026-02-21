@@ -96,10 +96,16 @@ router.get('/', (_req, res) => {
 })
 
 // GET /api/agents/next — next available ID + free port (must be before /:id)
-router.get('/next', async (_req, res) => {
-  const id = getNextAgentId()
-  const n = parseInt(id.replace('max', ''), 10)
+// Query param: ?cloneFrom=agent_name to suggest {agent_name}N format
+router.get('/next', async (req, res) => {
+  const cloneFrom = req.query.cloneFrom as string | undefined
+  const id = getNextAgentId(cloneFrom)
+
+  // Extract number from ID for port calculation
+  const numMatch = id.match(/(\d+)$/)
+  const n = numMatch ? parseInt(numMatch[1], 10) : 0
   const port = await findFreePort(18789 + n * 100)
+
   res.json({ id, port })
 })
 
@@ -131,7 +137,7 @@ router.post('/generate', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles } = req.body as {
+  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles, tags } = req.body as {
     name?: string
     model?: string
     whatsapp?: string
@@ -139,6 +145,7 @@ router.post('/provision', (req, res) => {
     profile?: boolean
     cloneFrom?: string
     generatedFiles?: { identity: string; soul: string; tools: string }
+    tags?: string[]
   }
 
   if (!name || !/^[a-z][a-z0-9_-]*$/.test(name)) {
@@ -250,6 +257,7 @@ router.post('/provision', (req, res) => {
 - **Created:** ${new Date().toISOString()}
 - **Created By:** ClawMax Dashboard
 - **Model:** ${model || 'default'}
+- **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
 `
         identityContent += metadata
@@ -326,10 +334,15 @@ router.get('/:id/identity', (req, res) => {
     // Parse each metadata field
     const createdMatch = metadataSection.match(/\*\*Created:\*\*\s+(.+)/i)
     const modelMatch = metadataSection.match(/\*\*Model:\*\*\s+(.+)/i)
+    const tagsMatch = metadataSection.match(/\*\*Tags:\*\*\s+(.+)/i)
     const clonedFromMatch = metadataSection.match(/\*\*Cloned From:\*\*\s+(.+)/i)
 
     if (createdMatch) metadata.created = createdMatch[1].trim()
     if (modelMatch) metadata.model = modelMatch[1].trim()
+    if (tagsMatch) {
+      const tagsStr = tagsMatch[1].trim()
+      metadata.tags = tagsStr !== 'N/A' ? tagsStr.split(',').map(t => t.trim()) : []
+    }
     if (clonedFromMatch) {
       const clonedFrom = clonedFromMatch[1].trim()
       metadata.clonedFrom = clonedFrom !== 'N/A' ? clonedFrom : null
