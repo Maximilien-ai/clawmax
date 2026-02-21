@@ -85,26 +85,26 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       const newMessages = data.messages || []
 
       // Clear typing indicators for agents who have responded
-      // Use functional update to get current state
-      setTypingAgents(currentTypingAgents => {
-        if (currentTypingAgents.size > 0 && newMessages.length > messages.length) {
-          const latestMessages = newMessages.slice(messages.length)
-          // Only count agent responses, not user messages
-          const respondedAgentIds = new Set(
-            latestMessages
-              .filter((m: any) => m.from !== 'User')
-              .map((m: any) => m.from)
-          )
-          if (respondedAgentIds.size > 0) {
-            const updated = new Set(currentTypingAgents)
-            respondedAgentIds.forEach(id => updated.delete(id))
-            return updated
+      setMessages(prevMessages => {
+        setTypingAgents(currentTypingAgents => {
+          if (currentTypingAgents.size > 0 && newMessages.length > prevMessages.length) {
+            const latestMessages = newMessages.slice(prevMessages.length)
+            // Only count agent responses, not user messages
+            const respondedAgentIds = new Set(
+              latestMessages
+                .filter((m: any) => m.from !== 'User')
+                .map((m: any) => m.from)
+            )
+            if (respondedAgentIds.size > 0) {
+              const updated = new Set(currentTypingAgents)
+              respondedAgentIds.forEach(id => updated.delete(id))
+              return updated
+            }
           }
-        }
-        return currentTypingAgents
+          return currentTypingAgents
+        })
+        return newMessages
       })
-
-      setMessages(newMessages)
     } catch (e) {
       setError(String(e))
     } finally {

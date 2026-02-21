@@ -117,17 +117,17 @@ router.get('/status', async (req, res) => {
   let runningGateways = 0
   let gatewayAvailable = false
 
-  // Check if openclaw-gateway is available
+  // Check if openclaw CLI is available
   try {
-    execSync('which openclaw-gateway', { encoding: 'utf-8' })
+    execSync('which openclaw', { encoding: 'utf-8' })
     gatewayAvailable = true
   } catch (err) {
-    // openclaw-gateway not in PATH
+    // openclaw not in PATH
   }
 
-  // Count running gateways
+  // Count running gateways (look for openclaw gateway process)
   try {
-    const result = execSync('ps aux | grep openclaw-gateway | grep -v grep', { encoding: 'utf-8' })
+    const result = execSync('ps aux | grep "openclaw.*gateway" | grep -v grep', { encoding: 'utf-8' })
     runningGateways = result.trim().split('\n').filter((line: string) => line.trim()).length
   } catch (err) {
     // No gateways running
@@ -437,8 +437,9 @@ router.post('/:id/restart', async (req, res) => {
 
     const gatewayPath = path.join(stateDir, 'openclaw.json')
 
-    // Start gateway in background
-    const child = spawn('openclaw-gateway', [], {
+    // Start gateway in background using openclaw CLI
+    const profileFlag = isProfile ? ['--profile', id] : []
+    const child = spawn('openclaw', [...profileFlag, 'gateway', 'install'], {
       cwd: agent.workspacePath,
       env: {
         ...process.env,

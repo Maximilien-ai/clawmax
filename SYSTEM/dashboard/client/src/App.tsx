@@ -131,16 +131,16 @@ export default function App() {
       <main className="flex-1 overflow-hidden flex flex-col min-w-0">
         {/* Top bar */}
         <TopBar system={system} />
-        <div className={page === 'agents' ? '' : 'hidden'}>
+        <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
           <Agents onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} initialAgentId={initialAgentId} />
         </div>
-        <div className={page === 'communication' ? '' : 'hidden'}>
+        <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
           <Communication onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }} />
         </div>
-        <div className={page === 'activity' ? '' : 'hidden'}>
+        <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
           <Activity />
         </div>
-        <div className={page === 'docs' ? '' : 'hidden'}>
+        <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
           <DocHub initialFile={docFile} />
         </div>
       </main>
