@@ -385,9 +385,9 @@ export function parseIdentity(content: string): any {
   const emojiMatch = content.match(/\*\*Emoji:\*\*\s*([^\n]+)/i)
   if (emojiMatch) identity.emoji = emojiMatch[1].trim()
 
-  const whatsappMatch = content.match(/\*\*WhatsApp:\*\*\s*([^\n]*)/i)
+  const whatsappMatch = content.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
-    const value = whatsappMatch[1].trim()
+    const value = (whatsappMatch[1] || '').trim()
     identity.whatsapp = value || null
   }
 

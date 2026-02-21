@@ -1,0 +1,366 @@
+#!/bin/bash
+set -e
+
+# Dashboard Test Suite
+# Tests validation, APIs, and key features
+
+API_BASE="http://localhost:3001"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+passed=0
+failed=0
+
+echo "========================================="
+echo "ClawMax Dashboard Test Suite"
+echo "========================================="
+echo ""
+
+# Helper functions
+pass() {
+  echo -e "${GREEN}✓${NC} $1"
+  ((passed++))
+}
+
+fail() {
+  echo -e "${RED}✗${NC} $1"
+  ((failed++))
+}
+
+warn() {
+  echo -e "${YELLOW}⚠${NC} $1"
+}
+
+test_api() {
+  local name="$1"
+  local endpoint="$2"
+  local expected_code="${3:-200}"
+
+  response=$(curl -s -w "\n%{http_code}" "$API_BASE$endpoint")
+  code=$(echo "$response" | tail -n 1)
+  body=$(echo "$response" | sed '$d')
+
+  if [ "$code" -eq "$expected_code" ]; then
+    pass "$name (HTTP $code)"
+    return 0
+  else
+    fail "$name (expected $expected_code, got $code)"
+    return 1
+  fi
+}
+
+test_json_field() {
+  local name="$1"
+  local endpoint="$2"
+  local field="$3"
+
+  response=$(curl -s "$API_BASE$endpoint")
+  if echo "$response" | jq -e "$field" > /dev/null 2>&1; then
+    pass "$name"
+    return 0
+  else
+    fail "$name (field '$field' not found)"
+    return 1
+  fi
+}
+
+test_validation() {
+  local name="$1"
+  local file="$2"
+  local content="$3"
+  local should_fail="${4:-false}"
+
+  response=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE/api/docs/content" \
+    -H "Content-Type: application/json" \
+    -d "{\"path\":\"$file\",\"content\":$(echo "$content" | jq -Rs .)}")
+
+  code=$(echo "$response" | tail -n 1)
+  body=$(echo "$response" | sed '$d')
+
+  if [ "$should_fail" = "true" ]; then
+    if [ "$code" -eq 400 ]; then
+      pass "$name (validation rejected as expected)"
+      return 0
+    else
+      fail "$name (expected 400, got $code)"
+      return 1
+    fi
+  else
+    if [ "$code" -eq 200 ]; then
+      pass "$name (validation passed)"
+      return 0
+    else
+      fail "$name (expected 200, got $code)"
+      echo "Response: $body"
+      return 1
+    fi
+  fi
+}
+
+# =========================================
+# Section 1: Health & System APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "1. Health & System APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_api "Health endpoint" "/api/health"
+test_json_field "Health has workspace" "/api/health" ".workspace"
+test_api "System info endpoint" "/api/system"
+test_json_field "System has agentCount" "/api/system" ".agentCount"
+test_json_field "System has version" "/api/system" ".version"
+test_api "Activity feed endpoint" "/api/activity"
+
+echo ""
+
+# =========================================
+# Section 2: Agent APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "2. Agent APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_api "List agents" "/api/agents"
+test_json_field "Agents array exists" "/api/agents" ".agents"
+test_json_field "Agents have IDs" "/api/agents" ".agents[0].id"
+test_json_field "Agents have status" "/api/agents" ".agents[0].status"
+test_json_field "Agents have communities" "/api/agents" ".agents[0].communities"
+test_json_field "Agents have groups" "/api/agents" ".agents[0].groups"
+test_json_field "Agents have tags" "/api/agents" ".agents[0].tags"
+
+# Test next agent ID suggestion
+test_api "Next agent ID" "/api/agents/next"
+test_json_field "Next ID has suggested id" "/api/agents/next" ".id"
+test_json_field "Next ID has port" "/api/agents/next" ".port"
+
+echo ""
+
+# =========================================
+# Section 3: AGENTS Schema Validation
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "3. AGENTS Schema Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Backup current config
+if [ -f ~/.openclaw/openclaw.json ]; then
+  cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.test-backup
+  warn "Backed up openclaw.json"
+fi
+
+# Test: Invalid agent ID (starts with number)
+cat > /tmp/test-openclaw.json <<'EOF'
+{
+  "agents": {
+    "list": [
+      {
+        "id": "9invalid",
+        "name": "test",
+        "workspace": "/tmp/test",
+        "agentDir": "/tmp/test"
+      }
+    ]
+  }
+}
+EOF
+
+if [ -f ~/.openclaw/openclaw.json.test-backup ]; then
+  cp /tmp/test-openclaw.json ~/.openclaw/openclaw.json
+  sleep 0.5
+
+  # Check if validation warning appears
+  if curl -s "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "9invalid") | .validationWarnings' > /dev/null 2>&1; then
+    pass "Invalid agent ID detected (starts with digit)"
+  else
+    fail "Invalid agent ID not detected"
+  fi
+
+  # Test: Missing required field
+  cat > /tmp/test-openclaw-missing.json <<'EOF'
+{
+  "agents": {
+    "list": [
+      {
+        "id": "test",
+        "name": "test"
+      }
+    ]
+  }
+}
+EOF
+
+  cp /tmp/test-openclaw-missing.json ~/.openclaw/openclaw.json
+  sleep 0.5
+
+  if curl -s "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "test") | .validationWarnings' > /dev/null 2>&1; then
+    pass "Missing required fields detected"
+  else
+    fail "Missing required fields not detected"
+  fi
+
+  # Restore backup
+  mv ~/.openclaw/openclaw.json.test-backup ~/.openclaw/openclaw.json
+  warn "Restored openclaw.json"
+else
+  warn "Skipping AGENTS validation tests (no openclaw.json found)"
+fi
+
+echo ""
+
+# =========================================
+# Section 4: COMMUNITIES.md Validation
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "4. COMMUNITIES.md Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Valid community
+valid_community='## Communities
+
+### TestCommunity
+- **Description:** Test community
+- **Tags:** test, dev
+- **Channels:** whatsapp'
+
+test_validation "Valid community" "ORG/COMMUNITIES.md" "$valid_community" false
+
+# Invalid: Bad ID (starts with number)
+invalid_community_id='## Communities
+
+### 9BadCommunity
+- **Description:** Invalid
+- **Tags:** test'
+
+test_validation "Invalid community ID" "ORG/COMMUNITIES.md" "$invalid_community_id" true
+
+# Invalid: Bad tag format (spaces)
+invalid_community_tag='## Communities
+
+### GoodCommunity
+- **Description:** Test
+- **Tags:** bad tag, with spaces'
+
+test_validation "Invalid community tag format" "ORG/COMMUNITIES.md" "$invalid_community_tag" true
+
+# Invalid: Bad channel
+invalid_community_channel='## Communities
+
+### TestCommunity
+- **Description:** Test
+- **Tags:** test
+- **Channels:** invalid-channel'
+
+test_validation "Invalid community channel" "ORG/COMMUNITIES.md" "$invalid_community_channel" true
+
+echo ""
+
+# =========================================
+# Section 5: GROUPS.md Validation
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "5. GROUPS.md Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Valid group
+valid_group='## Groups
+
+### TestGroup
+- **Description:** Test group
+- **Community:** TestCommunity
+- **Tags:** test
+- **Channels:** whatsapp'
+
+test_validation "Valid group" "ORG/GROUPS.md" "$valid_group" false
+
+# Invalid: Bad group ID
+invalid_group_id='## Groups
+
+### 9BadGroup
+- **Description:** Invalid
+- **Community:** Test'
+
+test_validation "Invalid group ID" "ORG/GROUPS.md" "$invalid_group_id" true
+
+echo ""
+
+# =========================================
+# Section 6: IDENTITY.md Validation
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "6. IDENTITY.md Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Valid identity
+valid_identity='# Agent Identity
+
+**Name:** TestAgent
+
+**Role:** Developer
+
+**Model:** openai/gpt-4o
+
+**Description:** Test agent for validation
+
+**Tags:** test, dev'
+
+test_validation "Valid identity" "AGENTS/test/IDENTITY.md" "$valid_identity" false
+
+# Invalid: Missing name
+invalid_identity_no_name='# Agent Identity
+
+**Role:** Developer'
+
+test_validation "Invalid identity (no name)" "AGENTS/test/IDENTITY.md" "$invalid_identity_no_name" true
+
+echo ""
+
+# =========================================
+# Section 7: Document APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "7. Document APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_api "List markdown files" "/api/docs"
+test_json_field "Docs have ORG section" "/api/docs" '.docs | map(select(.section == "ORG")) | length'
+test_json_field "Docs have AGENTS section" "/api/docs" '.docs | map(select(.section == "AGENTS")) | length'
+test_json_field "Docs have SYSTEM section" "/api/docs" '.docs | map(select(.section == "SYSTEM")) | length'
+
+echo ""
+
+# =========================================
+# Section 8: Channel APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "8. Channel APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_api "List communities" "/api/communities"
+test_json_field "Communities array exists" "/api/communities" ".communities"
+test_api "List groups" "/api/groups"
+test_json_field "Groups array exists" "/api/groups" ".groups"
+
+echo ""
+
+# =========================================
+# Summary
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Test Summary"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+total=$((passed + failed))
+echo "Total:  $total"
+echo -e "${GREEN}Passed: $passed${NC}"
+echo -e "${RED}Failed: $failed${NC}"
+echo ""
+
+if [ $failed -eq 0 ]; then
+  echo -e "${GREEN}All tests passed! ✨${NC}"
+  exit 0
+else
+  echo -e "${RED}Some tests failed.${NC}"
+  exit 1
+fi

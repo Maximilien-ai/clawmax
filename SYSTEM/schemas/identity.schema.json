@@ -28,8 +28,8 @@
     },
     "whatsapp": {
       "type": ["string", "null"],
-      "pattern": "^$|^\\+?[1-9]\\d{1,14}$",
-      "description": "WhatsApp phone number in E.164 format or empty string"
+      "pattern": "^\\+?[1-9]\\d{1,14}$",
+      "description": "WhatsApp phone number in E.164 format or null"
     },
     "tags": {
       "type": "array",
