@@ -1,14 +1,25 @@
 #!/bin/bash
-set -e
+# set -e  # Disabled to show all test results even if one fails
 
 # Dashboard Test Suite
 # Tests validation, APIs, and key features
+#
+# Usage: ./test.sh [--skip-validation]
+#   --skip-validation: Skip sections 3-6 (validation tests that modify files)
 
 API_BASE="http://localhost:3001"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Parse flags
+SKIP_VALIDATION=false
+for arg in "$@"; do
+  if [ "$arg" = "--skip-validation" ]; then
+    SKIP_VALIDATION=true
+  fi
+done
 
 passed=0
 failed=0
@@ -136,6 +147,14 @@ test_json_field "Next ID has suggested id" "/api/agents/next" ".id"
 test_json_field "Next ID has port" "/api/agents/next" ".port"
 
 echo ""
+
+# =========================================
+# Section 3-6: Validation Tests (Optional)
+# =========================================
+if [ "$SKIP_VALIDATION" = "true" ]; then
+  warn "Skipping validation tests (sections 3-6) - use without --skip-validation to run them"
+  echo ""
+else
 
 # =========================================
 # Section 3: AGENTS Schema Validation
@@ -295,7 +314,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Valid identity
 valid_identity='# Agent Identity
 
-**Name:** TestAgent
+**Name:** test-agent
 
 **Role:** Developer
 
@@ -316,6 +335,8 @@ test_validation "Invalid identity (no name)" "AGENTS/test/IDENTITY.md" "$invalid
 
 echo ""
 
+fi # End of validation tests (sections 3-6)
+
 # =========================================
 # Section 7: Document APIs
 # =========================================
@@ -324,9 +345,9 @@ echo "7. Document APIs"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 test_api "List markdown files" "/api/docs"
-test_json_field "Docs have ORG section" "/api/docs" '.docs | map(select(.section == "ORG")) | length'
-test_json_field "Docs have AGENTS section" "/api/docs" '.docs | map(select(.section == "AGENTS")) | length'
-test_json_field "Docs have SYSTEM section" "/api/docs" '.docs | map(select(.section == "SYSTEM")) | length'
+test_json_field "Docs have ORG section" "/api/docs" '.entries | map(select(.section == "ORG")) | length'
+test_json_field "Docs have AGENTS section" "/api/docs" '.entries | map(select(.section == "AGENTS")) | length'
+test_json_field "Docs have SYSTEM section" "/api/docs" '.entries | map(select(.section == "SYSTEM")) | length'
 
 echo ""
 
@@ -430,11 +451,12 @@ echo "12. MANDATE.md Schema Validation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify mandate schema exists
-if [ -f "$(pwd)/SYSTEM/schemas/mandate.schema.json" ]; then
+WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+if [ -f "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" ]; then
   pass "MANDATE.md schema file exists"
 
   # Test schema is valid JSON
-  if jq empty "$(pwd)/SYSTEM/schemas/mandate.schema.json" 2>/dev/null; then
+  if jq empty "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" 2>/dev/null; then
     pass "MANDATE.md schema is valid JSON"
   else
     fail "MANDATE.md schema is not valid JSON"

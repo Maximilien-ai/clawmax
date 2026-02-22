@@ -1,0 +1,12 @@
+{
+  "agents": {
+    "list": [
+      {
+        "id": "test-agent",
+        "name": "Test Agent",
+        "workspace": "/tmp/test",
+        "agentDir": "/tmp/test/agent"
+      }
+    ]
+  }
+}

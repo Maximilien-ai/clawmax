@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, parseGroups } from '../lib/workspace'
+import { updateGroupTags, parseGroupsWithMembers } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 
 const router = Router()
@@ -18,7 +18,7 @@ router.get('/communities', (req, res) => {
       return
     }
     const content = fs.readFileSync(communitiesPath, 'utf-8')
-    const { communities } = parseGroups(content)
+    const { communities } = parseGroupsWithMembers(content)
     res.json({ communities })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -34,7 +34,7 @@ router.get('/groups', (req, res) => {
       return
     }
     const content = fs.readFileSync(groupsPath, 'utf-8')
-    const { groups } = parseGroups(content)
+    const { groups } = parseGroupsWithMembers(content)
     res.json({ groups })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
