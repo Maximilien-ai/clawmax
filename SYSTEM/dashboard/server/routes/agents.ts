@@ -89,10 +89,41 @@ function registerAgentInConfig(agentId: string, profile: boolean): { ok: boolean
 
 const router = Router()
 
-// GET /api/agents — list all agents
-router.get('/', (_req, res) => {
-  const agents = listAgents()
-  res.json({ agents })
+// GET /api/agents — list all agents with optional pagination
+// Query params: ?limit=20&cursor=agent-id
+router.get('/', (req, res) => {
+  const { limit: limitStr, cursor } = req.query
+  const allAgents = listAgents()
+
+  // If no pagination params, return all agents (backward compatibility)
+  if (!limitStr) {
+    return res.json({ agents: allAgents })
+  }
+
+  const limit = parseInt(limitStr as string, 10) || 20
+
+  // Find cursor position
+  let startIndex = 0
+  if (cursor && typeof cursor === 'string') {
+    const cursorIndex = allAgents.findIndex(a => a.id === cursor)
+    if (cursorIndex !== -1) {
+      startIndex = cursorIndex + 1 // Start after the cursor
+    }
+  }
+
+  // Slice agents for this page
+  const agents = allAgents.slice(startIndex, startIndex + limit)
+
+  // Determine next cursor (last agent ID in this batch)
+  const hasMore = startIndex + limit < allAgents.length
+  const nextCursor = hasMore && agents.length > 0 ? agents[agents.length - 1].id : null
+
+  res.json({
+    agents,
+    hasMore,
+    nextCursor,
+    total: allAgents.length
+  })
 })
 
 // GET /api/agents/next — next available ID + free port (must be before /:id)

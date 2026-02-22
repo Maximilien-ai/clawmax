@@ -66,11 +66,16 @@ type ArchiveTab = 'active' | 'archived'
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [total, setTotal] = useState<number>(0)
+  const PAGE_SIZE = 20
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
     return (saved === 'list' || saved === 'grid') ? saved : 'list'
@@ -96,19 +101,38 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [showRestartMenu, setShowRestartMenu] = useState(false)
   const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number; gatewayAvailable: boolean } | null>(null)
 
-  const fetchAgents = useCallback(() => {
-    fetch('/api/agents')
+  const fetchAgents = useCallback((resetPagination = true) => {
+    const url = resetPagination
+      ? `/api/agents?limit=${PAGE_SIZE}`
+      : `/api/agents?limit=${PAGE_SIZE}${nextCursor ? `&cursor=${nextCursor}` : ''}`
+
+    if (resetPagination) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+
+    fetch(url)
       .then(r => r.json())
       .then(d => {
-        setAgents(d.agents)
+        if (resetPagination) {
+          setAgents(d.agents || [])
+        } else {
+          setAgents(prev => [...prev, ...(d.agents || [])])
+        }
+        setHasMore(d.hasMore || false)
+        setNextCursor(d.nextCursor || null)
+        setTotal(d.total || 0)
         setLoading(false)
+        setLoadingMore(false)
         setLastRefreshed(Date.now())
       })
       .catch(() => {
         setError('Failed to load agents')
         setLoading(false)
+        setLoadingMore(false)
       })
-  }, [])
+  }, [nextCursor, PAGE_SIZE])
 
   useEffect(() => {
     fetchAgents()
@@ -782,6 +806,23 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onUnarchive={() => setUnarchiveTarget(agent)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Load More button */}
+      {!loading && !error && hasMore && (
+        <div className="flex justify-center py-6">
+          <button
+            onClick={() => fetchAgents(false)}
+            disabled={loadingMore}
+            className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+              loadingMore
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-sky-600 text-white hover:bg-sky-700'
+            }`}
+          >
+            {loadingMore ? 'Loading...' : `Load More (${agents.length} of ${total})`}
+          </button>
         </div>
       )}
 
