@@ -1330,6 +1330,159 @@ router.get('/:id/communities', (req, res) => {
   })
 })
 
+// POST /api/agents/:id/archive — archive an agent (move to archive directory)
+router.post('/:id/archive', async (req, res) => {
+  const { id } = req.params
+  const { reason } = req.body as { reason?: string }
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const agentDir = path.join(AGENTS_DIR, id)
+  const archiveDir = path.join(AGENTS_DIR, 'archive')
+  const archivedAgentDir = path.join(archiveDir, id)
+
+  try {
+    if (!fs.existsSync(agentDir)) {
+      return res.status(404).json({ error: 'Agent not found' })
+    }
+
+    // Stop the agent if it's running
+    const pidFile = path.join(agentDir, '.pid')
+    if (fs.existsSync(pidFile)) {
+      try {
+        const pid = parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10)
+        if (pid > 0) {
+          process.kill(pid, 'SIGTERM')
+          // Wait a bit for graceful shutdown
+          await new Promise(resolve => setTimeout(resolve, 500))
+          // Force kill if still running
+          try { process.kill(pid, 'SIGKILL') } catch {}
+        }
+        fs.unlinkSync(pidFile)
+      } catch (err) {
+        // Process may already be stopped, continue with archive
+      }
+    }
+
+    // Create archive directory if it doesn't exist
+    if (!fs.existsSync(archiveDir)) {
+      fs.mkdirSync(archiveDir, { recursive: true })
+    }
+
+    // Remove agent from all communities and groups
+    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+
+    // Remove from communities
+    if (fs.existsSync(communitiesPath)) {
+      let communitiesContent = fs.readFileSync(communitiesPath, 'utf-8')
+      const lines = communitiesContent.split('\n')
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        if (line.trim().match(/^-\s+\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+            lines[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(communitiesPath, lines.join('\n'), 'utf-8')
+    }
+
+    // Remove from groups
+    if (fs.existsSync(groupsPath)) {
+      let groupsContent = fs.readFileSync(groupsPath, 'utf-8')
+      const lines = groupsContent.split('\n')
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        if (line.trim().match(/^-\s+\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+            lines[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(groupsPath, lines.join('\n'), 'utf-8')
+    }
+
+    // Add archive metadata to IDENTITY.md before moving
+    const identityPath = path.join(agentDir, 'IDENTITY.md')
+    if (fs.existsSync(identityPath)) {
+      let content = fs.readFileSync(identityPath, 'utf-8')
+      const timestamp = new Date().toISOString()
+      const archiveSection = `
+
+## Archive Metadata
+
+- **Archived:** ${timestamp}
+- **Reason:** ${reason || 'No reason provided'}
+`
+      // Remove existing archive metadata if present
+      content = content.replace(/##\s+Archive\s+Metadata\s+[\s\S]*?(?=\n##|\n---|\Z)/i, '')
+      content = content.trimEnd() + archiveSection
+      fs.writeFileSync(identityPath, content, 'utf-8')
+    }
+
+    // Move agent directory to archive
+    fs.renameSync(agentDir, archivedAgentDir)
+
+    res.json({ ok: true, timestamp: new Date().toISOString(), reason: reason || 'No reason provided' })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/agents/:id/unarchive — unarchive an agent (move back from archive directory)
+router.post('/:id/unarchive', (req, res) => {
+  const { id } = req.params
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const archiveDir = path.join(AGENTS_DIR, 'archive')
+  const archivedAgentDir = path.join(archiveDir, id)
+  const agentDir = path.join(AGENTS_DIR, id)
+
+  try {
+    if (!fs.existsSync(archivedAgentDir)) {
+      return res.status(404).json({ error: 'Archived agent not found' })
+    }
+
+    // If target directory already exists, remove it first (safety check for duplicates)
+    if (fs.existsSync(agentDir)) {
+      fs.rmSync(agentDir, { recursive: true, force: true })
+    }
+
+    // Remove archive metadata from IDENTITY.md before moving
+    const identityPath = path.join(archivedAgentDir, 'IDENTITY.md')
+    if (fs.existsSync(identityPath)) {
+      let content = fs.readFileSync(identityPath, 'utf-8')
+      // Remove Archive Metadata section (match the heading and everything after it to end of file)
+      content = content.replace(/\n##\s+Archive\s+Metadata[\s\S]*$/i, '')
+      content = content.trimEnd() + '\n'
+      fs.writeFileSync(identityPath, content, 'utf-8')
+    }
+
+    // Move agent directory back from archive
+    fs.renameSync(archivedAgentDir, agentDir)
+
+    res.json({ ok: true })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // POST /api/agents/:id/communities — update agent's community and group memberships
 router.post('/:id/communities', (req, res) => {
   const { id } = req.params

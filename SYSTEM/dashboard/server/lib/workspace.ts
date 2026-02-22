@@ -6,6 +6,7 @@ export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env
 
 /** Agents live under WORKSPACE/AGENTS/maxN/ */
 export const AGENTS_DIR = path.join(WORKSPACE, 'AGENTS')
+export const ARCHIVE_DIR = path.join(AGENTS_DIR, 'archive')
 
 // Status check cache to avoid hammering lsof on every request
 interface StatusCache {
@@ -189,6 +190,8 @@ export interface AgentInfo {
   groups: GroupEntry[]
   tags: string[]
   validationWarnings?: string[] // Warnings from schema validation
+  archived?: boolean // Derived from tags (true if 'archived' tag present)
+  archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
 }
 
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
@@ -694,20 +697,34 @@ export function listAgents(): AgentInfo[] {
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
-    // Skip hidden directories and common non-agent directories
-    if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
+    // Skip hidden directories, common non-agent directories, and archive directory
+    if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
 
     const agentDir = path.join(AGENTS_DIR, entry.name)
     // Look up the registered ID from openclaw.json, fall back to directory name
     const registeredId = workspaceToIdMap.get(agentDir) || entry.name
-    const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId))
+    const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), false)
     agents.push(agent)
   }
+
+  // Also scan archive directory
+  try {
+    const archiveEntries = fs.readdirSync(ARCHIVE_DIR, { withFileTypes: true })
+    for (const entry of archiveEntries) {
+      if (!entry.isDirectory()) continue
+      if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
+
+      const agentDir = path.join(ARCHIVE_DIR, entry.name)
+      const registeredId = workspaceToIdMap.get(agentDir) || entry.name
+      const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), true)
+      agents.push(agent)
+    }
+  } catch {}
 
   return agents.sort((a, b) => a.id.localeCompare(b.id))
 }
 
-function readAgentInfo(id: string, agentDir: string, validationWarnings?: string[]): AgentInfo {
+function readAgentInfo(id: string, agentDir: string, validationWarnings?: string[], isArchived: boolean = false): AgentInfo {
   // Read name from IDENTITY.md
   let name = id
   const identityPath = path.join(agentDir, 'IDENTITY.md')
@@ -816,9 +833,22 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
 
   // Read tags from IDENTITY.md
   let tags: string[] = []
+  let archiveMetadata: { reason?: string; timestamp?: string } | undefined
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
     tags = parseTags(identity)
+
+    // Parse archive metadata if present
+    const archiveMatch = identity.match(/##\s+Archive\s+Metadata\s+([\s\S]*?)(?=\n##|\n---|\Z)/i)
+    if (archiveMatch) {
+      const archiveSection = archiveMatch[1]
+      const reasonMatch = archiveSection.match(/\*\*Reason:\*\*\s+(.+)/i)
+      const timestampMatch = archiveSection.match(/\*\*Archived:\*\*\s+(.+)/i)
+
+      archiveMetadata = {}
+      if (reasonMatch) archiveMetadata.reason = reasonMatch[1].trim()
+      if (timestampMatch) archiveMetadata.timestamp = timestampMatch[1].trim()
+    }
   } catch {}
 
   // Validate TOOLS.md
@@ -860,6 +890,8 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     groups,
     tags,
     validationWarnings: warnings.length > 0 ? warnings : undefined,
+    archived: isArchived,
+    archiveMetadata: isArchived ? archiveMetadata : undefined,
   }
 }
 

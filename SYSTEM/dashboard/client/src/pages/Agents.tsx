@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
+import ArchiveAgentPanel from '../components/ArchiveAgentPanel'
+import UnarchiveAgentPanel from '../components/UnarchiveAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
@@ -31,6 +33,8 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   validationWarnings?: string[]
+  archived?: boolean
+  archiveMetadata?: { reason?: string; timestamp?: string }
 }
 
 const STATUS_COLORS = {
@@ -57,6 +61,7 @@ function timeAgo(iso: string | null): string {
 }
 
 type ViewMode = 'list' | 'grid'
+type ArchiveTab = 'active' | 'archived'
 
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -70,11 +75,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
     const saved = localStorage.getItem('agents-view-mode')
     return (saved === 'list' || saved === 'grid') ? saved : 'list'
   })
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<Agent | null>(null)
+  const [unarchiveTarget, setUnarchiveTarget] = useState<Agent | null>(null)
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
@@ -192,6 +200,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
     setTimeout(() => fetchAgents(), 1000)
   }
 
+
   const toggleCollapse = (id: string) => {
     setCollapsedIds(prev => {
       const next = new Set(prev)
@@ -240,6 +249,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const filteredAgents = useMemo(() => {
     let filtered = agents
 
+    // Filter by archive status
+    filtered = filtered.filter(agent => {
+      const isArchived = agent.archived || false
+      return archiveTab === 'archived' ? isArchived : !isArchived
+    })
+
     // Filter by search query (supports wildcards with *)
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase()
@@ -262,13 +277,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
       })
     }
 
-    // Filter by selected tags
+    // Filter by selected tags (but exclude 'archived' tag from user filter)
     if (selectedTags.size > 0) {
-      filtered = filtered.filter(a => a.tags.some(t => selectedTags.has(t)))
+      filtered = filtered.filter(a => a.tags.filter(t => t !== 'archived').some(t => selectedTags.has(t)))
     }
 
     return filtered
-  }, [agents, selectedTags, searchQuery])
+  }, [agents, selectedTags, searchQuery, archiveTab])
 
   const groupedAgents = useMemo(() => {
     const groups = new Map<string, Agent[]>()
@@ -465,6 +480,32 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
         </div>
       </div>
 
+      {/* Archive tabs */}
+      <div className="mb-4">
+        <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setArchiveTab('active')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              archiveTab === 'active'
+                ? 'bg-sky-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Active ({agents.filter(a => !a.archived).length})
+          </button>
+          <button
+            onClick={() => setArchiveTab('archived')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              archiveTab === 'archived'
+                ? 'bg-sky-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Archived ({agents.filter(a => a.archived).length})
+          </button>
+        </div>
+      </div>
+
       {/* Search bar */}
       <div className="mb-4">
         <div className="relative">
@@ -594,12 +635,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onLinkWa={() => setLinkWaTarget(agent)}
               onSyncGroups={() => setSyncGroupsTarget(agent)}
               onChat={() => setChatTarget(agent)}
-              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
               onManageTags={() => setTagManageTarget(agent)}
               onManageCommunities={() => setCommunitiesTarget(agent)}
               onNavigateToGroup={onNavigateToGroup}
               onRestart={() => handleRestart(agent.id)}
+              onArchive={() => setArchiveTarget(agent)}
+              onUnarchive={() => setUnarchiveTarget(agent)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -649,9 +692,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                         onChat={() => setChatTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
-                        onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+                        onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
                         onRestart={() => handleRestart(agent.id)}
+                        onArchive={() => setArchiveTarget(agent)}
+                        onUnarchive={() => setUnarchiveTarget(agent)}
                       />
                     ))}
                   </div>
@@ -683,9 +728,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                               onChat={() => setChatTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
-                              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+                              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                               onManageTags={() => setTagManageTarget(agent)}
                               onRestart={() => handleRestart(agent.id)}
+                              onArchive={() => setArchiveTarget(agent)}
+                              onUnarchive={() => setUnarchiveTarget(agent)}
                             />
                           ))}
                         </div>
@@ -728,8 +775,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onChat={() => setChatTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
-              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.id}/IDENTITY.md`) : undefined}
+              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onManageTags={() => setTagManageTarget(agent)}
+              onRestart={() => handleRestart(agent.id)}
+              onArchive={() => setArchiveTarget(agent)}
+              onUnarchive={() => setUnarchiveTarget(agent)}
             />
           ))}
         </div>
@@ -756,6 +806,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
           agentId={deleteTarget}
           onClose={() => setDeleteTarget(null)}
           onDeleted={() => { fetchAgents(); setSelectedAgent(null) }}
+        />
+      )}
+
+      {archiveTarget && (
+        <ArchiveAgentPanel
+          agent={archiveTarget}
+          onClose={() => setArchiveTarget(null)}
+          onArchived={() => { fetchAgents(); setSelectedAgent(null) }}
+        />
+      )}
+
+      {unarchiveTarget && (
+        <UnarchiveAgentPanel
+          agent={unarchiveTarget}
+          onClose={() => setUnarchiveTarget(null)}
+          onUnarchived={() => { fetchAgents(); setSelectedAgent(null) }}
         />
       )}
 
@@ -973,7 +1039,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onRestart,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onRestart, onArchive, onUnarchive,
 }: {
   agent: Agent
   selected: boolean
@@ -981,6 +1047,8 @@ function AgentCard({
   onToggle: () => void
   onClick: () => void
   onDelete: () => void
+  onArchive: () => void
+  onUnarchive: () => void
   onLinkWa: () => void
   onSyncGroups: () => void
   onUnlinkWa: () => void
@@ -1003,13 +1071,57 @@ function AgentCard({
       {/* Card header — always visible */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
+          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
             {agent.status}
           </span>
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0">
+          {/* Consequential actions (left side) */}
+          <button
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-1 rounded hover:bg-red-50"
+            title="Delete agent"
+          >
+            🗑
+          </button>
+          {agent.archived ? (
+            <button
+              onClick={e => { e.stopPropagation(); onUnarchive() }}
+              className="text-gray-300 hover:text-green-500 transition-colors text-xs p-1 rounded hover:bg-green-50"
+              title="Unarchive agent"
+            >
+              📤
+            </button>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); onArchive() }}
+              className="text-gray-300 hover:text-orange-500 transition-colors text-xs p-1 rounded hover:bg-orange-50"
+              title="Archive agent"
+            >
+              📦
+            </button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onRestart() }}
+            className="text-gray-300 hover:text-amber-500 transition-colors text-xs p-1 rounded hover:bg-amber-50"
+            title="Restart agent"
+          >
+            ↻
+          </button>
+          {/* Separator */}
+          <div className="w-px h-4 bg-gray-200 mx-0.5"></div>
+          {/* Frequent actions (right side) */}
+          {!agent.archived && (
+            <button
+              onClick={e => { e.stopPropagation(); onChat() }}
+              className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
+              title="Chat with agent"
+            >
+              💬
+            </button>
+          )}
           {onViewDocs && (
             <button
               onClick={e => { e.stopPropagation(); onViewDocs() }}
@@ -1019,27 +1131,6 @@ function AgentCard({
               📄
             </button>
           )}
-          <button
-            onClick={e => { e.stopPropagation(); onChat() }}
-            className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
-            title="Chat with agent"
-          >
-            💬
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); onRestart() }}
-            className="text-gray-300 hover:text-amber-500 transition-colors text-xs p-1 rounded hover:bg-amber-50"
-            title="Restart agent"
-          >
-            ↻
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-1 rounded hover:bg-red-50"
-            title="Delete agent"
-          >
-            🗑
-          </button>
           <button
             onClick={e => { e.stopPropagation(); onToggle() }}
             className="text-gray-300 hover:text-gray-500 transition-colors text-xs p-1"
@@ -1212,7 +1303,7 @@ function AgentCard({
   )
 }
 
-function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void }) {
+function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -1223,7 +1314,7 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, on
       }`}
     >
       <div className="flex items-center gap-1.5 mb-2">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[agent.status]}`} />
+        <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
         <div className="ml-auto flex items-center gap-0.5">
           {onViewDocs && (
@@ -1236,14 +1327,16 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, on
               📄
             </button>
           )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onChat(); }}
-            className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
-            aria-label="Chat with agent"
-            title="Chat with agent"
-          >
-            💬
-          </button>
+          {!agent.archived && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChat(); }}
+              className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+              aria-label="Chat with agent"
+              title="Chat with agent"
+            >
+              💬
+            </button>
+          )}
         </div>
       </div>
       <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
@@ -1293,6 +1386,25 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, on
           >
             ↻
           </button>
+          {agent.archived ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onUnarchive(); }}
+              className="text-gray-200 hover:text-green-400 transition-colors text-xs p-0.5 rounded hover:bg-green-50"
+              aria-label="Unarchive agent"
+              title="Unarchive agent"
+            >
+              📤
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onArchive(); }}
+              className="text-gray-200 hover:text-orange-400 transition-colors text-xs p-0.5 rounded hover:bg-orange-50"
+              aria-label="Archive agent"
+              title="Archive agent"
+            >
+              📦
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="text-gray-200 hover:text-red-400 transition-colors text-xs p-0.5 rounded hover:bg-red-50"

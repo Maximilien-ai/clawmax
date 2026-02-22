@@ -81,6 +81,22 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     })
   }
 
+  function collapseAllDirs() {
+    // Collect all directory keys from current entries
+    const allDirKeys = new Set<string>()
+    SECTION_ORDER.forEach(section => {
+      const sectionEntries = entries.filter(e => e.section === section)
+      const displayPaths = sectionEntries.map(e => stripPrefix(e.path, section))
+      const tree = buildTree(displayPaths)
+      Object.keys(tree).forEach(dir => {
+        if (dir) { // Exclude root ('')
+          allDirKeys.add(`${section}/${dir}`)
+        }
+      })
+    })
+    setCollapsedDirs(allDirKeys)
+  }
+
   // Edit mode
   const [editMode, setEditMode] = useState(false)
   const [draft, setDraft] = useState('')
@@ -210,11 +226,18 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             <div className="px-4 py-3 border-b border-gray-200 shrink-0">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
-                <button
-                  onClick={() => setTreeCollapsed(true)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
-                  title="Collapse file tree"
-                >◀</button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={collapseAllDirs}
+                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs px-2 py-1 rounded hover:bg-gray-100"
+                    title="Collapse all directories"
+                  >Collapse All</button>
+                  <button
+                    onClick={() => setTreeCollapsed(true)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+                    title="Collapse file tree"
+                  >◀</button>
+                </div>
               </div>
               <div className="relative">
                 <input
