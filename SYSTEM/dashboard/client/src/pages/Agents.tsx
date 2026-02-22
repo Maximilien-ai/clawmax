@@ -615,8 +615,24 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
       )}
 
       {loading && (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-          Loading agents...
+        <div className="space-y-4">
+          {/* Loading skeletons */}
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm animate-pulse">
+              <div className="flex items-center justify-between px-5 pt-4 pb-3">
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="w-2 h-2 rounded-full bg-gray-200"></div>
+                  <div className="h-5 bg-gray-200 rounded w-32"></div>
+                  <div className="h-5 bg-gray-100 rounded w-16"></div>
+                </div>
+                <div className="flex gap-1">
+                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
+                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
+                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -815,12 +831,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
           <button
             onClick={() => fetchAgents(false)}
             disabled={loadingMore}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+            className={`px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               loadingMore
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 : 'bg-sky-600 text-white hover:bg-sky-700'
             }`}
           >
+            {loadingMore && (
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
             {loadingMore ? 'Loading...' : `Load More (${agents.length} of ${total})`}
           </button>
         </div>
@@ -1079,7 +1101,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   )
 }
 
-function AgentCard({
+const AgentCard = React.memo(function AgentCard({
   agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onRestart, onArchive, onUnarchive,
 }: {
   agent: Agent
@@ -1342,9 +1364,9 @@ function AgentCard({
       )}
     </div>
   )
-}
+})
 
-function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -1458,4 +1480,4 @@ function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, on
       </div>
     </div>
   )
-}
+})

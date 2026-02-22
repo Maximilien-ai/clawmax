@@ -19,7 +19,7 @@ interface CommunitiesManagerProps {
   onSave: () => void
 }
 
-export default function CommunitiesManager({
+const CommunitiesManager = React.memo(function CommunitiesManager({
   agentId,
   agentName,
   currentCommunities,
@@ -195,4 +195,6 @@ export default function CommunitiesManager({
       </div>
     </div>
   )
-}
+})
+
+export default CommunitiesManager
