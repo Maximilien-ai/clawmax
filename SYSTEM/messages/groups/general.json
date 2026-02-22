@@ -21,5 +21,19 @@
     "content": "Test message from test suite",
     "timestamp": 1771795330022,
     "mentions": []
+  },
+  {
+    "id": "1771795405800-9kuhqn68t",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1771795405800,
+    "mentions": []
+  },
+  {
+    "id": "1771801273661-cqvbd835d",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1771801273661,
+    "mentions": []
   }
 ]
