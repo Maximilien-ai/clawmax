@@ -162,27 +162,34 @@
 ## Nice-to-Have (If Time Permits)
 
 ### Additional Features
-13. **Community & Group Templates System** (3-4 hours)
+13. **ClawMax CLI & Templates System** (4-5 hours)
+    - **New `clawmax` CLI tool** - Management layer above openclaw
     - Create TEMPLATES/ top-level directory
     - Define template structure for communities and groups
     - Templates can specify:
       - Community/group membership patterns
       - Agent roles and configurations
       - Pre-configured communication channels
-    - CLI commands for:
-      - `openclaw template create <name>` - Save current structure as template
-      - `openclaw template apply <name>` - Apply template to workspace
-      - `openclaw template list` - List available templates
+    - **ClawMax CLI commands**:
+      - `clawmax template create <name>` - Save current structure as template
+      - `clawmax template apply <name>` - Apply template to workspace
+      - `clawmax template list` - List available templates
+      - `clawmax template export <name>` - Export template to share
+      - `clawmax template import <file>` - Import shared template
+      - `clawmax workspace init` - Initialize new workspace from template
+      - `clawmax workspace status` - Show workspace health and stats
     - Dashboard UI for:
       - Browse available templates
       - Preview template structure
       - One-click template application
       - Template customization before applying
     - **Benefits**:
+      - Separation of concerns: `openclaw` (low-level agent ops) vs `clawmax` (workspace management)
       - Quick setup of complex agent organizations
       - Reusable team structures across projects
       - Best-practice patterns for agent collaboration
       - Easy scaling from 10 to 200+ agents
+      - Template sharing across teams/organizations
 
 14. **Real-time agent status updates** (1.5 hours)
     - WebSocket connection for status changes
