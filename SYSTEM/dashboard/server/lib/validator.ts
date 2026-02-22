@@ -117,3 +117,10 @@ export function validateTools(content: string): ValidationResult {
 export function validateSoul(content: string): ValidationResult {
   return validate('soul', { content })
 }
+
+/**
+ * Validate agent MANDATE.md content
+ */
+export function validateMandate(content: string): ValidationResult {
+  return validate('mandate', { content })
+}

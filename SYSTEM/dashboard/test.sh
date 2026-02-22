@@ -345,6 +345,110 @@ test_json_field "Groups array exists" "/api/groups" ".groups"
 echo ""
 
 # =========================================
+# Section 9: Group Chat APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "9. Group Chat APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test group message endpoints exist
+test_api "Get group messages" "/api/groups/General/messages"
+test_json_field "Group messages array" "/api/groups/General/messages" ".messages"
+
+# Test sending a message
+response=$(curl -s -X POST "$API_BASE/api/groups/General/messages" \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"Test message from test suite","mentions":[]}')
+
+if echo "$response" | jq -e '.ok' > /dev/null 2>&1; then
+  pass "Send message to group"
+else
+  fail "Send message to group"
+fi
+
+# Test community message endpoints
+test_api "Get community messages" "/api/communities/Maximilien.ai/messages"
+test_json_field "Community messages array" "/api/communities/Maximilien.ai/messages" ".messages"
+
+# Test archives endpoints
+test_api "Get group archives" "/api/groups/General/archives"
+test_json_field "Group archives array" "/api/groups/General/archives" ".archives"
+
+echo ""
+
+# =========================================
+# Section 10: Activity Feed
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "10. Activity Feed"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_json_field "Activity feed array" "/api/activity" ".feed"
+test_json_field "Activity has agentId" "/api/activity" ".feed[0].agentId"
+test_json_field "Activity has file" "/api/activity" ".feed[0].file"
+test_json_field "Activity has ageMins" "/api/activity" ".feed[0].ageMins"
+
+# Verify we have activity from multiple agents
+agent_count=$(curl -s "$API_BASE/api/activity" | jq '.feed | map(.agentId) | unique | length')
+if [ "$agent_count" -gt 1 ]; then
+  pass "Activity from multiple agents ($agent_count agents)"
+else
+  fail "Activity from multiple agents (only $agent_count agent)"
+fi
+
+echo ""
+
+# =========================================
+# Section 11: WhatsApp Integration
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "11. WhatsApp Integration"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test agent health endpoint includes WhatsApp status
+test_api "Agent health endpoint" "/api/agents/dave/health"
+test_json_field "Health has channels" "/api/agents/dave/health" ".channels"
+test_json_field "WhatsApp channel status" "/api/agents/dave/health" ".channels.whatsapp"
+test_json_field "WhatsApp configured" "/api/agents/dave/health" ".channels.whatsapp.configured"
+test_json_field "WhatsApp linked status" "/api/agents/dave/health" ".channels.whatsapp.linked"
+
+# Verify groups have WhatsApp channels
+whatsapp_groups=$(curl -s "$API_BASE/api/groups" | jq '[.groups[] | select(.channels[]? == "whatsapp")] | length')
+if [ "$whatsapp_groups" -gt 0 ]; then
+  pass "Groups with WhatsApp channel ($whatsapp_groups groups)"
+else
+  fail "Groups with WhatsApp channel (none found)"
+fi
+
+echo ""
+
+# =========================================
+# Section 12: MANDATE.md Schema Validation
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "12. MANDATE.md Schema Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Verify mandate schema exists
+if [ -f "$(pwd)/SYSTEM/schemas/mandate.schema.json" ]; then
+  pass "MANDATE.md schema file exists"
+
+  # Test schema is valid JSON
+  if jq empty "$(pwd)/SYSTEM/schemas/mandate.schema.json" 2>/dev/null; then
+    pass "MANDATE.md schema is valid JSON"
+  else
+    fail "MANDATE.md schema is not valid JSON"
+  fi
+else
+  fail "MANDATE.md schema file not found"
+fi
+
+# Note: Actual validation function will be tested when MANDATE editing is added to API
+warn "MANDATE validation function ready (will be used when editing is added)"
+
+echo ""
+
+# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

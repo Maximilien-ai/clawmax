@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1771770733030-yldqm7xwg",
+    "from": "User",
+    "content": "Test message: Can someone help me understand the dashboard architecture? @dave",
+    "timestamp": 1771770733030,
+    "mentions": [
+      "dave"
+    ]
+  },
+  {
+    "id": "1771770736503-wuigm2iyj",
+    "from": "dave",
+    "content": "Absolutely! I can help with that. Could you provide more details on which part of the dashboard architecture you'd like to understand?",
+    "timestamp": 1771770736503,
+    "mentions": []
+  }
+]
