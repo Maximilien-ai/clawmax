@@ -4,8 +4,11 @@
 # Dashboard Test Suite
 # Tests validation, APIs, and key features
 #
-# Usage: ./test.sh [--skip-validation]
-#   --skip-validation: Skip sections 3-6 (validation tests that modify files)
+# Usage: ./test.sh [--with-validation]
+#   --with-validation: Include sections 3-6 (validation tests that modify files)
+#
+# WARNING: Validation tests (sections 3-6) modify live data files!
+# Run without --with-validation flag to skip them (recommended).
 
 API_BASE="http://localhost:3001"
 GREEN='\033[0;32m'
@@ -13,11 +16,11 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Parse flags
-SKIP_VALIDATION=false
+# Parse flags - validation tests are SKIPPED by default
+SKIP_VALIDATION=true
 for arg in "$@"; do
-  if [ "$arg" = "--skip-validation" ]; then
-    SKIP_VALIDATION=true
+  if [ "$arg" = "--with-validation" ]; then
+    SKIP_VALIDATION=false
   fi
 done
 
@@ -152,9 +155,11 @@ echo ""
 # Section 3-6: Validation Tests (Optional)
 # =========================================
 if [ "$SKIP_VALIDATION" = "true" ]; then
-  warn "Skipping validation tests (sections 3-6) - use without --skip-validation to run them"
+  warn "Skipping validation tests (sections 3-6) - use --with-validation to run them"
   echo ""
 else
+  warn "Running validation tests that modify live data files!"
+  echo ""
 
 # =========================================
 # Section 3: AGENTS Schema Validation
