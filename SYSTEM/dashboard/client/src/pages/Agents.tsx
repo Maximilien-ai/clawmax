@@ -8,6 +8,7 @@ import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
+import BulkOperationsPanel from '../components/BulkOperationsPanel'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -98,8 +99,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set())
+  const [showBulkOperations, setShowBulkOperations] = useState(false)
   const [showRestartMenu, setShowRestartMenu] = useState(false)
   const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number; gatewayAvailable: boolean } | null>(null)
+  const [allCommunities, setAllCommunities] = useState<GroupEntry[]>([])
+  const [allGroups, setAllGroups] = useState<GroupEntry[]>([])
 
   const fetchAgents = useCallback((resetPagination = true) => {
     const url = resetPagination
@@ -224,6 +229,79 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
     setTimeout(() => fetchAgents(), 1000)
   }
 
+  // Fetch communities and groups for bulk operations
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/communities').then(r => r.json()),
+      fetch('/api/groups').then(r => r.json()),
+    ])
+      .then(([commData, groupData]) => {
+        setAllCommunities(commData.communities || [])
+        setAllGroups(groupData.groups || [])
+      })
+      .catch(err => console.error('Failed to load communities/groups:', err))
+  }, [])
+
+  const handleBulkAddToCommunities = async (agentIds: string[], communities: string[]) => {
+    for (const agentId of agentIds) {
+      const agent = agents.find(a => a.id === agentId)
+      if (!agent) continue
+
+      const existingCommunities = agent.communities.map(c => c.name)
+      const allCommunities = Array.from(new Set([...existingCommunities, ...communities]))
+
+      await fetch(`/api/agents/${agentId}/communities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ communities: allCommunities, groups: agent.groups.map(g => g.name) }),
+      })
+    }
+    fetchAgents()
+  }
+
+  const handleBulkAddToGroups = async (agentIds: string[], groups: string[]) => {
+    for (const agentId of agentIds) {
+      const agent = agents.find(a => a.id === agentId)
+      if (!agent) continue
+
+      const existingGroups = agent.groups.map(g => g.name)
+      const allGroups = Array.from(new Set([...existingGroups, ...groups]))
+
+      await fetch(`/api/agents/${agentId}/communities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ communities: agent.communities.map(c => c.name), groups: allGroups }),
+      })
+    }
+    fetchAgents()
+  }
+
+  const handleBulkArchive = async (agentIds: string[]) => {
+    for (const agentId of agentIds) {
+      await fetch(`/api/agents/${agentId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Bulk archive operation' }),
+      })
+    }
+    setSelectedAgentIds(new Set())
+    fetchAgents()
+  }
+
+  const handleBulkUnarchive = async (agentIds: string[]) => {
+    for (const agentId of agentIds) {
+      await fetch(`/api/agents/${agentId}/unarchive`, { method: 'POST' })
+    }
+    setSelectedAgentIds(new Set())
+    fetchAgents()
+  }
+
+  const toggleAgentSelection = (agentId: string) => {
+    const next = new Set(selectedAgentIds)
+    if (next.has(agentId)) next.delete(agentId)
+    else next.add(agentId)
+    setSelectedAgentIds(next)
+  }
 
   const toggleCollapse = (id: string) => {
     setCollapsedIds(prev => {
