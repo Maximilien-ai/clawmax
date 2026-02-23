@@ -815,6 +815,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                         onRestart={() => handleRestart(agent.id)}
                         onArchive={() => setArchiveTarget(agent)}
                         onUnarchive={() => setUnarchiveTarget(agent)}
+                        isSelected={selectedAgentIds.has(agent.id)}
+                        onToggleSelect={() => toggleAgentSelection(agent.id)}
                       />
                     ))}
                   </div>
@@ -851,6 +853,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                               onRestart={() => handleRestart(agent.id)}
                               onArchive={() => setArchiveTarget(agent)}
                               onUnarchive={() => setUnarchiveTarget(agent)}
+                              isSelected={selectedAgentIds.has(agent.id)}
+                              onToggleSelect={() => toggleAgentSelection(agent.id)}
                             />
                           ))}
                         </div>
@@ -898,6 +902,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
+              isSelected={selectedAgentIds.has(agent.id)}
+              onToggleSelect={() => toggleAgentSelection(agent.id)}
             />
           ))}
         </div>
@@ -1065,6 +1071,41 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               console.error('Failed to update tags:', err)
             }
           }}
+        />
+      )}
+
+      {/* Floating toolbar for bulk operations */}
+      {selectedAgentIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-4 z-40">
+          <span className="font-medium">
+            {selectedAgentIds.size} agent{selectedAgentIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => setSelectedAgentIds(new Set())}
+            className="px-3 py-1 bg-blue-700 hover:bg-blue-800 rounded transition-colors text-sm"
+          >
+            Clear
+          </button>
+          <button
+            onClick={() => setShowBulkOperations(true)}
+            className="px-4 py-1 bg-white text-blue-600 hover:bg-blue-50 rounded font-medium transition-colors text-sm"
+          >
+            Bulk Operations
+          </button>
+        </div>
+      )}
+
+      {/* Bulk Operations Panel */}
+      {showBulkOperations && (
+        <BulkOperationsPanel
+          selectedAgents={agents.filter(a => selectedAgentIds.has(a.id))}
+          allCommunities={allCommunities}
+          allGroups={allGroups}
+          onClose={() => setShowBulkOperations(false)}
+          onAddToCommunities={handleBulkAddToCommunities}
+          onAddToGroups={handleBulkAddToGroups}
+          onArchive={handleBulkArchive}
+          onUnarchive={handleBulkUnarchive}
         />
       )}
     </div>
@@ -1444,16 +1485,24 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
       id={`agent-card-${agent.id}`}
       onClick={onClick}
       className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${
-        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
       }`}
     >
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={isSelected || false}
+          onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          className="absolute top-2 left-2 w-4 h-4 cursor-pointer z-10"
+        />
+      )}
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
