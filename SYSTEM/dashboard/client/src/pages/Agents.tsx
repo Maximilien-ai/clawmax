@@ -109,15 +109,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [allCommunities, setAllCommunities] = useState<GroupEntry[]>([])
   const [allGroups, setAllGroups] = useState<GroupEntry[]>([])
 
-  const fetchAgents = useCallback((resetPagination = true) => {
+  const fetchAgents = useCallback((resetPagination = true, silent = false) => {
     const url = resetPagination
       ? `/api/agents?limit=${PAGE_SIZE}`
       : `/api/agents?limit=${PAGE_SIZE}${nextCursor ? `&cursor=${nextCursor}` : ''}`
 
-    if (resetPagination) {
-      setLoading(true)
-    } else {
-      setLoadingMore(true)
+    // Only show loading state for user-initiated actions, not background refreshes
+    if (!silent) {
+      if (resetPagination) {
+        setLoading(true)
+      } else {
+        setLoadingMore(true)
+      }
     }
 
     fetch(url)
@@ -144,13 +147,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
 
   useEffect(() => {
     fetchAgents()
-    // Auto-refresh every 5 seconds for real-time status updates
+    // Auto-refresh every 30 seconds (silent background refresh)
     const interval = setInterval(() => {
       // Only poll if tab is visible to reduce server load
       if (!document.hidden) {
-        fetchAgents()
+        fetchAgents(true, true) // resetPagination=true, silent=true
       }
-    }, 5000)
+    }, 30000) // 30 seconds
     return () => clearInterval(interval)
   }, [fetchAgents])
 
@@ -599,7 +602,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
             {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
             {selectedTags.size > 0 && <span className="text-gray-300">({agents.length} total)</span>}
             <span className="text-gray-300">·</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Real-time updates every 5s" />
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refresh every 30s" />
             refreshed {refreshedLabel}
           </p>
         </div>
