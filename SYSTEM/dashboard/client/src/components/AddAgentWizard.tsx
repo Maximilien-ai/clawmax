@@ -127,6 +127,12 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
             hasPreFilled = true
           }
 
+          // Pre-populate AI description if it exists in metadata
+          if (data.metadata.aiDescription) {
+            set('aiDescription', data.metadata.aiDescription)
+            hasPreFilled = true
+          }
+
           setPreFilled(hasPreFilled)
         }
       })
@@ -192,6 +198,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
     if (form.tags.length > 0) body.tags = form.tags
+    if (form.aiDescription) body.aiDescription = form.aiDescription
     if (generatedFiles) body.generatedFiles = generatedFiles
     body.profile = true  // always use profile mode (isolated ~/.openclaw-<name>/ state dir)
 

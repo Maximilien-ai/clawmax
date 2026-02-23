@@ -207,7 +207,7 @@ router.post('/generate', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles, tags } = req.body as {
+  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles, tags, aiDescription } = req.body as {
     name?: string
     model?: string
     whatsapp?: string
@@ -216,6 +216,7 @@ router.post('/provision', (req, res) => {
     cloneFrom?: string
     generatedFiles?: { identity: string; soul: string; tools: string }
     tags?: string[]
+    aiDescription?: string
   }
 
   if (!name || !/^[a-z][a-z0-9_-]*$/.test(name)) {
@@ -329,6 +330,7 @@ router.post('/provision', (req, res) => {
 - **Model:** ${model || 'default'}
 - **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
+- **AI Description:** ${aiDescription || 'N/A'}
 `
         identityContent += metadata
         fs.writeFileSync(identityPath, identityContent)
@@ -397,7 +399,7 @@ router.get('/:id/identity', (req, res) => {
 
   // Parse creation metadata if it exists
   const metadata: any = {}
-  const metadataMatch = content.match(/## Creation Metadata\s+([\s\S]*?)(?=\n##|\n---|\Z)/i)
+  const metadataMatch = content.match(/## Creation Metadata\s+([\s\S]*?)(?=\n##|\n---|$)/i)
   if (metadataMatch) {
     const metadataSection = metadataMatch[1]
 
@@ -406,6 +408,7 @@ router.get('/:id/identity', (req, res) => {
     const modelMatch = metadataSection.match(/\*\*Model:\*\*\s+(.+)/i)
     const tagsMatch = metadataSection.match(/\*\*Tags:\*\*\s+(.+)/i)
     const clonedFromMatch = metadataSection.match(/\*\*Cloned From:\*\*\s+(.+)/i)
+    const aiDescriptionMatch = metadataSection.match(/\*\*AI Description:\*\*\s+(.+)/i)
 
     if (createdMatch) metadata.created = createdMatch[1].trim()
     if (modelMatch) metadata.model = modelMatch[1].trim()
@@ -416,6 +419,10 @@ router.get('/:id/identity', (req, res) => {
     if (clonedFromMatch) {
       const clonedFrom = clonedFromMatch[1].trim()
       metadata.clonedFrom = clonedFrom !== 'N/A' ? clonedFrom : null
+    }
+    if (aiDescriptionMatch) {
+      const aiDesc = aiDescriptionMatch[1].trim()
+      metadata.aiDescription = aiDesc !== 'N/A' ? aiDesc : null
     }
   }
 
