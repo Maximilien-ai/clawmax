@@ -531,42 +531,6 @@ fi
 echo ""
 
 # =========================================
-# Section 13: New Features (Feb 24, 2025)
-# =========================================
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "13. New Features Suite"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-# Run test-new-features.sh and capture results
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "$SCRIPT_DIR/test-new-features.sh" ]; then
-  echo "Running new features test suite..."
-
-  # Capture output to a temporary file to parse results
-  TEMP_OUTPUT=$(mktemp)
-  "$SCRIPT_DIR/test-new-features.sh" > "$TEMP_OUTPUT" 2>&1
-
-  # Parse the output for individual test results
-  while IFS= read -r line; do
-    if echo "$line" | grep -q "✓"; then
-      test_name=$(echo "$line" | sed 's/.*✓ //')
-      pass "$test_name"
-    elif echo "$line" | grep -q "✗"; then
-      test_name=$(echo "$line" | sed 's/.*✗ //')
-      fail "$test_name"
-    fi
-  done < "$TEMP_OUTPUT"
-
-  # Clean up
-  rm -f "$TEMP_OUTPUT"
-else
-  warn "test-new-features.sh not found (skipping new features tests)"
-fi
-
-echo ""
-
-# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
