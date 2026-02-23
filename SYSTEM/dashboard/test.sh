@@ -531,6 +531,35 @@ fi
 echo ""
 
 # =========================================
+# Section 13: New Features (Feb 24, 2025)
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "13. New Features Suite"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Run test-new-features.sh and capture results
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/test-new-features.sh" ]; then
+  echo "Running new features test suite..."
+  if "$SCRIPT_DIR/test-new-features.sh" 2>&1 | grep -E "^(✓|✗)" | while read line; do
+    if echo "$line" | grep -q "✓"; then
+      pass "$(echo "$line" | sed 's/✓ //')"
+    else
+      fail "$(echo "$line" | sed 's/✗ //')"
+    fi
+  done; then
+    pass "New features test suite completed"
+  else
+    warn "New features test suite had issues (check test-new-features.sh for details)"
+  fi
+else
+  warn "test-new-features.sh not found (skipping new features tests)"
+fi
+
+echo ""
+
+# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
