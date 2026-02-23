@@ -63,5 +63,12 @@
     "content": "Test message from test suite",
     "timestamp": 1771868736017,
     "mentions": []
+  },
+  {
+    "id": "1771869266993-5svzkh4rm",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1771869266993,
+    "mentions": []
   }
 ]
