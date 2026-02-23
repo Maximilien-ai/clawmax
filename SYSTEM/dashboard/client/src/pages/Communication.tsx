@@ -87,49 +87,50 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
   // Scroll to group when initialGroupName is provided and page is active
   useEffect(() => {
     if (initialGroupName && agents.length > 0 && !loading && isActive) {
-      console.log('Attempting to scroll to:', initialGroupName, 'isActive:', isActive)
+      console.log('Attempting to scroll to:', initialGroupName, 'isActive:', isActive, 'loading:', loading, 'agents:', agents.length)
 
-      // Use requestAnimationFrame to ensure DOM is painted
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const element = document.getElementById(`channel-card-${initialGroupName}`)
-          console.log('Looking for channel:', initialGroupName, 'Found:', !!element)
+      // Much longer delay to let React render the page content
+      setTimeout(() => {
+        const element = document.getElementById(`channel-card-${initialGroupName}`)
+        console.log('Looking for channel:', initialGroupName, 'Found:', !!element)
 
-          // Debug: log all channel card IDs
-          const allChannelCards = Array.from(document.querySelectorAll('[id^="channel-card-"]'))
-          console.log('Available channel cards:', allChannelCards.map(el => el.id))
+        // Debug: log all channel card IDs
+        const allChannelCards = Array.from(document.querySelectorAll('[id^="channel-card-"]'))
+        console.log('Available channel cards:', allChannelCards.map(el => el.id))
 
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            setHighlightedChannel(initialGroupName)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightedChannel(initialGroupName)
 
-            // Clear highlight after 3 seconds
-            setTimeout(() => setHighlightedChannel(null), 3000)
+          // Clear highlight after 3 seconds
+          setTimeout(() => setHighlightedChannel(null), 3000)
 
-            // Clear the initial group name so it can be reused
-            if (onClearInitialGroupName) {
-              setTimeout(() => onClearInitialGroupName(), 1000)
-            }
-          } else {
-            console.warn('Channel card not found, retrying...')
-            // Retry after another 500ms
-            setTimeout(() => {
-              const retryElement = document.getElementById(`channel-card-${initialGroupName}`)
-              console.log('Retry - Looking for channel:', initialGroupName, 'Found:', !!retryElement)
-              if (retryElement) {
-                retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                setHighlightedChannel(initialGroupName)
-                setTimeout(() => setHighlightedChannel(null), 3000)
-              }
-
-              // Clear anyway after retry
-              if (onClearInitialGroupName) {
-                onClearInitialGroupName()
-              }
-            }, 500)
+          // Clear the initial group name so it can be reused
+          if (onClearInitialGroupName) {
+            setTimeout(() => onClearInitialGroupName(), 1000)
           }
-        }, 100)
-      })
+        } else {
+          console.warn('Channel card not found, retrying...')
+          // Retry after another 500ms
+          setTimeout(() => {
+            const retryElement = document.getElementById(`channel-card-${initialGroupName}`)
+            const retryCards = Array.from(document.querySelectorAll('[id^="channel-card-"]'))
+            console.log('Retry - Looking for channel:', initialGroupName, 'Found:', !!retryElement)
+            console.log('Retry - Available cards:', retryCards.map(el => el.id))
+
+            if (retryElement) {
+              retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              setHighlightedChannel(initialGroupName)
+              setTimeout(() => setHighlightedChannel(null), 3000)
+            }
+
+            // Clear anyway after retry
+            if (onClearInitialGroupName) {
+              onClearInitialGroupName()
+            }
+          }, 1000)
+        }
+      }, 300)
     }
   }, [initialGroupName, agents, loading, isActive, onClearInitialGroupName])
 
