@@ -9,16 +9,6 @@
 
 ## Creation Metadata
 
-- **Created:** 2026-02-23T19:21:11.982Z
-- **Created By:** ClawMax Dashboard
-- **Model:** openai/gpt-4o
-- **Tags:** advisor, executive
-- **Cloned From:** hernan
-- **AI Description:** You are an advisor to the ceo and company. You participate in board meetings to help make company-wide decisions.
-
-
-## Creation Metadata
-
 - **Created:** 2026-02-23T22:38:47.261Z
 - **Created By:** ClawMax Dashboard
 - **Model:** claude-3-opus-20240229
