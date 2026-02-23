@@ -33,6 +33,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('agents')
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
@@ -84,8 +85,20 @@ export default function App() {
     <ErrorBoundary>
       <ToastProvider>
         <div className="flex h-screen bg-gray-50 text-gray-900">
+          {/* Mobile nav overlay backdrop */}
+          {mobileNavOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setMobileNavOpen(false)}
+            />
+          )}
+
           {/* Sidebar */}
-          <aside className={`bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${navCollapsed ? 'w-14' : 'w-56'}`}>
+          <aside className={`bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${
+            navCollapsed ? 'w-14' : 'w-56'
+          } ${
+            mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 md:relative' : 'hidden md:flex'
+          }`}>
             {/* Logo */}
             {!navCollapsed && (
               <div className="px-4 py-5 border-b border-gray-700">
@@ -108,7 +121,10 @@ export default function App() {
                   label={item.label}
                   icon={item.icon}
                   active={page === item.id}
-                  onClick={() => setPage(item.id)}
+                  onClick={() => {
+                    setPage(item.id)
+                    setMobileNavOpen(false)
+                  }}
                   collapsed={navCollapsed}
                   onDragStart={() => handleNavDragStart(index)}
                   onDragOver={(e) => handleNavDragOver(e, index)}
@@ -135,7 +151,7 @@ export default function App() {
           {/* Main content */}
           <main className="flex-1 overflow-hidden flex flex-col min-w-0">
             {/* Top bar */}
-            <TopBar system={system} />
+            <TopBar system={system} onMobileMenuToggle={() => setMobileNavOpen(true)} />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
@@ -162,7 +178,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system }: { system: SystemInfo | null }) {
+function TopBar({ system, onMobileMenuToggle }: { system: SystemInfo | null; onMobileMenuToggle?: () => void }) {
   if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
 
@@ -180,6 +196,16 @@ function TopBar({ system }: { system: SystemInfo | null }) {
   return (
     <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center gap-4">
+        {/* Mobile menu button */}
+        <button
+          onClick={onMobileMenuToggle}
+          className="md:hidden text-gray-600 hover:text-gray-900 transition-colors p-1"
+          aria-label="Toggle menu"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         {orgBase && (
           <span className="text-sm font-bold text-gray-800 tracking-tight">
             {orgBase}{orgTld && <span className="text-sky-500">{orgTld}</span>}
