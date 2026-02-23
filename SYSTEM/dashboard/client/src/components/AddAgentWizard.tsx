@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 
 const MODELS = [
-  'anthropic/claude-sonnet-4-5',
-  'anthropic/claude-opus-4',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
+  'claude-3-5-sonnet-20241022',      // Claude 3.5 Sonnet (latest, recommended)
+  'claude-3-opus-20240229',          // Claude 3 Opus (most powerful)
+  'claude-3-sonnet-20240229',        // Claude 3 Sonnet (balanced)
+  'claude-3-haiku-20240307',         // Claude 3 Haiku (fast & efficient)
+  'openai/gpt-4o',                   // GPT-4o
+  'openai/gpt-4o-mini',              // GPT-4o mini
 ]
 
 const PREDEFINED_TAGS = [
