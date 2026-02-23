@@ -1276,9 +1276,15 @@ const AgentCard = React.memo(function AgentCard({
         <div className="flex items-center gap-2 min-w-0">
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
-            {agent.status}
-          </span>
+          {agent.archived ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 text-orange-700 border border-orange-300">
+              📦 Archived
+            </span>
+          ) : (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
+              {agent.status}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0">
           {/* Consequential actions (left side) */}
@@ -1354,6 +1360,23 @@ const AgentCard = React.memo(function AgentCard({
               <span className="text-gray-400 w-20 shrink-0">Heartbeat</span>
               <span className="font-mono text-xs">{timeAgo(agent.lastHeartbeat)}</span>
             </div>
+            {agent.archived && agent.archiveMetadata && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-orange-700 font-medium text-xs">📦 Archived</span>
+                  {agent.archiveMetadata.timestamp && (
+                    <span className="text-orange-600 text-xs font-mono">
+                      {timeAgo(agent.archiveMetadata.timestamp)}
+                    </span>
+                  )}
+                </div>
+                {agent.archiveMetadata.reason && (
+                  <div className="text-orange-700 text-xs">
+                    <span className="font-medium">Reason:</span> {agent.archiveMetadata.reason}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <span className="text-gray-400 w-20 shrink-0 mt-0.5">WhatsApp</span>
               {agent.whatsapp ? (
@@ -1527,6 +1550,11 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
+        {agent.archived && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300 shrink-0">
+            📦
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-0.5">
           {onViewDocs && (
             <button
