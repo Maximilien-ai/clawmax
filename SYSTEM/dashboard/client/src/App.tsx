@@ -3,6 +3,8 @@ import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import Activity from './pages/Activity'
 import Communication from './pages/Communication'
+import { ToastProvider } from './components/Toast'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs'
 
@@ -79,80 +81,84 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900">
-      {/* Sidebar */}
-      <aside className={`bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${navCollapsed ? 'w-14' : 'w-56'}`}>
-        {/* Logo */}
-        {!navCollapsed && (
-          <div className="px-4 py-5 border-b border-gray-700">
-            <span className="text-lg font-bold tracking-tight text-white">ClawMax</span>
-            <span className="text-sky-400 font-bold text-lg">.ai</span>
-            <p className="text-xs text-gray-400 mt-0.5">Owner Dashboard</p>
-          </div>
-        )}
-        {navCollapsed && (
-          <div className="py-5 border-b border-gray-700 flex justify-center">
-            <span className="text-white font-bold text-xs tracking-tight">C<span className="text-sky-400">M</span></span>
-          </div>
-        )}
+    <ErrorBoundary>
+      <ToastProvider>
+        <div className="flex h-screen bg-gray-50 text-gray-900">
+          {/* Sidebar */}
+          <aside className={`bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${navCollapsed ? 'w-14' : 'w-56'}`}>
+            {/* Logo */}
+            {!navCollapsed && (
+              <div className="px-4 py-5 border-b border-gray-700">
+                <span className="text-lg font-bold tracking-tight text-white">ClawMax</span>
+                <span className="text-sky-400 font-bold text-lg">.ai</span>
+                <p className="text-xs text-gray-400 mt-0.5">Owner Dashboard</p>
+              </div>
+            )}
+            {navCollapsed && (
+              <div className="py-5 border-b border-gray-700 flex justify-center">
+                <span className="text-white font-bold text-xs tracking-tight">C<span className="text-sky-400">M</span></span>
+              </div>
+            )}
 
-        {/* Nav */}
-        <nav className="flex-1 px-2 py-4 space-y-1">
-          {navOrder.map((item, index) => (
-            <NavItemDraggable
-              key={item.id}
-              label={item.label}
-              icon={item.icon}
-              active={page === item.id}
-              onClick={() => setPage(item.id)}
-              collapsed={navCollapsed}
-              onDragStart={() => handleNavDragStart(index)}
-              onDragOver={(e) => handleNavDragOver(e, index)}
-              onDragEnd={handleNavDragEnd}
-            />
-          ))}
-        </nav>
+            {/* Nav */}
+            <nav className="flex-1 px-2 py-4 space-y-1">
+              {navOrder.map((item, index) => (
+                <NavItemDraggable
+                  key={item.id}
+                  label={item.label}
+                  icon={item.icon}
+                  active={page === item.id}
+                  onClick={() => setPage(item.id)}
+                  collapsed={navCollapsed}
+                  onDragStart={() => handleNavDragStart(index)}
+                  onDragOver={(e) => handleNavDragOver(e, index)}
+                  onDragEnd={handleNavDragEnd}
+                />
+              ))}
+            </nav>
 
-        {/* Footer / collapse toggle */}
-        <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
-          {!navCollapsed && (
-            <span className="text-xs text-gray-500 font-mono">{system?.version ?? '…'} · {system?.hostname ?? '…'}</span>
-          )}
-          <button
-            onClick={() => setNavCollapsed(c => !c)}
-            className="text-gray-500 hover:text-gray-300 transition-colors text-xs leading-none p-1 rounded hover:bg-gray-800"
-            title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {navCollapsed ? '▶' : '◀'}
-          </button>
-        </div>
-      </aside>
+            {/* Footer / collapse toggle */}
+            <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
+              {!navCollapsed && (
+                <span className="text-xs text-gray-500 font-mono">{system?.version ?? '…'} · {system?.hostname ?? '…'}</span>
+              )}
+              <button
+                onClick={() => setNavCollapsed(c => !c)}
+                className="text-gray-500 hover:text-gray-300 transition-colors text-xs leading-none p-1 rounded hover:bg-gray-800"
+                title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {navCollapsed ? '▶' : '◀'}
+              </button>
+            </div>
+          </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-hidden flex flex-col min-w-0">
-        {/* Top bar */}
-        <TopBar system={system} />
-        <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
-          <Agents
-            onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
-            onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-            initialAgentId={initialAgentId}
-          />
+          {/* Main content */}
+          <main className="flex-1 overflow-hidden flex flex-col min-w-0">
+            {/* Top bar */}
+            <TopBar system={system} />
+            <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
+              <Agents
+                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                initialAgentId={initialAgentId}
+              />
+            </div>
+            <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
+              <Communication
+                onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                initialGroupName={initialGroupName}
+              />
+            </div>
+            <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
+              <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
+            </div>
+            <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
+              <DocHub initialFile={docFile} />
+            </div>
+          </main>
         </div>
-        <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
-          <Communication
-            onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-            initialGroupName={initialGroupName}
-          />
-        </div>
-        <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
-          <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
-        </div>
-        <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
-          <DocHub initialFile={docFile} />
-        </div>
-      </main>
-    </div>
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
 

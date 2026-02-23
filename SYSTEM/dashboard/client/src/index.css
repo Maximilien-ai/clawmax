@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Toast animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
 /* Markdown prose styles */
 .prose h1 { @apply text-2xl font-bold mb-4 mt-6 text-gray-900; }
 .prose h2 { @apply text-xl font-semibold mb-3 mt-5 text-gray-800; }

@@ -9,6 +9,7 @@ import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
 import BulkOperationsPanel from '../components/BulkOperationsPanel'
+import { useToast } from '../components/Toast'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -65,6 +66,7 @@ type ViewMode = 'list' | 'grid'
 type ArchiveTab = 'active' | 'archived'
 
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
+  const { showSuccess, showError } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -99,6 +101,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set())
   const [showBulkOperations, setShowBulkOperations] = useState(false)
   const [showRestartMenu, setShowRestartMenu] = useState(false)
@@ -572,13 +575,31 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               </>
             )}
           </div>
-          <button
-            onClick={() => setShowAddWizard(true)}
-            className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
-            title="Add new agent"
-          >
-            <span className="text-base leading-none">+</span> Add Agent
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode)
+                if (selectionMode) {
+                  setSelectedAgentIds(new Set())
+                }
+              }}
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                selectionMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title={selectionMode ? 'Exit selection mode' : 'Select multiple agents'}
+            >
+              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+            <button
+              onClick={() => setShowAddWizard(true)}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
+              title="Add new agent"
+            >
+              <span className="text-base leading-none">+</span> Add Agent
+            </button>
+          </div>
         </div>
       </div>
 
@@ -816,7 +837,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                         onArchive={() => setArchiveTarget(agent)}
                         onUnarchive={() => setUnarchiveTarget(agent)}
                         isSelected={selectedAgentIds.has(agent.id)}
-                        onToggleSelect={() => toggleAgentSelection(agent.id)}
+                        onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                       />
                     ))}
                   </div>
@@ -854,7 +875,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                               onArchive={() => setArchiveTarget(agent)}
                               onUnarchive={() => setUnarchiveTarget(agent)}
                               isSelected={selectedAgentIds.has(agent.id)}
-                              onToggleSelect={() => toggleAgentSelection(agent.id)}
+                              onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                             />
                           ))}
                         </div>
@@ -903,7 +924,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
               isSelected={selectedAgentIds.has(agent.id)}
-              onToggleSelect={() => toggleAgentSelection(agent.id)}
+              onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
             />
           ))}
         </div>
