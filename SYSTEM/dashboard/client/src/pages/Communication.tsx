@@ -43,7 +43,7 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent, initialGroupName, onClearInitialGroupName }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void } = {}) {
+export default function Communication({ onNavigateToAgent, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -84,28 +84,54 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
     localStorage.setItem('communication-view-mode', viewMode)
   }, [viewMode])
 
-  // Scroll to group when initialGroupName is provided
+  // Scroll to group when initialGroupName is provided and page is active
   useEffect(() => {
-    if (initialGroupName && agents.length > 0) {
-      // Longer timeout to ensure page is fully rendered and visible
-      setTimeout(() => {
-        const element = document.getElementById(`channel-card-${initialGroupName}`)
-        console.log('Looking for channel:', initialGroupName, 'Found:', !!element)
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          setHighlightedChannel(initialGroupName)
+    if (initialGroupName && agents.length > 0 && !loading && isActive) {
+      console.log('Attempting to scroll to:', initialGroupName, 'isActive:', isActive)
 
-          // Clear highlight after 3 seconds
-          setTimeout(() => setHighlightedChannel(null), 3000)
-        }
+      // Use requestAnimationFrame to ensure DOM is painted
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const element = document.getElementById(`channel-card-${initialGroupName}`)
+          console.log('Looking for channel:', initialGroupName, 'Found:', !!element)
 
-        // Clear the initial group name so it can be reused
-        if (onClearInitialGroupName) {
-          onClearInitialGroupName()
-        }
-      }, 300)
+          // Debug: log all channel card IDs
+          const allChannelCards = Array.from(document.querySelectorAll('[id^="channel-card-"]'))
+          console.log('Available channel cards:', allChannelCards.map(el => el.id))
+
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightedChannel(initialGroupName)
+
+            // Clear highlight after 3 seconds
+            setTimeout(() => setHighlightedChannel(null), 3000)
+
+            // Clear the initial group name so it can be reused
+            if (onClearInitialGroupName) {
+              setTimeout(() => onClearInitialGroupName(), 1000)
+            }
+          } else {
+            console.warn('Channel card not found, retrying...')
+            // Retry after another 500ms
+            setTimeout(() => {
+              const retryElement = document.getElementById(`channel-card-${initialGroupName}`)
+              console.log('Retry - Looking for channel:', initialGroupName, 'Found:', !!retryElement)
+              if (retryElement) {
+                retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                setHighlightedChannel(initialGroupName)
+                setTimeout(() => setHighlightedChannel(null), 3000)
+              }
+
+              // Clear anyway after retry
+              if (onClearInitialGroupName) {
+                onClearInitialGroupName()
+              }
+            }, 500)
+          }
+        }, 100)
+      })
     }
-  }, [initialGroupName, agents, onClearInitialGroupName])
+  }, [initialGroupName, agents, loading, isActive, onClearInitialGroupName])
 
   const handleRefresh = () => {
     if (cooling) return

@@ -166,6 +166,7 @@ export default function App() {
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 initialGroupName={initialGroupName}
                 onClearInitialGroupName={() => setInitialGroupName(undefined)}
+                isActive={page === 'communication'}
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
