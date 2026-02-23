@@ -59,6 +59,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [tagManageTarget, setTagManageTarget] = useState<Channel | null>(null)
   const [chatPanelChannel, setChatPanelChannel] = useState<Channel | null>(null)
+  const [highlightedChannel, setHighlightedChannel] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -90,6 +91,10 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
         const element = document.getElementById(`channel-card-${initialGroupName}`)
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightedChannel(initialGroupName)
+
+          // Clear highlight after 3 seconds
+          setTimeout(() => setHighlightedChannel(null), 3000)
         }
       }, 100)
     }
@@ -462,7 +467,16 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
               </h2>
               <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 {communities.map(channel => (
-                  <ChannelCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
+                  <ChannelCard
+                    key={`community-${channel.name}`}
+                    channel={channel}
+                    selectedTags={selectedTags}
+                    selectedAgents={selectedAgents}
+                    onManageTags={() => setTagManageTarget(channel)}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onOpenChat={() => setChatPanelChannel(channel)}
+                    isHighlighted={highlightedChannel === channel.name}
+                  />
                 ))}
               </div>
             </div>
@@ -474,7 +488,16 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
               </h2>
               <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 {groups.map(channel => (
-                  <ChannelCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
+                  <ChannelCard
+                    key={`group-${channel.name}`}
+                    channel={channel}
+                    selectedTags={selectedTags}
+                    selectedAgents={selectedAgents}
+                    onManageTags={() => setTagManageTarget(channel)}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onOpenChat={() => setChatPanelChannel(channel)}
+                    isHighlighted={highlightedChannel === channel.name}
+                  />
                 ))}
               </div>
             </div>
@@ -685,7 +708,7 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, isHighlighted }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -837,7 +860,14 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
     : []
 
   return (
-    <div id={`channel-card-${channel.name}`} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div
+      id={`channel-card-${channel.name}`}
+      className={`bg-white rounded-xl border p-4 shadow-sm hover:shadow-md transition-all ${
+        isHighlighted
+          ? 'border-blue-500 border-2 ring-4 ring-blue-200 shadow-lg'
+          : 'border-gray-200'
+      }`}
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">

@@ -54,5 +54,61 @@
     "content": "No changes—system is stable and no new alerts, tasks, or releases require attention.\n\nIf you want a status check on a specific project, repo, or release pipeline, just let me know. Otherwise, everything remains calm and under control.",
     "timestamp": 1771869307405,
     "mentions": []
+  },
+  {
+    "id": "1771870589628-hx5awtkaf",
+    "from": "User",
+    "content": "@all who are you?",
+    "timestamp": 1771870589628,
+    "mentions": [
+      "dave",
+      "max0",
+      "product-manager",
+      "product-owner",
+      "qa-engineer",
+      "release-engineer"
+    ]
+  },
+  {
+    "id": "1771870594233-4npbvgvx1",
+    "from": "max0",
+    "content": "I’m max0, your personal assistant. I’m here to help you with anything you need—organizing, researching, remembering things, or just being the reliable presence in your digital life. Calm, competent, and (mostly) unflappable.\n\nIf you want to know more—my vibe, what I can do, or how this all fits together—just ask.",
+    "timestamp": 1771870594233,
+    "mentions": []
+  },
+  {
+    "id": "1771870595014-4uxn7cro5",
+    "from": "dave",
+    "content": "I'm Dave, your executive advisor. I'm here to provide strategic advice and assist with decision-making. How can I help you today?",
+    "timestamp": 1771870595015,
+    "mentions": []
+  },
+  {
+    "id": "1771870595045-flnmh2pbw",
+    "from": "product-owner",
+    "content": "I'm your product owner assistant, here to help with product requirements, team collaboration, and ensuring project alignment with company goals. Let me know how I can assist you!",
+    "timestamp": 1771870595045,
+    "mentions": []
+  },
+  {
+    "id": "1771870595582-otgczg3n3",
+    "from": "qa-engineer",
+    "content": "I’m your Quality Assurance Engineer agent. My job is to:\n\n- Monitor your CI/CD pipelines for errors or failures\n- Review pull requests for quality, completeness, and passing tests\n- Provide detailed, constructive feedback to maintain high standards\n- Keep an eye on your codebase and workflows so issues are caught early and quality remains high\n\nI’m here to be precise, proactive, and reliable—your digital QA expert ensuring nothing slips through the cracks. If you want more details about my abilities or setup, just ask.",
+    "timestamp": 1771870595582,
+    "mentions": []
+  },
+  {
+    "id": "1771870596555-ikhv8b2en",
+    "from": "product-manager",
+    "content": "I'm your product manager agent. My job is to keep product requirements organized, track and triage issues, help clarify priorities, coordinate with the engineering team, and ensure features and fixes get shipped efficiently. If there’s something you want built, tracked, or shipped, I’m here to help make it happen.",
+    "timestamp": 1771870596555,
+    "mentions": []
+  },
+  {
+    "id": "1771870602681-tsnnwxc1j",
+    "from": "release-engineer",
+    "content": "I'm your Release Engineer agent 🔧—meticulous, methodical, and focused on delivering high-quality software releases. My role is to:\n\n- Monitor your repositories and CI/CD pipelines\n- Ensure all tests pass before anything ships\n- Help prepare and manage software releases\n- Notify you (and project managers) about status, blockers, or when releases are ready\n- Keep everything running smoothly, with clear and prompt communication\n\nIf you want a project checked, a release prepped, or to know more about my capabilities, just let me know!",
+    "timestamp": 1771870602681,
+    "mentions": []
   }
 ]
