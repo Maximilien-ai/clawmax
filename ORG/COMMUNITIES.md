@@ -6,19 +6,19 @@
 - **Description:** Main organizational community
 - **Tags:** org, executive, leadership
 - **Channels:** whatsapp
-- **Members:** dave, max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo
+- **Members:** max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo, dave
 
 ### Engineering Team
 - **Description:** Core development and technical discussions
 - **Tags:** dev, engineering
-- **Members:** dave, max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo
+- **Members:** max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo, dave
 
 ### Product & Design
 - **Description:** Product strategy and UX/UI design
 - **Tags:** product, design
-- **Members:** dave, max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo
+- **Members:** max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo, dave
 
 ### Customer Success
 - **Description:** Client support and success
 - **Tags:** customer, support
-- **Members:** dave, max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo
+- **Members:** max0, product-manager, product-owner, qa-engineer, release-engineer, engineer, agent-manager, ceo, dave

@@ -66,7 +66,7 @@ type ViewMode = 'list' | 'grid'
 type ArchiveTab = 'active' | 'archived'
 
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
-  const { showSuccess, showError } = useToast()
+  const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -200,36 +200,78 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
 
   const handleRestart = async (agentId: string) => {
     try {
+      const agent = agents.find(a => a.id === agentId)
       const res = await fetch(`/api/agents/${agentId}/restart`, { method: 'POST' })
       const data = await res.json()
       if (data.ok) {
-        // Refresh agents list after restart
+        showSuccess(`Restarting ${agent?.name || agentId}...`)
         setTimeout(() => fetchAgents(), 1000)
       } else {
-        alert(`Failed to restart agent: ${data.error}`)
+        showError(`Failed to restart ${agent?.name || agentId}: ${data.error}`)
       }
     } catch (err) {
-      alert('Failed to restart agent')
+      showError('Failed to restart agent')
+      console.error(err)
     }
   }
 
   const handleRestartAll = async () => {
     setShowRestartMenu(false)
-    const promises = agents.map(agent =>
-      fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' })
-    )
-    await Promise.all(promises)
-    setTimeout(() => fetchAgents(), 1000)
+    try {
+      const results = await Promise.allSettled(
+        agents.map(agent =>
+          fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' }).then(r => r.json())
+        )
+      )
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.ok).length
+      const failCount = results.length - successCount
+
+      if (successCount > 0) {
+        showSuccess(`Restarting ${successCount} agent${successCount !== 1 ? 's' : ''}...`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to restart ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      setTimeout(() => fetchAgents(), 1000)
+    } catch (err) {
+      showError('Failed to restart agents')
+      console.error(err)
+    }
   }
 
   const handleRestartOffline = async () => {
     setShowRestartMenu(false)
-    const offlineAgents = agents.filter(a => a.status === 'offline')
-    const promises = offlineAgents.map(agent =>
-      fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' })
-    )
-    await Promise.all(promises)
-    setTimeout(() => fetchAgents(), 1000)
+    try {
+      const offlineAgents = agents.filter(a => a.status === 'offline')
+
+      if (offlineAgents.length === 0) {
+        showInfo('No offline agents to restart')
+        return
+      }
+
+      const results = await Promise.allSettled(
+        offlineAgents.map(agent =>
+          fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' }).then(r => r.json())
+        )
+      )
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.ok).length
+      const failCount = results.length - successCount
+
+      if (successCount > 0) {
+        showSuccess(`Restarting ${successCount} offline agent${successCount !== 1 ? 's' : ''}...`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to restart ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      setTimeout(() => fetchAgents(), 1000)
+    } catch (err) {
+      showError('Failed to restart offline agents')
+      console.error(err)
+    }
   }
 
   // Fetch communities and groups for bulk operations
