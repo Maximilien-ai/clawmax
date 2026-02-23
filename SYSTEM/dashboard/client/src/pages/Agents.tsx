@@ -144,8 +144,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
 
   useEffect(() => {
     fetchAgents()
-    // Auto-refresh every 5 minutes to avoid hammering status checks
-    const interval = setInterval(fetchAgents, 300000)
+    // Auto-refresh every 5 seconds for real-time status updates
+    const interval = setInterval(() => {
+      // Only poll if tab is visible to reduce server load
+      if (!document.hidden) {
+        fetchAgents()
+      }
+    }, 5000)
     return () => clearInterval(interval)
   }, [fetchAgents])
 
@@ -594,7 +599,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
             {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
             {selectedTags.size > 0 && <span className="text-gray-300">({agents.length} total)</span>}
             <span className="text-gray-300">·</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Real-time updates every 5s" />
             refreshed {refreshedLabel}
           </p>
         </div>
