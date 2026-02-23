@@ -33,6 +33,9 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
   const [allGroups, setAllGroups] = useState<Group[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [communityFilter, setCommunityFilter] = useState<'all' | 'member' | 'not_member'>('all')
+  const [groupFilter, setGroupFilter] = useState<'all' | 'member' | 'not_member'>('all')
 
   useEffect(() => {
     // Initialize with current memberships
@@ -90,6 +93,52 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
     )
   }
 
+  // Filter communities based on search and filter
+  const filteredCommunities = React.useMemo(() => {
+    let filtered = allCommunities
+
+    // Apply membership filter
+    if (communityFilter === 'member') {
+      filtered = filtered.filter(c => communities.includes(c.name))
+    } else if (communityFilter === 'not_member') {
+      filtered = filtered.filter(c => !communities.includes(c.name))
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(c =>
+        c.name.toLowerCase().includes(query) ||
+        (c.description && c.description.toLowerCase().includes(query))
+      )
+    }
+
+    return filtered
+  }, [allCommunities, communities, communityFilter, searchQuery])
+
+  // Filter groups based on search and filter
+  const filteredGroups = React.useMemo(() => {
+    let filtered = allGroups
+
+    // Apply membership filter
+    if (groupFilter === 'member') {
+      filtered = filtered.filter(g => groups.includes(g.name))
+    } else if (groupFilter === 'not_member') {
+      filtered = filtered.filter(g => !groups.includes(g.name))
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(g =>
+        g.name.toLowerCase().includes(query) ||
+        (g.description && g.description.toLowerCase().includes(query))
+      )
+    }
+
+    return filtered
+  }, [allGroups, groups, groupFilter, searchQuery])
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -100,6 +149,17 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
           </p>
         </div>
 
+        {/* Search bar */}
+        <div className="px-6 pt-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search communities and groups..."
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400 text-sm"
+          />
+        </div>
+
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Communities Section */}
           <div>
@@ -108,11 +168,49 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
               <span>Communities</span>
               <span className="text-xs text-gray-400">({communities.length} selected)</span>
             </h4>
+
+            {/* Filter buttons for communities */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-400 font-medium">Filter:</span>
+              <button
+                onClick={() => setCommunityFilter('all')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  communityFilter === 'all'
+                    ? 'bg-sky-600 text-white border border-sky-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setCommunityFilter('member')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  communityFilter === 'member'
+                    ? 'bg-emerald-600 text-white border border-emerald-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                }`}
+              >
+                Member ({communities.length})
+              </button>
+              <button
+                onClick={() => setCommunityFilter('not_member')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  communityFilter === 'not_member'
+                    ? 'bg-orange-600 text-white border border-orange-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                }`}
+              >
+                Not Member ({allCommunities.length - communities.length})
+              </button>
+            </div>
+
             <div className="space-y-1.5">
-              {allCommunities.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No communities available</p>
+              {filteredCommunities.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">
+                  {allCommunities.length === 0 ? 'No communities available' : 'No communities match your filters'}
+                </p>
               ) : (
-                allCommunities.map(community => (
+                filteredCommunities.map(community => (
                   <label
                     key={community.name}
                     className="flex items-start gap-3 p-2.5 rounded border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
@@ -142,11 +240,49 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
               <span>Groups</span>
               <span className="text-xs text-gray-400">({groups.length} selected)</span>
             </h4>
+
+            {/* Filter buttons for groups */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-400 font-medium">Filter:</span>
+              <button
+                onClick={() => setGroupFilter('all')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  groupFilter === 'all'
+                    ? 'bg-sky-600 text-white border border-sky-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setGroupFilter('member')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  groupFilter === 'member'
+                    ? 'bg-emerald-600 text-white border border-emerald-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                }`}
+              >
+                Member ({groups.length})
+              </button>
+              <button
+                onClick={() => setGroupFilter('not_member')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  groupFilter === 'not_member'
+                    ? 'bg-orange-600 text-white border border-orange-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                }`}
+              >
+                Not Member ({allGroups.length - groups.length})
+              </button>
+            </div>
+
             <div className="space-y-1.5">
-              {allGroups.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No groups available</p>
+              {filteredGroups.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">
+                  {allGroups.length === 0 ? 'No groups available' : 'No groups match your filters'}
+                </p>
               ) : (
-                allGroups.map(group => (
+                filteredGroups.map(group => (
                   <label
                     key={group.name}
                     className="flex items-start gap-3 p-2.5 rounded border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
