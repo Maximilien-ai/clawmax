@@ -542,17 +542,24 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/test-new-features.sh" ]; then
   echo "Running new features test suite..."
-  if "$SCRIPT_DIR/test-new-features.sh" 2>&1 | grep -E "^(✓|✗)" | while read line; do
+
+  # Capture output to a temporary file to parse results
+  TEMP_OUTPUT=$(mktemp)
+  "$SCRIPT_DIR/test-new-features.sh" > "$TEMP_OUTPUT" 2>&1
+
+  # Parse the output for individual test results
+  while IFS= read -r line; do
     if echo "$line" | grep -q "✓"; then
-      pass "$(echo "$line" | sed 's/✓ //')"
-    else
-      fail "$(echo "$line" | sed 's/✗ //')"
+      test_name=$(echo "$line" | sed 's/.*✓ //')
+      pass "$test_name"
+    elif echo "$line" | grep -q "✗"; then
+      test_name=$(echo "$line" | sed 's/.*✗ //')
+      fail "$test_name"
     fi
-  done; then
-    pass "New features test suite completed"
-  else
-    warn "New features test suite had issues (check test-new-features.sh for details)"
-  fi
+  done < "$TEMP_OUTPUT"
+
+  # Clean up
+  rm -f "$TEMP_OUTPUT"
 else
   warn "test-new-features.sh not found (skipping new features tests)"
 fi
