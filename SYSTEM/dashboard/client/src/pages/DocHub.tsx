@@ -70,6 +70,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   // collapsedDirs: Set of "SECTION/dir" keys for collapsed subdirectories
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
   const [agentFilter, setAgentFilter] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [searchResults, setSearchResults] = useState<Array<{ path: string; matches: number; preview: string }>>([])
+  const [searching, setSearching] = useState(false)
   const selectedButtonRef = useRef<HTMLButtonElement | null>(null)
 
   function toggleDir(key: string) {
@@ -202,6 +205,31 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setCollapsed(c => ({ ...c, [s]: !c[s] }))
   }
 
+  function performSearch() {
+    const query = searchQuery.trim()
+    if (!query) {
+      setSearchResults([])
+      return
+    }
+
+    setSearching(true)
+    fetch(`/api/docs/search?q=${encodeURIComponent(query)}`)
+      .then(r => r.json())
+      .then(d => {
+        setSearchResults(d.results || [])
+        setSearching(false)
+      })
+      .catch(() => {
+        setSearching(false)
+        setSearchResults([])
+      })
+  }
+
+  function clearSearch() {
+    setSearchQuery('')
+    setSearchResults([])
+  }
+
   // Auto-scroll to selected file when it changes
   useEffect(() => {
     if (selected && selectedButtonRef.current) {
@@ -239,6 +267,40 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   >◀</button>
                 </div>
               </div>
+
+              {/* Global content search */}
+              <div className="relative mb-2">
+                <input
+                  type="text"
+                  placeholder="Search content (press Enter)"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && performSearch()}
+                  className="w-full text-xs px-2 py-1 pr-14 border border-sky-300 rounded focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                />
+                {searchQuery && (
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                    <button
+                      onClick={clearSearch}
+                      className="text-gray-400 hover:text-gray-600 text-xs leading-none p-0.5"
+                      title="Clear search"
+                    >
+                      ×
+                    </button>
+                    <button
+                      onClick={performSearch}
+                      disabled={searching}
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        searching ? 'bg-gray-100 text-gray-400' : 'bg-sky-600 text-white hover:bg-sky-700'
+                      } transition-colors`}
+                    >
+                      {searching ? '...' : '🔍'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Agent filter */}
               <div className="relative">
                 <input
                   type="text"
@@ -258,6 +320,37 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 )}
               </div>
             </div>
+
+            {/* Search results */}
+            {searchResults.length > 0 && (
+              <div className="border-b border-gray-200 bg-sky-50 p-3 space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-sky-700">
+                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                  </span>
+                  <button
+                    onClick={clearSearch}
+                    className="text-xs text-sky-600 hover:text-sky-800 underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {searchResults.map(result => (
+                  <button
+                    key={result.path}
+                    onClick={() => {
+                      loadFile(result.path)
+                      clearSearch()
+                    }}
+                    className="w-full text-left p-2 bg-white rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                  >
+                    <div className="text-xs font-medium text-sky-700 mb-1">{result.path}</div>
+                    <div className="text-xs text-gray-600 line-clamp-2">{result.preview}</div>
+                    <div className="text-xs text-gray-400 mt-1">{result.matches} match{result.matches !== 1 ? 'es' : ''}</div>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="py-1">
               {SECTION_ORDER.map(section => {

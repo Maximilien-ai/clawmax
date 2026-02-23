@@ -476,6 +476,61 @@ warn "MANDATE validation function ready (will be used when editing is added)"
 echo ""
 
 # =========================================
+# Section 13: DocHub Search
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "13. DocHub Search"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test empty query returns empty results
+response=$(curl -s "$API_BASE/api/docs/search?q=")
+if echo "$response" | jq -e '.results == []' > /dev/null 2>&1; then
+  pass "Empty query returns empty results"
+else
+  fail "Empty query did not return empty results"
+fi
+
+# Test search for "template" returns results
+response=$(curl -s "$API_BASE/api/docs/search?q=template")
+result_count=$(echo "$response" | jq '.results | length')
+if [ "$result_count" -gt 0 ]; then
+  pass "Search for 'template' found $result_count results"
+else
+  fail "Search for 'template' found no results"
+fi
+
+# Test search results have required fields (path, matches, preview)
+response=$(curl -s "$API_BASE/api/docs/search?q=agent")
+if echo "$response" | jq -e '.results[0] | has("path") and has("matches") and has("preview")' > /dev/null 2>&1; then
+  pass "Search results contain required fields"
+else
+  fail "Search results missing required fields"
+fi
+
+# Test search results sorted by matches (descending)
+response=$(curl -s "$API_BASE/api/docs/search?q=the")
+first_matches=$(echo "$response" | jq '.results[0].matches // 0')
+second_matches=$(echo "$response" | jq '.results[1].matches // 0')
+if [ "$first_matches" -ge "$second_matches" ]; then
+  pass "Search results sorted by match count (descending)"
+else
+  fail "Search results not properly sorted"
+fi
+
+# Test search is case-insensitive
+lower_response=$(curl -s "$API_BASE/api/docs/search?q=community")
+upper_response=$(curl -s "$API_BASE/api/docs/search?q=COMMUNITY")
+lower_count=$(echo "$lower_response" | jq '.results | length')
+upper_count=$(echo "$upper_response" | jq '.results | length')
+if [ "$lower_count" -eq "$upper_count" ]; then
+  pass "Search is case-insensitive"
+else
+  fail "Search case-sensitivity mismatch"
+fi
+
+echo ""
+
+# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
