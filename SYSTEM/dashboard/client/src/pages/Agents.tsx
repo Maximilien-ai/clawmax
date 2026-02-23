@@ -246,57 +246,145 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   }, [])
 
   const handleBulkAddToCommunities = async (agentIds: string[], communities: string[]) => {
-    for (const agentId of agentIds) {
-      const agent = agents.find(a => a.id === agentId)
-      if (!agent) continue
+    try {
+      let successCount = 0
+      let failCount = 0
 
-      const existingCommunities = agent.communities.map(c => c.name)
-      const allCommunities = Array.from(new Set([...existingCommunities, ...communities]))
+      for (const agentId of agentIds) {
+        const agent = agents.find(a => a.id === agentId)
+        if (!agent) continue
 
-      await fetch(`/api/agents/${agentId}/communities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ communities: allCommunities, groups: agent.groups.map(g => g.name) }),
-      })
+        const existingCommunities = agent.communities.map(c => c.name)
+        const allCommunities = Array.from(new Set([...existingCommunities, ...communities]))
+
+        const resp = await fetch(`/api/agents/${agentId}/communities`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ communities: allCommunities, groups: agent.groups.map(g => g.name) }),
+        })
+
+        if (resp.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(`Added to communities for ${successCount} agent${successCount !== 1 ? 's' : ''}`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to add ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      fetchAgents()
+    } catch (err) {
+      showError('Failed to add agents to communities')
+      console.error(err)
     }
-    fetchAgents()
   }
 
   const handleBulkAddToGroups = async (agentIds: string[], groups: string[]) => {
-    for (const agentId of agentIds) {
-      const agent = agents.find(a => a.id === agentId)
-      if (!agent) continue
+    try {
+      let successCount = 0
+      let failCount = 0
 
-      const existingGroups = agent.groups.map(g => g.name)
-      const allGroups = Array.from(new Set([...existingGroups, ...groups]))
+      for (const agentId of agentIds) {
+        const agent = agents.find(a => a.id === agentId)
+        if (!agent) continue
 
-      await fetch(`/api/agents/${agentId}/communities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ communities: agent.communities.map(c => c.name), groups: allGroups }),
-      })
+        const existingGroups = agent.groups.map(g => g.name)
+        const allGroups = Array.from(new Set([...existingGroups, ...groups]))
+
+        const resp = await fetch(`/api/agents/${agentId}/communities`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ communities: agent.communities.map(c => c.name), groups: allGroups }),
+        })
+
+        if (resp.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(`Added to groups for ${successCount} agent${successCount !== 1 ? 's' : ''}`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to add ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      fetchAgents()
+    } catch (err) {
+      showError('Failed to add agents to groups')
+      console.error(err)
     }
-    fetchAgents()
   }
 
   const handleBulkArchive = async (agentIds: string[]) => {
-    for (const agentId of agentIds) {
-      await fetch(`/api/agents/${agentId}/archive`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Bulk archive operation' }),
-      })
+    try {
+      let successCount = 0
+      let failCount = 0
+
+      for (const agentId of agentIds) {
+        const resp = await fetch(`/api/agents/${agentId}/archive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'Bulk archive operation' }),
+        })
+
+        if (resp.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(`Archived ${successCount} agent${successCount !== 1 ? 's' : ''}`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to archive ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      setSelectedAgentIds(new Set())
+      fetchAgents()
+    } catch (err) {
+      showError('Failed to archive agents')
+      console.error(err)
     }
-    setSelectedAgentIds(new Set())
-    fetchAgents()
   }
 
   const handleBulkUnarchive = async (agentIds: string[]) => {
-    for (const agentId of agentIds) {
-      await fetch(`/api/agents/${agentId}/unarchive`, { method: 'POST' })
+    try {
+      let successCount = 0
+      let failCount = 0
+
+      for (const agentId of agentIds) {
+        const resp = await fetch(`/api/agents/${agentId}/unarchive`, { method: 'POST' })
+
+        if (resp.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(`Unarchived ${successCount} agent${successCount !== 1 ? 's' : ''}`)
+      }
+      if (failCount > 0) {
+        showError(`Failed to unarchive ${failCount} agent${failCount !== 1 ? 's' : ''}`)
+      }
+
+      setSelectedAgentIds(new Set())
+      fetchAgents()
+    } catch (err) {
+      showError('Failed to unarchive agents')
+      console.error(err)
     }
-    setSelectedAgentIds(new Set())
-    fetchAgents()
   }
 
   const toggleAgentSelection = (agentId: string) => {
