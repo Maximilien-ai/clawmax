@@ -117,6 +117,59 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
 
   const thCls = 'px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors text-left'
 
+  const handleExportCSV = () => {
+    const headers = ['Age (mins)', 'Agent ID', 'Type', 'File', 'Last Modified']
+    const csvRows = [
+      headers.join(','),
+      ...rows.map(entry => {
+        const ft = fileType(entry.file)
+        return [
+          entry.ageMins.toFixed(2),
+          `"${entry.agentId}"`,
+          `"${ft.label}"`,
+          `"${entry.file}"`,
+          `"${entry.mtime}"`
+        ].join(',')
+      })
+    ]
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `activity-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportJSON = () => {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      totalEntries: rows.length,
+      sortedBy: sortCol,
+      sortDirection: sortDir,
+      entries: rows.map(entry => ({
+        agentId: entry.agentId,
+        file: entry.file,
+        type: fileType(entry.file).label,
+        lastModified: entry.mtime,
+        ageMinutes: entry.ageMins
+      }))
+    }
+    const jsonContent = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([jsonContent], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `activity-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       {/* Header */}
@@ -133,6 +186,34 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
           </p>
         </div>
         <div className="flex gap-3">
+          <div className="relative group">
+            <button
+              disabled={rows.length === 0}
+              className={`text-sm font-medium transition-colors ${
+                rows.length === 0
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-purple-600 hover:text-purple-800'
+              }`}
+            >
+              📥 Export
+            </button>
+            {rows.length > 0 && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px]">
+                <button
+                  onClick={handleExportCSV}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg"
+                >
+                  📄 CSV
+                </button>
+                <button
+                  onClick={handleExportJSON}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg"
+                >
+                  📦 JSON
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowSystemLogs(true)}
             className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
