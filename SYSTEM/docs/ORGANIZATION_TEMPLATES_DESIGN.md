@@ -39,7 +39,99 @@ Users like you are building curated agent organizations (Maximilien.ai with engi
 - No template library or sharing mechanism
 - TOOLS.md is text-only, not executable
 
-### 1.2 Proposed Solution: Organization Templates
+### 1.2 Two Types of Templates: Agent vs Organization
+
+We support **two template types** using the **same unified system**:
+
+#### **Type 1: Agent Templates** (Single Agent)
+**Purpose:** Reusable agent configurations for creating similar agents quickly
+
+**Contains:**
+- 1 agent (SOUL.md, TOOLS.md, IDENTITY.md)
+- Agent skills configuration
+- No communities or groups
+
+**Use Cases:**
+- "I want to create 3 more engineers just like this one"
+- Template library: "Senior SWE", "Junior SWE", "DevOps Engineer"
+- Building blocks for organization templates
+
+**Example: Senior Software Engineer Template**
+```json
+{
+  "name": "Senior Software Engineer",
+  "type": "agent",
+  "version": "1.0.0",
+  "agents": [{
+    "id": "engineer",
+    "role": "Golang developer focusing on backend services",
+    "skills": ["github", "golang", "coding-agent", "gh-issues"]
+  }],
+  "communities": [],
+  "groups": []
+}
+```
+
+#### **Type 2: Organization Templates** (Full Teams)
+**Purpose:** Complete team/organization structures with agents, communities, and groups
+
+**Contains:**
+- Multiple agents (typically 3-20)
+- Communities (organizational units)
+- Groups (communication channels)
+- Agent-to-group memberships
+
+**Use Cases:**
+- "Replicate this entire engineering team for a new project"
+- "Bootstrap a startup with a proven team structure"
+- "Share a working organizational pattern"
+
+**Example: Engineering Team Template**
+```json
+{
+  "name": "Maximilien.ai Engineering Team",
+  "type": "organization",
+  "version": "1.0.0",
+  "agents": [
+    { "id": "engineer" },
+    { "id": "qa-engineer" },
+    { "id": "product-manager" },
+    // ... 8 more agents
+  ],
+  "communities": [
+    { "name": "Engineering Team" },
+    { "name": "Product & Design" }
+  ],
+  "groups": [
+    { "name": "Daily check-ins" },
+    { "name": "Maximilien.ai - OpenClaw" }
+  ]
+}
+```
+
+#### **Unified System, Different UX**
+
+**Backend:** Same format, same storage, same APIs
+**Frontend:** Separate UI sections for clarity
+
+```
+Dashboard → Templates Tab:
+├── Agent Templates (147)
+│   ├── 👨‍💻 Senior Software Engineer
+│   ├── 🧪 QA Engineer
+│   ├── 📊 Product Manager
+│   └── ... (browse all)
+│
+└── Organization Templates (23)
+    ├── 🏢 Startup Core Team (5 agents, 2 communities)
+    ├── 🏢 Maximilien.ai Engineering (11 agents, 4 communities)
+    ├── 🏢 Customer Support Team (3 agents, 1 community)
+    └── ... (browse all)
+```
+
+**Key Insight:** Agent Templates = Organization Templates with 1 agent. Same infrastructure, different presentation.
+
+### 1.3 Proposed Solution: Template System Architecture
 
 An **Organization Template** bundles:
 - Collection of agent definitions (SOUL, TOOLS, IDENTITY)
@@ -135,19 +227,32 @@ An **Organization Template** bundles:
 **Filesystem Layout:**
 ```
 ~/.openclaw/workspace/TEMPLATES/
-├── maximilien-ai-engineering/
-│   ├── template.json
-│   ├── agents/
-│   │   ├── engineer/
-│   │   │   ├── SOUL.md
-│   │   │   ├── TOOLS.md
-│   │   │   └── IDENTITY.md
-│   │   └── qa-engineer/
-│   ├── README.md (usage instructions)
-│   └── CHANGELOG.md
-├── startup-core-team/
-├── customer-support-team/
-└── ...
+├── agents/                              # Agent Templates
+│   ├── senior-software-engineer/
+│   │   ├── template.json (type: "agent")
+│   │   ├── agents/
+│   │   │   └── engineer/
+│   │   │       ├── SOUL.md
+│   │   │       ├── TOOLS.md
+│   │   │       └── IDENTITY.md
+│   │   └── README.md
+│   ├── qa-engineer/
+│   ├── product-manager/
+│   └── ... (147 agent templates)
+│
+└── organizations/                       # Organization Templates
+    ├── maximilien-ai-engineering/
+    │   ├── template.json (type: "organization")
+    │   ├── agents/
+    │   │   ├── engineer/
+    │   │   ├── qa-engineer/
+    │   │   ├── product-manager/
+    │   │   └── ... (11 agents)
+    │   ├── README.md
+    │   └── CHANGELOG.md
+    ├── startup-core-team/
+    ├── customer-support-team/
+    └── ... (23 organization templates)
 ```
 
 **Why this structure?**
@@ -158,16 +263,35 @@ An **Organization Template** bundles:
 
 ### 1.5 User Workflows
 
-#### A. Create Template from Current Organization
+#### A. Create Agent Template (Single Agent)
 
 **Dashboard UI:**
-1. New "Export as Template" button on Communication tab
-2. Modal appears: "Create Organization Template"
-   - Template name: [input]
+1. Agents page → Right-click agent card → "Save as Template"
+2. Modal appears: "Create Agent Template"
+   - Template name: [input] (e.g., "Senior Software Engineer")
    - Description: [textarea]
-   - Select agents to include: [checkboxes]
-   - Select communities: [checkboxes]
-   - Select groups: [checkboxes]
+   - Tags: [tag input] (auto-populated from agent)
+   - Skills included: [readonly list showing github, golang, etc.]
+3. Click "Save" → adds to Template Library under "Agent Templates"
+
+**Alternative:** Clone button → "Save as Template" checkbox
+
+**CLI Alternative:**
+```bash
+openclaw template create-agent --agent engineer --name "Senior SWE"
+```
+
+#### B. Create Organization Template (Full Team)
+
+**Dashboard UI:**
+1. Communication tab → "Export as Template" button
+2. Modal appears: "Create Organization Template"
+   - Template name: [input] (e.g., "My Engineering Team")
+   - Description: [textarea]
+   - **Select agents to include:** [checkboxes with preview]
+   - **Select communities:** [checkboxes]
+   - **Select groups:** [checkboxes]
+   - Preview shows: "11 agents, 4 communities, 9 groups"
 3. Click "Export" → downloads `template.zip` or saves to workspace
 
 **CLI Alternative:**
@@ -175,33 +299,92 @@ An **Organization Template** bundles:
 openclaw template export --name "My Team" --output ./my-team-template
 ```
 
-#### B. Import Template to Create New Organization
+#### C. Import Agent Template (Create from Template)
 
-**Dashboard UI:**
-1. "Import Template" button on Agents tab
-2. Upload template.zip or select from library
-3. Preview: Shows what will be created
-   - 5 agents
-   - 3 communities
-   - 7 groups
-   - Estimated setup time: ~30 seconds
-4. Optional: Customize agent names (add prefixes, suffixes)
-5. Click "Import" → creates all agents, communities, groups
+**Dashboard UI - Method 1: From Template Library**
+1. New "Templates" tab → "Agent Templates" section
+2. Browse templates, click one → detail view
+3. Preview shows SOUL.md excerpt, skills, tags
+4. Click "Create Agent from Template"
+5. Customize:
+   - Agent ID: [input] (default: template name + random suffix)
+   - Name: [input]
+   - Optional: Edit SOUL.md before creating
+6. Click "Create" → new agent appears in roster
+
+**Dashboard UI - Method 2: From Create Agent Flow**
+1. Agents page → "+ New Agent" button
+2. Modal shows two tabs:
+   - **From Scratch** (existing flow)
+   - **From Template** (NEW)
+3. "From Template" tab:
+   - Grid of agent templates
+   - Click one → fills form with template data
+   - Customize as needed → Create
 
 **CLI Alternative:**
 ```bash
-openclaw template import ./my-team-template
+openclaw template create-from-agent --template "senior-swe" --id engineer2
 ```
 
-#### C. Browse Template Library
+#### D. Import Organization Template (Full Team Setup)
 
 **Dashboard UI:**
-1. New "Templates" tab
-2. Grid view of available templates:
+1. Templates tab → "Organization Templates" section
+2. Browse templates:
    - **Maximilien.ai Engineering** (11 agents, 4 communities, 9 groups) ⭐ Featured
    - **Startup Core Team** (5 agents, 2 communities, 3 groups)
    - **Customer Support** (3 agents, 1 community, 2 groups)
-3. Click template → detail view → "Use This Template" button
+3. Click template → detail view with:
+   - Description
+   - List of agents with roles
+   - Community/group structure visualization
+   - Reviews/ratings (future)
+4. Click "Use This Template"
+5. Customize before import:
+   - **Agent prefix:** [input] (e.g., "proj1-" → proj1-engineer, proj1-qa)
+   - **Agent suffix:** [input] (e.g., "-v2" → engineer-v2, qa-v2)
+   - **Community name customization:** [editable list]
+6. Preview: "Will create 11 agents, 4 communities, 9 groups"
+7. Click "Import" → progress bar → Done!
+
+**CLI Alternative:**
+```bash
+openclaw template import ./my-team-template --prefix "proj1-"
+```
+
+#### E. Browse Template Library
+
+**Dashboard UI:**
+1. New "Templates" tab with two sections:
+
+```
+┌─────────────────────────────────────────────┐
+│  Templates                        🔍 Search  │
+├─────────────────────────────────────────────┤
+│                                              │
+│  Agent Templates (147)         [View All →] │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │ 👨‍💻 Senior │ │ 🧪 QA     │ │ 📊 Product│    │
+│  │ SWE      │ │ Engineer │ │ Manager  │    │
+│  │ ⭐⭐⭐⭐⭐   │ │ ⭐⭐⭐⭐☆   │ │ ⭐⭐⭐⭐⭐   │    │
+│  └──────────┘ └──────────┘ └──────────┘    │
+│                                              │
+│  Organization Templates (23)   [View All →] │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │ 🏢 Startup│ │ 🏢 Max.ai│ │ 🏢 Support│    │
+│  │ Core (5) │ │ Eng (11) │ │ Team (3) │    │
+│  │ ⭐ Featured│ │ ⭐⭐⭐⭐⭐   │ │ ⭐⭐⭐⭐☆   │    │
+│  └──────────┘ └──────────┘ └──────────┘    │
+│                                              │
+└─────────────────────────────────────────────┘
+```
+
+2. Filters:
+   - By tags (engineering, qa, product, customer-support)
+   - By author (me, community, featured)
+   - By rating
+3. Search across names, descriptions, tags
 
 ---
 
@@ -547,7 +730,29 @@ openclaw tool search "ci/cd"
 
 ## Part 4: Example Use Cases
 
-### Use Case 1: Replicate Maximilien.ai for New Project
+### Use Case 1: Create Multiple Similar Agents from Template
+
+**Scenario:** Need 5 software engineers with same configuration
+
+**Before (without agent templates):**
+- Create first engineer manually
+- Clone 4 times
+- Each clone needs manual customization
+- **Time: 15 minutes**
+
+**After (with agent templates):**
+1. Create first engineer, perfect the config
+2. Right-click → "Save as Template" → "Senior SWE"
+3. For each new engineer:
+   - Templates tab → "Senior SWE" → "Create from Template"
+   - Change ID: engineer2, engineer3, etc.
+   - Click Create
+- **Time per additional agent: 30 seconds**
+- **Total for 5 agents: 2 minutes**
+
+**Benefit:** 13 minutes saved, consistent configuration
+
+### Use Case 2: Replicate Maximilien.ai for New Project
 
 **Before:**
 - Manually create 11 agents
@@ -563,7 +768,7 @@ openclaw tool search "ci/cd"
 3. Customize agent names if needed (optional, 1 minute)
 4. **Total time: 1 minute**
 
-### Use Case 2: Engineer Agent Creates PRs
+### Use Case 3: Engineer Agent Creates PRs
 
 **Before:**
 - Agent says "I'll create a PR for you"
@@ -595,7 +800,7 @@ Engineer Agent:
      Tests passed. Ready for review."
 ```
 
-### Use Case 3: Startup Bootstraps Team from Template
+### Use Case 4: Startup Bootstraps Team from Template
 
 **Scenario:** New startup wants to set up agent team
 
@@ -659,11 +864,27 @@ CREATE TABLE agent_skills (
 ### 5.2 API Endpoints
 
 **Templates:**
-- `GET /api/templates` - List templates
-- `GET /api/templates/:id` - Get template details
-- `POST /api/templates/export` - Export current org as template
-- `POST /api/templates/import` - Import template
-- `DELETE /api/templates/:id` - Delete template
+- `GET /api/templates` - List all templates (agents + organizations)
+  - Query params: `?type=agent` or `?type=organization` to filter
+  - Returns: `{ agents: [...], organizations: [...] }`
+- `GET /api/templates/agents` - List agent templates only
+- `GET /api/templates/organizations` - List organization templates only
+- `GET /api/templates/:type/:id` - Get template details
+  - `type` = "agents" or "organizations"
+  - Returns full template.json + agent files
+- `POST /api/templates/agents/:agentId/save` - Save agent as template
+  - Body: `{ name, description, tags }`
+  - Exports single agent to template library
+- `POST /api/templates/organizations/export` - Export org as template
+  - Body: `{ name, description, agentIds, communityNames, groupNames }`
+  - Exports multiple agents + communities + groups
+- `POST /api/templates/agents/import` - Create agent from template
+  - Body: `{ templateId, newAgentId, customizations }`
+  - Returns new agent ID
+- `POST /api/templates/organizations/import` - Import org template
+  - Body: `{ templateId, prefix, suffix, customizations }`
+  - Returns list of created agent IDs, community names, group names
+- `DELETE /api/templates/:type/:id` - Delete template
 
 **Tools:**
 - `GET /api/tools` - List available tools
