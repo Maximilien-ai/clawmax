@@ -49,5 +49,19 @@
     "content": "Test message from test suite",
     "timestamp": 1771806062547,
     "mentions": []
+  },
+  {
+    "id": "1771868707364-4mt1qfers",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1771868707364,
+    "mentions": []
+  },
+  {
+    "id": "1771868736017-6nc8i07ww",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1771868736017,
+    "mentions": []
   }
 ]
