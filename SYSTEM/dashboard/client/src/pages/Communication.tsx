@@ -43,7 +43,7 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string } = {}) {
+export default function Communication({ onNavigateToAgent, initialGroupName, onClearInitialGroupName }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -87,8 +87,10 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
   // Scroll to group when initialGroupName is provided
   useEffect(() => {
     if (initialGroupName && agents.length > 0) {
+      // Longer timeout to ensure page is fully rendered and visible
       setTimeout(() => {
         const element = document.getElementById(`channel-card-${initialGroupName}`)
+        console.log('Looking for channel:', initialGroupName, 'Found:', !!element)
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' })
           setHighlightedChannel(initialGroupName)
@@ -96,9 +98,14 @@ export default function Communication({ onNavigateToAgent, initialGroupName }: {
           // Clear highlight after 3 seconds
           setTimeout(() => setHighlightedChannel(null), 3000)
         }
-      }, 100)
+
+        // Clear the initial group name so it can be reused
+        if (onClearInitialGroupName) {
+          onClearInitialGroupName()
+        }
+      }, 300)
     }
-  }, [initialGroupName, agents])
+  }, [initialGroupName, agents, onClearInitialGroupName])
 
   const handleRefresh = () => {
     if (cooling) return
