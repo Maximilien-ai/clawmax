@@ -5,6 +5,7 @@ import Activity from './pages/Activity'
 import Communication from './pages/Communication'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ConnectionStatus } from './components/ConnectionStatus'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs'
 
@@ -84,6 +85,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
+        <ConnectionStatus />
         <div className="flex h-screen bg-gray-50 text-gray-900">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
