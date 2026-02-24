@@ -1,14 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-const MODELS = [
-  'claude-3-5-sonnet-20241022',      // Claude 3.5 Sonnet (latest, recommended)
-  'claude-3-opus-20240229',          // Claude 3 Opus (most powerful)
-  'claude-3-sonnet-20240229',        // Claude 3 Sonnet (balanced)
-  'claude-3-haiku-20240307',         // Claude 3 Haiku (fast & efficient)
-  'openai/gpt-4o',                   // GPT-4o
-  'openai/gpt-4o-mini',              // GPT-4o mini
-]
-
 const PREDEFINED_TAGS = [
   'assistant',
   'engineer',
@@ -48,7 +39,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [step, setStep] = useState<Step>(1)
   const [form, setForm] = useState<FormState>({
     name: '',
-    model: 'anthropic/claude-sonnet-4-5',
+    model: '',
     cloneFrom: defaultCloneFrom || '',
     whatsapp: '',
     port: 0,
@@ -59,6 +50,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [logs, setLogs] = useState<string[]>([])
   const [provisioning, setProvisioning] = useState(false)
   const [done, setDone] = useState(false)
@@ -69,8 +61,20 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [genError, setGenError] = useState<string | null>(null)
   const [preFilled, setPreFilled] = useState(false)
 
-  // Fetch suggested ID + port and existing agents list on mount
+  // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
+    // Fetch available models based on API keys
+    fetch('/api/agents/models')
+      .then(r => r.json())
+      .then(d => {
+        setAvailableModels(d.models || [])
+        // Set default model to first available
+        if (d.models && d.models.length > 0) {
+          setForm(f => ({ ...f, model: d.models[0] }))
+        }
+      })
+      .catch(() => {})
+
     // If cloning, skip initial fetch - the cloneFrom effect will handle it
     if (!defaultCloneFrom) {
       fetch('/api/agents/next')
@@ -329,8 +333,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                   value={form.model}
                   onChange={e => set('model', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
+                  disabled={availableModels.length === 0}
                 >
-                  {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                  {availableModels.length === 0 && <option value="">Loading models...</option>}
+                  {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               {existingAgents.length > 0 && (

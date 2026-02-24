@@ -278,11 +278,40 @@ router.post('/provision', (req, res) => {
   const workspaceArg = path.join(WORKSPACE, 'AGENTS', name)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')
 
-  // Normalize model name - ensure it has a provider prefix (default to openai/)
+  // Get available models based on API keys
+  const availableModels: string[] = []
+  if (process.env.ANTHROPIC_API_KEY) {
+    availableModels.push('claude-3-haiku-20240307')
+    availableModels.push('anthropic/claude-3-haiku-20240307')
+  }
+  if (process.env.OPENAI_API_KEY) {
+    availableModels.push('openai/gpt-4o')
+    availableModels.push('openai/gpt-4o-mini')
+    availableModels.push('gpt-4o')
+    availableModels.push('gpt-4o-mini')
+  }
+
+  // Normalize model name - ensure it has a provider prefix
   let normalizedModel = model
   if (model && !model.includes('/')) {
-    normalizedModel = `openai/${model}`
+    // Detect provider based on model name
+    if (model.startsWith('claude-') || model.startsWith('anthropic-')) {
+      normalizedModel = `anthropic/${model}`
+    } else if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('openai-')) {
+      normalizedModel = `openai/${model}`
+    } else {
+      // Default to openai for unknown models
+      normalizedModel = `openai/${model}`
+    }
     send('log', `Normalized model from "${model}" to "${normalizedModel}"\n`)
+  }
+
+  // Validate model is available - if not, use first available model
+  if (normalizedModel && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai)\//, ''))) {
+    const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
+    send('log', `⚠️  Model "${normalizedModel}" is not available with current API keys\n`)
+    send('log', `Using fallback model: "${fallbackModel}"\n`)
+    normalizedModel = fallbackModel
   }
 
   const args: string[] = ['agents', 'add', name, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
@@ -320,8 +349,12 @@ router.post('/provision', (req, res) => {
         const identityPath = path.join(AGENTS_DIR, name, 'IDENTITY.md')
         let identityContent = fs.readFileSync(identityPath, 'utf-8')
 
-        // Add creation metadata section
-        const metadata = `
+        // Check if Creation Metadata already exists
+        if (identityContent.includes('## Creation Metadata')) {
+          send('log', 'Creation Metadata already exists in IDENTITY.md, skipping\n')
+        } else {
+          // Add creation metadata section
+          const metadata = `
 
 ## Creation Metadata
 
@@ -332,9 +365,10 @@ router.post('/provision', (req, res) => {
 - **Cloned From:** ${cloneFrom || 'N/A'}
 - **AI Description:** ${aiDescription || 'N/A'}
 `
-        identityContent += metadata
-        fs.writeFileSync(identityPath, identityContent)
-        send('log', 'Saved creation metadata to IDENTITY.md\n')
+          identityContent += metadata
+          fs.writeFileSync(identityPath, identityContent)
+          send('log', 'Saved creation metadata to IDENTITY.md\n')
+        }
       } catch (err: any) {
         send('log', `Warning: Could not save metadata: ${err.message}\n`)
       }
@@ -376,6 +410,26 @@ router.get('/:id/impact', (req, res) => {
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
   const impact = getAgentImpact(id, agent.workspacePath)
   res.json(impact)
+})
+
+// GET /api/agents/models — available models based on API keys
+router.get('/models', (req, res) => {
+  const models: string[] = []
+
+  // Check for Anthropic API key
+  if (process.env.ANTHROPIC_API_KEY) {
+    // Note: Only Claude 3 Haiku is available on current API tier
+    // Could add tier detection in the future
+    models.push('claude-3-haiku-20240307')
+  }
+
+  // Check for OpenAI API key
+  if (process.env.OPENAI_API_KEY) {
+    models.push('openai/gpt-4o')
+    models.push('openai/gpt-4o-mini')
+  }
+
+  res.json({ models })
 })
 
 // GET /api/agents/:id — single agent
@@ -426,7 +480,30 @@ router.get('/:id/identity', (req, res) => {
     }
   }
 
-  res.json({ content, metadata })
+  // Get live configuration from openclaw.json (authoritative source)
+  let liveConfig: any = {}
+  try {
+    const HOME = process.env.HOME || ''
+    const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list || []
+    const liveAgent = agentList.find((a: any) => a.id === id)
+    if (liveAgent) {
+      liveConfig = {
+        model: liveAgent.model || metadata.model,
+        workspace: liveAgent.workspace,
+        agentDir: liveAgent.agentDir
+      }
+      // Override metadata.model with live model for clone pre-fill
+      if (liveAgent.model) {
+        metadata.model = liveAgent.model
+      }
+    }
+  } catch (err) {
+    // If we can't read live config, fall back to IDENTITY.md metadata
+  }
+
+  res.json({ content, metadata, liveConfig })
 })
 
 // POST /api/agents/:id/restart — restart agent gateway process
@@ -500,7 +577,7 @@ router.get('/:id/activity', (req, res) => {
   const agents = listAgents()
   const agent = agents.find(a => a.id === req.params.id)
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
-  const activity = getAgentActivity(agent.workspacePath)
+  const activity = getAgentActivity(agent.workspacePath, agent.id)
   res.json(activity)
 })
 

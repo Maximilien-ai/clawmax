@@ -48,8 +48,19 @@ We support **two template types** using the **same unified system**:
 
 **Contains:**
 - 1 agent (SOUL.md, TOOLS.md, IDENTITY.md)
-- Agent skills configuration
+- Skills references (no SKILLS.md file - just skill names in template.json)
+  - OpenClaw doesn't have SKILLS.md - skills live in `skills/` directories with SKILL.md
+  - TOOLS.md remains human-readable documentation (not executable)
+  - Template stores skill names: `["github", "golang", "create-pr"]`
+- Creation metadata:
+  - AI prompt used to create the agent
+  - Model used (e.g., claude-3-opus-20240229)
+  - Tags and settings
+  - Creation timestamp
 - No communities or groups
+
+**Why include creation metadata?**
+Users can see the original AI prompt and refine it when cloning or creating from template, making iteration easier.
 
 **Use Cases:**
 - "I want to create 3 more engineers just like this one"
@@ -74,6 +85,11 @@ We support **two template types** using the **same unified system**:
 
 #### **Type 2: Organization Templates** (Full Teams)
 **Purpose:** Complete team/organization structures with agents, communities, and groups
+
+**Design Decision:** No separate Groups/Communities templates
+- Organization templates include agents + communities + groups together
+- Reason: Groups and communities don't have meaning without agents
+- If needed later, users can extract groups/communities from organization templates
 
 **Contains:**
 - Multiple agents (typically 3-20)
@@ -134,10 +150,16 @@ Dashboard → Templates Tab:
 ### 1.3 Proposed Solution: Template System Architecture
 
 An **Organization Template** bundles:
-- Collection of agent definitions (SOUL, TOOLS, IDENTITY)
+- Collection of agent definitions (SOUL, TOOLS, IDENTITY) as well as tags and settings: llm and AI prompt
 - Communities with descriptions, tags, channels
 - Groups with descriptions, tags, membership rules
-- Workflows (optional, for advanced use)
+- Workflows (reserved for future, see below)
+
+**Design Decision:** Workflows implementation AFTER templates
+- **Phase 1-2**: Ship templates without workflows (agents, communities, groups only)
+- **Phase 3**: Investigate and design workflows system
+- **Phase 4**: Add workflows to existing templates (non-breaking extension)
+- **Reason**: Workflows is a major feature requiring refinement; templates deliver value independently
 
 **Example Template:** "Maximilien.ai Engineering Team"
 ```
@@ -260,6 +282,151 @@ An **Organization Template** bundles:
 - Version controllable (git-friendly)
 - Easy to share (zip and distribute)
 - Inspectable before import
+- Validated with JSON schemas (see Section 1.3.1 below)
+
+### 1.3.1 Template Validation with JSON Schema
+
+**Agent Template Schema** (`schemas/agent-template.schema.json`):
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "type", "version", "agents"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "type": { "const": "agent" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string" },
+    "author": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/definitions/agent" }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "aiPrompt": { "type": "string" },
+        "model": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "definitions": {
+    "agent": {
+      "type": "object",
+      "required": ["id", "role"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "skills": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
+```
+
+**Organization Template Schema** (`schemas/organization-template.schema.json`):
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "type", "version", "agents"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "type": { "const": "organization" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "agents": { "type": "array", "minItems": 1 },
+    "communities": { "type": "array" },
+    "groups": { "type": "array" }
+  }
+}
+```
+
+**Validation Usage:**
+```typescript
+// Backend validation before import
+import Ajv from 'ajv'
+const ajv = new Ajv()
+const validate = ajv.compile(agentTemplateSchema)
+if (!validate(templateJson)) {
+  throw new Error(`Invalid template: ${ajv.errorsText(validate.errors)}`)
+}
+```
+
+### 1.4 Multi-Organization Navigation & Management
+
+**Problem:** If users can create multiple organizations from templates, they need a way to manage and navigate between them.
+
+**Current Dashboard Structure (Single Organization):**
+```
+Dashboard Tabs:
+├── Agents (all agents in flat list)
+├── Communication (all groups/communities)
+└── Activity (logs)
+```
+
+**Proposed: Multi-Organization Dashboard Structure:**
+```
+Dashboard Tabs:
+├── Organizations (NEW)
+│   ├── Maximilien.ai (11 agents, 4 communities) [Active]
+│   ├── Project X Team (5 agents, 2 communities)
+│   └── Customer Support (3 agents, 1 community)
+├── Agents (filtered by active organization)
+├── Communication (filtered by active organization)
+├── Docs (filtered by active organization)
+├── Templates (library - global)
+└── Activity (filtered by active organization)
+```
+
+**Organizations Tab UI:**
+```
+┌─────────────────────────────────────────────────────┐
+│  Organizations                     + New From Template │
+├─────────────────────────────────────────────────────┤
+│                                                       │
+│  🏢 Maximilien.ai                         [Active]   │
+│  11 agents • 4 communities • 9 groups                │
+│  Created: Feb 1, 2026 • From template: Engineering   │
+│  [View] [Edit] [Export as Template]                  │
+│                                                       │
+│  🏢 Project X Team                                    │
+│  5 agents • 2 communities • 3 groups                 │
+│  Created: Feb 10, 2026 • From template: Startup Core │
+│  [Switch to] [View] [Edit] [Archive]                 │
+│                                                       │
+│  🏢 Customer Support                                  │
+│  3 agents • 1 community • 2 groups                   │
+│  Created: Feb 15, 2026 • From scratch                │
+│  [Switch to] [View] [Edit] [Archive]                 │
+│                                                       │
+└─────────────────────────────────────────────────────┘
+```
+
+**Navigation Flow:**
+1. User clicks "Organizations" tab → sees all organizations
+2. Click "Switch to" on any organization → becomes active
+3. Active organization filters Agents, Communication, Docs, Activity tabs
+4. Click "Export as Template" → saves current org as reusable template
+
+**Implementation Details:**
+- **Active Organization Context**: Stored in browser localStorage
+- **Backend Filtering**: All API endpoints accept `?org=<org-name>` query parameter
+- **Default Behavior**: If only one organization exists, skip org selection (current behavior)
+- **Migration Path**: Existing users start with one organization named "Default"
+
+**Alternative Approach (No Organizations Tab):**
+- Keep current flat structure (Agents, Communication, Activity)
+- Add organization selector dropdown in top nav bar
+- **Pros**: Simpler, less navigation depth
+- **Cons**: Less discoverable, harder to manage 5+ organizations
+
+**Recommendation:** Start with organization dropdown in top nav (simpler), add Organizations tab later if users manage 5+ organizations.
 
 ### 1.5 User Workflows
 
@@ -274,12 +441,21 @@ An **Organization Template** bundles:
    - Skills included: [readonly list showing github, golang, etc.]
 3. Click "Save" → adds to Template Library under "Agent Templates"
 
-**Alternative:** Clone button → "Save as Template" checkbox
+**Design Decision:** Both Clone AND "Save as Template" coexist
+- **Clone**: Quick duplicate for immediate use (creates agent instantly)
+- **Save as Template**: For reusable library (creates reusable template)
+- Different use cases, both valuable
+- No need to choose one over the other
 
 **CLI Alternative:**
 ```bash
-openclaw template create-agent --agent engineer --name "Senior SWE"
+clawmax template save --agent engineer --name "Senior SWE"
 ```
+
+**Design Decision:** ClawMax CLI first, OpenClaw CLI later
+- **Phase 1-2**: Build template commands into ClawMax CLI (our control, ship faster)
+- **Phase 3**: Contribute template commands to OpenClaw CLI (community benefit)
+- **Reason**: Faster iteration, then upstream contribution when stable
 
 #### B. Create Organization Template (Full Team)
 
@@ -296,7 +472,7 @@ openclaw template create-agent --agent engineer --name "Senior SWE"
 
 **CLI Alternative:**
 ```bash
-openclaw template export --name "My Team" --output ./my-team-template
+clawmax template export --name "My Team" --output ./my-team-template
 ```
 
 #### C. Import Agent Template (Create from Template)
@@ -324,7 +500,7 @@ openclaw template export --name "My Team" --output ./my-team-template
 
 **CLI Alternative:**
 ```bash
-openclaw template create-from-agent --template "senior-swe" --id engineer2
+clawmax template create --from "senior-swe" --id engineer2
 ```
 
 #### D. Import Organization Template (Full Team Setup)
@@ -350,7 +526,7 @@ openclaw template create-from-agent --template "senior-swe" --id engineer2
 
 **CLI Alternative:**
 ```bash
-openclaw template import ./my-team-template --prefix "proj1-"
+clawmax template import ./my-team-template --prefix "proj1-"
 ```
 
 #### E. Browse Template Library
@@ -420,206 +596,178 @@ AGENTS/engineer/
 ├── SOUL.md (unchanged)
 ├── IDENTITY.md (unchanged)
 ├── TOOLS.md (human-readable overview, unchanged)
-├── tools/ (NEW)
-│   ├── github.json
-│   ├── golang.json
-│   ├── git.json
-│   └── slack.json
-└── skills/ (NEW)
-    ├── create-pr.json
-    ├── run-tests.json
-    └── deploy-service.json
+└── skills/ (NEW - follows OpenClaw format)
+    ├── github/
+    │   └── SKILL.md (with YAML frontmatter)
+    ├── golang/
+    │   └── SKILL.md
+    ├── create-pr/
+    │   └── SKILL.md
+    └── deploy-service/
+        └── SKILL.md
 ```
 
-### 2.3 Tool Definition Format
+**Design Decision:** Follow OpenClaw's skill format exactly
+- Use SKILL.md with YAML frontmatter (not JSON)
+- Include metadata for requirements (bins, env, config)
+- Skill precedence: `<workspace>/skills` → `~/.openclaw/skills` → bundled skills
+- **Reason**: Full compatibility with OpenClaw's skill system, no custom format needed
 
-**Example: `tools/github.json`**
-```json
-{
-  "name": "github",
-  "version": "1.0.0",
-  "description": "GitHub API integration for repository operations",
-  "provider": "github",
-  "capabilities": [
-    "create_issue",
-    "create_pr",
-    "comment_on_pr",
-    "list_issues",
-    "merge_pr",
-    "create_branch",
-    "push_commit"
-  ],
-  "config": {
-    "auth_type": "token",
-    "token_env_var": "GITHUB_TOKEN",
-    "default_repo": "maximilien/openclaw",
-    "default_branch": "main"
-  },
-  "actions": {
-    "create_pr": {
-      "description": "Create a new pull request",
-      "parameters": {
-        "title": {"type": "string", "required": true},
-        "body": {"type": "string", "required": true},
-        "head": {"type": "string", "required": true},
-        "base": {"type": "string", "default": "main"}
-      },
-      "implementation": "github_api_create_pr"
-    },
-    "create_issue": {
-      "description": "Create a new issue",
-      "parameters": {
-        "title": {"type": "string", "required": true},
-        "body": {"type": "string", "required": true},
-        "labels": {"type": "array", "default": []}
-      },
-      "implementation": "github_api_create_issue"
-    }
-  }
-}
+
+### 2.3 Skill Definition Format (OpenClaw Compatible)
+
+**Example: `skills/github/SKILL.md`**
+```markdown
+---
+name: github
+description: GitHub API integration for repository operations
+metadata: { "openclaw": { "requires": { "bins": ["gh"], "env": ["GITHUB_TOKEN"] }, "primaryEnv": "GITHUB_TOKEN" } }
+---
+
+# GitHub Integration Skill
+
+This skill provides GitHub repository operations including PR creation, issue management, and code review.
+
+## Available Actions
+
+- **create_pr**: Create a new pull request
+- **create_issue**: Create a new issue
+- **comment_on_pr**: Add comments to pull requests
+- **list_issues**: List repository issues
+- **merge_pr**: Merge a pull request
+- **create_branch**: Create a new branch
+- **push_commit**: Push commits to remote
+
+## Usage
+
+To create a PR:
+1. Use the `gh pr create` command with title and body
+2. Specify head branch and base branch
+3. Optionally add labels and reviewers
+
+## Requirements
+
+- GitHub CLI (`gh`) must be installed
+- GITHUB_TOKEN environment variable must be set
+- Authenticated with `gh auth login`
 ```
 
-**Example: `tools/golang.json`**
-```json
-{
-  "name": "golang",
-  "version": "1.0.0",
-  "description": "Golang development environment and tools",
-  "provider": "local",
-  "capabilities": [
-    "run_tests",
-    "build",
-    "format",
-    "lint",
-    "mod_tidy"
-  ],
-  "config": {
-    "go_version": "1.21",
-    "workspace_path": "${WORKSPACE}/code"
-  },
-  "actions": {
-    "run_tests": {
-      "description": "Run Go tests",
-      "parameters": {
-        "package": {"type": "string", "default": "./..."},
-        "verbose": {"type": "boolean", "default": false}
-      },
-      "implementation": "exec_command",
-      "command": "go test ${verbose ? '-v' : ''} ${package}"
-    },
-    "build": {
-      "description": "Build Go binary",
-      "parameters": {
-        "output": {"type": "string", "required": true},
-        "ldflags": {"type": "string", "default": ""}
-      },
-      "implementation": "exec_command",
-      "command": "go build -o ${output} ${ldflags ? '-ldflags \"' + ldflags + '\"' : ''}"
-    }
-  }
-}
-```
+**Example: `skills/golang/SKILL.md`**
+```markdown
+---
+name: golang
+description: Golang development environment and tools
+metadata: { "openclaw": { "requires": { "bins": ["go"] } } }
+---
 
-### 2.4 Skill Definition Format
+# Golang Development Skill
 
-**Example: `skills/create-pr.json`**
-```json
-{
-  "name": "create-pr",
-  "description": "Create a pull request with code changes",
-  "version": "1.0.0",
-  "requires_tools": ["git", "github", "golang"],
-  "workflow": [
-    {
-      "step": "create_branch",
-      "tool": "git",
-      "action": "create_branch",
-      "params": {
-        "branch_name": "${pr_branch}"
-      }
-    },
-    {
-      "step": "make_changes",
-      "tool": "local",
-      "action": "write_files",
-      "params": {
-        "files": "${code_changes}"
-      }
-    },
-    {
-      "step": "run_tests",
-      "tool": "golang",
-      "action": "run_tests",
-      "params": {
-        "verbose": true
-      },
-      "on_failure": "abort"
-    },
-    {
-      "step": "commit_changes",
-      "tool": "git",
-      "action": "commit",
-      "params": {
-        "message": "${commit_message}"
-      }
-    },
-    {
-      "step": "push_branch",
-      "tool": "git",
-      "action": "push",
-      "params": {
-        "branch": "${pr_branch}"
-      }
-    },
-    {
-      "step": "create_pr",
-      "tool": "github",
-      "action": "create_pr",
-      "params": {
-        "title": "${pr_title}",
-        "body": "${pr_body}",
-        "head": "${pr_branch}",
-        "base": "main"
-      }
-    }
-  ],
-  "outputs": {
-    "pr_url": "${step.create_pr.result.html_url}",
-    "pr_number": "${step.create_pr.result.number}"
-  }
-}
-```
+This skill provides Golang development capabilities including testing, building, and code quality checks.
 
-### 2.5 Tool Registry & Standard Library
+## Available Actions
 
-**OpenClaw Standard Tools Library:**
-```
-openclaw-tools/
-├── github/
-│   ├── github.json
-│   └── impl.js (or impl.go)
-├── slack/
-├── git/
-├── golang/
-├── python/
-├── docker/
-├── kubernetes/
-├── aws/
-├── gcp/
-├── anthropic-api/
-└── ...
-```
+- **run_tests**: Execute Go test suite
+- **build**: Build Go binaries
+- **format**: Format code with gofmt
+- **lint**: Run golangci-lint
+- **mod_tidy**: Clean up go.mod dependencies
 
-**Installation:**
+## Usage
+
+To run tests:
 ```bash
-# Install a tool for an agent
-openclaw tool add github --agent engineer
+go test ./... -v
+```
 
-# List available tools
-openclaw tool list
+To build:
+```bash
+go build -o output-binary ./cmd/main.go
+```
 
-# Search tools
-openclaw tool search "ci/cd"
+## Requirements
+
+- Go 1.21+ must be installed
+```
+
+### 2.4 Workflow Skills (Complex Multi-Step Tasks)
+
+**Example: `skills/create-pr/SKILL.md`** (Workflow skill combining multiple steps)
+```markdown
+---
+name: create-pr
+description: Create a pull request with code changes
+metadata: { "openclaw": { "requires": { "bins": ["git", "gh", "go"], "env": ["GITHUB_TOKEN"] } } }
+---
+
+# Create PR Workflow Skill
+
+This workflow skill orchestrates creating a pull request with automated testing.
+
+## Workflow Steps
+
+1. **Create feature branch** from main
+2. **Apply code changes** to files
+3. **Run tests** to ensure quality
+4. **Commit changes** with descriptive message
+5. **Push branch** to remote
+6. **Create PR** on GitHub
+
+## Usage
+
+When you ask the agent to "create a PR for X", this skill executes automatically.
+
+Example: "Create a PR to add error handling to the auth service"
+
+## Requirements
+
+- Git repository initialized
+- GitHub CLI authenticated
+- Go test suite available
+- GITHUB_TOKEN configured
+
+## Error Handling
+
+- If tests fail, workflow aborts before creating PR
+- If push fails, retries once
+- All errors are logged for debugging
+```
+
+**Note:** OpenClaw's skill system handles workflow execution via agent prompts. Skills describe capabilities; agents orchestrate workflows intelligently.
+
+### 2.5 Skill Registry & Reference System
+
+**Design Decision:** Agents reference skills by name, not by copy
+- Template contains skill names: `["github", "golang", "create-pr"]`
+- Skills live in shared registries (workspace, ~/.openclaw, bundled)
+- Agent templates don't duplicate skill files
+- **Reason**: Single source of truth, skills can be updated centrally
+
+**Skill Resolution:**
+```typescript
+// Agent template.json
+{
+  "agents": [{
+    "id": "engineer",
+    "skills": ["github", "golang", "create-pr"]  // References only
+  }]
+}
+
+// At runtime, OpenClaw loads skills from:
+// 1. <workspace>/skills/github/
+// 2. ~/.openclaw/skills/github/
+// 3. bundled skills (if not found above)
+```
+
+**ClawMax Dashboard Features:**
+```bash
+# View available skills for an agent
+clawmax skills list --agent engineer
+
+# Add skill to agent
+clawmax skills add github --agent engineer
+
+# Search skill library
+clawmax skills search "github"
 ```
 
 ### 2.6 Security & Safety

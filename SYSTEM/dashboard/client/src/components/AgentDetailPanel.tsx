@@ -23,6 +23,11 @@ interface AgentActivity {
   todos: string | null
   completed: string | null
   identity: string | null
+  liveConfig?: {
+    model: string
+    workspace: string
+    agentDir: string
+  }
 }
 
 const STATUS_TEXT = {
@@ -217,6 +222,30 @@ export default function AgentDetailPanel({
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.completed}
                     </ReactMarkdown>
+                  </div>
+                </Section>
+              )}
+
+              {/* Live Configuration */}
+              {activity.liveConfig && (
+                <Section title="Live Configuration" source="openclaw.json">
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-start justify-between">
+                      <span className="text-gray-400">Model</span>
+                      <span className="text-gray-700 font-mono text-right">{activity.liveConfig.model}</span>
+                    </div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-gray-400">Workspace</span>
+                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all">
+                        {activity.liveConfig.workspace.replace(/^\/Users\/[^/]+/, '~')}
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-gray-400">Agent Dir</span>
+                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all">
+                        {activity.liveConfig.agentDir.replace(/^\/Users\/[^/]+/, '~')}
+                      </span>
+                    </div>
                   </div>
                 </Section>
               )}
