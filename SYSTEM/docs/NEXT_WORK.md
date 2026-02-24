@@ -43,6 +43,32 @@
 
 ---
 
+## 📅 Monday (Feb 24) - NEW TASKS
+
+### Morning: Edit Agent + Validation (4 hours)
+
+**1. Edit Agent Feature** (2.5h) ⭐ NEW
+- Add "Edit" button to agent cards (⚙️ icon)
+- Edit modal with form fields:
+  - Name, Model (dropdown), Tags, Vibe, Emoji, Description
+- Save updates to IDENTITY.md
+- Auto-restart agent after save
+- Validation before save
+
+**2. IDENTITY.md Validation** (1.5h) ⭐ NEW
+- Detect duplicate "Creation Metadata" sections
+- Warn on clone if metadata already exists
+- Add validation to parseIdentity():
+  - Count "## Creation Metadata" occurrences
+  - Return warning if > 1
+- Update clone endpoint to replace (not append) metadata
+
+### Afternoon: Continue with original plan (4 hours)
+- Set up development environment
+- Start Phase 1 implementation
+
+---
+
 ## 📅 Wednesday (Feb 26) - 8 Hours
 
 ### Morning: Agent Templates (4 hours)

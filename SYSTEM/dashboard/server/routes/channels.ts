@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, parseGroupsWithMembers } from '../lib/workspace'
+import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 
 const router = Router()
@@ -128,6 +128,42 @@ router.patch('/groups/:name/tags', (req, res) => {
   }
 
   const success = updateGroupTags('group', decodeURIComponent(name), tags)
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(404).json({ ok: false, error: 'Group not found' })
+  }
+})
+
+// Update community members
+router.patch('/communities/:name/members', (req, res) => {
+  const { name } = req.params
+  const { members } = req.body as { members?: string[] }
+
+  if (!Array.isArray(members)) {
+    res.status(400).json({ ok: false, error: 'members must be an array' })
+    return
+  }
+
+  const success = updateGroupMembers('community', decodeURIComponent(name), members)
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(404).json({ ok: false, error: 'Community not found' })
+  }
+})
+
+// Update group members
+router.patch('/groups/:name/members', (req, res) => {
+  const { name } = req.params
+  const { members } = req.body as { members?: string[] }
+
+  if (!Array.isArray(members)) {
+    res.status(400).json({ ok: false, error: 'members must be an array' })
+    return
+  }
+
+  const success = updateGroupMembers('group', decodeURIComponent(name), members)
   if (success) {
     res.json({ ok: true })
   } else {

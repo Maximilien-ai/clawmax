@@ -178,6 +178,87 @@ export function updateGroupTags(type: 'community' | 'group', name: string, newTa
   }
 }
 
+/** Update members for a community or group in its markdown file (verbose format only).
+ *  Returns true on success, false if entry not found or file error */
+export function updateGroupMembers(type: 'community' | 'group', name: string, newMembers: string[]): boolean {
+  try {
+    const filePath = type === 'community'
+      ? path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+      : path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const lines = content.split('\n')
+
+    let inTargetEntry = false
+    let foundEntry = false
+    let hasMembers = false
+    const newLines: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const trimmed = line.trim()
+
+      // Check if we're entering a new entry section
+      if (trimmed.startsWith('###')) {
+        const entryName = trimmed.replace(/^###\s+/, '').trim()
+        // If we were in target entry and now hit a different entry, exit
+        if (inTargetEntry && entryName !== name) {
+          // Before exiting, if we didn't find a Members line, add one
+          if (!hasMembers && newMembers.length > 0) {
+            newLines.push(`- **Members:** ${newMembers.join(', ')}`)
+          }
+          inTargetEntry = false
+          hasMembers = false
+        }
+        // Check if this is the start of our target entry
+        if (entryName === name) {
+          inTargetEntry = true
+          foundEntry = true
+        }
+        newLines.push(line)
+        continue
+      }
+
+      // If we hit a section header ##, exit the current entry
+      if (trimmed.startsWith('##')) {
+        // Before exiting, if we were in target and didn't find Members line, add one
+        if (inTargetEntry && !hasMembers && newMembers.length > 0) {
+          newLines.push(`- **Members:** ${newMembers.join(', ')}`)
+        }
+        inTargetEntry = false
+        hasMembers = false
+        newLines.push(line)
+        continue
+      }
+
+      // If we're in the target entry and this is the Members line, replace it
+      if (inTargetEntry && trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
+        hasMembers = true
+        if (newMembers.length > 0) {
+          newLines.push(`- **Members:** ${newMembers.join(', ')}`)
+        }
+        // If newMembers is empty, skip this line (remove Members field)
+        continue
+      }
+
+      newLines.push(line)
+    }
+
+    // Handle case where we were still in the target entry at EOF
+    if (inTargetEntry && !hasMembers && newMembers.length > 0) {
+      newLines.push(`- **Members:** ${newMembers.join(', ')}`)
+    }
+
+    if (!foundEntry) return false
+
+    fs.writeFileSync(filePath, newLines.join('\n'), 'utf-8')
+    return true
+  } catch (err) {
+    console.error(`Error updating ${type} members:`, err)
+    return false
+  }
+}
+
 export interface AgentInfo {
   id: string
   name: string
@@ -508,9 +589,14 @@ export interface AgentActivity {
   todos: string | null
   completed: string | null
   identity: string | null
+  liveConfig?: {
+    model: string
+    workspace: string
+    agentDir: string
+  }
 }
 
-export function getAgentActivity(agentDir: string): AgentActivity {
+export function getAgentActivity(agentDir: string, agentId?: string): AgentActivity {
   const recentFiles: { name: string; mtime: string; ageMins: number }[] = []
   try {
     const entries = fs.readdirSync(agentDir, { withFileTypes: true })
@@ -529,11 +615,35 @@ export function getAgentActivity(agentDir: string): AgentActivity {
     try { return fs.readFileSync(path.join(agentDir, name), 'utf-8') } catch { return null }
   }
 
+  // Get live configuration from openclaw.json if agentId provided
+  let liveConfig: { model: string; workspace: string; agentDir: string } | undefined
+  if (agentId) {
+    try {
+      const HOME = process.env.HOME || ''
+      const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const agentList = config?.agents?.list || []
+      const liveAgent = agentList.find((a: any) => a.id === agentId)
+      if (liveAgent) {
+        // Get model from agent config or defaults
+        const model = liveAgent.model || config?.agents?.defaults?.model?.primary || 'unknown'
+        liveConfig = {
+          model,
+          workspace: liveAgent.workspace || agentDir,
+          agentDir: liveAgent.agentDir || 'N/A'
+        }
+      }
+    } catch {
+      // If we can't read live config, just don't include it
+    }
+  }
+
   return {
     recentFiles,
     todos: readFile('TODOs.md'),
     completed: readFile('COMPLETED.md'),
     identity: readFile('IDENTITY.md'),
+    liveConfig,
   }
 }
 

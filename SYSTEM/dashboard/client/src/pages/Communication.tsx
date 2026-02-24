@@ -58,6 +58,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [tagManageTarget, setTagManageTarget] = useState<Channel | null>(null)
+  const [memberManageTarget, setMemberManageTarget] = useState<Channel | null>(null)
   const [chatPanelChannel, setChatPanelChannel] = useState<Channel | null>(null)
   const [highlightedChannel, setHighlightedChannel] = useState<string | null>(null)
 
@@ -478,6 +479,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
                     selectedTags={selectedTags}
                     selectedAgents={selectedAgents}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => setChatPanelChannel(channel)}
                     isHighlighted={highlightedChannel === channel.name}
@@ -499,6 +501,7 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
                     selectedTags={selectedTags}
                     selectedAgents={selectedAgents}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => setChatPanelChannel(channel)}
                     isHighlighted={highlightedChannel === channel.name}
@@ -592,7 +595,202 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
         }}
       />
     )}
+
+    {memberManageTarget && (
+      <ManageMembersModal
+        channel={memberManageTarget}
+        allAgents={agents}
+        onClose={() => setMemberManageTarget(null)}
+        onSave={async (members) => {
+          try {
+            console.log('Communication: Saving members to', memberManageTarget.name, members)
+            const endpoint = memberManageTarget.type === 'community'
+              ? `/api/communities/${encodeURIComponent(memberManageTarget.name)}/members`
+              : `/api/groups/${encodeURIComponent(memberManageTarget.name)}/members`
+            console.log('Communication: API endpoint', endpoint)
+            const res = await fetch(endpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ members }),
+            })
+            console.log('Communication: API response status', res.status)
+            if (res.ok) {
+              console.log('Communication: Successfully saved, refreshing agents')
+              fetchAgents()
+              setMemberManageTarget(null)
+            } else {
+              const error = await res.text()
+              console.error('Communication: Failed to save members', res.status, error)
+            }
+          } catch (err) {
+            console.error('Failed to update members:', err)
+          }
+        }}
+      />
+    )}
   </>
+  )
+}
+
+function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: Channel; allAgents: Agent[]; onClose: () => void; onSave: (members: string[]) => void }) {
+  const currentMemberIds = new Set(channel.members.map(m => m.id))
+  const [selectedMembers, setSelectedMembers] = React.useState<Set<string>>(currentMemberIds)
+  const [searchQuery, setSearchQuery] = React.useState('')
+  const [filter, setFilter] = React.useState<'all' | 'in_group' | 'not_in_group'>('all')
+
+  // Filter agents based on search and filter toggle
+  const filteredAgents = React.useMemo(() => {
+    let filtered = allAgents
+
+    // Apply membership filter
+    if (filter === 'in_group') {
+      filtered = filtered.filter(a => currentMemberIds.has(a.id))
+    } else if (filter === 'not_in_group') {
+      filtered = filtered.filter(a => !currentMemberIds.has(a.id))
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(a =>
+        a.name.toLowerCase().includes(query) ||
+        a.id.toLowerCase().includes(query)
+      )
+    }
+
+    return filtered.sort((a, b) => a.name.localeCompare(b.name))
+  }, [allAgents, currentMemberIds, filter, searchQuery])
+
+  const toggleMember = (agentId: string) => {
+    setSelectedMembers(prev => {
+      const next = new Set(prev)
+      if (next.has(agentId)) {
+        console.log('ManageMembersModal: Removing agent', agentId)
+        next.delete(agentId)
+      } else {
+        console.log('ManageMembersModal: Adding agent', agentId)
+        next.add(agentId)
+      }
+      console.log('ManageMembersModal: Updated members', Array.from(next))
+      return next
+    })
+  }
+
+  const handleSave = () => {
+    console.log('ManageMembersModal: Saving members', Array.from(selectedMembers))
+    onSave(Array.from(selectedMembers))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Manage Members</h3>
+        <p className="text-sm text-gray-600 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
+        <p className="text-xs text-gray-500 mb-4">
+          {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
+        </p>
+
+        {/* Search bar */}
+        <div className="mb-3">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search agents by name or ID..."
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400 text-sm"
+          />
+        </div>
+
+        {/* Filter buttons */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-gray-400 font-medium">Filter:</span>
+          <button
+            onClick={() => setFilter('all')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              filter === 'all'
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilter('in_group')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              filter === 'in_group'
+                ? 'bg-emerald-600 text-white border border-emerald-600'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+            }`}
+          >
+            In Group ({currentMemberIds.size})
+          </button>
+          <button
+            onClick={() => setFilter('not_in_group')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              filter === 'not_in_group'
+                ? 'bg-orange-600 text-white border border-orange-600'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+            }`}
+          >
+            Not in Group ({allAgents.length - currentMemberIds.size})
+          </button>
+        </div>
+
+        {/* Agent list */}
+        <div className="flex-1 overflow-y-auto border border-gray-200 rounded p-3 mb-4">
+          {filteredAgents.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-8">No agents found</p>
+          )}
+          <div className="space-y-1">
+            {filteredAgents.map(agent => {
+              const isSelected = selectedMembers.has(agent.id)
+              const wasOriginallyIn = currentMemberIds.has(agent.id)
+              return (
+                <div
+                  key={agent.id}
+                  onClick={() => toggleMember(agent.id)}
+                  className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100'
+                      : 'bg-white border border-gray-100 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => {}}
+                    className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                      <span className="text-xs text-gray-400">({agent.id})</span>
+                    </div>
+                  </div>
+                  <span className={`w-2 h-2 rounded-full ${STATUS_DOT[agent.status]}`} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -713,7 +911,7 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, isHighlighted }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onOpenChat, isHighlighted }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -938,28 +1136,40 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onNa
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {[...channel.members].sort((a, b) => a.name.localeCompare(b.name)).map(agent => {
-          const isSelected = selectedAgents.has(agent.id)
-          return (
-            <button
-              key={agent.id}
-              onClick={(e) => {
-                e.stopPropagation()
-                onNavigateToAgent?.(agent.id)
-              }}
-              title={`${agent.name} (${agent.id}) - ${agent.status}\nClick to view agent details`}
-              className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-medium transition-all ${
-                isSelected
-                  ? 'bg-emerald-100 text-emerald-700 border-emerald-400 font-semibold ring-2 ring-emerald-200'
-                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
-              {agent.name}
-            </button>
-          )
-        })}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-gray-400">Members</span>
+          <button
+            onClick={e => { e.stopPropagation(); onManageMembers(); }}
+            className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+            title="Manage members"
+          >
+            ⚙
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {[...channel.members].sort((a, b) => a.name.localeCompare(b.name)).map(agent => {
+            const isSelected = selectedAgents.has(agent.id)
+            return (
+              <button
+                key={agent.id}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigateToAgent?.(agent.id)
+                }}
+                title={`${agent.name} (${agent.id}) - ${agent.status}\nClick to view agent details`}
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-medium transition-all ${
+                  isSelected
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-400 font-semibold ring-2 ring-emerald-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                {agent.name}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Messaging Section */}
