@@ -1,0 +1,22 @@
+# Runtime message archives
+SYSTEM/messages/
+
+# Workspace state (runtime)
+**/.openclaw/workspace-state.json
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
