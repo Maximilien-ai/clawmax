@@ -51,6 +51,8 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
 
       const data = await resp.json()
       showSuccess(`Template "${templateName}" saved successfully!`)
+      // Notify Templates page to refresh
+      window.dispatchEvent(new Event('template-created'))
       onSuccess()
       onClose()
     } catch (err: any) {

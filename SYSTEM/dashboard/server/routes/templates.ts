@@ -4,7 +4,9 @@ import {
   getTemplate,
   deleteTemplate,
   createAgentTemplateFromAgent,
+  createOrganizationTemplate,
   importAgentFromTemplate,
+  importOrganizationTemplate,
   validateTemplate,
   slugify
 } from '../lib/templates'
@@ -89,6 +91,31 @@ router.post('/agents/:agentId/save', (req, res) => {
   })
 })
 
+// POST /api/templates/organizations/save - Save entire organization as template
+router.post('/organizations/save', (req, res) => {
+  const { name, description, tags, author } = req.body
+
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'Template name is required' })
+  }
+
+  const result = createOrganizationTemplate(name, {
+    description,
+    author,
+    tags: Array.isArray(tags) ? tags : undefined
+  })
+
+  if (!result.ok) {
+    return res.status(500).json({ error: result.error })
+  }
+
+  res.json({
+    ok: true,
+    template: result.template,
+    slug: slugify(name)
+  })
+})
+
 // DELETE /api/templates/:type/:slug - Delete a template
 router.delete('/:type/:slug', (req, res) => {
   const { type, slug } = req.params
@@ -145,6 +172,29 @@ router.post('/agents/import', (req, res) => {
   res.json({
     ok: true,
     agentId: result.agentId
+  })
+})
+
+// POST /api/templates/organizations/import - Import organization from template
+router.post('/organizations/import', (req, res) => {
+  const { templateSlug, prefix, suffix } = req.body
+
+  if (!templateSlug || typeof templateSlug !== 'string') {
+    return res.status(400).json({ error: 'Template slug is required' })
+  }
+
+  const result = importOrganizationTemplate(templateSlug, {
+    prefix,
+    suffix
+  })
+
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error })
+  }
+
+  res.json({
+    ok: true,
+    agentIds: result.agentIds
   })
 })
 

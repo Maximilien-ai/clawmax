@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import Ajv from 'ajv'
-import { WORKSPACE, AGENTS_DIR, parseIdentity } from './workspace'
+import { WORKSPACE, AGENTS_DIR, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 
 // Template storage paths
 export const TEMPLATES_DIR = path.join(WORKSPACE, 'TEMPLATES')
@@ -84,7 +84,7 @@ export type Template = AgentTemplate | OrganizationTemplate
 // Template Validation
 // ============================================================================
 
-const ajv = new Ajv({ strict: false })
+const ajv = new Ajv({ strict: false, validateFormats: false })
 
 // Load schemas
 const agentSchemaPath = path.join(__dirname, '..', 'schemas', 'agent-template.schema.json')
@@ -540,6 +540,309 @@ export function createAgentTemplateFromAgent(
     }
 
     return { ok: true, template }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+/**
+ * Create an organization template from the current workspace state
+ * Exports all agents, communities, and groups
+ */
+export function createOrganizationTemplate(
+  templateName: string,
+  options?: {
+    description?: string
+    author?: string
+    tags?: string[]
+  }
+): { ok: boolean; template?: OrganizationTemplate; error?: string } {
+  try {
+    const agents = listAgents()
+
+    if (agents.length === 0) {
+      return { ok: false, error: 'No agents found in workspace' }
+    }
+
+    // Build maps for communities and groups
+    const communityMap = new Map<string, Community>()
+    const groupMap = new Map<string, Group>()
+
+    // Process each agent to extract communities and groups
+    for (const agentInfo of agents) {
+      const agentDir = path.join(AGENTS_DIR, agentInfo.id)
+
+      // Read IDENTITY.md for agent metadata
+      const identityPath = path.join(agentDir, 'IDENTITY.md')
+      const identityContent = fs.existsSync(identityPath)
+        ? fs.readFileSync(identityPath, 'utf-8')
+        : ''
+      const identity = parseIdentity(identityContent)
+
+      // Read COMMUNITIES.md and GROUPS.md if they exist
+      const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
+      const groupsPath = path.join(agentDir, 'GROUPS.md')
+
+      if (fs.existsSync(communitiesPath)) {
+        const content = fs.readFileSync(communitiesPath, 'utf-8')
+        const { communities } = parseGroups(content)
+
+        for (const comm of communities) {
+          if (!communityMap.has(comm.name)) {
+            communityMap.set(comm.name, {
+              name: comm.name,
+              description: comm.description || undefined,
+              tags: comm.tags || [],
+              channels: comm.channels || []
+            })
+          }
+        }
+      }
+
+      if (fs.existsSync(groupsPath)) {
+        const content = fs.readFileSync(groupsPath, 'utf-8')
+        const { groups } = parseGroups(content)
+
+        for (const grp of groups) {
+          if (!groupMap.has(grp.name)) {
+            groupMap.set(grp.name, {
+              name: grp.name,
+              description: grp.description || undefined,
+              tags: grp.tags || [],
+              channels: grp.channels || [],
+              community: grp.community || undefined
+            })
+          }
+        }
+      }
+    }
+
+    // Build organization template
+    const templateAgents: OrganizationTemplateAgent[] = agents.map(agentInfo => {
+      const agentDir = path.join(AGENTS_DIR, agentInfo.id)
+      const identityPath = path.join(agentDir, 'IDENTITY.md')
+      const identityContent = fs.existsSync(identityPath)
+        ? fs.readFileSync(identityPath, 'utf-8')
+        : ''
+      const identity = parseIdentity(identityContent)
+
+      // Get agent's communities and groups
+      const agentCommunities: string[] = []
+      const agentGroups: string[] = []
+
+      const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
+      const groupsPath = path.join(agentDir, 'GROUPS.md')
+
+      if (fs.existsSync(communitiesPath)) {
+        const content = fs.readFileSync(communitiesPath, 'utf-8')
+        const { communities } = parseGroups(content)
+        agentCommunities.push(...communities.map(c => c.name))
+      }
+
+      if (fs.existsSync(groupsPath)) {
+        const content = fs.readFileSync(groupsPath, 'utf-8')
+        const { groups } = parseGroups(content)
+        agentGroups.push(...groups.map(g => g.name))
+      }
+
+      return {
+        id: agentInfo.id,
+        name: identity.name || agentInfo.id,
+        role: identity.creature || 'AI Agent',
+        tags: identity.tags || [],
+        skills: [],  // TODO: Extract from skills/ directory
+        communities: agentCommunities.length > 0 ? agentCommunities : undefined,
+        groups: agentGroups.length > 0 ? agentGroups : undefined
+      }
+    })
+
+    const template: OrganizationTemplate = {
+      name: templateName,
+      type: 'organization',
+      version: '1.0.0',
+      description: options?.description,
+      author: options?.author,
+      tags: options?.tags || [],
+      agents: templateAgents,
+      communities: communityMap.size > 0 ? Array.from(communityMap.values()) : undefined,
+      groups: groupMap.size > 0 ? Array.from(groupMap.values()) : undefined
+    }
+
+    // Validate template
+    const validation = validateTemplate(template)
+    if (!validation.valid) {
+      return { ok: false, error: `Validation failed: ${validation.errors?.join(', ')}` }
+    }
+
+    // Save template
+    const saveResult = saveTemplate(template)
+    if (!saveResult.ok) {
+      return { ok: false, error: saveResult.error }
+    }
+
+    // Copy agent files to template directory (isOrgTemplate = true)
+    for (const agentInfo of agents) {
+      const copyResult = copyAgentFilesToTemplate(agentInfo.id, saveResult.path!, true)
+      if (!copyResult.ok) {
+        // Clean up and return error
+        try {
+          fs.rmSync(saveResult.path!, { recursive: true, force: true })
+        } catch {}
+        return { ok: false, error: `Failed to copy agent files: ${copyResult.error}` }
+      }
+    }
+
+    return { ok: true, template }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+/**
+ * Import an organization template and create all agents, communities, and groups
+ * Supports prefix/suffix for agent IDs to avoid conflicts
+ */
+export function importOrganizationTemplate(
+  templateSlug: string,
+  options?: {
+    prefix?: string
+    suffix?: string
+  }
+): { ok: boolean; agentIds?: string[]; error?: string } {
+  try {
+    const templateDir = path.join(ORG_TEMPLATES_DIR, templateSlug)
+    const templateJsonPath = path.join(templateDir, 'template.json')
+
+    if (!fs.existsSync(templateJsonPath)) {
+      return { ok: false, error: `Template not found: ${templateSlug}` }
+    }
+
+    const template: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+
+    if (template.type !== 'organization') {
+      return { ok: false, error: 'Only organization templates can be imported via this endpoint' }
+    }
+
+    // Validate template
+    const validation = validateTemplate(template)
+    if (!validation.valid) {
+      return { ok: false, error: `Template validation failed: ${validation.errors?.join(', ')}` }
+    }
+
+    const prefix = options?.prefix || ''
+    const suffix = options?.suffix || ''
+    const createdAgents: string[] = []
+
+    try {
+      // Step 1: Create all agents with their files
+      for (const templateAgent of template.agents) {
+        const sourceAgentId = templateAgent.id
+        const targetAgentId = `${prefix}${sourceAgentId}${suffix}`
+
+        // Validate target agent ID
+        if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
+          throw new Error(`Invalid agent ID format after prefix/suffix: ${targetAgentId}`)
+        }
+
+        const targetAgentDir = path.join(AGENTS_DIR, targetAgentId)
+        if (fs.existsSync(targetAgentDir)) {
+          throw new Error(`Agent already exists: ${targetAgentId}`)
+        }
+
+        // Copy agent files from template (isOrgTemplate = true)
+        const copyResult = copyAgentFilesFromTemplate(
+          templateDir,
+          sourceAgentId,
+          targetAgentId,
+          true
+        )
+
+        if (!copyResult.ok) {
+          throw new Error(`Failed to copy agent files: ${copyResult.error}`)
+        }
+
+        createdAgents.push(targetAgentId)
+      }
+
+      // Step 2: Create COMMUNITIES.md for agents with community memberships
+      if (template.communities && template.communities.length > 0) {
+        for (const templateAgent of template.agents) {
+          const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+          const agentCommunities = templateAgent.communities || []
+
+          if (agentCommunities.length > 0) {
+            const agentDir = path.join(AGENTS_DIR, targetAgentId)
+            const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
+
+            // Build COMMUNITIES.md content
+            const communitiesContent = template.communities
+              .filter(comm => agentCommunities.includes(comm.name))
+              .map(comm => {
+                let content = `## ${comm.name}\n\n`
+                if (comm.description) content += `${comm.description}\n\n`
+                if (comm.tags && comm.tags.length > 0) {
+                  content += `**Tags:** ${comm.tags.join(', ')}\n\n`
+                }
+                if (comm.channels && comm.channels.length > 0) {
+                  content += `**Channels:** ${comm.channels.join(', ')}\n\n`
+                }
+                return content
+              })
+              .join('\n---\n\n')
+
+            fs.writeFileSync(communitiesPath, `# Communities\n\n${communitiesContent}`, 'utf-8')
+          }
+        }
+      }
+
+      // Step 3: Create GROUPS.md for agents with group memberships
+      if (template.groups && template.groups.length > 0) {
+        for (const templateAgent of template.agents) {
+          const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+          const agentGroups = templateAgent.groups || []
+
+          if (agentGroups.length > 0) {
+            const agentDir = path.join(AGENTS_DIR, targetAgentId)
+            const groupsPath = path.join(agentDir, 'GROUPS.md')
+
+            // Build GROUPS.md content
+            const groupsContent = template.groups
+              .filter(grp => agentGroups.includes(grp.name))
+              .map(grp => {
+                let content = `## ${grp.name}\n\n`
+                if (grp.description) content += `${grp.description}\n\n`
+                if (grp.community) content += `**Community:** ${grp.community}\n\n`
+                if (grp.tags && grp.tags.length > 0) {
+                  content += `**Tags:** ${grp.tags.join(', ')}\n\n`
+                }
+                if (grp.channels && grp.channels.length > 0) {
+                  content += `**Channels:** ${grp.channels.join(', ')}\n\n`
+                }
+                return content
+              })
+              .join('\n---\n\n')
+
+            fs.writeFileSync(groupsPath, `# Groups\n\n${groupsContent}`, 'utf-8')
+          }
+        }
+      }
+
+      return { ok: true, agentIds: createdAgents }
+    } catch (err) {
+      // Rollback: delete all created agents
+      for (const agentId of createdAgents) {
+        try {
+          const agentDir = path.join(AGENTS_DIR, agentId)
+          if (fs.existsSync(agentDir)) {
+            fs.rmSync(agentDir, { recursive: true, force: true })
+          }
+        } catch (cleanupErr) {
+          console.error(`Failed to cleanup agent ${agentId}:`, cleanupErr)
+        }
+      }
+
+      return { ok: false, error: String(err) }
+    }
   } catch (err) {
     return { ok: false, error: String(err) }
   }

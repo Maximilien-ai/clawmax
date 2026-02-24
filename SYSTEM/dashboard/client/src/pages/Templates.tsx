@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
+import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 
 interface AgentTemplate {
   name: string
@@ -41,6 +42,7 @@ export default function Templates() {
   const [orgTemplates, setOrgTemplates] = useState<OrganizationTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -59,6 +61,14 @@ export default function Templates() {
 
   useEffect(() => {
     fetchTemplates()
+
+    // Listen for template save events to auto-refresh
+    const handleTemplateCreated = () => {
+      fetchTemplates()
+    }
+
+    window.addEventListener('template-created', handleTemplateCreated)
+    return () => window.removeEventListener('template-created', handleTemplateCreated)
   }, [])
 
   const handleDelete = async (type: 'agent' | 'organization', name: string) => {
@@ -182,6 +192,22 @@ export default function Templates() {
           template={selectedTemplate}
           onClose={() => setSelectedTemplate(null)}
           onDelete={() => handleDelete(selectedTemplate.type, selectedTemplate.name)}
+          onApply={selectedTemplate.type === 'organization' ? () => {
+            setApplyingTemplate(selectedTemplate as OrganizationTemplate)
+            setSelectedTemplate(null)
+          } : undefined}
+        />
+      )}
+
+      {/* Apply Template Modal */}
+      {applyingTemplate && (
+        <ApplyOrgTemplateModal
+          template={applyingTemplate}
+          onClose={() => setApplyingTemplate(null)}
+          onSuccess={() => {
+            setApplyingTemplate(null)
+            showSuccess('Organization template applied successfully!')
+          }}
         />
       )}
     </div>
@@ -260,10 +286,11 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
   )
 }
 
-function TemplateDetailPanel({ template, onClose, onDelete }: {
+function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
   template: Template
   onClose: () => void
   onDelete: () => void
+  onApply?: () => void
 }) {
   const isOrg = template.type === 'organization'
 
@@ -380,6 +407,14 @@ function TemplateDetailPanel({ template, onClose, onDelete }: {
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-gray-200">
+            {isOrg && onApply && (
+              <button
+                onClick={onApply}
+                className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm font-medium"
+              >
+                ⚡ Apply Template
+              </button>
+            )}
             <button
               onClick={onDelete}
               className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
