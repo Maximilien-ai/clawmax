@@ -53,7 +53,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
-  const [agentTemplates, setAgentTemplates] = useState<Array<{ name: string; slug: string; description?: string }>>([])
+  const [agentTemplates, setAgentTemplates] = useState<Array<{
+    name: string
+    slug: string
+    description?: string
+    tags?: string[]
+    metadata?: any
+    agents?: any[]
+  }>>([])
   const [logs, setLogs] = useState<string[]>([])
   const [provisioning, setProvisioning] = useState(false)
   const [done, setDone] = useState(false)
@@ -100,12 +107,35 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
         const templates = (d.templates || []).map((t: any) => ({
           name: t.name,
           slug: t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-          description: t.description
+          description: t.description,
+          tags: t.tags || [],
+          metadata: t.metadata || {},
+          agents: t.agents || []
         }))
         setAgentTemplates(templates)
       })
       .catch(() => {})
   }, [])
+
+  // Pre-fill form when template is selected
+  useEffect(() => {
+    if (!form.templateSlug) return
+
+    const template = agentTemplates.find(t => t.slug === form.templateSlug)
+    if (!template) return
+
+    // Pre-fill tags from template
+    if (template.tags && template.tags.length > 0) {
+      setForm(f => ({ ...f, tags: template.tags }))
+    }
+
+    // Pre-fill AI description from template metadata
+    if (template.metadata?.aiPrompt) {
+      setForm(f => ({ ...f, aiDescription: template.metadata.aiPrompt, useAI: true }))
+    }
+
+    setPreFilled(true)
+  }, [form.templateSlug, agentTemplates])
 
   // Auto-scroll logs
   useEffect(() => {
@@ -358,12 +388,23 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
               </div>
               {agentTemplates.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Create from template <span className="text-gray-400">(optional)</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Create from template <span className="text-gray-400">(optional)</span>
+                    {preFilled && form.templateSlug && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from template</span>}
+                  </label>
                   <select
                     value={form.templateSlug}
                     onChange={e => {
                       set('templateSlug', e.target.value)
-                      if (e.target.value) set('cloneFrom', '')  // Clear cloneFrom if template selected
+                      if (e.target.value) {
+                        set('cloneFrom', '')  // Clear cloneFrom if template selected
+                      } else {
+                        // Clear pre-filled data when deselecting template
+                        set('tags', [])
+                        set('aiDescription', '')
+                        set('useAI', false)
+                        setPreFilled(false)
+                      }
                     }}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
                     disabled={!!form.cloneFrom}
@@ -375,7 +416,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-gray-400">Use a saved template as starting point (SOUL, IDENTITY, TOOLS).</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {form.templateSlug
+                      ? 'Tags and description will be pre-filled from template'
+                      : 'Use a saved template as starting point (SOUL, IDENTITY, TOOLS)'}
+                  </p>
                 </div>
               )}
               {existingAgents.length > 0 && (
