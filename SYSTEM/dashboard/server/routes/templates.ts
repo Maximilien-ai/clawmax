@@ -4,6 +4,7 @@ import {
   getTemplate,
   deleteTemplate,
   createAgentTemplateFromAgent,
+  importAgentFromTemplate,
   validateTemplate,
   slugify
 } from '../lib/templates'
@@ -120,6 +121,31 @@ router.post('/validate', (req, res) => {
   }
 
   res.json({ valid: true })
+})
+
+// POST /api/templates/agents/import - Import an agent from a template
+router.post('/agents/import', (req, res) => {
+  const { templateSlug, agentId, model, port, whatsapp } = req.body
+
+  if (!templateSlug || typeof templateSlug !== 'string') {
+    return res.status(400).json({ error: 'Template slug is required' })
+  }
+
+  const result = importAgentFromTemplate(templateSlug, {
+    newAgentId: agentId,
+    model,
+    port,
+    whatsapp
+  })
+
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error })
+  }
+
+  res.json({
+    ok: true,
+    agentId: result.agentId
+  })
 })
 
 export default router

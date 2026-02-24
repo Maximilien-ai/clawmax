@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
+import { importAgentFromTemplate } from '../lib/templates'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -207,13 +208,14 @@ router.post('/generate', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom, generatedFiles, tags, aiDescription } = req.body as {
+  const { name, model, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription } = req.body as {
     name?: string
     model?: string
     whatsapp?: string
     port?: number
     profile?: boolean
     cloneFrom?: string
+    templateSlug?: string
     generatedFiles?: { identity: string; soul: string; tools: string }
     tags?: string[]
     aiDescription?: string
@@ -246,8 +248,25 @@ router.post('/provision', (req, res) => {
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
   }
 
+  // Import from template if specified
+  if (templateSlug) {
+    const result = importAgentFromTemplate(templateSlug, {
+      newAgentId: name,
+      model,
+      port,
+      whatsapp
+    })
+
+    if (!result.ok) {
+      send('error', result.error || 'Failed to import from template')
+      res.end()
+      return
+    }
+
+    send('log', `Imported files from template: ${templateSlug}\n`)
+  }
   // Clone source agent files before provisioning
-  if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
+  else if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
     const srcPath = path.join(AGENTS_DIR, cloneFrom)
     const dstPath = path.join(AGENTS_DIR, name)
     const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, name)

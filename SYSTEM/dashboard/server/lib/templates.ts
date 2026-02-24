@@ -348,6 +348,111 @@ export function copyAgentFilesFromTemplate(
 }
 
 // ============================================================================
+// Template Import - Create Agents from Templates
+// ============================================================================
+
+/**
+ * Import an agent from a template, creating a new agent in AGENTS/ directory
+ */
+export function importAgentFromTemplate(
+  templateSlug: string,
+  options: {
+    newAgentId?: string
+    model?: string
+    port?: number
+    whatsapp?: string
+  }
+): { ok: boolean; agentId?: string; error?: string } {
+  try {
+    const templateDir = path.join(AGENT_TEMPLATES_DIR, templateSlug)
+    const templateJsonPath = path.join(templateDir, 'template.json')
+
+    if (!fs.existsSync(templateJsonPath)) {
+      return { ok: false, error: `Template not found: ${templateSlug}` }
+    }
+
+    const template: AgentTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+
+    if (template.type !== 'agent') {
+      return { ok: false, error: 'Only agent templates can be imported via this endpoint' }
+    }
+
+    if (template.agents.length !== 1) {
+      return { ok: false, error: 'Agent template must contain exactly 1 agent' }
+    }
+
+    const sourceAgent = template.agents[0]
+    const targetAgentId = options.newAgentId || sourceAgent.id
+
+    // Validate target agent ID
+    if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
+      return { ok: false, error: 'Invalid agent ID format' }
+    }
+
+    const targetAgentDir = path.join(AGENTS_DIR, targetAgentId)
+    if (fs.existsSync(targetAgentDir)) {
+      return { ok: false, error: `Agent already exists: ${targetAgentId}` }
+    }
+
+    // Copy template files to new agent directory (isOrgTemplate = false)
+    const copyResult = copyAgentFilesFromTemplate(
+      templateDir,
+      sourceAgent.id,
+      targetAgentId,
+      false
+    )
+
+    if (!copyResult.ok) {
+      return { ok: false, error: copyResult.error }
+    }
+
+    // Update IDENTITY.md with new agent ID and optional metadata
+    const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+    if (fs.existsSync(identityPath)) {
+      let identity = fs.readFileSync(identityPath, 'utf-8')
+
+      // Replace agent ID in identity content
+      identity = identity.replace(
+        new RegExp(`\\b${sourceAgent.id}\\b`, 'g'),
+        targetAgentId
+      )
+
+      // Update model if provided
+      if (options.model) {
+        identity = identity.replace(
+          /\*\*Model:\*\*\s+.+/,
+          `**Model:** ${options.model}`
+        )
+      }
+
+      // Add creation metadata
+      const now = new Date().toISOString()
+      const metadataSection = `
+## Creation Metadata
+- **Created:** ${now}
+- **Source Template:** ${template.name} (v${template.version})
+${options.model ? `- **Model:** ${options.model}` : ''}
+${template.author ? `- **Template Author:** ${template.author}` : ''}
+`
+
+      // Insert metadata before the first ## heading or at the end
+      const firstHeading = identity.match(/\n## /)?.[0]
+      if (firstHeading) {
+        identity = identity.replace(/\n## /, `${metadataSection}\n## `)
+      } else {
+        identity += `\n${metadataSection}`
+      }
+
+      fs.writeFileSync(identityPath, identity, 'utf-8')
+    }
+
+    return { ok: true, agentId: targetAgentId }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ============================================================================
 // Template Creation from Existing Agents
 // ============================================================================
 

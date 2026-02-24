@@ -21,6 +21,7 @@ interface FormState {
   name: string
   model: string
   cloneFrom: string
+  templateSlug: string
   whatsapp: string
   port: number
   tags: string[]
@@ -41,6 +42,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     name: '',
     model: '',
     cloneFrom: defaultCloneFrom || '',
+    templateSlug: '',
     whatsapp: '',
     port: 0,
     tags: [],
@@ -51,6 +53,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [agentTemplates, setAgentTemplates] = useState<Array<{ name: string; slug: string; description?: string }>>([])
   const [logs, setLogs] = useState<string[]>([])
   const [provisioning, setProvisioning] = useState(false)
   const [done, setDone] = useState(false)
@@ -88,6 +91,19 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     fetch('/api/agents')
       .then(r => r.json())
       .then(d => setExistingAgents((d.agents as { id: string }[]).map(a => a.id)))
+      .catch(() => {})
+
+    // Fetch agent templates
+    fetch('/api/templates/agents')
+      .then(r => r.json())
+      .then(d => {
+        const templates = (d.templates || []).map((t: any) => ({
+          name: t.name,
+          slug: t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+          description: t.description
+        }))
+        setAgentTemplates(templates)
+      })
       .catch(() => {})
   }, [])
 
@@ -201,6 +217,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
       model: form.model,
     }
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
+    if (form.templateSlug) body.templateSlug = form.templateSlug
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
     if (form.tags.length > 0) body.tags = form.tags
@@ -339,18 +356,44 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                   {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
+              {agentTemplates.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Create from template <span className="text-gray-400">(optional)</span></label>
+                  <select
+                    value={form.templateSlug}
+                    onChange={e => {
+                      set('templateSlug', e.target.value)
+                      if (e.target.value) set('cloneFrom', '')  // Clear cloneFrom if template selected
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
+                    disabled={!!form.cloneFrom}
+                  >
+                    <option value="">— Choose a template —</option>
+                    {agentTemplates.map(t => (
+                      <option key={t.slug} value={t.slug}>
+                        {t.name} {t.description ? `- ${t.description}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-400">Use a saved template as starting point (SOUL, IDENTITY, TOOLS).</p>
+                </div>
+              )}
               {existingAgents.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Clone from <span className="text-gray-400">(optional)</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Or clone from agent <span className="text-gray-400">(optional)</span></label>
                   <select
                     value={form.cloneFrom}
-                    onChange={e => set('cloneFrom', e.target.value)}
+                    onChange={e => {
+                      set('cloneFrom', e.target.value)
+                      if (e.target.value) set('templateSlug', '')  // Clear template if clone selected
+                    }}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white"
+                    disabled={!!form.templateSlug}
                   >
                     <option value="">— Fresh setup —</option>
                     {existingAgents.map(id => <option key={id} value={id}>{id}</option>)}
                   </select>
-                  <p className="mt-1 text-xs text-gray-400">Copies SOUL, IDENTITY, TOOLS, USER, AGENTS, BOOTSTRAP from the selected agent.</p>
+                  <p className="mt-1 text-xs text-gray-400">Copies all files from an existing agent.</p>
                 </div>
               )}
               <div>
