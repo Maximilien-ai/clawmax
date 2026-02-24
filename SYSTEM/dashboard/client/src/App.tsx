@@ -3,11 +3,12 @@ import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import Activity from './pages/Activity'
 import Communication from './pages/Communication'
+import Templates from './pages/Templates'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs'
+type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates'
 
 interface SystemInfo {
   hostname: string
@@ -25,6 +26,7 @@ interface NavItem {
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
+  { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   { id: 'communication', label: 'Communication', icon: 'comms' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
@@ -161,6 +163,9 @@ export default function App() {
                 initialAgentId={initialAgentId}
               />
             </div>
+            <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
+              <Templates />
+            </div>
             <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
@@ -243,6 +248,7 @@ function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart
 }) {
   const icons: Record<string, string> = {
     robot: '🤖',
+    templates: '📑',
     comms: '💬',
     activity: '📊',
     docs: '📄',

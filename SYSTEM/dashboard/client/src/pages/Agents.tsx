@@ -9,6 +9,7 @@ import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
 import BulkOperationsPanel from '../components/BulkOperationsPanel'
+import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
 import { useToast } from '../components/Toast'
 
 function secAgo(ts: number): string {
@@ -95,6 +96,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
   const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
+  const [saveAsTemplateTarget, setSaveAsTemplateTarget] = useState<Agent | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [tagToRemove, setTagToRemove] = useState<{ agentId: string; tag: string; isPrimary: boolean } | null>(null)
@@ -969,6 +971,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                         onChat={() => setChatTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                        onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
                         onRestart={() => handleRestart(agent.id)}
@@ -1007,6 +1010,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
                               onChat={() => setChatTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                              onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                               onManageTags={() => setTagManageTarget(agent)}
                               onRestart={() => handleRestart(agent.id)}
@@ -1056,6 +1060,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onChat={() => setChatTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+              onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onManageTags={() => setTagManageTarget(agent)}
               onRestart={() => handleRestart(agent.id)}
@@ -1128,6 +1133,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
           agent={unarchiveTarget}
           onClose={() => setUnarchiveTarget(null)}
           onUnarchived={() => { fetchAgents(); setSelectedAgent(null) }}
+        />
+      )}
+
+      {saveAsTemplateTarget && (
+        <SaveAsTemplatePanel
+          agent={saveAsTemplateTarget}
+          onClose={() => setSaveAsTemplateTarget(null)}
+          onSuccess={() => fetchAgents()}
         />
       )}
 
@@ -1667,7 +1680,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -1754,6 +1767,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
             title="Clone agent"
           >
             📋
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); }}
+            className="text-gray-200 hover:text-sky-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-sky-50"
+            aria-label="Save as template"
+            title="Save as template"
+          >
+            💾
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onRestart(); }}
