@@ -1,28 +1,136 @@
-# docs/
+# SYSTEM Documentation
 
-Documentation for the Maximilien.ai / ClawMax.ai platform.
+**Last Updated**: Feb 25, 2026  
+**Status**: v0.7.0 Skills & Tools Management complete, Demo Day tomorrow
 
-## Structure
+---
+
+## 📍 Quick Navigation
+
+### Current Work
+- **[STATUS.md](STATUS.md)** - Current system state, health metrics, roadmap
+- **[planning/DEMO_DAY_ROADMAP_FEB26.md](planning/DEMO_DAY_ROADMAP_FEB26.md)** - Tonight/Tomorrow/Friday plan
+
+### Active Planning
+- **[BUGS.md](BUGS.md)** - Known issues tracker
+- **[NEXT_WORK.md](NEXT_WORK.md)** - Feature backlog
+- **[planning/DASHBOARD.md](planning/DASHBOARD.md)** - Dashboard feature planning
+
+### Future Work
+- **[features/](features/)** - Planned features (Chat, CLI)
+- **[architecture/](architecture/)** - Architecture docs (Chat memory)
+- **[operations/](operations/)** - Operational policies
+
+### Historical
+- **[archive/](archive/)** - Completed work, old session summaries
+- **[planning/archive/](planning/archive/)** - Old planning documents
+
+---
+
+## 📊 Current State
+
+- **Release**: v0.7.0
+- **Tests**: 68/68 passing (100%)
+- **Focus**: Demo Day preparation (Feb 26)
+- **Next**: v0.8.0 (WhatsApp Link OR In-Dashboard Chat)
+
+---
+
+## 🗂️ Directory Structure
 
 ```
-docs/
-  README.md           ← this file
-  planning/
-    DASHBOARD.md      ← ClawMax.ai owner dashboard plan (TypeScript, Phase 1–4)
+SYSTEM/docs/
+├── README.md                          # This file
+├── STATUS.md                          # Current system status
+├── BUGS.md                            # Active bug tracker
+├── NEXT_WORK.md                       # Feature backlog
+│
+├── architecture/                      # Architecture designs
+│   └── CHAT_MEMORY.md
+│
+├── features/                          # Future feature specs
+│   ├── CHAT_HISTORY_WORKSPACE.md
+│   └── CLAWMAX_CLI_SPEC.md
+│
+├── operations/                        # Operational docs
+│   └── CLEANUP_POLICIES.md
+│
+├── planning/                          # Active planning
+│   ├── DEMO_DAY_ROADMAP_FEB26.md     # Current roadmap
+│   ├── DASHBOARD.md                   # Dashboard features
+│   └── archive/                       # Historical planning (24 files)
+│
+└── archive/                           # Completed work (13 files)
+    ├── SESSION_SUMMARY_*.md
+    ├── SPRINT_STATUS_*.md
+    ├── WEEK_STATUS_*.md
+    └── ...
 ```
 
-## Planning Documents
+---
 
-Planning documents live in `docs/planning/`. Each covers a discrete product or
-feature area, with a status header (PLAN / IN PROGRESS / DONE), phased
-delivery breakdown, open questions, and related files.
+## 🎯 How to Use This Documentation
 
-| Document | Status | Summary |
-|---|---|---|
-| [DASHBOARD.md](planning/DASHBOARD.md) | PLAN | Web dashboard for org docs, agent roster, logs, WhatsApp community, agent management |
+### For Current Work
+1. Check **STATUS.md** for system health and immediate tasks
+2. Follow **DEMO_DAY_ROADMAP_FEB26.md** for this week's plan
+3. Update **BUGS.md** when issues discovered
+4. Add future ideas to **NEXT_WORK.md**
 
-## Adding a Planning Document
+### For Planning
+1. Active planning goes in **planning/**
+2. When planning completes, move to **planning/archive/**
+3. Session summaries go to **archive/** when done
+4. Keep only active/future work in main docs
 
-1. Create `docs/planning/YOUR_FEATURE.md` using the same structure as DASHBOARD.md.
-2. Add a row to the table above.
-3. Commit with message `docs: add planning/<feature> plan`.
+### For Development
+1. Dashboard code: `../dashboard/`
+2. Tests: `../test.sh`
+3. Dev servers: `cd ../dashboard && npm run dev`
+
+---
+
+## 📝 Document Lifecycle
+
+```
+New Planning Doc
+    ↓
+planning/*.md (active)
+    ↓
+Work completed
+    ↓
+planning/archive/*.md (done)
+
+Session Summary
+    ↓
+docs/*.md (active)
+    ↓
+Session ends
+    ↓
+archive/*.md (reference)
+```
+
+---
+
+## 🚀 Quick Commands
+
+```bash
+# View current status
+cat STATUS.md
+
+# View demo plan
+cat planning/DEMO_DAY_ROADMAP_FEB26.md
+
+# Start dev servers
+cd ../dashboard && npm run dev
+
+# Run tests
+cd .. && ./test.sh
+
+# Check bugs
+cat BUGS.md
+```
+
+---
+
+**Principle**: Keep docs minimal, active, and organized. Archive aggressively.
