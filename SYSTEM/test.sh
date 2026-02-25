@@ -1,7 +1,7 @@
 #!/bin/bash
 # set -e  # Disabled to show all test results even if one fails
 
-# Dashboard Test Suite
+# SYSTEM Test Suite
 # Tests validation, APIs, and key features
 #
 # Usage: ./test.sh [--with-validation]
@@ -9,6 +9,9 @@
 #
 # WARNING: Validation tests (sections 3-6) modify live data files!
 # Run without --with-validation flag to skip them (recommended).
+
+# Ensure we're in the SYSTEM directory
+cd "$(dirname "$0")"
 
 API_BASE="http://localhost:3001"
 GREEN='\033[0;32m'
