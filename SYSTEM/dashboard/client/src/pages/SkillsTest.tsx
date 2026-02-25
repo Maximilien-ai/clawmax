@@ -202,6 +202,7 @@ export function SkillsTest() {
                           setAgentId(id)
                           setAgentSearchQuery('')
                           setShowAgentDropdown(false)
+                          setFilterAssigned('assigned') // Auto-filter to assigned skills when selecting agent
                         }}
                         className={`w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors ${
                           id === agentId ? 'bg-blue-100 font-medium' : ''
