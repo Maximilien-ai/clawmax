@@ -134,10 +134,10 @@ export function getAgentSkills(agentId: string): string[] {
       return []
     }
 
-    // Skills can be in agent.skills.allowBundled or agent.skills.entries
-    const allowBundled = agent.skills?.allowBundled || []
+    // Skills is an array of skill IDs
+    const skills = agent.skills || []
 
-    return Array.isArray(allowBundled) ? allowBundled : []
+    return Array.isArray(skills) ? skills : []
   } catch (err) {
     console.error(`Error reading skills for agent ${agentId}:`, err)
     return []
@@ -161,13 +161,8 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
       throw new Error(`Agent ${agentId} not found in openclaw.json`)
     }
 
-    // Initialize skills object if it doesn't exist
-    if (!config.agents.list[agentIndex].skills) {
-      config.agents.list[agentIndex].skills = {}
-    }
-
-    // Set allowBundled array
-    config.agents.list[agentIndex].skills.allowBundled = skillIds
+    // Set skills array directly
+    config.agents.list[agentIndex].skills = skillIds
 
     saveOpenClawConfig(config)
   } catch (err) {
@@ -203,10 +198,7 @@ interface OpenClawConfig {
       workspace?: string
       agentDir?: string
       model?: string
-      skills?: {
-        allowBundled?: string[]
-        entries?: Record<string, any>
-      }
+      skills?: string[]  // Array of skill IDs
     }>
   }
   [key: string]: any
