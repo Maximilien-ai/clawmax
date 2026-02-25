@@ -1827,67 +1827,187 @@ This roadmap outlines the critical path from current state to full multi-workspa
 
 **Goal:** Enable users to see available skills/tools and assign them to agents
 
-#### 4.2.1 Backend: Skills Registry & API
+**IMPORTANT:** OpenClaw already has a complete skills system! We will **reuse** it instead of building from scratch.
+
+#### 4.2.1 OpenClaw Skills System (REUSE ✅)
+
+**Existing Skills Infrastructure:**
+- **53 bundled skills** in `/Users/maximilien/github/maximilien/openclaw/skills/`
+- Each skill has a `SKILL.md` file with YAML frontmatter
+- Skills can be: bundled, managed (~/.openclaw/skills), or workspace-specific
+- Configuration in `~/.openclaw/openclaw.json` under `skills` section
+
+**Sample Skills Already Available:**
+- `github` - GitHub CLI integration (🐙)
+- `slack` - Slack messaging (💬)
+- `notion` - Notion workspace
+- `1password` - 1Password secrets
+- `discord`, `trello`, `jira` - Team collaboration
+- `coding-agent` - AI coding assistant
+- `canvas` - Visual annotations
+- `healthcheck`, `oracle`, `summarize` - Utilities
+- And 40+ more!
+
+**Skill Definition Format (SKILL.md):**
+```markdown
+---
+name: github
+description: "Interact with GitHub using the `gh` CLI..."
+metadata:
+  {
+    "openclaw": {
+      "emoji": "🐙",
+      "requires": { "bins": ["gh"] },
+      "install": [
+        {
+          "id": "brew",
+          "kind": "brew",
+          "formula": "gh",
+          "bins": ["gh"],
+          "label": "Install GitHub CLI (brew)"
+        }
+      ]
+    }
+  }
+---
+
+# GitHub Skill
+[Usage documentation...]
+```
+
+**OpenClaw TypeScript Types:**
+```typescript
+// From openclaw/src/config/types.skills.ts
+export type SkillConfig = {
+  enabled?: boolean
+  apiKey?: string
+  env?: Record<string, string>
+  config?: Record<string, unknown>
+}
+
+export type SkillsConfig = {
+  allowBundled?: string[]  // Allowlist for bundled skills
+  load?: SkillsLoadConfig
+  install?: SkillsInstallConfig
+  limits?: SkillsLimitsConfig
+  entries?: Record<string, SkillConfig>  // Per-skill config
+}
+```
+
+#### 4.2.2 Backend: Skills API (Bridge to OpenClaw)
 
 **Files to Create:**
 ```
-SYSTEM/dashboard/server/lib/skills.ts        # Skills registry and loader
+SYSTEM/dashboard/server/lib/skills.ts        # Skills loader from OpenClaw
 SYSTEM/dashboard/server/routes/skills.ts     # Skills API endpoints
-SYSTEM/schemas/skill.schema.json             # Skill definition schema
 ```
 
-**Skills Registry (`skills.ts`):**
+**Skills Loader (`skills.ts`):**
 ```typescript
-interface Skill {
-  id: string                    // e.g., "github"
-  name: string                  // "GitHub Integration"
+import fs from 'fs'
+import path from 'path'
+import matter from 'gray-matter'  // Parse YAML frontmatter
+import os from 'os'
+
+interface OpenClawSkill {
+  name: string
   description: string
-  category: 'development' | 'communication' | 'data' | 'automation' | 'other'
-  capabilities: string[]        // ["create-pr", "list-issues", "clone-repo"]
-  requiredConfig?: {
-    apiKey?: boolean
-    apiUrl?: boolean
-    [key: string]: boolean
+  emoji?: string
+  filePath: string
+  bundled: boolean
+  requires?: {
+    bins?: string[]
+    config?: string[]
   }
-  version: string
-  author?: string
-  icon?: string                 // emoji or icon name
+  install?: Array<{
+    id: string
+    kind: 'brew' | 'npm' | 'apt' | 'download'
+    label: string
+  }>
 }
 
-// Load skills from:
-// 1. ~/.openclaw/skills/ (global/system skills)
-// 2. SYSTEM/skills/ (bundled default skills)
-// 3. Future: workspace-specific skills
+// Load skills from OpenClaw installation
+const OPENCLAW_REPO = '/Users/maximilien/github/maximilien/openclaw'
+const BUNDLED_SKILLS_DIR = path.join(OPENCLAW_REPO, 'skills')
+const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
 
-export function listAvailableSkills(): Skill[]
-export function getSkillById(id: string): Skill | null
-export function getAgentSkills(agentId: string): string[]  // Read from TOOLS.md
-export function setAgentSkills(agentId: string, skillIds: string[]): void  // Update TOOLS.md
+export function listAvailableSkills(): OpenClawSkill[] {
+  const skills: OpenClawSkill[] = []
+
+  // Load bundled skills from OpenClaw repo
+  if (fs.existsSync(BUNDLED_SKILLS_DIR)) {
+    const dirs = fs.readdirSync(BUNDLED_SKILLS_DIR)
+    for (const dir of dirs) {
+      const skillPath = path.join(BUNDLED_SKILLS_DIR, dir, 'SKILL.md')
+      if (fs.existsSync(skillPath)) {
+        const skill = parseSkillFile(skillPath, true)
+        if (skill) skills.push(skill)
+      }
+    }
+  }
+
+  // Load managed skills from ~/.openclaw/skills
+  if (fs.existsSync(MANAGED_SKILLS_DIR)) {
+    const dirs = fs.readdirSync(MANAGED_SKILLS_DIR)
+    for (const dir of dirs) {
+      const skillPath = path.join(MANAGED_SKILLS_DIR, dir, 'SKILL.md')
+      if (fs.existsSync(skillPath)) {
+        const skill = parseSkillFile(skillPath, false)
+        if (skill) skills.push(skill)
+      }
+    }
+  }
+
+  return skills.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function parseSkillFile(filePath: string, bundled: boolean): OpenClawSkill | null {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const { data } = matter(content)
+
+    return {
+      name: data.name,
+      description: data.description || '',
+      emoji: data.metadata?.openclaw?.emoji,
+      filePath,
+      bundled,
+      requires: data.metadata?.openclaw?.requires,
+      install: data.metadata?.openclaw?.install
+    }
+  } catch (err) {
+    console.error(`Failed to parse skill ${filePath}:`, err)
+    return null
+  }
+}
+
+export function getSkillById(id: string): OpenClawSkill | null {
+  const skills = listAvailableSkills()
+  return skills.find(s => s.name === id) || null
+}
+
+// Agent skills management (read/write TOOLS.md or openclaw.json)
+export function getAgentSkills(agentId: string): string[] {
+  // TODO: Parse agent's openclaw config or TOOLS.md
+  // For now, return empty array
+  return []
+}
+
+export function setAgentSkills(agentId: string, skillIds: string[]): void {
+  // TODO: Update agent's skill configuration
+  // Options: 1) Update openclaw.json agent config
+  //          2) Update TOOLS.md with structured section
+}
 ```
 
 **API Endpoints (`routes/skills.ts`):**
 ```typescript
-GET  /api/skills                    // List all available skills
+GET  /api/skills                    // List all available skills (from OpenClaw)
 GET  /api/skills/:skillId           // Get skill details
 GET  /api/agents/:id/skills         // Get agent's assigned skills
-PUT  /api/agents/:id/skills         // Update agent's skills (array of skill IDs)
-POST /api/skills/validate           // Validate skill IDs exist before template import
+PUT  /api/agents/:id/skills         // Update agent's skills
+POST /api/skills/validate           // Validate skill IDs exist
 ```
-
-**Initial Bundled Skills (JSON files in `SYSTEM/skills/`):**
-- `github.json` - GitHub API integration
-- `gitlab.json` - GitLab integration
-- `slack.json` - Slack messaging
-- `jira.json` - Jira issue tracking
-- `linear.json` - Linear issue tracking
-- `notion.json` - Notion workspace
-- `bash.json` - Shell command execution
-- `python.json` - Python scripting
-- `javascript.json` - JavaScript/Node.js
-- `golang.json` - Go development
-- `git.json` - Git version control
-- `docker.json` - Docker container management
-- `kubernetes.json` - K8s orchestration
 
 #### 4.2.2 Frontend: Skills Management UI
 
@@ -2177,20 +2297,20 @@ This follows the architecture from **Part 3: Multiple Workspaces & Organizations
 
 ### 4.8 Open Questions for User Review
 
-1. **Skills Source Priority:** For Days 3-4, should we:
-   - A) Create 13+ skill JSON files as bundled skills (recommended)
-   - B) Scan ~/.openclaw for MCP servers and auto-generate skills
-   - C) Both (bundled + auto-discovered MCP)
+1. **Skills Integration:** ✅ **RESOLVED** - Reuse OpenClaw's existing 53 bundled skills
+   - Load from `/Users/maximilien/github/maximilien/openclaw/skills/`
+   - Parse SKILL.md files with gray-matter library
+   - No need to create skill JSON files from scratch
 
-2. **TOOLS.md Migration:** When adding structured skills section:
-   - A) Preserve all existing content below markers (recommended)
-   - B) Move existing content to NOTES.md
-   - C) Ask user on first migration
+2. **Agent Skills Storage:** How should we store agent → skill assignments?
+   - A) **Recommended:** Update `openclaw.json` agent config with `skills.allowBundled` array
+   - B) Alternative: Update TOOLS.md with structured section (requires parsing)
+   - C) Both: openclaw.json for config, TOOLS.md for documentation
 
-3. **Skills Execution:** For now, skills are metadata only (names/capabilities). When should we add:
-   - Phase 1: Just display/assign (Days 3-4) ← START HERE
-   - Phase 2: MCP server integration (future)
-   - Phase 3: Workflow execution engine (future)
+3. **Skills UI Scope:** For Phase 1 (Days 3-4), focus on:
+   - A) **Recommended:** View all 53 skills + assign to agents (read-only display)
+   - B) Add skill installation UI (show install commands from SKILL.md)
+   - C) Full skills management (enable/disable, configure API keys)
 
 4. **Workspace Migration:** When launching multi-workspace:
    - A) Auto-migrate existing workspace to `workspaces/default/` (recommended)
@@ -2198,9 +2318,9 @@ This follows the architecture from **Part 3: Multiple Workspaces & Organizations
    - C) Force user to choose migration strategy
 
 5. **Demo Priorities:** For Thursday demo, focus on:
-   - A) Skills management + org templates (recommended)
-   - B) Multi-workspace early preview
-   - C) Both (aggressive timeline)
+   - A) **Recommended:** Skills browser + assign to agents + org templates
+   - B) Multi-workspace early preview (aggressive)
+   - C) Both (very aggressive)
 
 ---
 
