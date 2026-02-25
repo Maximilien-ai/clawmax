@@ -1780,6 +1780,478 @@ Users can now:
 
 ---
 
-**End of Design Document**
+## Part 4: Implementation Roadmap to Multi-Workspace
 
-*Ready for review and feedback.*
+**Created:** February 24, 2026
+**Status:** PLANNING - Ready for execution
+
+This roadmap outlines the critical path from current state to full multi-workspace support, including the essential **Skills & Tools management** system.
+
+---
+
+### 4.1 Current State Assessment (Day 2 Complete ✅)
+
+**What's Working:**
+- ✅ Agent template export/import (save individual agents as templates)
+- ✅ Organization template export (save entire org structure)
+- ✅ Organization template import with prefix/suffix
+- ✅ Templates page with auto-refresh
+- ✅ Organization Overview page (tree view of agents/communities/groups)
+- ✅ Organization metadata (name, description)
+- ✅ Atomic import with rollback on failure
+
+**What's Missing (Blockers for Multi-Workspace):**
+
+1. **Skills & Tools Management UI** 🚨 CRITICAL
+   - No way to see available skills/tools from OpenClaw instance
+   - No UI to add/remove tools from agents
+   - TOOLS.md is freeform text, not structured/executable
+   - Agent templates have `tools` array but it's not used in UI
+
+2. **Organization Metadata Persistence**
+   - Org name/description only in UI state (not saved to disk)
+   - No ORGANIZATION.md or metadata file
+
+3. **Workspace-Scoped Operations**
+   - All APIs assume single workspace (`~/.openclaw/workspace`)
+   - No workspace context in API routes
+   - Agent operations not workspace-aware
+
+4. **Template System Gaps**
+   - Templates not included in agent/org templates yet
+   - No validation that tools exist when importing templates
+
+---
+
+### 4.2 Phase 1: Skills & Tools Foundation (Days 3-4) 🎯 PRIORITY
+
+**Goal:** Enable users to see available skills/tools and assign them to agents
+
+#### 4.2.1 Backend: Skills Registry & API
+
+**Files to Create:**
+```
+SYSTEM/dashboard/server/lib/skills.ts        # Skills registry and loader
+SYSTEM/dashboard/server/routes/skills.ts     # Skills API endpoints
+SYSTEM/schemas/skill.schema.json             # Skill definition schema
+```
+
+**Skills Registry (`skills.ts`):**
+```typescript
+interface Skill {
+  id: string                    // e.g., "github"
+  name: string                  // "GitHub Integration"
+  description: string
+  category: 'development' | 'communication' | 'data' | 'automation' | 'other'
+  capabilities: string[]        // ["create-pr", "list-issues", "clone-repo"]
+  requiredConfig?: {
+    apiKey?: boolean
+    apiUrl?: boolean
+    [key: string]: boolean
+  }
+  version: string
+  author?: string
+  icon?: string                 // emoji or icon name
+}
+
+// Load skills from:
+// 1. ~/.openclaw/skills/ (global/system skills)
+// 2. SYSTEM/skills/ (bundled default skills)
+// 3. Future: workspace-specific skills
+
+export function listAvailableSkills(): Skill[]
+export function getSkillById(id: string): Skill | null
+export function getAgentSkills(agentId: string): string[]  // Read from TOOLS.md
+export function setAgentSkills(agentId: string, skillIds: string[]): void  // Update TOOLS.md
+```
+
+**API Endpoints (`routes/skills.ts`):**
+```typescript
+GET  /api/skills                    // List all available skills
+GET  /api/skills/:skillId           // Get skill details
+GET  /api/agents/:id/skills         // Get agent's assigned skills
+PUT  /api/agents/:id/skills         // Update agent's skills (array of skill IDs)
+POST /api/skills/validate           // Validate skill IDs exist before template import
+```
+
+**Initial Bundled Skills (JSON files in `SYSTEM/skills/`):**
+- `github.json` - GitHub API integration
+- `gitlab.json` - GitLab integration
+- `slack.json` - Slack messaging
+- `jira.json` - Jira issue tracking
+- `linear.json` - Linear issue tracking
+- `notion.json` - Notion workspace
+- `bash.json` - Shell command execution
+- `python.json` - Python scripting
+- `javascript.json` - JavaScript/Node.js
+- `golang.json` - Go development
+- `git.json` - Git version control
+- `docker.json` - Docker container management
+- `kubernetes.json` - K8s orchestration
+
+#### 4.2.2 Frontend: Skills Management UI
+
+**Files to Create:**
+```
+client/src/components/SkillsPanel.tsx           # Skills section in agent detail
+client/src/components/AddSkillsModal.tsx        # Modal to browse/add skills
+client/src/components/SkillCard.tsx             # Skill display component
+client/src/pages/Skills.tsx                     # Skills library page (optional)
+```
+
+**UI Integration Points:**
+
+1. **Agent Detail Page → Add "Skills & Tools" Tab**
+   - Show assigned skills with badges
+   - "➕ Add Skills" button → opens AddSkillsModal
+   - Remove skill button on each badge
+   - Show skill capabilities (expandable)
+
+2. **AddSkillsModal Component:**
+   - Grid view of all available skills
+   - Filter by category (development, communication, etc.)
+   - Search by name/capability
+   - Selected skills highlighted
+   - "Add Selected" button
+
+3. **Add Agent Wizard → Skills Step**
+   - Optional step: "Assign Skills & Tools"
+   - Same AddSkillsModal component
+   - Skip button for later
+
+4. **Agent Templates → Include Skills**
+   - When saving agent as template, include `tools` array
+   - When importing, validate skills exist
+   - Show warning if skills missing (optional: continue anyway)
+
+**Example UI Flow:**
+```
+Agent Detail → Skills Tab → "➕ Add Skills"
+  → Modal opens showing 13 available skills
+  → User selects: github, git, golang
+  → Click "Add Selected"
+  → Backend updates TOOLS.md with structured section:
+
+# TOOLS.md
+
+## Assigned Skills
+
+- github (GitHub Integration)
+- git (Git Version Control)
+- golang (Go Development)
+
+## Local Notes
+[existing freeform content preserved]
+```
+
+#### 4.2.3 TOOLS.md Format Evolution
+
+**Current (Freeform):**
+```markdown
+# TOOLS.md - Local Notes
+
+Dave, as an advisor, could benefit from Zoom or Microsoft Teams...
+```
+
+**New (Structured + Freeform):**
+```markdown
+# TOOLS.md
+
+<!-- MANAGED_SKILLS_START -->
+## Assigned Skills
+
+- github (GitHub Integration v1.0)
+- git (Git Version Control v1.0)
+- golang (Go Development v1.0)
+<!-- MANAGED_SKILLS_END -->
+
+---
+
+## Local Notes
+
+[Freeform content preserved below this line]
+Dave, as an advisor, could benefit from Zoom or Microsoft Teams...
+```
+
+**Parsing Logic:**
+- Extract content between `<!-- MANAGED_SKILLS_START -->` and `<!-- MANAGED_SKILLS_END -->`
+- Preserve everything else as freeform
+- Backward compatible (if no markers, treat whole file as freeform)
+
+#### 4.2.4 Template Integration
+
+**Agent Template JSON (Updated):**
+```json
+{
+  "name": "Senior Software Engineer",
+  "type": "agent",
+  "version": "1.0.0",
+  "agents": [{
+    "id": "engineer",
+    "role": "Full-stack software engineer",
+    "tags": ["engineering", "fullstack"],
+    "skills": ["github", "git", "golang", "docker", "bash"]  // ← New!
+  }],
+  "metadata": {
+    "requiredSkills": ["github", "git", "golang"],  // Must exist
+    "optionalSkills": ["docker", "bash"]           // Warning if missing
+  }
+}
+```
+
+**Import Validation:**
+```typescript
+// Before importing template
+const missingSkills = template.metadata.requiredSkills.filter(
+  skillId => !skillExists(skillId)
+)
+
+if (missingSkills.length > 0) {
+  return res.status(400).json({
+    error: `Missing required skills: ${missingSkills.join(', ')}`
+  })
+}
+```
+
+---
+
+### 4.3 Phase 2: Organization Metadata Persistence (Day 5)
+
+**Goal:** Save organization name/description to disk (prerequisite for multi-workspace)
+
+#### 4.3.1 Create ORGANIZATION.md
+
+**New File:** `~/.openclaw/workspace/ORGANIZATION.md`
+
+```markdown
+# Organization Metadata
+
+**Name:** Maximilien.ai
+**Description:** First ClawMax organization
+
+## Created
+2026-02-20
+
+## Members
+11 agents, 4 communities, 9 groups
+
+---
+
+[Additional freeform notes about the organization]
+```
+
+#### 4.3.2 Update Organization Page
+
+**Read/Write ORGANIZATION.md:**
+- Load on page mount
+- Save on edit (debounced)
+- Show last updated timestamp
+
+**API Endpoints:**
+```typescript
+GET  /api/organization/metadata
+PUT  /api/organization/metadata  // { name, description }
+```
+
+---
+
+### 4.4 Phase 3: Workspace Context Preparation (Days 6-7)
+
+**Goal:** Make all APIs workspace-aware (without breaking current single-workspace setup)
+
+#### 4.4.1 Add Workspace Context to Backend
+
+**Current:**
+```typescript
+const WORKSPACE_PATH = path.join(os.homedir(), '.openclaw', 'workspace')
+const AGENTS_DIR = path.join(WORKSPACE_PATH, 'AGENTS')
+```
+
+**New (Backward Compatible):**
+```typescript
+// Default workspace for single-workspace mode
+const DEFAULT_WORKSPACE = 'default'
+
+function getWorkspacePath(workspaceId?: string): string {
+  const id = workspaceId || DEFAULT_WORKSPACE
+
+  // If workspaceId is 'default', use legacy path for backward compatibility
+  if (id === 'default') {
+    return path.join(os.homedir(), '.openclaw', 'workspace')
+  }
+
+  return path.join(os.homedir(), '.openclaw', 'workspaces', id)
+}
+
+const AGENTS_DIR = (workspaceId?: string) =>
+  path.join(getWorkspacePath(workspaceId), 'AGENTS')
+```
+
+#### 4.4.2 Update All API Routes
+
+**Add Optional Workspace Query Param:**
+```typescript
+// GET /api/agents?workspace=maximilien-ai
+router.get('/agents', (req, res) => {
+  const workspace = req.query.workspace as string | undefined
+  const agentsDir = AGENTS_DIR(workspace)
+  // ... rest of logic
+})
+```
+
+**Routes to Update:**
+- `/api/agents` (GET, POST)
+- `/api/agents/:id` (GET, PUT, DELETE)
+- `/api/agents/:id/communities` (GET, PUT)
+- `/api/agents/:id/groups` (GET, PUT)
+- `/api/templates/*` (all template routes)
+- `/api/organization/metadata` (new)
+
+---
+
+### 4.5 Phase 4: Multi-Workspace Implementation (Days 8-10)
+
+**Goal:** Full multi-workspace support with workspace switcher
+
+This follows the architecture from **Part 3: Multiple Workspaces & Organizations**.
+
+#### Key Features:
+1. Workspace registry (`~/.openclaw/config.json`)
+2. Workspace CRUD APIs
+3. Workspace switcher in UI (top nav dropdown)
+4. Create workspace from organization template
+5. Migration: auto-detect existing workspace → `workspaces/default/`
+
+**Implementation Details:** See Part 3, Section 3.4-3.7
+
+---
+
+### 4.6 Recommended Execution Order
+
+**Week 1: Skills & Tools (Days 3-4)** 🎯 START HERE
+- Day 3 AM: Skills registry + API backend
+- Day 3 PM: Skills UI components (AddSkillsModal, SkillsPanel)
+- Day 4 AM: Integrate skills into Agent Detail page
+- Day 4 PM: Template integration + validation
+- **Deliverable:** Working skills management with 13+ bundled skills
+
+**Week 1: Org Metadata (Day 5)**
+- Day 5 AM: ORGANIZATION.md schema + API
+- Day 5 PM: Update Organization page to persist metadata
+- **Deliverable:** Organization metadata saved to disk
+
+**Week 2: Workspace Preparation (Days 6-7)**
+- Day 6: Refactor backend for workspace context
+- Day 7: Update all API routes with workspace param
+- **Deliverable:** APIs ready for multi-workspace (backward compatible)
+
+**Week 2-3: Multi-Workspace (Days 8-10)**
+- Day 8: Workspace registry + CRUD APIs
+- Day 9: Workspace switcher UI + navigation
+- Day 10: Migration script + testing
+- **Deliverable:** Full multi-workspace support
+
+**Week 3: Polish & Demo Prep (Days 11-12)**
+- Testing across all features
+- Bug fixes
+- Documentation
+- Demo scenarios
+
+---
+
+### 4.7 Critical Dependencies
+
+**Before Multi-Workspace:**
+1. ✅ Organization templates (DONE)
+2. 🚨 Skills/Tools management (IN PROGRESS - Days 3-4)
+3. 🚨 Organization metadata persistence (Day 5)
+4. 🚨 Workspace-aware APIs (Days 6-7)
+
+**Parallel Work (Can Start Anytime):**
+- Skills library expansion (add more skills)
+- Template marketplace design
+- Documentation updates
+- E2E testing
+
+---
+
+### 4.8 Open Questions for User Review
+
+1. **Skills Source Priority:** For Days 3-4, should we:
+   - A) Create 13+ skill JSON files as bundled skills (recommended)
+   - B) Scan ~/.openclaw for MCP servers and auto-generate skills
+   - C) Both (bundled + auto-discovered MCP)
+
+2. **TOOLS.md Migration:** When adding structured skills section:
+   - A) Preserve all existing content below markers (recommended)
+   - B) Move existing content to NOTES.md
+   - C) Ask user on first migration
+
+3. **Skills Execution:** For now, skills are metadata only (names/capabilities). When should we add:
+   - Phase 1: Just display/assign (Days 3-4) ← START HERE
+   - Phase 2: MCP server integration (future)
+   - Phase 3: Workflow execution engine (future)
+
+4. **Workspace Migration:** When launching multi-workspace:
+   - A) Auto-migrate existing workspace to `workspaces/default/` (recommended)
+   - B) Keep legacy path, new workspaces in `workspaces/`
+   - C) Force user to choose migration strategy
+
+5. **Demo Priorities:** For Thursday demo, focus on:
+   - A) Skills management + org templates (recommended)
+   - B) Multi-workspace early preview
+   - C) Both (aggressive timeline)
+
+---
+
+### 4.9 Success Criteria
+
+**Phase 1 (Skills) Complete When:**
+- ✅ Skills registry loads 13+ bundled skills
+- ✅ Agent Detail page shows "Skills & Tools" tab
+- ✅ Can add/remove skills from agents via UI
+- ✅ TOOLS.md updates with structured section
+- ✅ Agent templates include skills array
+- ✅ Import validates required skills exist
+
+**Phase 2 (Org Metadata) Complete When:**
+- ✅ ORGANIZATION.md file created and loaded
+- ✅ Organization page persists name/description
+- ✅ Organization templates include org metadata
+
+**Phase 3 (Workspace Prep) Complete When:**
+- ✅ All APIs accept optional `?workspace=` param
+- ✅ Backend functions use `getWorkspacePath()`
+- ✅ Tests pass for both default and custom workspace
+
+**Phase 4 (Multi-Workspace) Complete When:**
+- ✅ Can create/delete/list workspaces
+- ✅ Workspace switcher in UI works
+- ✅ Can create workspace from org template
+- ✅ Migration preserves existing workspace
+
+---
+
+### 4.10 Risk Mitigation
+
+**Risk 1: Timeline Pressure (Demo Thursday)**
+- Mitigation: Focus on Phase 1 (Skills) for demo, defer multi-workspace
+- Fallback: Demo org templates only (already working)
+
+**Risk 2: Skills Complexity**
+- Mitigation: Start with display-only (no execution), defer MCP integration
+- Fallback: Use static JSON skill definitions
+
+**Risk 3: Migration Breaking Changes**
+- Mitigation: Maintain backward compatibility, test with existing workspace
+- Fallback: Feature flag multi-workspace, default off
+
+**Risk 4: Scope Creep**
+- Mitigation: Strict phase boundaries, no new features mid-phase
+- Fallback: Cut Phase 4 if needed, ship Phase 1-3
+
+---
+
+**End of Implementation Roadmap**
+
+*Ready for user review and execution planning.*
