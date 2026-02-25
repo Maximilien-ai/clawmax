@@ -80,23 +80,28 @@ test_json_field() {
   fi
 }
 
-test_validation() {
-  local name="$1"
-  local file="$2"
-  local content="$3"
-  local should_fail="${4:-false}"
+# Section 0: TypeScript & Unit Tests
+echo ""
+echo "========================================="
+echo "Section 0: TypeScript & Skills Tests"
+echo "========================================="
+echo ""
 
-  response=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE/api/docs/content" \
-    -H "Content-Type: application/json" \
-    -d "{\"path\":\"$file\",\"content\":$(echo "$content" | jq -Rs .)}")
+echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
+if npm run typecheck 2>&1 | grep -q "error TS"; then
+  fail "TypeScript type check"
+else
+  pass "TypeScript type check"
+fi
 
-  code=$(echo "$response" | tail -n 1)
-  body=$(echo "$response" | sed '$d')
-
-  if [ "$should_fail" = "true" ]; then
-    if [ "$code" -eq 400 ]; then
-      pass "$name (validation rejected as expected)"
-      return 0
+echo ""
+echo -e "${YELLOW}→ Running Skills API unit tests...${NC}"
+if npx ts-node server/lib/skills.test.ts 2>&1 | grep -q "All tests passed"; then
+  pass "Skills API unit tests (14 tests)"
+else
+  fail "Skills API unit tests"
+fi
+echo ""
     else
       fail "$name (expected 400, got $code)"
       return 1
