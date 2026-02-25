@@ -4,7 +4,7 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 
 const API_BASE = 'http://localhost:3001'
 
-export function SkillsTest() {
+export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
@@ -12,7 +12,7 @@ export function SkillsTest() {
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
-  const [agentId, setAgentId] = useState('engineer')
+  const [agentId, setAgentId] = useState(initialAgentId || 'engineer')
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -22,6 +22,13 @@ export function SkillsTest() {
   useEffect(() => {
     loadAgents()
   }, [])
+
+  // Update agent when initialAgentId prop changes
+  useEffect(() => {
+    if (initialAgentId) {
+      setAgentId(initialAgentId)
+    }
+  }, [initialAgentId])
 
   // Reload skills when agent changes
   useEffect(() => {

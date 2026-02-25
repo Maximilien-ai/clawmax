@@ -87,7 +87,7 @@ export default function AgentDetailPanel({
   agent: Agent
   onClose: () => void
   onChat: () => void
-  onNavigateToSkills?: () => void
+  onNavigateToSkills?: (agentId: string) => void
 }) {
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -262,7 +262,7 @@ export default function AgentDetailPanel({
                         key={skill}
                         onClick={() => {
                           if (onNavigateToSkills) {
-                            onNavigateToSkills()
+                            onNavigateToSkills(agent.id)
                             onClose()
                           }
                         }}
@@ -275,7 +275,7 @@ export default function AgentDetailPanel({
                   {onNavigateToSkills && (
                     <button
                       onClick={() => {
-                        onNavigateToSkills()
+                        onNavigateToSkills(agent.id)
                         onClose()
                       }}
                       className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"

@@ -44,6 +44,7 @@ export default function App() {
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
+  const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
     const saved = localStorage.getItem('nav-order')
     if (saved) {
@@ -164,7 +165,7 @@ export default function App() {
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-                onNavigateToSkills={() => setPage('skills')}
+                onNavigateToSkills={(agentId) => { setInitialSkillsAgent(agentId); setPage('skills'); }}
                 initialAgentId={initialAgentId}
               />
             </div>
@@ -175,7 +176,7 @@ export default function App() {
               <Organizations />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
-              <SkillsTest />
+              <SkillsTest initialAgentId={initialSkillsAgent} />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
               <Communication

@@ -67,7 +67,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'list' | 'grid'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: () => void; initialAgentId?: string } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; initialAgentId?: string } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -1633,7 +1633,7 @@ const AgentCard = React.memo(function AgentCard({
                 <span className="text-xs text-gray-400">Skills & Tools</span>
                 {onNavigateToSkills && (
                   <button
-                    onClick={e => { e.stopPropagation(); onNavigateToSkills(); }}
+                    onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
                     className="text-blue-500 hover:text-blue-700 transition-colors text-sm leading-none"
                     title="Manage skills"
                   >
@@ -1645,7 +1645,7 @@ const AgentCard = React.memo(function AgentCard({
                 {agent.skills.map(skill => (
                   <button
                     key={skill}
-                    onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(); }}
+                    onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(agent.id); }}
                     className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors"
                   >
                     {skill}
