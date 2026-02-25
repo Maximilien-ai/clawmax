@@ -20,9 +20,44 @@
 - `req.on('close')` no longer kills setup.sh — agent always runs to completion
 - `cloneAgentFiles` patches IDENTITY.md replacing source agent name with new name
 
+### v0.7.0 — Skills & Tools Management Integration ✅
+- Full Skills & Tools management UI integrated into dashboard
+- Skills displayed on agent cards with click-to-manage functionality
+- Advanced Skills page with searchable agent dropdown, usage tracking, and popularity stats
+- Dynamic skill assignment with real-time validation and persistence
+- Interactive stat cards for quick filtering (Total/Assigned/Available)
+- Auto-filter to assigned skills when selecting an agent
+- 5 Skills API endpoints: list, get, agent skills, update, validate
+- Skills data read from `~/.openclaw/openclaw.json` per agent
+- Skills displayed in agent detail panel with navigation to Skills page
+- Comprehensive test suite: 67 tests passing (100%)
+- SkillCard component with expandable details
+- Most Popular Skills section
+- **Released**: 2026-02-25
+
 ---
 
 ## In Progress / Next
+
+### DEMO DAY PREP (Tomorrow)
+**Priority**: Polish and test core features for demo
+
+**Tonight (2-3 hours):**
+- [ ] Review all pages for visual consistency
+- [ ] Test full agent lifecycle: create → assign skills → chat (if available)
+- [ ] Verify all tests pass with `./test.sh`
+- [ ] Prepare demo script/talking points
+- [ ] Check for any console errors or warnings
+
+**Demo Day:**
+- [ ] Morning: Final smoke test of all features
+- [ ] Demo script ready with backup scenarios
+- [ ] Server/client running and stable
+
+**Post-Demo (Rest of Week):**
+- [ ] Gather feedback from demo
+- [ ] Fix any bugs discovered during demo
+- [ ] Prioritize next features based on feedback
 
 ### v0.2.0 — WhatsApp Link Panel
 
