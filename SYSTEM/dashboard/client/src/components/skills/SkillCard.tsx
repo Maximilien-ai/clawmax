@@ -6,9 +6,11 @@ interface SkillCardProps {
   assigned: boolean
   onToggle?: () => void
   compact?: boolean
+  usageCount?: number
+  usedBy?: string[]
 }
 
-export function SkillCard({ skill, assigned, onToggle, compact = false }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, compact = false, usageCount, usedBy }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -33,6 +35,16 @@ export function SkillCard({ skill, assigned, onToggle, compact = false }: SkillC
           <p className="text-sm text-gray-600 line-clamp-2">
             {skill.description}
           </p>
+
+          {/* Usage information */}
+          {usageCount !== undefined && usageCount > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Used by {usageCount} agent{usageCount !== 1 ? 's' : ''}
+              {usedBy && usedBy.length > 0 && usedBy.length <= 3 && (
+                <span className="text-gray-400"> ({usedBy.join(', ')})</span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Action Button */}

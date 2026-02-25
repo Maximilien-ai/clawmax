@@ -7,12 +7,15 @@ const API_BASE = 'http://localhost:3001'
 export function SkillsTest() {
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
+  const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
   const [agentId, setAgentId] = useState('engineer')
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
+  const [agentSearchQuery, setAgentSearchQuery] = useState('')
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Load agents list on mount
@@ -33,6 +36,19 @@ export function SkillsTest() {
       const data = await res.json()
       const agentIds = data.agents.map((a: any) => a.id)
       setAvailableAgents(agentIds)
+
+      // Compute skill usage across all agents
+      const usage = new Map<string, string[]>()
+      for (const agent of data.agents) {
+        if (agent.skills && Array.isArray(agent.skills)) {
+          for (const skill of agent.skills) {
+            const users = usage.get(skill) || []
+            users.push(agent.id)
+            usage.set(skill, users)
+          }
+        }
+      }
+      setSkillUsage(usage)
     } catch (error) {
       console.error('Failed to load agents:', error)
     }
@@ -137,6 +153,11 @@ export function SkillsTest() {
     return a.name.localeCompare(b.name)
   })
 
+  // Filter agents for searchable dropdown
+  const filteredAgents = availableAgents.filter(agent =>
+    agent.toLowerCase().includes(agentSearchQuery.toLowerCase())
+  )
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -158,17 +179,40 @@ export function SkillsTest() {
               Skills Manager
             </h1>
 
-            {/* Agent Selector */}
+            {/* Searchable Agent Selector */}
             {availableAgents.length > 0 && (
-              <select
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-                className="px-4 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {availableAgents.map(id => (
-                  <option key={id} value={id}>{id}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={agentSearchQuery || agentId}
+                  onChange={(e) => {
+                    setAgentSearchQuery(e.target.value)
+                    setShowAgentDropdown(true)
+                  }}
+                  onFocus={() => setShowAgentDropdown(true)}
+                  placeholder="Search agents..."
+                  className="px-4 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
+                />
+                {showAgentDropdown && filteredAgents.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredAgents.map(id => (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setAgentId(id)
+                          setAgentSearchQuery('')
+                          setShowAgentDropdown(false)
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors ${
+                          id === agentId ? 'bg-blue-100 font-medium' : ''
+                        }`}
+                      >
+                        {id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <p className="text-gray-600">
@@ -191,6 +235,29 @@ export function SkillsTest() {
             <div className="text-sm text-gray-600">Available</div>
           </div>
         </div>
+
+        {/* Popular Skills */}
+        {skillUsage.size > 0 && (
+          <div className="bg-white p-4 rounded-lg border mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Most Popular Skills</h3>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(skillUsage.entries())
+                .sort((a, b) => b[1].length - a[1].length)
+                .slice(0, 10)
+                .map(([skillName, users]) => (
+                  <div
+                    key={skillName}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200"
+                  >
+                    <span className="text-sm font-medium text-purple-900">{skillName}</span>
+                    <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                      {users.length}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg border mb-6">
@@ -272,14 +339,19 @@ export function SkillsTest() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedSkills.map(skill => (
-              <SkillCard
-                key={skill.name}
-                skill={skill}
-                assigned={assignedSkills.has(skill.name)}
-                onToggle={() => toggleSkill(skill.name)}
-              />
-            ))}
+            {sortedSkills.map(skill => {
+              const users = skillUsage.get(skill.name) || []
+              return (
+                <SkillCard
+                  key={skill.name}
+                  skill={skill}
+                  assigned={assignedSkills.has(skill.name)}
+                  onToggle={() => toggleSkill(skill.name)}
+                  usageCount={users.length}
+                  usedBy={users}
+                />
+              )
+            })}
           </div>
         )}
       </div>
