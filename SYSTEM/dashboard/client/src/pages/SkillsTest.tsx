@@ -223,18 +223,33 @@ export function SkillsTest() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg border">
+          <button
+            onClick={() => setFilterAssigned('all')}
+            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+              filterAssigned === 'all' ? 'ring-2 ring-blue-500' : ''
+            }`}
+          >
             <div className="text-2xl font-bold text-blue-600">{allSkills.length}</div>
             <div className="text-sm text-gray-600">Total Skills</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border">
+          </button>
+          <button
+            onClick={() => setFilterAssigned('assigned')}
+            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+              filterAssigned === 'assigned' ? 'ring-2 ring-green-500' : ''
+            }`}
+          >
             <div className="text-2xl font-bold text-green-600">{assignedSkills.size}</div>
             <div className="text-sm text-gray-600">Assigned</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border">
+          </button>
+          <button
+            onClick={() => setFilterAssigned('available')}
+            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+              filterAssigned === 'available' ? 'ring-2 ring-gray-500' : ''
+            }`}
+          >
             <div className="text-2xl font-bold text-gray-600">{allSkills.length - assignedSkills.size}</div>
             <div className="text-sm text-gray-600">Available</div>
-          </div>
+          </button>
         </div>
 
         {/* Popular Skills */}
