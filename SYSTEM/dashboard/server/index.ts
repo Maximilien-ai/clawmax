@@ -8,6 +8,7 @@ import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
+import skillsRouter from './routes/skills'
 import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 
@@ -250,6 +251,7 @@ app.post('/api/docs/content', (req, res) => {
 app.use('/api/docs', docsRouter)
 app.use('/api/agents', agentsRouter)
 app.use('/api/templates', templatesRouter)
+app.use('/api/skills', skillsRouter)
 app.use('/api', channelsRouter)
 
 // Serve built client in production
