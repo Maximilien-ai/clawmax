@@ -164,6 +164,7 @@ export default function App() {
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                onNavigateToSkills={() => setPage('skills')}
                 initialAgentId={initialAgentId}
               />
             </div>

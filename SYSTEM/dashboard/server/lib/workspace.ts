@@ -270,6 +270,7 @@ export interface AgentInfo {
   communities: GroupEntry[]
   groups: GroupEntry[]
   tags: string[]
+  skills?: string[] // Skills assigned from openclaw.json
   validationWarnings?: string[] // Warnings from schema validation
   archived?: boolean // Derived from tags (true if 'archived' tag present)
   archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
@@ -589,6 +590,7 @@ export interface AgentActivity {
   todos: string | null
   completed: string | null
   identity: string | null
+  skills?: string[]
   liveConfig?: {
     model: string
     workspace: string
@@ -617,6 +619,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
 
   // Get live configuration from openclaw.json if agentId provided
   let liveConfig: { model: string; workspace: string; agentDir: string } | undefined
+  let skills: string[] | undefined
   if (agentId) {
     try {
       const HOME = process.env.HOME || ''
@@ -632,6 +635,8 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
           workspace: liveAgent.workspace || agentDir,
           agentDir: liveAgent.agentDir || 'N/A'
         }
+        // Get skills from agent config
+        skills = liveAgent.skills || []
       }
     } catch {
       // If we can't read live config, just don't include it
@@ -643,6 +648,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
     todos: readFile('TODOs.md'),
     completed: readFile('COMPLETED.md'),
     identity: readFile('IDENTITY.md'),
+    skills,
     liveConfig,
   }
 }
@@ -961,6 +967,18 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     }
   } catch {}
 
+  // Read skills from openclaw.json
+  let skills: string[] | undefined
+  try {
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list || []
+    const agentConfig = agentList.find((a: any) => a.id === id)
+    if (agentConfig && agentConfig.skills) {
+      skills = agentConfig.skills
+    }
+  } catch {}
+
   // Validate TOOLS.md
   const warnings = validationWarnings ? [...validationWarnings] : []
   try {
@@ -999,6 +1017,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     communities,
     groups,
     tags,
+    skills,
     validationWarnings: warnings.length > 0 ? warnings : undefined,
     archived: isArchived,
     archiveMetadata: isArchived ? archiveMetadata : undefined,

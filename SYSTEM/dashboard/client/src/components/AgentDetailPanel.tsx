@@ -23,6 +23,7 @@ interface AgentActivity {
   todos: string | null
   completed: string | null
   identity: string | null
+  skills?: string[]
   liveConfig?: {
     model: string
     workspace: string
@@ -81,10 +82,12 @@ export default function AgentDetailPanel({
   agent,
   onClose,
   onChat,
+  onNavigateToSkills,
 }: {
   agent: Agent
   onClose: () => void
   onChat: () => void
+  onNavigateToSkills?: () => void
 }) {
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -247,6 +250,39 @@ export default function AgentDetailPanel({
                       </span>
                     </div>
                   </div>
+                </Section>
+              )}
+
+              {/* Skills & Tools */}
+              {activity.skills && activity.skills.length > 0 && (
+                <Section title="Skills & Tools" source="openclaw.json">
+                  <div className="flex flex-wrap gap-1.5">
+                    {activity.skills.map(skill => (
+                      <button
+                        key={skill}
+                        onClick={() => {
+                          if (onNavigateToSkills) {
+                            onNavigateToSkills()
+                            onClose()
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                      >
+                        {skill}
+                      </button>
+                    ))}
+                  </div>
+                  {onNavigateToSkills && (
+                    <button
+                      onClick={() => {
+                        onNavigateToSkills()
+                        onClose()
+                      }}
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Manage skills →
+                    </button>
+                  )}
                 </Section>
               )}
 

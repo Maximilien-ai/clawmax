@@ -35,6 +35,7 @@ interface Agent {
   communities: GroupEntry[]
   groups: GroupEntry[]
   tags: string[]
+  skills?: string[]
   validationWarnings?: string[]
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
@@ -66,7 +67,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'list' | 'grid'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; initialAgentId?: string } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: () => void; initialAgentId?: string } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -919,6 +920,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
               onManageTags={() => setTagManageTarget(agent)}
               onManageCommunities={() => setCommunitiesTarget(agent)}
               onNavigateToGroup={onNavigateToGroup}
+              onNavigateToSkills={onNavigateToSkills}
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
@@ -1101,6 +1103,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, initialAgen
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
           onChat={() => setChatTarget(selectedAgent)}
+          onNavigateToSkills={onNavigateToSkills}
         />
       )}
 
@@ -1393,7 +1396,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onRestart, onArchive, onUnarchive,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive,
 }: {
   agent: Agent
   selected: boolean
@@ -1412,6 +1415,7 @@ const AgentCard = React.memo(function AgentCard({
   onManageTags: () => void
   onManageCommunities: () => void
   onNavigateToGroup?: (groupName: string) => void
+  onNavigateToSkills?: () => void
   onRestart: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
@@ -1621,6 +1625,35 @@ const AgentCard = React.memo(function AgentCard({
               <p className="text-xs text-gray-300">No groups configured</p>
             )}
           </div>
+
+          {/* Skills & Tools */}
+          {agent.skills && agent.skills.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Skills & Tools</span>
+                {onNavigateToSkills && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onNavigateToSkills(); }}
+                    className="text-blue-500 hover:text-blue-700 transition-colors text-sm leading-none"
+                    title="Manage skills"
+                  >
+                    →
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {agent.skills.map(skill => (
+                  <button
+                    key={skill}
+                    onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(); }}
+                    className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    {skill}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-1">
