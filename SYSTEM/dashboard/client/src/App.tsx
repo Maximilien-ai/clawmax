@@ -5,11 +5,12 @@ import Activity from './pages/Activity'
 import Communication from './pages/Communication'
 import Templates from './pages/Templates'
 import Organizations from './pages/Organizations'
+import { SkillsTest } from './pages/SkillsTest'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations'
+type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'skills'
 
 interface SystemInfo {
   hostname: string
@@ -29,6 +30,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
   { id: 'organizations', label: 'Organizations', icon: 'org' },
   { id: 'templates', label: 'Templates', icon: 'templates' },
+  { id: 'skills', label: 'Skills', icon: 'skills' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   { id: 'communication', label: 'Communication', icon: 'comms' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
@@ -171,6 +173,9 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'organizations' ? '' : 'hidden'}`}>
               <Organizations />
             </div>
+            <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
+              <SkillsTest />
+            </div>
             <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
@@ -255,6 +260,7 @@ function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart
     robot: '🤖',
     org: '🏢',
     templates: '📑',
+    skills: '🛠️',
     comms: '💬',
     activity: '📊',
     docs: '📄',
