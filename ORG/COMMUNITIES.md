@@ -6,7 +6,7 @@
 - **Description:** Main organizational community
 - **Tags:** org, executive, leadership
 - **Channels:** whatsapp
-- **Members:** ceo, dave, engineer, max0, product-manager, product-owner, qa-engineer, release-engineer, todd, hernan, agent-manager
+- **Members:** ceo, dave, engineer, max0, product-manager, product-owner, qa-engineer, release-engineer, todd, hernan, agent-manager, alexy
 
 ### Engineering Team
 - **Description:** Core development and technical discussions

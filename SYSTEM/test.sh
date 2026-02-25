@@ -28,7 +28,8 @@ passed=0
 failed=0
 
 echo "========================================="
-echo "ClawMax Dashboard Test Suite"
+echo "SYSTEM Test Suite"
+echo "Dashboard | API | Integration Tests"
 echo "========================================="
 echo ""
 
@@ -88,7 +89,7 @@ echo "========================================="
 echo ""
 
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
-if npm run typecheck 2>&1 | grep -q "error TS"; then
+if (cd dashboard && npm run typecheck 2>&1) | grep -q "error TS"; then
   fail "TypeScript type check"
 else
   pass "TypeScript type check"
@@ -96,27 +97,12 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Skills API unit tests...${NC}"
-if npx ts-node server/lib/skills.test.ts 2>&1 | grep -q "All tests passed"; then
+if (cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1 | grep -v "Skill file missing name" | grep -v "Failed to parse skill") | grep -q "All tests passed"; then
   pass "Skills API unit tests (14 tests)"
 else
   fail "Skills API unit tests"
 fi
 echo ""
-    else
-      fail "$name (expected 400, got $code)"
-      return 1
-    fi
-  else
-    if [ "$code" -eq 200 ]; then
-      pass "$name (validation passed)"
-      return 0
-    else
-      fail "$name (expected 200, got $code)"
-      echo "Response: $body"
-      return 1
-    fi
-  fi
-}
 
 # =========================================
 # Section 1: Health & System APIs
