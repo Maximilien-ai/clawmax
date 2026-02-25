@@ -11,13 +11,32 @@ export function SkillsTest() {
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
+  const [agentId, setAgentId] = useState('engineer')
+  const [availableAgents, setAvailableAgents] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const agentId = 'engineer' // Testing with engineer agent
-
-  // Load skills data
+  // Load agents list on mount
   useEffect(() => {
-    loadSkills()
+    loadAgents()
   }, [])
+
+  // Reload skills when agent changes
+  useEffect(() => {
+    if (agentId) {
+      loadSkills()
+    }
+  }, [agentId])
+
+  async function loadAgents() {
+    try {
+      const res = await fetch(`${API_BASE}/api/agents`)
+      const data = await res.json()
+      const agentIds = data.agents.map((a: any) => a.id)
+      setAvailableAgents(agentIds)
+    } catch (error) {
+      console.error('Failed to load agents:', error)
+    }
+  }
 
   async function loadSkills() {
     setLoading(true)
@@ -41,31 +60,50 @@ export function SkillsTest() {
   }
 
   async function toggleSkill(skillId: string) {
-    const newAssigned = new Set(assignedSkills)
+    console.log('Toggle skill:', skillId, 'for agent:', agentId)
 
-    if (newAssigned.has(skillId)) {
+    const newAssigned = new Set(assignedSkills)
+    const wasAssigned = newAssigned.has(skillId)
+
+    if (wasAssigned) {
       newAssigned.delete(skillId)
     } else {
       newAssigned.add(skillId)
     }
 
+    setError(null)
     setSaving(true)
+
     try {
+      const skillsList = Array.from(newAssigned)
+      console.log('Sending PUT request:', skillsList)
+
       const response = await fetch(`${API_BASE}/api/skills/agent/${agentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skills: Array.from(newAssigned) })
+        body: JSON.stringify({ skills: skillsList })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update skills')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to update skills')
       }
 
+      const result = await response.json()
+      console.log('✓ Skills updated successfully:', result)
+
       setAssignedSkills(newAssigned)
-      console.log('✓ Skills updated:', Array.from(newAssigned))
-    } catch (error) {
+      setError(null)
+    } catch (error: any) {
       console.error('Failed to update skills:', error)
-      alert('Failed to update skills')
+      setError(error.message || 'Failed to update skills')
+      // Revert the UI change
+      if (wasAssigned) {
+        newAssigned.add(skillId)
+      } else {
+        newAssigned.delete(skillId)
+      }
+      setAssignedSkills(new Set(assignedSkills))
     } finally {
       setSaving(false)
     }
@@ -115,11 +153,26 @@ export function SkillsTest() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Skills Manager - {agentId}
-          </h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Skills Manager
+            </h1>
+
+            {/* Agent Selector */}
+            {availableAgents.length > 0 && (
+              <select
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                className="px-4 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {availableAgents.map(id => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            )}
+          </div>
           <p className="text-gray-600">
-            Assign skills to the engineer agent
+            Assign skills to <span className="font-semibold text-gray-900">{agentId}</span> agent
           </p>
         </div>
 
@@ -191,10 +244,23 @@ export function SkillsTest() {
           </div>
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-2 rounded-lg mb-4 flex items-center justify-between">
+            <span>❌ {error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800 font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Saving indicator */}
         {saving && (
           <div className="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-2 rounded-lg mb-4">
-            Saving changes...
+            💾 Saving changes...
           </div>
         )}
 
