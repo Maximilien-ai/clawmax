@@ -525,6 +525,101 @@ fi
 echo ""
 
 # =========================================
+# Section 14: Skills & Tools APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "14. Skills & Tools APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test list all skills
+test_api "List all skills" "/api/skills"
+test_json_field "Skills array exists" "/api/skills" ".skills"
+test_json_field "Skills have name" "/api/skills" ".skills[0].name"
+test_json_field "Skills have description" "/api/skills" ".skills[0].description"
+test_json_field "Skills have source" "/api/skills" ".skills[0].source"
+
+# Count available skills
+skill_count=$(curl -s "$API_BASE/api/skills" | jq '.skills | length')
+if [ "$skill_count" -gt 40 ]; then
+  pass "Skills catalog loaded ($skill_count skills)"
+else
+  fail "Skills catalog incomplete ($skill_count skills, expected >40)"
+fi
+
+# Test get single skill
+test_api "Get single skill (github)" "/api/skills/github"
+test_json_field "Skill details have name" "/api/skills/github" ".name"
+test_json_field "Skill details have emoji" "/api/skills/github" ".emoji"
+
+# Test get agent's skills
+test_api "Get agent skills" "/api/skills/agent/engineer"
+test_json_field "Agent skills array" "/api/skills/agent/engineer" ".skillIds"
+test_json_field "Agent skills objects" "/api/skills/agent/engineer" ".skills"
+
+# Test agents API includes skills field
+test_json_field "Agents have skills field" "/api/agents" ".agents[0].skills"
+
+# Test skill validation
+response=$(curl -s -X POST "$API_BASE/api/skills/validate" \
+  -H 'Content-Type: application/json' \
+  -d '{"skills":["github","slack","docker"]}')
+
+if echo "$response" | jq -e '.valid == true' > /dev/null 2>&1; then
+  pass "Valid skills pass validation"
+else
+  fail "Valid skills validation failed"
+fi
+
+# Test invalid skill detection
+response=$(curl -s -X POST "$API_BASE/api/skills/validate" \
+  -H 'Content-Type: application/json' \
+  -d '{"skills":["github","nonexistent-skill-xyz"]}')
+
+if echo "$response" | jq -e '.valid == false' > /dev/null 2>&1; then
+  missing=$(echo "$response" | jq -r '.missing[0]')
+  if [ "$missing" = "nonexistent-skill-xyz" ]; then
+    pass "Invalid skills detected correctly"
+  else
+    fail "Invalid skills not detected properly"
+  fi
+else
+  fail "Invalid skills validation incorrect"
+fi
+
+# Test skill assignment update (if we have agents)
+if curl -s "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
+  first_agent=$(curl -s "$API_BASE/api/agents" | jq -r '.agents[0].id')
+
+  # Get current skills
+  current_skills=$(curl -s "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
+
+  # Try to update (add docker if not present, or just github)
+  test_skills='["github","docker"]'
+  response=$(curl -s -X PUT "$API_BASE/api/skills/agent/$first_agent" \
+    -H 'Content-Type: application/json' \
+    -d "{\"skills\":$test_skills}")
+
+  if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    pass "Skills assignment update succeeded"
+
+    # Verify persistence - check if skills were saved
+    sleep 0.5
+    updated_skills=$(curl -s "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
+    if echo "$updated_skills" | grep -q "github"; then
+      pass "Skills persisted to openclaw.json"
+    else
+      fail "Skills not persisted correctly"
+    fi
+  else
+    fail "Skills assignment update failed"
+  fi
+else
+  warn "No agents found for skills assignment test"
+fi
+
+echo ""
+
+# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
