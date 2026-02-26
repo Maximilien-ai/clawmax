@@ -1627,20 +1627,20 @@ const AgentCard = React.memo(function AgentCard({
           </div>
 
           {/* Skills & Tools */}
-          {agent.skills && agent.skills.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">Skills & Tools</span>
-                {onNavigateToSkills && (
-                  <button
-                    onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                    className="text-blue-500 hover:text-blue-700 transition-colors text-sm leading-none"
-                    title="Manage skills"
-                  >
-                    →
-                  </button>
-                )}
-              </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-400">Skills & Tools</span>
+              {onNavigateToSkills && (
+                <button
+                  onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
+                  className="text-blue-500 hover:text-blue-700 transition-colors text-sm leading-none"
+                  title="Manage skills"
+                >
+                  →
+                </button>
+              )}
+            </div>
+            {agent.skills && agent.skills.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {agent.skills.map(skill => (
                   <button
@@ -1652,8 +1652,19 @@ const AgentCard = React.memo(function AgentCard({
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              onNavigateToSkills ? (
+                <button
+                  onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
+                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                >
+                  + Add Skills
+                </button>
+              ) : (
+                <p className="text-xs text-gray-300">No skills configured</p>
+              )
+            )}
+          </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-1">
