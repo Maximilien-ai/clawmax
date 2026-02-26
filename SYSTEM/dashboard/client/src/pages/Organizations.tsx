@@ -42,6 +42,8 @@ const STATUS_DOT: Record<string, string> = {
 
 export default function Organizations() {
   const [agents, setAgents] = useState<Agent[]>([])
+  const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
+  const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCommunities, setExpandedCommunities] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -57,21 +59,63 @@ export default function Organizations() {
   const [newGroupDesc, setNewGroupDesc] = useState('')
   const [newGroupCommunity, setNewGroupCommunity] = useState('')
 
-  const fetchAgents = useCallback(() => {
-    fetch('/api/agents')
-      .then(r => r.json())
-      .then(d => { setAgents(d.agents); setLoading(false) })
-      .catch(() => setLoading(false))
+  const fetchData = useCallback(async () => {
+    try {
+      const [agentsRes, communitiesRes, groupsRes] = await Promise.all([
+        fetch('/api/agents'),
+        fetch('/api/communities'),
+        fetch('/api/groups')
+      ])
+
+      const agentsData = await agentsRes.json()
+      const communitiesData = await communitiesRes.json()
+      const groupsData = await groupsRes.json()
+
+      setAgents(agentsData.agents)
+      setWorkspaceCommunities(communitiesData.communities || [])
+      setWorkspaceGroups(groupsData.groups || [])
+      setLoading(false)
+    } catch (err) {
+      console.error('Failed to fetch data:', err)
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
-    fetchAgents()
-  }, [fetchAgents])
+    fetchData()
+  }, [fetchData])
 
-  // Build communities and groups from agents
+  // Build communities and groups from workspace + agents
   const { communities, groups } = useMemo(() => {
     const communityMap = new Map<string, Community>()
     const groupMap = new Map<string, Group>()
+
+    // First, add workspace-level communities (from ORG/COMMUNITIES.md)
+    for (const c of workspaceCommunities) {
+      if (!communityMap.has(c.name)) {
+        communityMap.set(c.name, {
+          name: c.name,
+          description: c.description,
+          tags: c.tags || [],
+          channels: c.channels || [],
+          members: []
+        })
+      }
+    }
+
+    // First, add workspace-level groups (from ORG/GROUPS.md)
+    for (const g of workspaceGroups) {
+      if (!groupMap.has(g.name)) {
+        groupMap.set(g.name, {
+          name: g.name,
+          description: g.description,
+          tags: g.tags || [],
+          channels: g.channels || [],
+          community: g.community,
+          members: []
+        })
+      }
+    }
 
     // Extract communities
     for (const agent of agents) {
@@ -110,7 +154,7 @@ export default function Organizations() {
       communities: Array.from(communityMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       groups: Array.from(groupMap.values()).sort((a, b) => a.name.localeCompare(b.name))
     }
-  }, [agents])
+  }, [agents, workspaceCommunities, workspaceGroups])
 
   const toggleCommunity = (name: string) => {
     setExpandedCommunities(prev => {
@@ -598,13 +642,31 @@ export default function Organizations() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Community (optional)
                 </label>
-                <input
-                  type="text"
-                  value={newGroupCommunity}
-                  onChange={(e) => setNewGroupCommunity(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Engineering Team"
-                />
+                {workspaceCommunities.length > 0 ? (
+                  <select
+                    value={newGroupCommunity}
+                    onChange={(e) => setNewGroupCommunity(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">No community</option>
+                    {workspaceCommunities.map(c => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={newGroupCommunity}
+                    onChange={(e) => setNewGroupCommunity(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter community name"
+                  />
+                )}
+                {workspaceCommunities.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    No communities exist yet. Create one first or leave blank.
+                  </p>
+                )}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
