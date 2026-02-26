@@ -1,10 +1,34 @@
 import fs from 'fs'
 import path from 'path'
 import net from 'net'
+import { getWorkspaceManager } from './workspace-manager'
 
+// Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
 
+/** Get the active workspace path (dynamic, supports multi-workspace) */
+export function getWorkspacePath(): string {
+  try {
+    const manager = getWorkspaceManager()
+    const activeWorkspace = manager.getActiveWorkspace()
+    return activeWorkspace.path
+  } catch (err) {
+    // Fallback to default workspace if workspace manager fails
+    console.warn('Failed to get active workspace, falling back to default:', err)
+    return WORKSPACE
+  }
+}
+
 /** Agents live under WORKSPACE/AGENTS/maxN/ */
+export function getAgentsDir(): string {
+  return path.join(getWorkspacePath(), 'AGENTS')
+}
+
+export function getArchiveDir(): string {
+  return path.join(getAgentsDir(), 'archive')
+}
+
+// Legacy exports for backward compatibility
 export const AGENTS_DIR = path.join(WORKSPACE, 'AGENTS')
 export const ARCHIVE_DIR = path.join(AGENTS_DIR, 'archive')
 
@@ -30,6 +54,8 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
  *  ORG/ → ORG, AGENTS/ → AGENTS (per-agent docs), SYSTEM/ → SYSTEM, root → SYSTEM fallback */
 export function listMarkdownFiles(): DocEntry[] {
   const results: DocEntry[] = []
+  const workspacePath = getWorkspacePath()
+  const agentsDir = getAgentsDir()
 
   function sectionFor(relPath: string): DocSection {
     if (relPath.startsWith('ORG/') || relPath.startsWith('ORG\\')) return 'ORG'
@@ -50,14 +76,14 @@ export function listMarkdownFiles(): DocEntry[] {
         if (SKIP_DIRS.has(entry.name)) continue
         walk(full)
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        const rel = path.relative(WORKSPACE, full)
+        const rel = path.relative(workspacePath, full)
         results.push({ path: rel, section: sectionFor(rel) })
       }
     }
   }
 
   // Walk ORG, SYSTEM, and root (not AGENTS — those are scanned separately below)
-  walk(WORKSPACE)
+  walk(workspacePath)
 
   // Walk AGENTS separately so we can classify correctly
   function walkAgents(dir: string) {
@@ -69,11 +95,11 @@ export function listMarkdownFiles(): DocEntry[] {
         if (['node_modules', '.git', 'dist'].includes(entry.name)) continue
         walkAgents(full)
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        results.push({ path: path.relative(WORKSPACE, full), section: 'AGENTS' })
+        results.push({ path: path.relative(workspacePath, full), section: 'AGENTS' })
       }
     }
   }
-  walkAgents(AGENTS_DIR)
+  walkAgents(agentsDir)
 
   return results.sort((a, b) => {
     const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, SYSTEM: 2 }
@@ -84,9 +110,10 @@ export function listMarkdownFiles(): DocEntry[] {
 
 /** Read a workspace .md file by relative path. Returns null if outside workspace or not found */
 export function readWorkspaceFile(relPath: string): string | null {
-  const full = path.resolve(WORKSPACE, relPath)
+  const workspacePath = getWorkspacePath()
+  const full = path.resolve(workspacePath, relPath)
   // Security: ensure it stays inside workspace
-  if (!full.startsWith(WORKSPACE + path.sep) && full !== WORKSPACE) return null
+  if (!full.startsWith(workspacePath + path.sep) && full !== workspacePath) return null
   if (!full.endsWith('.md')) return null
   try {
     return fs.readFileSync(full, 'utf-8')
@@ -97,8 +124,9 @@ export function readWorkspaceFile(relPath: string): string | null {
 
 /** Write a workspace .md file. Returns false if path is unsafe */
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
-  const full = path.resolve(WORKSPACE, relPath)
-  if (!full.startsWith(WORKSPACE + path.sep) && full !== WORKSPACE) return false
+  const workspacePath = getWorkspacePath()
+  const full = path.resolve(workspacePath, relPath)
+  if (!full.startsWith(workspacePath + path.sep) && full !== workspacePath) return false
   if (!full.endsWith('.md')) return false
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
@@ -121,9 +149,10 @@ export interface GroupEntry {
  *  Returns true on success, false if entry not found or file error */
 export function updateGroupTags(type: 'community' | 'group', name: string, newTags: string[]): boolean {
   try {
+    const workspacePath = getWorkspacePath()
     const filePath = type === 'community'
-      ? path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
-      : path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+      ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+      : path.join(workspacePath, 'ORG', 'GROUPS.md')
 
     const content = fs.readFileSync(filePath, 'utf-8')
     const lines = content.split('\n')
@@ -182,9 +211,10 @@ export function updateGroupTags(type: 'community' | 'group', name: string, newTa
  *  Returns true on success, false if entry not found or file error */
 export function updateGroupMembers(type: 'community' | 'group', name: string, newMembers: string[]): boolean {
   try {
+    const workspacePath = getWorkspacePath()
     const filePath = type === 'community'
-      ? path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
-      : path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+      ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+      : path.join(workspacePath, 'ORG', 'GROUPS.md')
 
     const content = fs.readFileSync(filePath, 'utf-8')
     const lines = content.split('\n')
@@ -663,16 +693,17 @@ export interface ActivityEntry {
 /** Aggregated timeline of all file writes across all agent dirs, newest first */
 export function getInstallationActivity(limit = 200): ActivityEntry[] {
   const entries: ActivityEntry[] = []
+  const agentsDir = getAgentsDir()
   let dirs: fs.Dirent[]
   try {
-    dirs = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
+    dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
   } catch {
     return entries
   }
   for (const d of dirs) {
     if (!d.isDirectory()) continue
     if (d.name.startsWith('.') || d.name.startsWith('_')) continue
-    const agentDir = path.join(AGENTS_DIR, d.name)
+    const agentDir = path.join(agentsDir, d.name)
     try {
       const files = fs.readdirSync(agentDir, { withFileTypes: true })
       for (const f of files) {
@@ -697,9 +728,10 @@ export function getInstallationActivity(limit = 200): ActivityEntry[] {
  *  2. ORG/MASTER_PLAN.md or MASTER_PLAN.md H1 (e.g. "# The Maximilien.ai Master Plan" → "Maximilien.ai")
  */
 export function getOrgName(): string | null {
+  const workspacePath = getWorkspacePath()
   // 1. Try ORG/IDENTITY.md **Name:** field (value may be on same line or next line)
   try {
-    const identity = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'IDENTITY.md'), 'utf-8')
+    const identity = fs.readFileSync(path.join(workspacePath, 'ORG', 'IDENTITY.md'), 'utf-8')
     // Match "**Name:**" then capture value on same line OR next non-empty line
     const m = identity.match(/\*\*Name[:\*\s]*\*?\*?\s*\n?\s*([^\n_*\(].+)/m)
     if (m) {
@@ -710,8 +742,8 @@ export function getOrgName(): string | null {
 
   // 2. Fall back to MASTER_PLAN.md H1
   const candidates = [
-    path.join(WORKSPACE, 'ORG', 'MASTER_PLAN.md'),
-    path.join(WORKSPACE, 'MASTER_PLAN.md'),
+    path.join(workspacePath, 'ORG', 'MASTER_PLAN.md'),
+    path.join(workspacePath, 'MASTER_PLAN.md'),
   ]
   for (const p of candidates) {
     try {
@@ -733,16 +765,17 @@ export function getOrgName(): string | null {
 
 /** Read the latest semver git tag from refs/tags/ and packed-refs. Returns null if none. */
 export function getLatestTag(): string | null {
+  const workspacePath = getWorkspacePath()
   const tags: string[] = []
 
   // Loose refs
   try {
-    tags.push(...fs.readdirSync(path.join(WORKSPACE, '.git', 'refs', 'tags')))
+    tags.push(...fs.readdirSync(path.join(workspacePath, '.git', 'refs', 'tags')))
   } catch {}
 
   // Packed refs (git gc moves tags here)
   try {
-    const packed = fs.readFileSync(path.join(WORKSPACE, '.git', 'packed-refs'), 'utf-8')
+    const packed = fs.readFileSync(path.join(workspacePath, '.git', 'packed-refs'), 'utf-8')
     for (const line of packed.split('\n')) {
       const m = line.match(/^[0-9a-f]+ refs\/tags\/(.+)$/)
       if (m && !m[1].endsWith('^{}')) tags.push(m[1])
@@ -765,10 +798,12 @@ export function getLatestTag(): string | null {
 
 export function listAgents(): AgentInfo[] {
   const agents: AgentInfo[] = []
+  const agentsDir = getAgentsDir()
+  const archiveDir = getArchiveDir()
   let entries: fs.Dirent[]
 
   try {
-    entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
+    entries = fs.readdirSync(agentsDir, { withFileTypes: true })
   } catch {
     return agents
   }
@@ -816,7 +851,7 @@ export function listAgents(): AgentInfo[] {
     // Skip hidden directories, common non-agent directories, and archive directory
     if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
 
-    const agentDir = path.join(AGENTS_DIR, entry.name)
+    const agentDir = path.join(agentsDir, entry.name)
     // Look up the registered ID from openclaw.json, fall back to directory name
     const registeredId = workspaceToIdMap.get(agentDir) || entry.name
     const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), false)
@@ -825,12 +860,12 @@ export function listAgents(): AgentInfo[] {
 
   // Also scan archive directory
   try {
-    const archiveEntries = fs.readdirSync(ARCHIVE_DIR, { withFileTypes: true })
+    const archiveEntries = fs.readdirSync(archiveDir, { withFileTypes: true })
     for (const entry of archiveEntries) {
       if (!entry.isDirectory()) continue
       if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
 
-      const agentDir = path.join(ARCHIVE_DIR, entry.name)
+      const agentDir = path.join(archiveDir, entry.name)
       const registeredId = workspaceToIdMap.get(agentDir) || entry.name
       const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), true)
       agents.push(agent)
@@ -928,9 +963,10 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   // Read communities and groups from ORG files and filter by membership
   let communities: GroupEntry[] = []
   let groups: GroupEntry[] = []
+  const workspacePath = getWorkspacePath()
 
   try {
-    const communitiesContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md'), 'utf-8')
+    const communitiesContent = fs.readFileSync(path.join(workspacePath, 'ORG', 'COMMUNITIES.md'), 'utf-8')
     const parsed = parseGroupsWithMembers(communitiesContent)
     // Filter to only include communities where this agent is a member
     communities = parsed.communities
@@ -939,7 +975,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   } catch {}
 
   try {
-    const groupsContent = fs.readFileSync(path.join(WORKSPACE, 'ORG', 'GROUPS.md'), 'utf-8')
+    const groupsContent = fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf-8')
     const parsed = parseGroupsWithMembers(groupsContent)
     // Filter to only include groups where this agent is a member
     groups = parsed.groups
@@ -1048,9 +1084,10 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
 export function getNextAgentId(cloneFrom?: string): string {
   const prefix = cloneFrom || 'agent'
   let maxN = -1
+  const agentsDir = getAgentsDir()
 
   try {
-    const dirs = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
+    const dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
     for (const d of dirs) {
       if (!d.isDirectory()) continue
 
@@ -1121,7 +1158,8 @@ export function deleteAgent(id: string, removeStateDir: boolean): { steps: strin
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) return { steps, errors: ['Invalid agent id'] }
 
-  const agentDir = path.join(AGENTS_DIR, id)
+  const agentsDir = getAgentsDir()
+  const agentDir = path.join(agentsDir, id)
 
   // Remove workspace AGENTS dir
   try {

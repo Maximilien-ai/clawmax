@@ -9,7 +9,8 @@ import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
-import { WORKSPACE, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import workspacesRouter from './routes/workspaces'
+import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 
 // ============================================================================
@@ -80,15 +81,16 @@ app.get('/api/health', (_req, res) => {
 
 // Workspace system info — installation identity card
 app.get('/api/system', (_req, res) => {
+  const workspacePath = getWorkspacePath()
   let gitBranch = 'unknown'
   try {
-    const head = fs.readFileSync(path.join(WORKSPACE, '.git', 'HEAD'), 'utf-8').trim()
+    const head = fs.readFileSync(path.join(workspacePath, '.git', 'HEAD'), 'utf-8').trim()
     gitBranch = head.startsWith('ref: refs/heads/') ? head.replace('ref: refs/heads/', '') : head.slice(0, 7)
   } catch {}
 
   const agents = listAgents()
   res.json({
-    workspace: WORKSPACE,
+    workspace: workspacePath,
     hostname: os.hostname(),
     agentCount: agents.length,
     onlineCount: agents.filter(a => a.status === 'online').length,
@@ -252,6 +254,7 @@ app.use('/api/docs', docsRouter)
 app.use('/api/agents', agentsRouter)
 app.use('/api/templates', templatesRouter)
 app.use('/api/skills', skillsRouter)
+app.use('/api/workspaces', workspacesRouter)
 app.use('/api', channelsRouter)
 
 // Serve built client in production
