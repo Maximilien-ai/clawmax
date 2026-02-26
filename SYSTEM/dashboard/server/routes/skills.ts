@@ -75,8 +75,8 @@ router.put('/agent/:agentId', async (req, res) => {
       })
     }
 
-    // Update agent's skills via Gateway RPC
-    await setAgentSkills(agentId, skills)
+    // Update agent's skills with metadata stamping
+    setAgentSkills(agentId, skills)
 
     res.json({ ok: true, skills })
   } catch (err: any) {

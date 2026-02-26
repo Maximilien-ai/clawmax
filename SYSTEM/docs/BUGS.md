@@ -42,3 +42,83 @@ For now, users can:
 2. Manually find the channel in the list
 
 The navigation works, just not the scroll/highlight feature.
+
+---
+
+## Gateway RPC Authentication Scope Issue
+
+**Status**: Open
+**Priority**: P1 (High - affects core Dashboard → OpenClaw integration)
+**Created**: 2026-02-26
+
+### Description
+Dashboard's Gateway RPC client cannot perform admin operations (config.patch, skills updates, agent registration) because simple token authentication doesn't grant the required `operator.admin` scope.
+
+### Root Cause
+OpenClaw Gateway requires `operator.admin` scope for all config modification methods:
+- `config.patch` - Update configuration
+- `config.set` - Replace configuration
+- `config.apply` - Apply and restart
+- Agent management operations
+- Skills configuration
+
+The CLI uses device-based authentication which automatically grants:
+```typescript
+scopes: ["operator.admin", "operator.approvals", "operator.pairing"]
+```
+
+However, simple token auth (using `gateway.auth.token` from openclaw.json) does not grant any scopes by default, causing all admin RPC calls to fail with "missing scope: operator.admin" or connection closed errors.
+
+### Current Workaround
+Dashboard uses direct writes to `~/.openclaw/openclaw.json` with **metadata stamping** to ensure OpenClaw CLI compatibility:
+
+```typescript
+// Stamp metadata (critical for OpenClaw compatibility)
+const now = new Date().toISOString()
+config.meta = {
+  ...config.meta,
+  lastTouchedVersion: 'dashboard-0.1.0',
+  lastTouchedAt: now
+}
+```
+
+**Provides:**
+- ✅ Metadata stamping (lastTouchedVersion, lastTouchedAt)
+- ✅ Fast, reliable operation
+- ✅ OpenClaw CLI can read configs without errors
+- ❌ No Zod schema validation
+- ❌ No environment variable preservation
+- ❌ No merge patch conflict resolution
+- ❌ No audit trail via Gateway
+
+### Proper Solution
+Implement device-based authentication for Dashboard → Gateway communication.
+
+**Option A: Device Identity (Recommended)**
+1. Use OpenClaw's `loadOrCreateDeviceIdentity()` function
+2. Generate device keypair and sign auth payload
+3. Request `operator.admin` scope during connection
+4. Store device identity in Dashboard config
+
+**Option B: Extended Token Auth**
+- Modify Gateway to support scope-granting tokens
+- Add scope configuration to `gateway.auth.token` in openclaw.json
+- Requires upstream OpenClaw changes
+
+### Files Affected
+- `dashboard/server/lib/gateway-rpc.ts` - RPC client implementation
+- `dashboard/server/lib/skills.ts` - Skills management (currently using direct writes)
+- `dashboard/server/routes/agents.ts` - Agent registration (currently using direct writes)
+
+### References
+- Gateway auth code: `/Users/maximilien/github/maximilien/openclaw/src/gateway/auth.ts`
+- Device identity: `/Users/maximilien/github/maximilien/openclaw/src/infra/device-identity.ts`
+- CLI client example: `/Users/maximilien/github/maximilien/openclaw/src/gateway/call.ts:272`
+
+### Testing
+Once implemented, verify with:
+```bash
+./test.sh  # Section 15: Gateway RPC Compatibility
+```
+
+Expected: All tests pass, config.patch calls succeed, metadata stamped by Gateway.

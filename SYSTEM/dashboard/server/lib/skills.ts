@@ -146,21 +146,37 @@ export function getAgentSkills(agentId: string): string[] {
 }
 
 /**
- * Set agent's assigned skills via OpenClaw Gateway RPC
+ * Set agent's assigned skills with metadata stamping
  *
- * This method now uses the official Gateway RPC API which provides:
- * - Full Zod schema validation
- * - Automatic metadata stamping (lastTouchedVersion, lastTouchedAt)
- * - Environment variable preservation
- * - Merge patch conflict resolution
- * - Audit logging
- * - Atomic writes with backups
+ * Currently uses direct writes with metadata stamping for compatibility.
+ * Gateway RPC requires operator.admin scope which token auth doesn't grant.
+ * See BUGS.md for details on future Gateway RPC auth implementation.
  */
-export async function setAgentSkills(agentId: string, skillIds: string[]): Promise<void> {
+export function setAgentSkills(agentId: string, skillIds: string[]): void {
   try {
-    const gateway = getGatewayClient()
-    await gateway.updateAgentSkills(agentId, skillIds)
-    console.log(`✓ Successfully updated skills for agent ${agentId} via Gateway RPC`)
+    const config = loadOpenClawConfig()
+    if (!config.agents || !config.agents.list) {
+      throw new Error('Invalid openclaw.json structure')
+    }
+
+    const agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
+    if (agentIndex === -1) {
+      throw new Error(`Agent ${agentId} not found in openclaw.json`)
+    }
+
+    // Update skills
+    config.agents.list[agentIndex].skills = skillIds
+
+    // Stamp metadata (critical for OpenClaw compatibility)
+    const now = new Date().toISOString()
+    config.meta = {
+      ...config.meta,
+      lastTouchedVersion: 'dashboard-0.1.0',
+      lastTouchedAt: now
+    }
+
+    saveOpenClawConfig(config)
+    console.log(`✓ Successfully updated skills for agent ${agentId} (metadata stamped)`)
   } catch (err) {
     console.error(`Error setting skills for agent ${agentId}:`, err)
     throw err
