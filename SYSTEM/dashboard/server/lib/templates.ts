@@ -1,17 +1,25 @@
 import fs from 'fs'
 import path from 'path'
 import Ajv from 'ajv'
-import { WORKSPACE, AGENTS_DIR, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
+import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 
-// Template storage paths
-export const TEMPLATES_DIR = path.join(WORKSPACE, 'TEMPLATES')
-export const AGENT_TEMPLATES_DIR = path.join(TEMPLATES_DIR, 'agents')
-export const ORG_TEMPLATES_DIR = path.join(TEMPLATES_DIR, 'organizations')
+// Template storage paths (dynamic functions)
+export function getTemplatesDir(): string {
+  return path.join(getWorkspacePath(), 'TEMPLATES')
+}
+
+export function getAgentTemplatesDir(): string {
+  return path.join(getTemplatesDir(), 'agents')
+}
+
+export function getOrgTemplatesDir(): string {
+  return path.join(getTemplatesDir(), 'organizations')
+}
 
 // Ensure template directories exist
 export function ensureTemplateDirs(): void {
-  fs.mkdirSync(AGENT_TEMPLATES_DIR, { recursive: true })
-  fs.mkdirSync(ORG_TEMPLATES_DIR, { recursive: true })
+  fs.mkdirSync(getAgentTemplatesDir(), { recursive: true })
+  fs.mkdirSync(getOrgTemplatesDir(), { recursive: true })
 }
 
 // ============================================================================
@@ -149,8 +157,8 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
     // Determine storage path
     const slug = slugify(template.name)
     const templateDir = template.type === 'agent'
-      ? path.join(AGENT_TEMPLATES_DIR, slug)
-      : path.join(ORG_TEMPLATES_DIR, slug)
+      ? path.join(getAgentTemplatesDir(), slug)
+      : path.join(getOrgTemplatesDir(), slug)
 
     // Create template directory
     fs.mkdirSync(templateDir, { recursive: true })
@@ -175,18 +183,18 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
   const dirs = []
   if (!type || type === 'agent') {
     try {
-      const agentDirs = fs.readdirSync(AGENT_TEMPLATES_DIR, { withFileTypes: true })
+      const agentDirs = fs.readdirSync(getAgentTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
-        .map(d => path.join(AGENT_TEMPLATES_DIR, d.name))
+        .map(d => path.join(getAgentTemplatesDir(), d.name))
       dirs.push(...agentDirs)
     } catch {}
   }
 
   if (!type || type === 'organization') {
     try {
-      const orgDirs = fs.readdirSync(ORG_TEMPLATES_DIR, { withFileTypes: true })
+      const orgDirs = fs.readdirSync(getOrgTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
-        .map(d => path.join(ORG_TEMPLATES_DIR, d.name))
+        .map(d => path.join(getOrgTemplatesDir(), d.name))
       dirs.push(...orgDirs)
     } catch {}
   }
@@ -212,8 +220,8 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
 export function getTemplate(type: 'agent' | 'organization', slug: string): Template | null {
   ensureTemplateDirs()
   const templateDir = type === 'agent'
-    ? path.join(AGENT_TEMPLATES_DIR, slug)
-    : path.join(ORG_TEMPLATES_DIR, slug)
+    ? path.join(getAgentTemplatesDir(), slug)
+    : path.join(getOrgTemplatesDir(), slug)
 
   const templateJsonPath = path.join(templateDir, 'template.json')
   if (!fs.existsSync(templateJsonPath)) {
@@ -233,8 +241,8 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
 export function deleteTemplate(type: 'agent' | 'organization', slug: string): { ok: boolean; error?: string } {
   try {
     const templateDir = type === 'agent'
-      ? path.join(AGENT_TEMPLATES_DIR, slug)
-      : path.join(ORG_TEMPLATES_DIR, slug)
+      ? path.join(getAgentTemplatesDir(), slug)
+      : path.join(getOrgTemplatesDir(), slug)
 
     if (!fs.existsSync(templateDir)) {
       return { ok: false, error: 'Template not found' }
@@ -262,7 +270,7 @@ export function copyAgentFilesToTemplate(
   isOrgTemplate = false
 ): { ok: boolean; error?: string } {
   try {
-    const agentDir = path.join(AGENTS_DIR, agentId)
+    const agentDir = path.join(getAgentsDir(), agentId)
 
     // Agent templates: put files directly in template root
     // Org templates: put files in agents/{agentId}/ subdirectory
@@ -311,7 +319,7 @@ export function copyAgentFilesFromTemplate(
       ? path.join(templateDir, 'agents', sourceAgentId)
       : templateDir
 
-    const targetAgentDir = path.join(AGENTS_DIR, targetAgentId)
+    const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
 
     if (!fs.existsSync(templateAgentDir)) {
       return { ok: false, error: `Template agent directory not found: ${templateAgentDir}` }
@@ -364,7 +372,7 @@ export function importAgentFromTemplate(
   }
 ): { ok: boolean; agentId?: string; error?: string } {
   try {
-    const templateDir = path.join(AGENT_TEMPLATES_DIR, templateSlug)
+    const templateDir = path.join(getAgentTemplatesDir(), templateSlug)
     const templateJsonPath = path.join(templateDir, 'template.json')
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -389,7 +397,7 @@ export function importAgentFromTemplate(
       return { ok: false, error: 'Invalid agent ID format' }
     }
 
-    const targetAgentDir = path.join(AGENTS_DIR, targetAgentId)
+    const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
     if (fs.existsSync(targetAgentDir)) {
       return { ok: false, error: `Agent already exists: ${targetAgentId}` }
     }
@@ -469,7 +477,7 @@ export function createAgentTemplateFromAgent(
   }
 ): { ok: boolean; template?: AgentTemplate; error?: string } {
   try {
-    const agentDir = path.join(AGENTS_DIR, agentId)
+    const agentDir = path.join(getAgentsDir(), agentId)
     if (!fs.existsSync(agentDir)) {
       return { ok: false, error: `Agent not found: ${agentId}` }
     }
@@ -570,7 +578,7 @@ export function createOrganizationTemplate(
 
     // Process each agent to extract communities and groups
     for (const agentInfo of agents) {
-      const agentDir = path.join(AGENTS_DIR, agentInfo.id)
+      const agentDir = path.join(getAgentsDir(), agentInfo.id)
 
       // Read IDENTITY.md for agent metadata
       const identityPath = path.join(agentDir, 'IDENTITY.md')
@@ -619,7 +627,7 @@ export function createOrganizationTemplate(
 
     // Build organization template
     const templateAgents: OrganizationTemplateAgent[] = agents.map(agentInfo => {
-      const agentDir = path.join(AGENTS_DIR, agentInfo.id)
+      const agentDir = path.join(getAgentsDir(), agentInfo.id)
       const identityPath = path.join(agentDir, 'IDENTITY.md')
       const identityContent = fs.existsSync(identityPath)
         ? fs.readFileSync(identityPath, 'utf-8')
@@ -710,7 +718,7 @@ export function importOrganizationTemplate(
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
-    const templateDir = path.join(ORG_TEMPLATES_DIR, templateSlug)
+    const templateDir = path.join(getOrgTemplatesDir(), templateSlug)
     const templateJsonPath = path.join(templateDir, 'template.json')
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -744,7 +752,7 @@ export function importOrganizationTemplate(
           throw new Error(`Invalid agent ID format after prefix/suffix: ${targetAgentId}`)
         }
 
-        const targetAgentDir = path.join(AGENTS_DIR, targetAgentId)
+        const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
         if (fs.existsSync(targetAgentDir)) {
           throw new Error(`Agent already exists: ${targetAgentId}`)
         }
@@ -771,7 +779,7 @@ export function importOrganizationTemplate(
           const agentCommunities = templateAgent.communities || []
 
           if (agentCommunities.length > 0) {
-            const agentDir = path.join(AGENTS_DIR, targetAgentId)
+            const agentDir = path.join(getAgentsDir(), targetAgentId)
             const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
 
             // Build COMMUNITIES.md content
@@ -802,7 +810,7 @@ export function importOrganizationTemplate(
           const agentGroups = templateAgent.groups || []
 
           if (agentGroups.length > 0) {
-            const agentDir = path.join(AGENTS_DIR, targetAgentId)
+            const agentDir = path.join(getAgentsDir(), targetAgentId)
             const groupsPath = path.join(agentDir, 'GROUPS.md')
 
             // Build GROUPS.md content
@@ -832,7 +840,7 @@ export function importOrganizationTemplate(
       // Rollback: delete all created agents
       for (const agentId of createdAgents) {
         try {
-          const agentDir = path.join(AGENTS_DIR, agentId)
+          const agentDir = path.join(getAgentsDir(), agentId)
           if (fs.existsSync(agentDir)) {
             fs.rmSync(agentDir, { recursive: true, force: true })
           }
