@@ -67,7 +67,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'list' | 'grid'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; initialAgentId?: string } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; initialAgentId?: string; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -159,6 +159,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     }, 30000) // 30 seconds
     return () => clearInterval(interval)
   }, [fetchAgents])
+
+  // Refetch when page becomes active (e.g., navigating back from Skills page)
+  useEffect(() => {
+    if (isActive) {
+      fetchAgents(true, true) // silent refresh when page becomes active
+    }
+  }, [isActive, fetchAgents])
 
   useEffect(() => {
     const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
