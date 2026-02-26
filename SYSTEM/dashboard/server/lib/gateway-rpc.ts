@@ -167,16 +167,33 @@ export class GatewayRPCClient {
 
   /**
    * Update agent skills via Gateway RPC
-   * Uses the official skills.update method with full validation
+   * Uses config.patch with merge patch algorithm to update agent skills array
    */
   async updateAgentSkills(agentId: string, skills: string[]): Promise<void> {
     try {
-      await this.call('skills.update', {
-        agentId,
-        skills
+      // Get current config to obtain the baseHash for optimistic locking
+      const configData = await this.call('config.get')
+      const baseHash = configData.hash
+
+      // Use config.patch to update the agent's skills array
+      // The merge patch algorithm will find the agent by ID and update only the skills field
+      const patch = {
+        agents: {
+          list: [
+            {
+              id: agentId,
+              skills
+            }
+          ]
+        }
+      }
+
+      await this.call('config.patch', {
+        raw: JSON.stringify(patch),
+        baseHash
       })
     } catch (err: any) {
-      console.error(`Gateway RPC skills.update failed:`, err)
+      console.error(`Gateway RPC config.patch failed:`, err)
       throw new Error(`Failed to update skills via gateway: ${err.message}`)
     }
   }
@@ -187,7 +204,9 @@ export class GatewayRPCClient {
    */
   async patchConfig(patch: any): Promise<void> {
     try {
-      await this.call('config.patch', { patch })
+      await this.call('config.patch', {
+        raw: JSON.stringify(patch)
+      })
     } catch (err: any) {
       console.error(`Gateway RPC config.patch failed:`, err)
       throw new Error(`Failed to patch config via gateway: ${err.message}`)
@@ -196,6 +215,7 @@ export class GatewayRPCClient {
 
   /**
    * Get config via Gateway RPC
+   * Returns the full response including { config, resolved, hash, valid, issues, warnings }
    */
   async getConfig(): Promise<any> {
     try {
@@ -208,6 +228,7 @@ export class GatewayRPCClient {
 
   /**
    * Register a new agent via config.patch
+   * Uses merge patch algorithm to append to agents.list array
    */
   async registerAgent(agent: {
     id: string
@@ -218,8 +239,10 @@ export class GatewayRPCClient {
     skills?: string[]
   }): Promise<void> {
     try {
-      // Get current config
-      const config = await this.getConfig()
+      // Get current config to check if agent exists and get baseHash
+      const configData = await this.getConfig()
+      const config = configData.resolved || configData.config
+      const baseHash = configData.hash
       const agentsList = config.agents?.list || []
 
       // Check if agent already exists
@@ -227,14 +250,27 @@ export class GatewayRPCClient {
         throw new Error(`Agent ${agent.id} already exists`)
       }
 
-      // Add new agent to list
-      const newAgentsList = [...agentsList, agent]
+      // Create new agent entry (only include defined fields)
+      const newAgent: any = {
+        id: agent.id,
+        name: agent.name,
+        workspace: agent.workspace,
+        agentDir: agent.agentDir
+      }
+      if (agent.model) newAgent.model = agent.model
+      if (agent.skills) newAgent.skills = agent.skills
 
-      // Patch config with new agents list
-      await this.patchConfig({
+      // Use config.patch to append the new agent
+      // Merge patch algorithm will append to the list array
+      const patch = {
         agents: {
-          list: newAgentsList
+          list: [...agentsList, newAgent]
         }
+      }
+
+      await this.call('config.patch', {
+        raw: JSON.stringify(patch),
+        baseHash
       })
     } catch (err: any) {
       console.error(`Gateway RPC registerAgent failed:`, err)
