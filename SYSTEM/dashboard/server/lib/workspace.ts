@@ -289,6 +289,173 @@ export function updateGroupMembers(type: 'community' | 'group', name: string, ne
   }
 }
 
+/** Create a new community or group */
+export function createGroup(
+  type: 'community' | 'group',
+  name: string,
+  options?: {
+    description?: string
+    tags?: string[]
+    members?: string[]
+    community?: string // For groups only
+    channels?: string[]
+  }
+): boolean {
+  try {
+    const workspacePath = getWorkspacePath()
+    const filePath = type === 'community'
+      ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+      : path.join(workspacePath, 'ORG', 'GROUPS.md')
+
+    // Read existing content or create default structure
+    let content = ''
+    if (fs.existsSync(filePath)) {
+      content = fs.readFileSync(filePath, 'utf-8')
+    } else {
+      // Create file with header if it doesn't exist
+      const header = type === 'community' ? '# Communities\n\n## Communities\n\n' : '# Groups\n\n## Groups\n\n'
+      content = header
+    }
+
+    // Check if entry already exists
+    const { communities, groups } = parseGroupsWithMembers(content)
+    const existingEntries = type === 'community' ? communities : groups
+    if (existingEntries.some(e => e.name === name)) {
+      console.error(`${type} "${name}" already exists`)
+      return false
+    }
+
+    // Find insertion point (after the ## Communities or ## Groups header)
+    const lines = content.split('\n')
+    const sectionHeader = type === 'community' ? /^##\s+communities/i : /^##\s+groups/i
+    let insertIndex = -1
+
+    for (let i = 0; i < lines.length; i++) {
+      if (sectionHeader.test(lines[i].trim())) {
+        // Insert after this line (skip blank lines)
+        insertIndex = i + 1
+        while (insertIndex < lines.length && lines[insertIndex].trim() === '') {
+          insertIndex++
+        }
+        break
+      }
+    }
+
+    // If no section header found, append to end
+    if (insertIndex === -1) {
+      const header = type === 'community' ? '\n## Communities\n\n' : '\n## Groups\n\n'
+      lines.push(header)
+      insertIndex = lines.length
+    }
+
+    // Build entry in verbose format
+    const entry: string[] = []
+    entry.push(`### ${name}`)
+    if (options?.description) {
+      entry.push(`- **Description:** ${options.description}`)
+    }
+    if (options?.tags && options.tags.length > 0) {
+      entry.push(`- **Tags:** ${options.tags.join(', ')}`)
+    }
+    if (type === 'group' && options?.community) {
+      entry.push(`- **Community:** ${options.community}`)
+    }
+    if (options?.channels && options.channels.length > 0) {
+      entry.push(`- **Channels:** ${options.channels.join(', ')}`)
+    }
+    if (options?.members && options.members.length > 0) {
+      entry.push(`- **Members:** ${options.members.join(', ')}`)
+    }
+    entry.push('') // Blank line after entry
+
+    // Insert entry
+    lines.splice(insertIndex, 0, ...entry)
+
+    // Write back
+    fs.writeFileSync(filePath, lines.join('\n'), 'utf-8')
+    console.log(`✓ Created ${type}: ${name}`)
+    return true
+  } catch (err) {
+    console.error(`Error creating ${type}:`, err)
+    return false
+  }
+}
+
+/** Delete a community or group */
+export function deleteGroup(type: 'community' | 'group', name: string): boolean {
+  try {
+    const workspacePath = getWorkspacePath()
+    const filePath = type === 'community'
+      ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+      : path.join(workspacePath, 'ORG', 'GROUPS.md')
+
+    if (!fs.existsSync(filePath)) {
+      return false
+    }
+
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const lines = content.split('\n')
+
+    let inTargetEntry = false
+    let foundEntry = false
+    const newLines: string[] = []
+    let entryStartIndex = -1
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const trimmed = line.trim()
+
+      // Check if we're entering a new entry section
+      if (trimmed.startsWith('###')) {
+        const entryName = trimmed.replace(/^###\s+/, '').trim()
+
+        // If we were in target entry, mark end
+        if (inTargetEntry && entryName !== name) {
+          inTargetEntry = false
+          // Remove trailing blank lines from the deleted entry
+          while (newLines.length > entryStartIndex && newLines[newLines.length - 1].trim() === '') {
+            newLines.pop()
+          }
+        }
+
+        // Check if this is the start of our target entry
+        if (entryName === name) {
+          inTargetEntry = true
+          foundEntry = true
+          entryStartIndex = newLines.length
+          continue // Skip this line
+        }
+      }
+
+      // Skip lines that belong to the target entry
+      if (inTargetEntry) {
+        continue
+      }
+
+      newLines.push(line)
+    }
+
+    // Handle case where we were still in the target entry at EOF
+    if (inTargetEntry) {
+      // Remove trailing blank lines
+      while (newLines.length > entryStartIndex && newLines[newLines.length - 1].trim() === '') {
+        newLines.pop()
+      }
+    }
+
+    if (!foundEntry) {
+      return false
+    }
+
+    fs.writeFileSync(filePath, newLines.join('\n'), 'utf-8')
+    console.log(`✓ Deleted ${type}: ${name}`)
+    return true
+  } catch (err) {
+    console.error(`Error deleting ${type}:`, err)
+    return false
+  }
+}
+
 export interface AgentInfo {
   id: string
   name: string

@@ -2,17 +2,15 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers } from '../lib/workspace'
+import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 
 const router = Router()
 
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
-
 // List all communities
 router.get('/communities', (req, res) => {
   try {
-    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
     if (!fs.existsSync(communitiesPath)) {
       res.json({ communities: [] })
       return
@@ -28,7 +26,7 @@ router.get('/communities', (req, res) => {
 // List all groups
 router.get('/groups', (req, res) => {
   try {
-    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
     if (!fs.existsSync(groupsPath)) {
       res.json({ groups: [] })
       return
@@ -38,6 +36,90 @@ router.get('/groups', (req, res) => {
     res.json({ groups })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+// Create a new community
+router.post('/communities', (req, res) => {
+  const { name, description, tags, members, channels } = req.body as {
+    name?: string
+    description?: string
+    tags?: string[]
+    members?: string[]
+    channels?: string[]
+  }
+
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    res.status(400).json({ ok: false, error: 'name is required' })
+    return
+  }
+
+  const success = createGroup('community', name.trim(), {
+    description,
+    tags,
+    members,
+    channels
+  })
+
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(400).json({ ok: false, error: 'Failed to create community (may already exist)' })
+  }
+})
+
+// Create a new group
+router.post('/groups', (req, res) => {
+  const { name, description, tags, members, community, channels } = req.body as {
+    name?: string
+    description?: string
+    tags?: string[]
+    members?: string[]
+    community?: string
+    channels?: string[]
+  }
+
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    res.status(400).json({ ok: false, error: 'name is required' })
+    return
+  }
+
+  const success = createGroup('group', name.trim(), {
+    description,
+    tags,
+    members,
+    community,
+    channels
+  })
+
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(400).json({ ok: false, error: 'Failed to create group (may already exist)' })
+  }
+})
+
+// Delete a community
+router.delete('/communities/:name', (req, res) => {
+  const { name } = req.params
+  const success = deleteGroup('community', decodeURIComponent(name))
+
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(404).json({ ok: false, error: 'Community not found' })
+  }
+})
+
+// Delete a group
+router.delete('/groups/:name', (req, res) => {
+  const { name } = req.params
+  const success = deleteGroup('group', decodeURIComponent(name))
+
+  if (success) {
+    res.json({ ok: true })
+  } else {
+    res.status(404).json({ ok: false, error: 'Group not found' })
   }
 })
 
