@@ -5,6 +5,7 @@ import fs from 'fs'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
+import { getGatewayClient } from '../lib/gateway-rpc'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -39,27 +40,19 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
   return { baileys: null, boom: null }
 }
 
-/** Register a new agent in openclaw.json */
-function registerAgentInConfig(agentId: string, profile: boolean): { ok: boolean; error?: string } {
+/**
+ * Register a new agent via Gateway RPC
+ *
+ * Uses OpenClaw Gateway RPC for config modifications, which provides:
+ * - Full Zod schema validation
+ * - Automatic metadata stamping
+ * - Environment variable preservation
+ * - Merge patch conflict resolution
+ * - Atomic writes with backups
+ */
+async function registerAgentInConfig(agentId: string, profile: boolean): Promise<{ ok: boolean; error?: string }> {
   try {
     const HOME = process.env.HOME || ''
-    const configPath = profile
-      ? path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
-      : path.join(HOME, '.openclaw', 'openclaw.json')
-
-    // Read existing config
-    if (!fs.existsSync(configPath)) {
-      return { ok: false, error: `Config not found: ${configPath}` }
-    }
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-
-    // Check if agent already registered
-    if (config.agents?.list?.some((a: any) => a.id === agentId)) {
-      return { ok: true } // Already registered, that's fine
-    }
-
-    // Add new agent entry
     const workspacePath = path.join(WORKSPACE, 'AGENTS', agentId)
     const agentDir = profile
       ? path.join(HOME, `.openclaw-${agentId}`, 'agents', agentId, 'agent')
@@ -68,23 +61,59 @@ function registerAgentInConfig(agentId: string, profile: boolean): { ok: boolean
     // Ensure agent directory exists
     fs.mkdirSync(agentDir, { recursive: true })
 
-    const newAgent = {
-      id: agentId,
-      default: false,
-      workspace: workspacePath,
-      agentDir
+    if (profile) {
+      // Profile mode: Must use direct write (Gateway doesn't support profile configs)
+      console.warn(`⚠️  Profile mode: Using direct config write for agent ${agentId}`)
+
+      const configPath = path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
+
+      if (!fs.existsSync(configPath)) {
+        return { ok: false, error: `Config not found: ${configPath}` }
+      }
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+
+      if (config.agents?.list?.some((a: any) => a.id === agentId)) {
+        return { ok: true }
+      }
+
+      const newAgent = {
+        id: agentId,
+        name: agentId,
+        workspace: workspacePath,
+        agentDir
+      }
+
+      if (!config.agents) config.agents = {}
+      if (!config.agents.list) config.agents.list = []
+      config.agents.list.push(newAgent)
+
+      // Add metadata stamping for profile mode
+      const now = new Date().toISOString()
+      config.meta = {
+        ...config.meta,
+        lastTouchedVersion: 'dashboard-0.1.0',
+        lastTouchedAt: now
+      }
+
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+      return { ok: true }
     }
 
-    if (!config.agents) config.agents = {}
-    if (!config.agents.list) config.agents.list = []
-    config.agents.list.push(newAgent)
+    // Default mode: Use Gateway RPC
+    const gateway = getGatewayClient()
+    await gateway.registerAgent({
+      id: agentId,
+      name: agentId,
+      workspace: workspacePath,
+      agentDir
+    })
 
-    // Write back
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
-
+    console.log(`✓ Successfully registered agent ${agentId} via Gateway RPC`)
     return { ok: true }
-  } catch (err) {
-    return { ok: false, error: String(err) }
+  } catch (err: any) {
+    console.error(`Error registering agent ${agentId}:`, err)
+    return { ok: false, error: err.message || String(err) }
   }
 }
 
