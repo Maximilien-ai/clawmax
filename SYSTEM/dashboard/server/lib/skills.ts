@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
+import { getGatewayClient } from './gateway-rpc'
 
 export interface SkillRequirements {
   bins?: string[]
@@ -145,26 +146,21 @@ export function getAgentSkills(agentId: string): string[] {
 }
 
 /**
- * Set agent's assigned skills in openclaw.json
+ * Set agent's assigned skills via OpenClaw Gateway RPC
+ *
+ * This method now uses the official Gateway RPC API which provides:
+ * - Full Zod schema validation
+ * - Automatic metadata stamping (lastTouchedVersion, lastTouchedAt)
+ * - Environment variable preservation
+ * - Merge patch conflict resolution
+ * - Audit logging
+ * - Atomic writes with backups
  */
-export function setAgentSkills(agentId: string, skillIds: string[]): void {
+export async function setAgentSkills(agentId: string, skillIds: string[]): Promise<void> {
   try {
-    const config = loadOpenClawConfig()
-
-    if (!config.agents || !config.agents.list) {
-      throw new Error('Invalid openclaw.json structure')
-    }
-
-    const agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
-
-    if (agentIndex === -1) {
-      throw new Error(`Agent ${agentId} not found in openclaw.json`)
-    }
-
-    // Set skills array directly
-    config.agents.list[agentIndex].skills = skillIds
-
-    saveOpenClawConfig(config)
+    const gateway = getGatewayClient()
+    await gateway.updateAgentSkills(agentId, skillIds)
+    console.log(`✓ Successfully updated skills for agent ${agentId} via Gateway RPC`)
   } catch (err) {
     console.error(`Error setting skills for agent ${agentId}:`, err)
     throw err
@@ -220,9 +216,19 @@ function loadOpenClawConfig(): OpenClawConfig {
 }
 
 /**
- * Save openclaw.json configuration
+ * @deprecated Direct config writes bypass OpenClaw validation
+ * Use Gateway RPC instead via getGatewayClient()
+ *
+ * This function is kept for backward compatibility but should not be used.
+ * It bypasses:
+ * - Zod schema validation
+ * - Metadata stamping (lastTouchedVersion, lastTouchedAt)
+ * - Environment variable preservation
+ * - Merge patch logic
+ * - Audit logging
  */
 function saveOpenClawConfig(config: OpenClawConfig): void {
+  console.warn('⚠️  saveOpenClawConfig() is deprecated - use Gateway RPC instead')
   try {
     // Create backup before saving
     const backupPath = `${OPENCLAW_CONFIG_PATH}.bak`
@@ -235,7 +241,7 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
       'utf-8'
     )
 
-    console.log('Successfully saved openclaw.json')
+    console.log('Successfully saved openclaw.json (DEPRECATED PATH)')
   } catch (err) {
     console.error('Error saving openclaw.json:', err)
     throw new Error('Failed to save openclaw.json')

@@ -56,8 +56,8 @@ router.get('/agent/:agentId', (req, res) => {
   }
 })
 
-// PUT /api/skills/agent/:agentId - Update agent's skills
-router.put('/agent/:agentId', (req, res) => {
+// PUT /api/skills/agent/:agentId - Update agent's skills via Gateway RPC
+router.put('/agent/:agentId', async (req, res) => {
   try {
     const { agentId } = req.params
     const { skills } = req.body
@@ -75,8 +75,8 @@ router.put('/agent/:agentId', (req, res) => {
       })
     }
 
-    // Update agent's skills
-    setAgentSkills(agentId, skills)
+    // Update agent's skills via Gateway RPC
+    await setAgentSkills(agentId, skills)
 
     res.json({ ok: true, skills })
   } catch (err: any) {
