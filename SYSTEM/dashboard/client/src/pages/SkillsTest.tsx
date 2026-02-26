@@ -12,7 +12,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
-  const [agentId, setAgentId] = useState(initialAgentId || 'engineer')
+  const [agentId, setAgentId] = useState(initialAgentId || '')
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -43,6 +43,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       const data = await res.json()
       const agentIds = data.agents.map((a: any) => a.id)
       setAvailableAgents(agentIds)
+
+      // Set default agent to first available if not already set
+      if (!agentId && agentIds.length > 0) {
+        setAgentId(agentIds[0])
+      }
 
       // Compute skill usage across all agents
       const usage = new Map<string, string[]>()
