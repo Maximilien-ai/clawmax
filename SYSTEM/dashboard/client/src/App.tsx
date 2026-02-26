@@ -9,6 +9,9 @@ import { SkillsTest } from './pages/SkillsTest'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
+import { WorkspaceProvider } from './contexts/WorkspaceContext'
+import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
+import { WorkspaceDialog } from './components/WorkspaceDialog'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'skills'
 
@@ -45,6 +48,7 @@ export default function App() {
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
+  const [showWorkspaceDialog, setShowWorkspaceDialog] = useState(false)
   const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
     const saved = localStorage.getItem('nav-order')
     if (saved) {
@@ -92,8 +96,13 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <ConnectionStatus />
-        <div className="flex h-screen bg-gray-50 text-gray-900">
+        <WorkspaceProvider>
+          <ConnectionStatus />
+          <WorkspaceDialog
+            isOpen={showWorkspaceDialog}
+            onClose={() => setShowWorkspaceDialog(false)}
+          />
+          <div className="flex h-screen bg-gray-50 text-gray-900">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
             <div
@@ -160,7 +169,11 @@ export default function App() {
           {/* Main content */}
           <main className="flex-1 overflow-hidden flex flex-col min-w-0">
             {/* Top bar */}
-            <TopBar system={system} onMobileMenuToggle={() => setMobileNavOpen(true)} />
+            <TopBar
+              system={system}
+              onMobileMenuToggle={() => setMobileNavOpen(true)}
+              onOpenWorkspaceDialog={() => setShowWorkspaceDialog(true)}
+            />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
@@ -194,13 +207,14 @@ export default function App() {
               <DocHub initialFile={docFile} />
             </div>
           </main>
-        </div>
+          </div>
+        </WorkspaceProvider>
       </ToastProvider>
     </ErrorBoundary>
   )
 }
 
-function TopBar({ system, onMobileMenuToggle }: { system: SystemInfo | null; onMobileMenuToggle?: () => void }) {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog }: { system: SystemInfo | null; onMobileMenuToggle?: () => void; onOpenWorkspaceDialog?: () => void }) {
   if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
 
@@ -228,6 +242,12 @@ function TopBar({ system, onMobileMenuToggle }: { system: SystemInfo | null; onM
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
+
+        {/* Workspace switcher */}
+        {onOpenWorkspaceDialog && (
+          <WorkspaceSwitcher onCreateNew={onOpenWorkspaceDialog} />
+        )}
+
         {orgBase && (
           <span className="text-sm font-bold text-gray-800 tracking-tight">
             {orgBase}{orgTld && <span className="text-sky-500">{orgTld}</span>}
