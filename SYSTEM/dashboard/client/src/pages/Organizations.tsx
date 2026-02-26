@@ -49,6 +49,13 @@ export default function Organizations() {
   const [orgName, setOrgName] = useState('Maximilien.ai')
   const [orgDescription, setOrgDescription] = useState('First ClawMax organization')
   const [editingOrg, setEditingOrg] = useState(false)
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [newCommunityName, setNewCommunityName] = useState('')
+  const [newCommunityDesc, setNewCommunityDesc] = useState('')
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupDesc, setNewGroupDesc] = useState('')
+  const [newGroupCommunity, setNewGroupCommunity] = useState('')
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -131,6 +138,66 @@ export default function Organizations() {
   const collapseAll = () => {
     setExpandedCommunities(new Set())
     setExpandedGroups(new Set())
+  }
+
+  const handleCreateCommunity = async () => {
+    if (!newCommunityName.trim()) return
+
+    try {
+      const response = await fetch('/api/communities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newCommunityName.trim(),
+          description: newCommunityDesc.trim() || undefined,
+          channels: ['whatsapp']
+        })
+      })
+
+      if (response.ok) {
+        setShowCreateCommunity(false)
+        setNewCommunityName('')
+        setNewCommunityDesc('')
+        // Reload page to show new community
+        window.location.reload()
+      } else {
+        alert('Failed to create community')
+      }
+    } catch (err) {
+      console.error('Error creating community:', err)
+      alert('Failed to create community')
+    }
+  }
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return
+
+    try {
+      const response = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newGroupName.trim(),
+          description: newGroupDesc.trim() || undefined,
+          community: newGroupCommunity.trim() || undefined,
+          channels: ['whatsapp']
+        })
+      })
+
+      if (response.ok) {
+        setShowCreateGroup(false)
+        setNewGroupName('')
+        setNewGroupDesc('')
+        setNewGroupCommunity('')
+        // Reload page to show new group
+        window.location.reload()
+      } else {
+        alert('Failed to create group')
+      }
+    } catch (err) {
+      console.error('Error creating group:', err)
+      alert('Failed to create group')
+    }
   }
 
   return (
@@ -246,10 +313,16 @@ export default function Organizations() {
           {/* Communities */}
           {communities.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-200 bg-purple-50">
+              <div className="px-4 py-3 border-b border-gray-200 bg-purple-50 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-purple-800">
                   🏘 Communities ({communities.length})
                 </h2>
+                <button
+                  onClick={() => setShowCreateCommunity(true)}
+                  className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                >
+                  + Create Community
+                </button>
               </div>
               <div className="divide-y divide-gray-100">
                 {communities.map(community => (
@@ -311,10 +384,16 @@ export default function Organizations() {
           {/* Groups */}
           {groups.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50">
+              <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-indigo-800">
                   👥 Groups ({groups.length})
                 </h2>
+                <button
+                  onClick={() => setShowCreateGroup(true)}
+                  className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                >
+                  + Create Group
+                </button>
               </div>
               <div className="divide-y divide-gray-100">
                 {groups.map(group => (
@@ -384,7 +463,21 @@ export default function Organizations() {
               <div className="flex flex-col items-center justify-center text-gray-400">
                 <span className="text-4xl mb-4">💬</span>
                 <p className="text-sm">No communities or groups configured</p>
-                <p className="text-xs mt-1 text-gray-300">Add COMMUNITIES.md or GROUPS.md files to agent workspaces</p>
+                <p className="text-xs mt-1 text-gray-300 mb-4">Create your first community or group to get started</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCreateCommunity(true)}
+                    className="px-4 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                  >
+                    + Create Community
+                  </button>
+                  <button
+                    onClick={() => setShowCreateGroup(true)}
+                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                  >
+                    + Create Group
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -405,6 +498,141 @@ export default function Organizations() {
             // Could show a success message or navigate to templates
           }}
         />
+      )}
+
+      {/* Create Community Modal */}
+      {showCreateCommunity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Create Community</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Community Name *
+                </label>
+                <input
+                  type="text"
+                  value={newCommunityName}
+                  onChange={(e) => setNewCommunityName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Engineering Team"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newCommunityDesc}
+                  onChange={(e) => setNewCommunityDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  rows={3}
+                  placeholder="Describe this community..."
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowCreateCommunity(false)
+                  setNewCommunityName('')
+                  setNewCommunityDesc('')
+                }}
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCommunity}
+                disabled={!newCommunityName.trim()}
+                className={`px-4 py-2 text-sm rounded transition-colors ${
+                  newCommunityName.trim()
+                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Create Group</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Group Name *
+                </label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Backend Team"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  rows={3}
+                  placeholder="Describe this group..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Community (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newGroupCommunity}
+                  onChange={(e) => setNewGroupCommunity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Engineering Team"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowCreateGroup(false)
+                  setNewGroupName('')
+                  setNewGroupDesc('')
+                  setNewGroupCommunity('')
+                }}
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                disabled={!newGroupName.trim()}
+                className={`px-4 py-2 text-sm rounded transition-colors ${
+                  newGroupName.trim()
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
