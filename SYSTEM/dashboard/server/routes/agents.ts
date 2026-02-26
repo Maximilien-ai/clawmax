@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, WORKSPACE, AGENTS_DIR } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getGatewayClient } from '../lib/gateway-rpc'
@@ -30,7 +30,7 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
   // Search order: openclaw main repo, workspace itself
   const repoDirs = [
     path.join(HOME, 'github', 'maximilien', 'openclaw'),
-    WORKSPACE,
+    getWorkspacePath(),
   ]
   for (const dir of repoDirs) {
     const baileys = findPnpmPkg(dir, '@whiskeysockets+baileys', '@whiskeysockets/baileys')
@@ -53,7 +53,7 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
 async function registerAgentInConfig(agentId: string, profile: boolean): Promise<{ ok: boolean; error?: string }> {
   try {
     const HOME = process.env.HOME || ''
-    const workspacePath = path.join(WORKSPACE, 'AGENTS', agentId)
+    const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
     const agentDir = profile
       ? path.join(HOME, `.openclaw-${agentId}`, 'agents', agentId, 'agent')
       : path.join(HOME, '.openclaw', 'agents', agentId, 'agent')
@@ -267,7 +267,7 @@ router.post('/provision', (req, res) => {
 
   // Write AI-generated files before provisioning
   if (generatedFiles) {
-    const dstPath = path.join(AGENTS_DIR, name)
+    const dstPath = path.join(getAgentsDir(), name)
     fs.mkdirSync(dstPath, { recursive: true })
 
     fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), generatedFiles.identity)
@@ -296,8 +296,8 @@ router.post('/provision', (req, res) => {
   }
   // Clone source agent files before provisioning
   else if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
-    const srcPath = path.join(AGENTS_DIR, cloneFrom)
-    const dstPath = path.join(AGENTS_DIR, name)
+    const srcPath = path.join(getAgentsDir(), cloneFrom)
+    const dstPath = path.join(getAgentsDir(), name)
     const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, name)
     if (copied.length > 0) {
       send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
@@ -323,7 +323,7 @@ router.post('/provision', (req, res) => {
   }
 
   // Build openclaw agents add command
-  const workspaceArg = path.join(WORKSPACE, 'AGENTS', name)
+  const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', name)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')
 
   // Get available models based on API keys
@@ -372,7 +372,7 @@ router.post('/provision', (req, res) => {
   send('log', `Command: openclaw ${args.join(' ')}\n`)
 
   const child = spawn('openclaw', args, {
-    cwd: WORKSPACE,
+    cwd: getWorkspacePath(),
     env: { ...process.env, TERM: 'dumb' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -394,7 +394,7 @@ router.post('/provision', (req, res) => {
 
       // Save creation metadata to IDENTITY.md
       try {
-        const identityPath = path.join(AGENTS_DIR, name, 'IDENTITY.md')
+        const identityPath = path.join(getAgentsDir(), name, 'IDENTITY.md')
         let identityContent = fs.readFileSync(identityPath, 'utf-8')
 
         // Check if Creation Metadata already exists
@@ -491,7 +491,7 @@ router.get('/:id', (req, res) => {
 // GET /api/agents/:id/identity — fetch IDENTITY.md with parsed metadata
 router.get('/:id/identity', (req, res) => {
   const { id } = req.params
-  const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+  const identityPath = path.join(getAgentsDir(), id, 'IDENTITY.md')
 
   if (!fs.existsSync(identityPath)) {
     return res.status(404).json({ error: 'IDENTITY.md not found' })
@@ -659,7 +659,7 @@ router.delete('/:id/whatsapp', (req, res) => {
   }
 
   // Remove WhatsApp line from IDENTITY.md
-  const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+  const identityPath = path.join(getAgentsDir(), id, 'IDENTITY.md')
   try {
     if (fs.existsSync(identityPath)) {
       let content = fs.readFileSync(identityPath, 'utf-8')
@@ -705,7 +705,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   const stateDir = isProfile ? profileStateDir : path.join(HOME, '.openclaw')
   const credsDir = path.join(stateDir, 'credentials', 'whatsapp', 'default')
 
-  const scriptPath = path.join(WORKSPACE, 'SYSTEM', 'scripts', 'instances', 'lib', 'whatsapp-pair.mjs')
+  const scriptPath = path.join(getWorkspacePath(), 'SYSTEM', 'scripts', 'instances', 'lib', 'whatsapp-pair.mjs')
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
@@ -726,7 +726,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   send('log', `Credentials dir: ${credsDir}\n`)
 
   const child = spawn('node', [scriptPath, phone, credsDir, baileys, boom], {
-    cwd: WORKSPACE,
+    cwd: getWorkspacePath(),
     env: { ...process.env, TERM: 'dumb' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -745,7 +745,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
       // Write phone number to IDENTITY.md so the dashboard can display it
       if (!linkedWritten) {
         linkedWritten = true
-        const identityPath = path.join(AGENTS_DIR, id, 'IDENTITY.md')
+        const identityPath = path.join(getAgentsDir(), id, 'IDENTITY.md')
         try {
           if (fs.existsSync(identityPath)) {
             let content = fs.readFileSync(identityPath, 'utf-8')
@@ -825,7 +825,7 @@ router.get('/:id/wa-groups', async (req, res) => {
 
     // Baileys marks community parent groups with isParent:true — use that as primary signal.
     // Fall back to GROUPS.md cross-reference for groups without the flag.
-    const groupsPath = path.join(AGENTS_DIR, id, 'GROUPS.md')
+    const groupsPath = path.join(getAgentsDir(), id, 'GROUPS.md')
     let communityNames = new Set<string>()
     let communityDescriptions = new Map<string, string | null>()
     let groupDescriptions = new Map<string, string | null>()
@@ -896,7 +896,7 @@ router.post('/:id/groups/sync', (req, res) => {
     return res.status(400).json({ ok: false, error: 'groups must be an array' })
   }
 
-  const groupsPath = path.join(AGENTS_DIR, id, 'GROUPS.md')
+  const groupsPath = path.join(getAgentsDir(), id, 'GROUPS.md')
 
   const commLines = (communities ?? []).map(c => `- ${c.name}${c.description ? ': ' + c.description : ''}`)
   const groupLines = groups.map(g => `- ${g.name}${g.description ? ': ' + g.description : ''}`)
@@ -1029,7 +1029,7 @@ router.patch('/:id/tags', (req, res) => {
     return res.status(400).json({ error: 'Tags must be an array' })
   }
 
-  const agentDir = path.join(AGENTS_DIR, id)
+  const agentDir = path.join(getAgentsDir(), id)
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
@@ -1502,8 +1502,8 @@ router.post('/:id/archive', async (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
 
-  const agentDir = path.join(AGENTS_DIR, id)
-  const archiveDir = path.join(AGENTS_DIR, 'archive')
+  const agentDir = path.join(getAgentsDir(), id)
+  const archiveDir = path.join(getAgentsDir(), 'archive')
   const archivedAgentDir = path.join(archiveDir, id)
 
   try {
@@ -1535,8 +1535,8 @@ router.post('/:id/archive', async (req, res) => {
     }
 
     // Remove agent from all communities and groups
-    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
-    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
 
     // Remove from communities
     if (fs.existsSync(communitiesPath)) {
@@ -1613,9 +1613,9 @@ router.post('/:id/unarchive', (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
 
-  const archiveDir = path.join(AGENTS_DIR, 'archive')
+  const archiveDir = path.join(getAgentsDir(), 'archive')
   const archivedAgentDir = path.join(archiveDir, id)
-  const agentDir = path.join(AGENTS_DIR, id)
+  const agentDir = path.join(getAgentsDir(), id)
 
   try {
     if (!fs.existsSync(archivedAgentDir)) {
@@ -1664,8 +1664,8 @@ router.post('/:id/communities', (req, res) => {
 
   try {
     // Read COMMUNITIES.md and GROUPS.md
-    const communitiesPath = path.join(WORKSPACE, 'ORG', 'COMMUNITIES.md')
-    const groupsPath = path.join(WORKSPACE, 'ORG', 'GROUPS.md')
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
 
     let communitiesContent = ''
     let groupsContent = ''
