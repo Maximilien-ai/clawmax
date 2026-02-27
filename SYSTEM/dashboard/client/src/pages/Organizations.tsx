@@ -41,7 +41,7 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function Organizations() {
+export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent?: (agentId: string) => void }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
@@ -443,14 +443,16 @@ export default function Organizations() {
             <div className="p-4">
               <div className="flex flex-wrap gap-2">
                 {agents.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                  <div
+                  <button
                     key={agent.id}
-                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium"
+                    onClick={() => onNavigateToAgent?.(agent.id)}
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
+                    title={`Go to ${agent.name} in Agents page`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
                     {agent.name}
                     <span className="text-gray-400">({agent.id})</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -542,13 +544,15 @@ export default function Organizations() {
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-purple-200">
                         <div className="flex flex-wrap gap-2">
                           {community.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                            <div
+                            <button
                               key={agent.id}
-                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium"
+                              onClick={() => onNavigateToAgent?.(agent.id)}
+                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                              title={`Go to ${agent.name} in Agents page`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
                               {agent.name}
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -651,13 +655,15 @@ export default function Organizations() {
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-indigo-200">
                         <div className="flex flex-wrap gap-2">
                           {group.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                            <div
+                            <button
                               key={agent.id}
-                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium"
+                              onClick={() => onNavigateToAgent?.(agent.id)}
+                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                              title={`Go to ${agent.name} in Agents page`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
                               {agent.name}
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
