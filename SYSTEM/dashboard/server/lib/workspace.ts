@@ -970,19 +970,36 @@ export function getOrgName(): string | null {
   return null
 }
 
-/** Read the latest semver git tag from refs/tags/ and packed-refs. Returns null if none. */
+/** Read the latest semver git tag from the maxclaw repository. Returns null if none. */
 export function getLatestTag(): string | null {
-  const workspacePath = getWorkspacePath()
+  // Start from this file's location and walk up to find the git repo
+  // This ensures we read from the dashboard/maxclaw repo, not the workspace repo
+  let current = __dirname  // server/lib/
+  let gitPath: string | null = null
+
+  // Walk up max 10 levels to find .git directory
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(current, '.git'))) {
+      gitPath = path.join(current, '.git')
+      break
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break  // Reached filesystem root
+    current = parent
+  }
+
+  if (!gitPath) return null
+
   const tags: string[] = []
 
   // Loose refs
   try {
-    tags.push(...fs.readdirSync(path.join(workspacePath, '.git', 'refs', 'tags')))
+    tags.push(...fs.readdirSync(path.join(gitPath, 'refs', 'tags')))
   } catch {}
 
   // Packed refs (git gc moves tags here)
   try {
-    const packed = fs.readFileSync(path.join(workspacePath, '.git', 'packed-refs'), 'utf-8')
+    const packed = fs.readFileSync(path.join(gitPath, 'packed-refs'), 'utf-8')
     for (const line of packed.split('\n')) {
       const m = line.match(/^[0-9a-f]+ refs\/tags\/(.+)$/)
       if (m && !m[1].endsWith('^{}')) tags.push(m[1])
