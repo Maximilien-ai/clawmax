@@ -1687,6 +1687,8 @@ router.post('/:id/communities', (req, res) => {
 
       const updatedCommunities = communitiesContent.split('\n')
       let currentCommunity: string | null = null
+      let currentCommunityHasMembers = false
+      let currentCommunityIndex = -1
 
       for (let i = 0; i < updatedCommunities.length; i++) {
         const line = updatedCommunities[i]
@@ -1694,11 +1696,30 @@ router.post('/:id/communities', (req, res) => {
 
         // Track which community we're in
         if (trimmed.startsWith('###')) {
+          // Before switching to new community, add Members line if needed
+          if (currentCommunity && !currentCommunityHasMembers && communities.includes(currentCommunity) && currentCommunityIndex >= 0) {
+            // Insert Members line after the community header (and other metadata)
+            updatedCommunities.splice(i, 0, `- **Members:** ${id}`)
+            i++ // Adjust index since we inserted a line
+          }
           currentCommunity = trimmed.replace(/^###\s+/, '').trim()
+          currentCommunityHasMembers = false
+          currentCommunityIndex = i
         }
 
-        // Update members line
+        // Exit current community if we hit a section header
+        if (trimmed.startsWith('##')) {
+          if (currentCommunity && !currentCommunityHasMembers && communities.includes(currentCommunity) && currentCommunityIndex >= 0) {
+            updatedCommunities.splice(i, 0, `- **Members:** ${id}`)
+            i++
+          }
+          currentCommunity = null
+          currentCommunityHasMembers = false
+        }
+
+        // Update members line if it exists
         if (currentCommunity && trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
+          currentCommunityHasMembers = true
           const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
           if (membersMatch) {
             const prefix = membersMatch[1]
@@ -1714,6 +1735,11 @@ router.post('/:id/communities', (req, res) => {
         }
       }
 
+      // Handle last community if it didn't have members
+      if (currentCommunity && !currentCommunityHasMembers && communities.includes(currentCommunity)) {
+        updatedCommunities.push(`- **Members:** ${id}`)
+      }
+
       fs.writeFileSync(communitiesPath, updatedCommunities.join('\n'), 'utf-8')
     }
 
@@ -1721,6 +1747,8 @@ router.post('/:id/communities', (req, res) => {
     if (Array.isArray(groups)) {
       const updatedGroups = groupsContent.split('\n')
       let currentGroup: string | null = null
+      let currentGroupHasMembers = false
+      let lastMetadataLineIndex = -1
 
       for (let i = 0; i < updatedGroups.length; i++) {
         const line = updatedGroups[i]
@@ -1728,24 +1756,54 @@ router.post('/:id/communities', (req, res) => {
 
         // Track which group we're in
         if (trimmed.startsWith('###')) {
+          // Before switching to new group, add Members line if needed
+          if (currentGroup && !currentGroupHasMembers && groups.includes(currentGroup) && lastMetadataLineIndex >= 0) {
+            // Insert Members line after the last metadata line
+            updatedGroups.splice(lastMetadataLineIndex + 1, 0, `- **Members:** ${id}`)
+            i++ // Adjust index since we inserted a line
+          }
           currentGroup = trimmed.replace(/^###\s+/, '').trim()
+          currentGroupHasMembers = false
+          lastMetadataLineIndex = i // Start tracking from the group header
         }
 
-        // Update members line
-        if (currentGroup && trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
-          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
-          if (membersMatch) {
-            const prefix = membersMatch[1]
-            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+        // Exit current group if we hit a section header
+        if (trimmed.startsWith('##')) {
+          if (currentGroup && !currentGroupHasMembers && groups.includes(currentGroup) && lastMetadataLineIndex >= 0) {
+            updatedGroups.splice(lastMetadataLineIndex + 1, 0, `- **Members:** ${id}`)
+            i++
+          }
+          currentGroup = null
+          currentGroupHasMembers = false
+          lastMetadataLineIndex = -1
+        }
 
-            // Add agent if this group is in the new list
-            if (groups.includes(currentGroup)) {
-              membersList.push(id)
+        // Track metadata lines (lines starting with -)
+        if (currentGroup && trimmed.startsWith('-')) {
+          lastMetadataLineIndex = i
+
+          // Check if this is the Members line
+          if (trimmed.match(/^-\s+\*\*Members:\*\*/i)) {
+            currentGroupHasMembers = true
+            const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+            if (membersMatch) {
+              const prefix = membersMatch[1]
+              const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+
+              // Add agent if this group is in the new list
+              if (groups.includes(currentGroup)) {
+                membersList.push(id)
+              }
+
+              updatedGroups[i] = prefix + membersList.join(', ')
             }
-
-            updatedGroups[i] = prefix + membersList.join(', ')
           }
         }
+      }
+
+      // Handle last group if it didn't have members
+      if (currentGroup && !currentGroupHasMembers && groups.includes(currentGroup) && lastMetadataLineIndex >= 0) {
+        updatedGroups.splice(lastMetadataLineIndex + 1, 0, `- **Members:** ${id}`)
       }
 
       fs.writeFileSync(groupsPath, updatedGroups.join('\n'), 'utf-8')

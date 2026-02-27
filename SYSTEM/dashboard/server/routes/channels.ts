@@ -245,12 +245,49 @@ router.patch('/groups/:name/members', (req, res) => {
     return
   }
 
-  const success = updateGroupMembers('group', decodeURIComponent(name), members)
-  if (success) {
-    res.json({ ok: true })
-  } else {
+  const groupName = decodeURIComponent(name)
+  const success = updateGroupMembers('group', groupName, members)
+
+  if (!success) {
     res.status(404).json({ ok: false, error: 'Group not found' })
+    return
   }
+
+  // Auto-add members to parent community if group belongs to one
+  try {
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+    if (fs.existsSync(groupsPath)) {
+      const content = fs.readFileSync(groupsPath, 'utf-8')
+      const { groups } = parseGroupsWithMembers(content)
+      const group = groups.find(g => g.name === groupName)
+
+      if (group?.community) {
+        // Get current community members
+        const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+        if (fs.existsSync(communitiesPath)) {
+          const commContent = fs.readFileSync(communitiesPath, 'utf-8')
+          const { communities } = parseGroupsWithMembers(commContent)
+          const community = communities.find(c => c.name === group.community)
+
+          if (community) {
+            // Merge new members with existing community members
+            const existingMembers = community.members || []
+            const updatedMembers = [...new Set([...existingMembers, ...members])]
+
+            // Only update if there are new members to add
+            if (updatedMembers.length > existingMembers.length) {
+              updateGroupMembers('community', group.community, updatedMembers)
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Don't fail the request if community auto-add fails
+    console.error('Failed to auto-add members to parent community:', err)
+  }
+
+  res.json({ ok: true })
 })
 
 // Get messages for a community

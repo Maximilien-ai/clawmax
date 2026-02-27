@@ -136,14 +136,23 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     const template = agentTemplates.find(t => t.slug === form.templateSlug)
     if (!template) return
 
+    // Build updates to apply
+    const updates: Partial<FormState> = {}
+
     // Pre-fill tags from template
     if (template.tags && template.tags.length > 0) {
-      setForm(f => ({ ...f, tags: template.tags }))
+      updates.tags = template.tags
     }
 
     // Pre-fill AI description from template metadata
     if (template.metadata?.aiPrompt) {
-      setForm(f => ({ ...f, aiDescription: template.metadata.aiPrompt, useAI: true }))
+      updates.aiDescription = template.metadata.aiPrompt
+      updates.useAI = true
+    }
+
+    // Apply all updates in one setState call
+    if (Object.keys(updates).length > 0) {
+      setForm(f => ({ ...f, ...updates }))
     }
 
     setPreFilled(true)
@@ -157,7 +166,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   // Fetch and pre-populate from cloneFrom agent's metadata
   useEffect(() => {
     if (!form.cloneFrom) {
-      setPreFilled(false)
+      // Only reset preFilled if there's also no template selected
+      if (!form.templateSlug) {
+        setPreFilled(false)
+      }
       // Reset to default agent name suggestion
       fetch('/api/agents/next')
         .then(r => r.json())
@@ -201,7 +213,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
         }
       })
       .catch(err => console.error('Failed to fetch clone source metadata:', err))
-  }, [form.cloneFrom])
+  }, [form.cloneFrom, form.templateSlug])
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }))

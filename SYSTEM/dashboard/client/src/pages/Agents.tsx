@@ -922,6 +922,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onLinkWa={() => setLinkWaTarget(agent)}
               onSyncGroups={() => setSyncGroupsTarget(agent)}
               onChat={() => setChatTarget(agent)}
+              onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
               onManageTags={() => setTagManageTarget(agent)}
@@ -1408,7 +1409,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive,
 }: {
   agent: Agent
   selected: boolean
@@ -1422,6 +1423,7 @@ const AgentCard = React.memo(function AgentCard({
   onSyncGroups: () => void
   onUnlinkWa: () => void
   onChat: () => void
+  onClone: () => void
   onViewDocs?: () => void
   onRemoveTag: (tag: string) => void
   onManageTags: () => void
@@ -1431,6 +1433,7 @@ const AgentCard = React.memo(function AgentCard({
   onRestart: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
+  const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   return (
     <div
       id={`agent-card-${agent.id}`}
@@ -1454,50 +1457,7 @@ const AgentCard = React.memo(function AgentCard({
           )}
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0">
-          {/* Consequential actions (left side) */}
-          <button
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-1 rounded hover:bg-red-50"
-            title="Delete agent"
-          >
-            🗑
-          </button>
-          {agent.archived ? (
-            <button
-              onClick={e => { e.stopPropagation(); onUnarchive() }}
-              className="text-gray-300 hover:text-green-500 transition-colors text-xs p-1 rounded hover:bg-green-50"
-              title="Unarchive agent"
-            >
-              📤
-            </button>
-          ) : (
-            <button
-              onClick={e => { e.stopPropagation(); onArchive() }}
-              className="text-gray-300 hover:text-orange-500 transition-colors text-xs p-1 rounded hover:bg-orange-50"
-              title="Archive agent"
-            >
-              📦
-            </button>
-          )}
-          <button
-            onClick={e => { e.stopPropagation(); onRestart() }}
-            className="text-gray-300 hover:text-amber-500 transition-colors text-xs p-1 rounded hover:bg-amber-50"
-            title="Restart agent"
-          >
-            ↻
-          </button>
-          {/* Separator */}
-          <div className="w-px h-4 bg-gray-200 mx-0.5"></div>
-          {/* Frequent actions (right side) */}
-          {!agent.archived && (
-            <button
-              onClick={e => { e.stopPropagation(); onChat() }}
-              className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
-              title="Chat with agent"
-            >
-              💬
-            </button>
-          )}
+          {/* Frequent actions (always visible) */}
           {onViewDocs && (
             <button
               onClick={e => { e.stopPropagation(); onViewDocs() }}
@@ -1507,6 +1467,72 @@ const AgentCard = React.memo(function AgentCard({
               📄
             </button>
           )}
+          {!agent.archived && (
+            <button
+              onClick={e => { e.stopPropagation(); onChat() }}
+              className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
+              title="Chat with agent"
+            >
+              💬
+            </button>
+          )}
+          {/* Actions menu */}
+          <div className="relative">
+            <button
+              onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu) }}
+              className="text-gray-300 hover:text-gray-600 transition-colors text-base p-1 rounded hover:bg-gray-50"
+              title="More actions"
+            >
+              ⋮
+            </button>
+            {showActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
+                <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                  <button
+                    onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <span>📋</span> Clone
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-sky-500">💾</span> Save as Template
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-amber-500">↻</span> Restart
+                  </button>
+                  {agent.archived ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-green-500">📤</span> Unarchive
+                    </button>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-orange-500">📦</span> Archive
+                    </button>
+                  )}
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <button
+                    onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                  >
+                    <span>🗑</span> Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={e => { e.stopPropagation(); onToggle() }}
             className="text-gray-300 hover:text-gray-500 transition-colors text-xs p-1"
@@ -1737,6 +1763,7 @@ const AgentCard = React.memo(function AgentCard({
 })
 
 const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+  const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
   return (
     <div
@@ -1795,78 +1822,82 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           </div>
         )}
       </div>
-      {totalGroups > 0 && (
-        <div className="mt-2 text-xs text-gray-300">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
-      )}
-      <div className="mt-1.5 flex items-start justify-between gap-1">
+      <div className="mt-1.5 flex items-center justify-between gap-1">
         <div className="flex flex-wrap gap-0.5 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
           {agent.tags.length > 0 ? (
             <>
-              {agent.tags.slice(0, 2).map(tag => (
+              {agent.tags.slice(0, 3).map(tag => (
                 <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 cursor-pointer hover:bg-sky-100 transition-colors">
                   {tag}
                 </span>
               ))}
-              {agent.tags.length > 2 && (
-                <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer">+{agent.tags.length - 2}</span>
+              {agent.tags.length > 3 && (
+                <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer">+{agent.tags.length - 3}</span>
               )}
             </>
           ) : (
             <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer hover:text-sky-500 transition-colors">+ add tags</span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+        {totalGroups > 0 && (
+          <div className="text-xs text-gray-400 shrink-0">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
+        )}
+        <div className="relative shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); onClone(); }}
-            className="text-gray-200 hover:text-purple-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
-            aria-label="Clone agent"
-            title="Clone agent"
+            onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
+            className="text-gray-300 hover:text-gray-600 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50"
+            aria-label="More actions"
+            title="More actions"
           >
-            📋
+            ⋮
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); }}
-            className="text-gray-200 hover:text-sky-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-sky-50"
-            aria-label="Save as template"
-            title="Save as template"
-          >
-            💾
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onRestart(); }}
-            className="text-gray-200 hover:text-amber-400 transition-colors text-xs leading-none p-0.5 rounded hover:bg-amber-50"
-            aria-label="Restart agent"
-            title="Restart agent"
-          >
-            ↻
-          </button>
-          {agent.archived ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onUnarchive(); }}
-              className="text-gray-200 hover:text-green-400 transition-colors text-xs p-0.5 rounded hover:bg-green-50"
-              aria-label="Unarchive agent"
-              title="Unarchive agent"
-            >
-              📤
-            </button>
-          ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); onArchive(); }}
-              className="text-gray-200 hover:text-orange-400 transition-colors text-xs p-0.5 rounded hover:bg-orange-50"
-              aria-label="Archive agent"
-              title="Archive agent"
-            >
-              📦
-            </button>
+          {showActionsMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
+              <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                >
+                  <span>📋</span> Clone
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-sky-500">💾</span> Save as Template
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-amber-500">↻</span> Restart
+                </button>
+                {agent.archived ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-green-500">📤</span> Unarchive
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-orange-500">📦</span> Archive
+                  </button>
+                )}
+                <div className="border-t border-gray-200 my-1"></div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                >
+                  <span>🗑</span> Delete
+                </button>
+              </div>
+            </>
           )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-gray-200 hover:text-red-400 transition-colors text-xs p-0.5 rounded hover:bg-red-50"
-            aria-label="Delete agent"
-            title="Delete agent"
-          >
-            🗑
-          </button>
         </div>
       </div>
     </div>

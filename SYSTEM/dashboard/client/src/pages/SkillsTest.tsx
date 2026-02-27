@@ -203,8 +203,21 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   }}
                   onFocus={() => setShowAgentDropdown(true)}
                   placeholder="Search agents..."
-                  className="px-4 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
+                  className="px-4 py-2 pr-10 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
                 />
+                {(agentSearchQuery || agentId) && (
+                  <button
+                    onClick={() => {
+                      setAgentId(availableAgents.length > 0 ? availableAgents[0] : '')
+                      setAgentSearchQuery('')
+                      setShowAgentDropdown(false)
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Clear agent selection"
+                  >
+                    ✕
+                  </button>
+                )}
                 {showAgentDropdown && filteredAgents.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {filteredAgents.map(id => (
@@ -296,13 +309,24 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         <div className="bg-white p-4 rounded-lg border mb-6">
           <div className="flex gap-4 flex-wrap">
             {/* Search */}
-            <input
-              type="text"
-              placeholder="Search skills..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 min-w-64 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="relative flex-1 min-w-64">
+              <input
+                type="text"
+                placeholder="Search skills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
             {/* Filter buttons */}
             <div className="flex gap-2">
