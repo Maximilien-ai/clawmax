@@ -26,8 +26,8 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
       return
     }
 
-    // Auto-generate path if not provided
-    const finalPath = path.trim() || `${process.env.HOME || '~'}/.openclaw/workspaces/${name.toLowerCase().replace(/\s+/g, '-')}`
+    // Auto-generate path if not provided - backend will handle the full path
+    const finalPath = path.trim() || `~/.openclaw/workspaces/${name.toLowerCase().replace(/\s+/g, '-')}`
 
     setCreating(true)
     try {

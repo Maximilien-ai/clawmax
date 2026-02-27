@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
+import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 
 interface GroupEntry {
   name: string
@@ -58,6 +59,17 @@ export default function Organizations() {
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDesc, setNewGroupDesc] = useState('')
   const [newGroupCommunity, setNewGroupCommunity] = useState('')
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    type: 'community' | 'group'
+    name: string
+    consequences: string[]
+  } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const fetchData = useCallback(async () => {
     try {
@@ -202,14 +214,15 @@ export default function Organizations() {
         setShowCreateCommunity(false)
         setNewCommunityName('')
         setNewCommunityDesc('')
-        // Reload page to show new community
-        window.location.reload()
+        showToast(`Community "${newCommunityName}" created successfully`, 'success')
+        // Refresh data without page reload
+        fetchData()
       } else {
-        alert('Failed to create community')
+        showToast('Failed to create community', 'error')
       }
     } catch (err) {
       console.error('Error creating community:', err)
-      alert('Failed to create community')
+      showToast('Failed to create community', 'error')
     }
   }
 
@@ -233,14 +246,87 @@ export default function Organizations() {
         setNewGroupName('')
         setNewGroupDesc('')
         setNewGroupCommunity('')
-        // Reload page to show new group
-        window.location.reload()
+        showToast(`Group "${newGroupName}" created successfully`, 'success')
+        // Refresh data without page reload
+        fetchData()
       } else {
-        alert('Failed to create group')
+        showToast('Failed to create group', 'error')
       }
     } catch (err) {
       console.error('Error creating group:', err)
-      alert('Failed to create group')
+      showToast('Failed to create group', 'error')
+    }
+  }
+
+  const handleDeleteCommunity = (communityName: string) => {
+    const community = communities.find(c => c.name === communityName)
+    if (!community) return
+
+    const consequences: string[] = []
+
+    // Find groups in this community
+    const communityGroups = groups.filter(g => g.community === communityName)
+    if (communityGroups.length > 0) {
+      consequences.push(`${communityGroups.length} group${communityGroups.length !== 1 ? 's' : ''} will lose their community reference`)
+      communityGroups.forEach(g => {
+        consequences.push(`  • ${g.name}`)
+      })
+    }
+
+    // Find agents
+    if (community.members.length > 0) {
+      consequences.push(`${community.members.length} agent${community.members.length !== 1 ? 's' : ''} are members`)
+      community.members.forEach(a => {
+        consequences.push(`  • ${a.name}`)
+      })
+    }
+
+    setDeleteDialog({ type: 'community', name: communityName, consequences })
+  }
+
+  const handleDeleteGroup = (groupName: string) => {
+    const group = groups.find(g => g.name === groupName)
+    if (!group) return
+
+    const consequences: string[] = []
+
+    // Show community if exists
+    if (group.community) {
+      consequences.push(`Part of community: ${group.community}`)
+    }
+
+    // Find agents
+    if (group.members.length > 0) {
+      consequences.push(`${group.members.length} agent${group.members.length !== 1 ? 's' : ''} are members`)
+      group.members.forEach(a => {
+        consequences.push(`  • ${a.name}`)
+      })
+    }
+
+    setDeleteDialog({ type: 'group', name: groupName, consequences })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog) return
+
+    const { type, name } = deleteDialog
+    const endpoint = type === 'community' ? `/api/communities/${encodeURIComponent(name)}` : `/api/groups/${encodeURIComponent(name)}`
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
+        setDeleteDialog(null)
+        fetchData()
+      } else {
+        showToast(`Failed to delete ${type}`, 'error')
+      }
+    } catch (err) {
+      console.error(`Error deleting ${type}:`, err)
+      showToast(`Failed to delete ${type}`, 'error')
     }
   }
 
@@ -370,12 +456,12 @@ export default function Organizations() {
               </div>
               <div className="divide-y divide-gray-100">
                 {communities.map(community => (
-                  <div key={community.name} className="p-4">
-                    <div
-                      onClick={() => toggleCommunity(community.name)}
-                      className="flex items-start justify-between cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded transition-colors"
-                    >
-                      <div className="flex-1">
+                  <div key={community.name} className="p-4 group relative">
+                    <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
+                      <div
+                        onClick={() => toggleCommunity(community.name)}
+                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded"
+                      >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm">
                             {expandedCommunities.has(community.name) ? '▼' : '▶'}
@@ -402,6 +488,20 @@ export default function Organizations() {
                         )}
                       </div>
                     </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteCommunity(community.name)
+                      }}
+                      className="absolute right-2 top-6 opacity-0 group-hover:opacity-100 p-1 text-red-600 hover:bg-red-50 rounded transition-all"
+                      title="Delete community"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
 
                     {/* Community Members */}
                     {expandedCommunities.has(community.name) && (
@@ -441,12 +541,12 @@ export default function Organizations() {
               </div>
               <div className="divide-y divide-gray-100">
                 {groups.map(group => (
-                  <div key={group.name} className="p-4">
-                    <div
-                      onClick={() => toggleGroup(group.name)}
-                      className="flex items-start justify-between cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded transition-colors"
-                    >
-                      <div className="flex-1">
+                  <div key={group.name} className="p-4 group relative">
+                    <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
+                      <div
+                        onClick={() => toggleGroup(group.name)}
+                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded"
+                      >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm">
                             {expandedGroups.has(group.name) ? '▼' : '▶'}
@@ -478,6 +578,20 @@ export default function Organizations() {
                         )}
                       </div>
                     </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteGroup(group.name)
+                      }}
+                      className="absolute right-2 top-6 opacity-0 group-hover:opacity-100 p-1 text-red-600 hover:bg-red-50 rounded transition-all"
+                      title="Delete group"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
 
                     {/* Group Members */}
                     {expandedGroups.has(group.name) && (
@@ -694,6 +808,25 @@ export default function Organizations() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        isOpen={deleteDialog !== null}
+        itemName={deleteDialog?.name || ''}
+        itemType={deleteDialog?.type || 'item'}
+        consequences={deleteDialog?.consequences}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteDialog(null)}
+      />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transition-opacity ${
+          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.message}
         </div>
       )}
     </div>

@@ -449,10 +449,50 @@ export function deleteGroup(type: 'community' | 'group', name: string): boolean 
 
     fs.writeFileSync(filePath, newLines.join('\n'), 'utf-8')
     console.log(`✓ Deleted ${type}: ${name}`)
+
+    // If deleting a community, remove community references from orphaned groups
+    if (type === 'community') {
+      clearCommunityFromGroups(name)
+    }
+
     return true
   } catch (err) {
     console.error(`Error deleting ${type}:`, err)
     return false
+  }
+}
+
+function clearCommunityFromGroups(communityName: string): void {
+  try {
+    const workspacePath = getWorkspacePath()
+    const groupsPath = path.join(workspacePath, 'ORG', 'GROUPS.md')
+
+    if (!fs.existsSync(groupsPath)) {
+      return
+    }
+
+    const content = fs.readFileSync(groupsPath, 'utf-8')
+    const lines = content.split('\n')
+    const newLines: string[] = []
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+
+      // Skip lines that reference the deleted community
+      if (trimmed.startsWith('- **Community:**')) {
+        const communityValue = trimmed.replace(/^- \*\*Community:\*\*\s*/, '').trim()
+        if (communityValue === communityName) {
+          continue // Skip this line
+        }
+      }
+
+      newLines.push(line)
+    }
+
+    fs.writeFileSync(groupsPath, newLines.join('\n'), 'utf-8')
+    console.log(`✓ Cleared community "${communityName}" from orphaned groups`)
+  } catch (err) {
+    console.error('Error clearing community from groups:', err)
   }
 }
 
