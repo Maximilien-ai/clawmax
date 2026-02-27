@@ -293,6 +293,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     }
   }
 
+  const handleExportAgent = (agentId: string) => {
+    const agent = agents.find(a => a.id === agentId)
+    const url = `/api/agents/${agentId}/export`
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${agentId}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    showSuccess(`Exporting ${agent?.name || agentId}...`)
+  }
+
   // Fetch communities and groups for bulk operations
   useEffect(() => {
     Promise.all([
@@ -934,6 +946,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
               onRename={() => setRenameTarget(agent)}
+              onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+              onExport={() => handleExportAgent(agent.id)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -1515,7 +1529,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport,
 }: {
   agent: Agent
   selected: boolean
@@ -1538,6 +1552,8 @@ const AgentCard = React.memo(function AgentCard({
   onNavigateToSkills?: () => void
   onRestart: () => void
   onRename: () => void
+  onSaveAsTemplate: () => void
+  onExport: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -1607,6 +1623,12 @@ const AgentCard = React.memo(function AgentCard({
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
                   >
                     <span className="text-sky-500">💾</span> Save as Template
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-indigo-500">📦</span> Export as ZIP
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
@@ -1979,6 +2001,12 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
                 >
                   <span className="text-sky-500">💾</span> Save as Template
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-indigo-500">📦</span> Export as ZIP
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}

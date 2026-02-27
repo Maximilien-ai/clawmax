@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
@@ -1894,6 +1895,33 @@ router.post('/:id/communities', (req, res) => {
     }
 
     res.json({ ok: true, communities, groups })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Export agent as ZIP
+router.get('/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params
+    const agentDir = path.join(getAgentsDir(), id)
+
+    if (!fs.existsSync(agentDir)) {
+      return res.status(404).json({ error: 'Agent not found' })
+    }
+
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename="${id}.zip"`)
+
+    const archive = archiver('zip', { zlib: { level: 9 } })
+
+    archive.on('error', (err) => {
+      throw err
+    })
+
+    archive.pipe(res)
+    archive.directory(agentDir, id)
+    await archive.finalize()
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
