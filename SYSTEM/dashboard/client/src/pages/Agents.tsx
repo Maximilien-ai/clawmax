@@ -111,6 +111,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number; gatewayAvailable: boolean } | null>(null)
   const [allCommunities, setAllCommunities] = useState<GroupEntry[]>([])
   const [allGroups, setAllGroups] = useState<GroupEntry[]>([])
+  const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
     const url = resetPagination
@@ -932,6 +933,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
+              onRename={() => setRenameTarget(agent)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -987,6 +989,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onRestart={() => handleRestart(agent.id)}
                         onArchive={() => setArchiveTarget(agent)}
                         onUnarchive={() => setUnarchiveTarget(agent)}
+                        onRename={() => setRenameTarget(agent)}
                         isSelected={selectedAgentIds.has(agent.id)}
                         onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                       />
@@ -1026,6 +1029,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onRestart={() => handleRestart(agent.id)}
                               onArchive={() => setArchiveTarget(agent)}
                               onUnarchive={() => setUnarchiveTarget(agent)}
+                              onRename={() => setRenameTarget(agent)}
                               isSelected={selectedAgentIds.has(agent.id)}
                               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                             />
@@ -1076,6 +1080,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
+              onRename={() => setRenameTarget(agent)}
               isSelected={selectedAgentIds.has(agent.id)}
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
             />
@@ -1262,6 +1267,34 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         />
       )}
 
+      {renameTarget && (
+        <RenameAgentModal
+          agent={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onSave={async (newId) => {
+            try {
+              const res = await fetch(`/api/agents/${renameTarget.id}/rename`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newId }),
+              })
+              const data = await res.json()
+              if (res.ok) {
+                showSuccess(`Renamed ${renameTarget.id} to ${newId}`)
+                fetchAgents()
+                setRenameTarget(null)
+                setSelectedAgent(null)
+              } else {
+                showError(data.error || 'Failed to rename agent')
+              }
+            } catch (err) {
+              showError('Failed to rename agent')
+              console.error('Failed to rename agent:', err)
+            }
+          }}
+        />
+      )}
+
       {/* Floating toolbar for bulk operations */}
       {selectedAgentIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-4 z-40">
@@ -1408,8 +1441,77 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   )
 }
 
+function RenameAgentModal({ agent, onClose, onSave }: { agent: Agent; onClose: () => void; onSave: (newId: string) => void }) {
+  const [newId, setNewId] = React.useState(agent.id)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const validate = (id: string): string | null => {
+    if (!id.trim()) return 'Agent ID is required'
+    if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+      return 'Must start with lowercase letter and contain only lowercase letters, numbers, dashes, and underscores'
+    }
+    if (id === agent.id) return 'New ID must be different from current ID'
+    return null
+  }
+
+  const handleSave = () => {
+    const validationError = validate(newId)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    onSave(newId)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Agent</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Renaming will update the agent directory and all references in communities and groups
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Current ID: <span className="font-mono text-gray-500">{agent.id}</span>
+          </label>
+          <input
+            type="text"
+            value={newId}
+            onChange={e => {
+              setNewId(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="Enter new agent ID..."
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono"
+          />
+          {error && (
+            <p className="mt-1 text-xs text-red-600">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+          >
+            Rename
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename,
 }: {
   agent: Agent
   selected: boolean
@@ -1431,6 +1533,7 @@ const AgentCard = React.memo(function AgentCard({
   onNavigateToGroup?: (groupName: string) => void
   onNavigateToSkills?: () => void
   onRestart: () => void
+  onRename: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -1506,6 +1609,12 @@ const AgentCard = React.memo(function AgentCard({
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
                   >
                     <span className="text-amber-500">↻</span> Restart
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors flex items-center gap-2"
+                  >
+                    <span className="text-purple-500">✎</span> Rename
                   </button>
                   {agent.archived ? (
                     <button
@@ -1762,7 +1871,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
   return (
@@ -1872,6 +1981,12 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
                 >
                   <span className="text-amber-500">↻</span> Restart
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-purple-500">✎</span> Rename
                 </button>
                 {agent.archived ? (
                   <button
