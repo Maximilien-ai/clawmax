@@ -217,6 +217,119 @@ router.patch('/groups/:name/tags', (req, res) => {
   }
 })
 
+// Rename community
+router.patch('/communities/:name/rename', (req, res) => {
+  const { name } = req.params
+  const { newName } = req.body as { newName?: string }
+
+  if (!newName || typeof newName !== 'string' || newName.trim() === '') {
+    res.status(400).json({ ok: false, error: 'newName is required' })
+    return
+  }
+
+  const oldName = decodeURIComponent(name)
+  const trimmedNewName = newName.trim()
+
+  if (oldName === trimmedNewName) {
+    res.status(400).json({ ok: false, error: 'New name must be different' })
+    return
+  }
+
+  try {
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    if (!fs.existsSync(communitiesPath)) {
+      res.status(404).json({ ok: false, error: 'Communities file not found' })
+      return
+    }
+
+    let content = fs.readFileSync(communitiesPath, 'utf-8')
+    const { communities } = parseGroupsWithMembers(content)
+
+    // Check if old community exists
+    if (!communities.find(c => c.name === oldName)) {
+      res.status(404).json({ ok: false, error: 'Community not found' })
+      return
+    }
+
+    // Check if new name conflicts
+    if (communities.find(c => c.name === trimmedNewName)) {
+      res.status(409).json({ ok: false, error: `Community "${trimmedNewName}" already exists` })
+      return
+    }
+
+    // Replace community name in header
+    const oldHeader = new RegExp(`^### ${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm')
+    content = content.replace(oldHeader, `### ${trimmedNewName}`)
+
+    // Update references in GROUPS.md (community field)
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+    if (fs.existsSync(groupsPath)) {
+      let groupsContent = fs.readFileSync(groupsPath, 'utf-8')
+      const communityFieldRegex = new RegExp(`^- \\*\\*Community:\\*\\* ${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'gm')
+      groupsContent = groupsContent.replace(communityFieldRegex, `- **Community:** ${trimmedNewName}`)
+      fs.writeFileSync(groupsPath, groupsContent, 'utf-8')
+    }
+
+    fs.writeFileSync(communitiesPath, content, 'utf-8')
+    res.json({ ok: true, oldName, newName: trimmedNewName })
+  } catch (err: any) {
+    console.error('Failed to rename community:', err)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// Rename group
+router.patch('/groups/:name/rename', (req, res) => {
+  const { name } = req.params
+  const { newName } = req.body as { newName?: string }
+
+  if (!newName || typeof newName !== 'string' || newName.trim() === '') {
+    res.status(400).json({ ok: false, error: 'newName is required' })
+    return
+  }
+
+  const oldName = decodeURIComponent(name)
+  const trimmedNewName = newName.trim()
+
+  if (oldName === trimmedNewName) {
+    res.status(400).json({ ok: false, error: 'New name must be different' })
+    return
+  }
+
+  try {
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+    if (!fs.existsSync(groupsPath)) {
+      res.status(404).json({ ok: false, error: 'Groups file not found' })
+      return
+    }
+
+    let content = fs.readFileSync(groupsPath, 'utf-8')
+    const { groups } = parseGroupsWithMembers(content)
+
+    // Check if old group exists
+    if (!groups.find(g => g.name === oldName)) {
+      res.status(404).json({ ok: false, error: 'Group not found' })
+      return
+    }
+
+    // Check if new name conflicts
+    if (groups.find(g => g.name === trimmedNewName)) {
+      res.status(409).json({ ok: false, error: `Group "${trimmedNewName}" already exists` })
+      return
+    }
+
+    // Replace group name in header
+    const oldHeader = new RegExp(`^### ${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm')
+    content = content.replace(oldHeader, `### ${trimmedNewName}`)
+
+    fs.writeFileSync(groupsPath, content, 'utf-8')
+    res.json({ ok: true, oldName, newName: trimmedNewName })
+  } catch (err: any) {
+    console.error('Failed to rename group:', err)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
 // Update community members
 router.patch('/communities/:name/members', (req, res) => {
   const { name } = req.params

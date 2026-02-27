@@ -1053,6 +1053,90 @@ router.patch('/:id/tags', (req, res) => {
   }
 })
 
+// PATCH /api/agents/:id/rename — rename agent and update all references
+router.patch('/:id/rename', (req, res) => {
+  const { id } = req.params
+  const { newId } = req.body
+
+  // Validate old ID
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  // Validate new ID
+  if (!newId || typeof newId !== 'string') {
+    return res.status(400).json({ error: 'newId is required' })
+  }
+  if (!/^[a-z][a-z0-9_-]*$/.test(newId)) {
+    return res.status(400).json({ error: 'Invalid new ID format (must start with lowercase letter, contain only lowercase letters, numbers, dashes, and underscores)' })
+  }
+  if (newId === id) {
+    return res.status(400).json({ error: 'New ID must be different from current ID' })
+  }
+
+  const agentsDir = getAgentsDir()
+  const oldPath = path.join(agentsDir, id)
+  const newPath = path.join(agentsDir, newId)
+
+  try {
+    // Check old agent exists
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ error: 'Agent not found' })
+    }
+
+    // Check new ID doesn't conflict
+    if (fs.existsSync(newPath)) {
+      return res.status(409).json({ error: `Agent "${newId}" already exists` })
+    }
+
+    // Rename directory
+    fs.renameSync(oldPath, newPath)
+
+    // Update references in COMMUNITIES.md
+    try {
+      const commPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+      if (fs.existsSync(commPath)) {
+        let content = fs.readFileSync(commPath, 'utf-8')
+        // Replace in members lists (comma-separated)
+        content = content.replace(
+          new RegExp(`\\b${id}\\b`, 'g'),
+          newId
+        )
+        fs.writeFileSync(commPath, content, 'utf-8')
+      }
+    } catch (err) {
+      console.error('Failed to update COMMUNITIES.md:', err)
+    }
+
+    // Update references in GROUPS.md
+    try {
+      const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+      if (fs.existsSync(groupsPath)) {
+        let content = fs.readFileSync(groupsPath, 'utf-8')
+        // Replace in members lists
+        content = content.replace(
+          new RegExp(`\\b${id}\\b`, 'g'),
+          newId
+        )
+        fs.writeFileSync(groupsPath, content, 'utf-8')
+      }
+    } catch (err) {
+      console.error('Failed to update GROUPS.md:', err)
+    }
+
+    res.json({ ok: true, oldId: id, newId })
+  } catch (err) {
+    console.error('Failed to rename agent:', err)
+    // Try to rollback if directory was renamed
+    try {
+      if (fs.existsSync(newPath) && !fs.existsSync(oldPath)) {
+        fs.renameSync(newPath, oldPath)
+      }
+    } catch {}
+    res.status(500).json({ error: 'Failed to rename agent' })
+  }
+})
+
 // GET /api/agents/:id/chat/messages — fetch dashboard chat history
 router.get('/:id/chat/messages', async (req, res) => {
   const { id } = req.params
