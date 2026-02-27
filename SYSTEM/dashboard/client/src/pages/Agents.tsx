@@ -295,24 +295,40 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
   const handleExportAgent = async (agentId: string) => {
     const agent = agents.find(a => a.id === agentId)
+    console.log('[Export] Starting export for agent:', agentId)
     try {
       showSuccess(`Exporting ${agent?.name || agentId}...`)
+      console.log('[Export] Fetching:', `/api/agents/${agentId}/export`)
       const response = await fetch(`/api/agents/${agentId}/export`)
+      console.log('[Export] Response status:', response.status, response.statusText)
+      console.log('[Export] Response headers:', Object.fromEntries(response.headers.entries()))
+
       if (!response.ok) {
-        throw new Error('Export failed')
+        const errorText = await response.text()
+        console.error('[Export] Error response:', errorText)
+        throw new Error(`Export failed: ${response.status} ${errorText}`)
       }
+
+      console.log('[Export] Converting to blob...')
       const blob = await response.blob()
+      console.log('[Export] Blob size:', blob.size, 'type:', blob.type)
+
       const url = window.URL.createObjectURL(blob)
+      console.log('[Export] Created blob URL:', url)
+
       const link = document.createElement('a')
       link.href = url
       link.download = `${agentId}.zip`
       document.body.appendChild(link)
+      console.log('[Export] Clicking download link...')
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      console.log('[Export] Download triggered successfully')
+      showSuccess(`Exported ${agent?.name || agentId}`)
     } catch (err) {
       showError(`Failed to export ${agent?.name || agentId}`)
-      console.error(err)
+      console.error('[Export] Error:', err)
     }
   }
 
@@ -1009,6 +1025,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                         onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+                        onExport={() => handleExportAgent(agent.id)}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
                         onRestart={() => handleRestart(agent.id)}
@@ -1049,6 +1066,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+                              onExport={() => handleExportAgent(agent.id)}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                               onManageTags={() => setTagManageTarget(agent)}
                               onRestart={() => handleRestart(agent.id)}
@@ -1100,6 +1118,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+              onExport={() => handleExportAgent(agent.id)}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onManageTags={() => setTagManageTarget(agent)}
               onRestart={() => handleRestart(agent.id)}
@@ -1908,7 +1927,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
   return (

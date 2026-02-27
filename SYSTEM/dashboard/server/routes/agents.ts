@@ -1904,25 +1904,42 @@ router.post('/:id/communities', (req, res) => {
 router.get('/:id/export', async (req, res) => {
   try {
     const { id } = req.params
-    const agentDir = path.join(getAgentsDir(), id)
+    console.log('[Export API] Request received for agent:', id)
+
+    const agentsDir = getAgentsDir()
+    console.log('[Export API] Agents directory:', agentsDir)
+
+    const agentDir = path.join(agentsDir, id)
+    console.log('[Export API] Agent directory:', agentDir)
 
     if (!fs.existsSync(agentDir)) {
+      console.error('[Export API] Agent directory not found:', agentDir)
       return res.status(404).json({ error: 'Agent not found' })
     }
 
+    console.log('[Export API] Setting headers...')
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${id}.zip"`)
 
+    console.log('[Export API] Creating archive...')
     const archive = archiver('zip', { zlib: { level: 9 } })
 
     archive.on('error', (err) => {
+      console.error('[Export API] Archive error:', err)
       throw err
     })
 
+    archive.on('end', () => {
+      console.log('[Export API] Archive finalized successfully')
+    })
+
+    console.log('[Export API] Piping archive to response...')
     archive.pipe(res)
     archive.directory(agentDir, id)
     await archive.finalize()
+    console.log('[Export API] Finalize called')
   } catch (err: any) {
+    console.error('[Export API] Error:', err)
     res.status(500).json({ error: err.message })
   }
 })

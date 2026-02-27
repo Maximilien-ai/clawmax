@@ -5,6 +5,7 @@ import Activity from './pages/Activity'
 import Communication from './pages/Communication'
 import Templates from './pages/Templates'
 import Organizations from './pages/Organizations'
+import Logs from './pages/Logs'
 import { SkillsTest } from './pages/SkillsTest'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -13,7 +14,7 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'skills'
+type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'skills' | 'logs'
 
 interface SystemInfo {
   hostname: string
@@ -37,6 +38,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   // System tabs below - separated by divider
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
+  { id: 'logs', label: 'Logs', icon: 'logs' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
 ]
 
@@ -218,6 +220,9 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
               <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
             </div>
+            <div className={`flex-1 overflow-auto ${page === 'logs' ? '' : 'hidden'}`}>
+              <Logs />
+            </div>
             <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
               <DocHub initialFile={docFile} />
             </div>
@@ -302,6 +307,7 @@ function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart
     comms: '💬',
     activity: '📊',
     docs: '📄',
+    logs: '📜',
   }
 
   return (
