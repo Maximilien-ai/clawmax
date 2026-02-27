@@ -67,6 +67,8 @@ export default function Organizations() {
     name: string
     consequences: string[]
   } | null>(null)
+  const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
+  const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -507,6 +509,20 @@ export default function Organizations() {
                       </div>
                     </div>
 
+                    {/* Rename button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRenameCommunityTarget(community)
+                      }}
+                      className="absolute right-10 top-6 opacity-0 group-hover:opacity-100 p-1 text-purple-600 hover:bg-purple-50 rounded transition-all"
+                      title="Rename community"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+
                     {/* Delete button */}
                     <button
                       onClick={(e) => {
@@ -601,6 +617,20 @@ export default function Organizations() {
                         )}
                       </div>
                     </div>
+
+                    {/* Rename button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRenameGroupTarget(group)
+                      }}
+                      className="absolute right-10 top-6 opacity-0 group-hover:opacity-100 p-1 text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                      title="Rename group"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
 
                     {/* Delete button */}
                     <button
@@ -845,6 +875,62 @@ export default function Organizations() {
         onCancel={() => setDeleteDialog(null)}
       />
 
+      {/* Rename Community Modal */}
+      {renameCommunityTarget && (
+        <RenameCommunityModal
+          community={renameCommunityTarget}
+          onClose={() => setRenameCommunityTarget(null)}
+          onSave={async (newName) => {
+            try {
+              const res = await fetch(`/api/communities/${encodeURIComponent(renameCommunityTarget.name)}/rename`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newName }),
+              })
+              const data = await res.json()
+              if (res.ok) {
+                showToast(`Renamed "${renameCommunityTarget.name}" to "${newName}"`, 'success')
+                fetchData()
+                setRenameCommunityTarget(null)
+              } else {
+                showToast(data.error || 'Failed to rename community', 'error')
+              }
+            } catch (err) {
+              showToast('Failed to rename community', 'error')
+              console.error(err)
+            }
+          }}
+        />
+      )}
+
+      {/* Rename Group Modal */}
+      {renameGroupTarget && (
+        <RenameGroupModal
+          group={renameGroupTarget}
+          onClose={() => setRenameGroupTarget(null)}
+          onSave={async (newName) => {
+            try {
+              const res = await fetch(`/api/groups/${encodeURIComponent(renameGroupTarget.name)}/rename`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newName }),
+              })
+              const data = await res.json()
+              if (res.ok) {
+                showToast(`Renamed "${renameGroupTarget.name}" to "${newName}"`, 'success')
+                fetchData()
+                setRenameGroupTarget(null)
+              } else {
+                showToast(data.error || 'Failed to rename group', 'error')
+              }
+            } catch (err) {
+              showToast('Failed to rename group', 'error')
+              console.error(err)
+            }
+          }}
+        />
+      )}
+
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transition-opacity ${
@@ -853,6 +939,154 @@ export default function Organizations() {
           {toast.message}
         </div>
       )}
+    </div>
+  )
+}
+
+function RenameCommunityModal({
+  community,
+  onClose,
+  onSave
+}: {
+  community: Community
+  onClose: () => void
+  onSave: (newName: string) => void
+}) {
+  const [newName, setNewName] = React.useState(community.name)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const validate = (name: string): string | null => {
+    if (!name.trim()) return 'Community name is required'
+    if (name === community.name) return 'New name must be different from current name'
+    return null
+  }
+
+  const handleSave = () => {
+    const validationError = validate(newName)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    onSave(newName.trim())
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Community</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Renaming will update all references in groups and agents
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Current name: <span className="font-medium text-purple-600">{community.name}</span>
+          </label>
+          <input
+            type="text"
+            value={newName}
+            onChange={e => {
+              setNewName(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="Enter new community name..."
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          />
+          {error && (
+            <p className="mt-1 text-xs text-red-600">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm rounded bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+          >
+            Rename
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RenameGroupModal({
+  group,
+  onClose,
+  onSave
+}: {
+  group: Group
+  onClose: () => void
+  onSave: (newName: string) => void
+}) {
+  const [newName, setNewName] = React.useState(group.name)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const validate = (name: string): string | null => {
+    if (!name.trim()) return 'Group name is required'
+    if (name === group.name) return 'New name must be different from current name'
+    return null
+  }
+
+  const handleSave = () => {
+    const validationError = validate(newName)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    onSave(newName.trim())
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Group</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Renaming will update all references in agents
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Current name: <span className="font-medium text-indigo-600">{group.name}</span>
+          </label>
+          <input
+            type="text"
+            value={newName}
+            onChange={e => {
+              setNewName(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="Enter new group name..."
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+          {error && (
+            <p className="mt-1 text-xs text-red-600">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          >
+            Rename
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
