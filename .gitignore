@@ -14,6 +14,9 @@ dist/
 .env
 .env.local
 
+# Dashboard auth token
+SYSTEM/dashboard/server/.dashboard-token
+
 # Logs
 *.log
 npm-debug.log*

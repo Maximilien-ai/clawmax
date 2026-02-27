@@ -12,6 +12,7 @@ import skillsRouter from './routes/skills'
 import workspacesRouter from './routes/workspaces'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
+import { requireAuth, verifyToken } from './lib/auth'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -70,7 +71,7 @@ const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 app.use(cors({ origin: 'http://localhost:5173' }))
 app.use(express.json())
 
-// Health
+// Health (public)
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
@@ -79,8 +80,11 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
+// Auth verification (public)
+app.post('/api/auth/verify', verifyToken)
+
 // Workspace system info — installation identity card
-app.get('/api/system', (_req, res) => {
+app.get('/api/system', requireAuth, (_req, res) => {
   const workspacePath = getWorkspacePath()
   let gitBranch = 'unknown'
   try {
@@ -101,13 +105,13 @@ app.get('/api/system', (_req, res) => {
 })
 
 // Installation-wide activity feed
-app.get('/api/activity', (_req, res) => {
+app.get('/api/activity', requireAuth, (_req, res) => {
   const feed = getInstallationActivity()
   res.json({ feed })
 })
 
 // System logs - SSE stream
-app.get('/api/system/logs', (_req, res) => {
+app.get('/api/system/logs', requireAuth, (_req, res) => {
   const { spawn } = require('child_process')
 
   // Set up SSE headers
@@ -142,7 +146,7 @@ app.get('/api/system/logs', (_req, res) => {
 })
 
 // Save a workspace doc file
-app.post('/api/docs/content', (req, res) => {
+app.post('/api/docs/content', requireAuth, (req, res) => {
   const { path: relPath, content } = req.body as { path?: string; content?: string }
   if (!relPath || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'Missing path or content' })
@@ -249,13 +253,13 @@ app.post('/api/docs/content', (req, res) => {
   res.json({ ok: true })
 })
 
-// API routes
-app.use('/api/docs', docsRouter)
-app.use('/api/agents', agentsRouter)
-app.use('/api/templates', templatesRouter)
-app.use('/api/skills', skillsRouter)
-app.use('/api/workspaces', workspacesRouter)
-app.use('/api', channelsRouter)
+// API routes (all protected with auth)
+app.use('/api/docs', requireAuth, docsRouter)
+app.use('/api/agents', requireAuth, agentsRouter)
+app.use('/api/templates', requireAuth, templatesRouter)
+app.use('/api/skills', requireAuth, skillsRouter)
+app.use('/api/workspaces', requireAuth, workspacesRouter)
+app.use('/api', requireAuth, channelsRouter)
 
 // Serve built client in production
 const clientDist = path.join(__dirname, '..', '..', 'dist', 'client')
