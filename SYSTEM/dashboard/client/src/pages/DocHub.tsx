@@ -108,6 +108,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [validationErrors, setValidationErrors] = useState<Array<{ field: string; message: string; value?: any }>>([])
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  // Create new document
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newDocSection, setNewDocSection] = useState<DocSection>('ORG')
+  const [newDocPath, setNewDocPath] = useState('')
+  const [newDocContent, setNewDocContent] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
   useEffect(() => {
     fetch('/api/docs')
       .then(r => r.json())
@@ -230,6 +238,63 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setSearchResults([])
   }
 
+  function openCreateDialog() {
+    setNewDocSection('ORG')
+    setNewDocPath('')
+    setNewDocContent('# New Document\n\n')
+    setCreateError(null)
+    setShowCreateDialog(true)
+  }
+
+  function closeCreateDialog() {
+    setShowCreateDialog(false)
+    setNewDocPath('')
+    setNewDocContent('')
+    setCreateError(null)
+  }
+
+  async function createDocument() {
+    const trimmedPath = newDocPath.trim()
+    if (!trimmedPath) {
+      setCreateError('Path is required')
+      return
+    }
+    if (!trimmedPath.endsWith('.md')) {
+      setCreateError('Path must end with .md')
+      return
+    }
+
+    const fullPath = `${newDocSection}/${trimmedPath}`
+    setCreating(true)
+    setCreateError(null)
+
+    try {
+      const res = await fetch('/api/docs/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: fullPath, content: newDocContent }),
+      })
+      const data = await res.json()
+
+      if (data.ok) {
+        // Reload file list
+        const entriesRes = await fetch('/api/docs')
+        const entriesData = await entriesRes.json()
+        setEntries(entriesData.entries ?? [])
+
+        // Close dialog and load the new file
+        closeCreateDialog()
+        loadFile(fullPath)
+      } else {
+        setCreateError(data.error ?? 'Failed to create document')
+      }
+    } catch (err) {
+      setCreateError('Failed to create document')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   // Auto-scroll to selected file when it changes
   useEffect(() => {
     if (selected && selectedButtonRef.current) {
@@ -255,6 +320,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={openCreateDialog}
+                    className="text-sky-600 hover:text-sky-700 hover:bg-sky-50 transition-colors text-xs px-2 py-1 rounded font-medium"
+                    title="Create new document"
+                  >+ New</button>
                   <button
                     onClick={collapseAllDirs}
                     className="text-gray-400 hover:text-gray-600 transition-colors text-xs px-2 py-1 rounded hover:bg-gray-100"
@@ -552,6 +622,83 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
           </div>
         )}
       </div>
+
+      {/* Create Document Dialog */}
+      {showCreateDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeCreateDialog}>
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Document</h3>
+
+            {createError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                {createError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                <select
+                  value={newDocSection}
+                  onChange={e => setNewDocSection(e.target.value as DocSection)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                >
+                  <option value="ORG">ORG</option>
+                  <option value="AGENTS">AGENTS</option>
+                  <option value="SYSTEM">SYSTEM</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Choose where to create the document</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Path</label>
+                <input
+                  type="text"
+                  value={newDocPath}
+                  onChange={e => setNewDocPath(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && createDocument()}
+                  placeholder="example.md or subdirectory/example.md"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  File path relative to {newDocSection}/ (must end with .md)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Initial Content</label>
+                <textarea
+                  value={newDocContent}
+                  onChange={e => setNewDocContent(e.target.value)}
+                  placeholder="# New Document
+
+Start writing..."
+                  rows={10}
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-6">
+              <button
+                onClick={closeCreateDialog}
+                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createDocument}
+                disabled={creating}
+                className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
+                  creating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700'
+                }`}
+              >
+                {creating ? 'Creating...' : 'Create Document'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -20,7 +20,18 @@ router.get('/content', (req, res) => {
   res.json({ path: relPath, content })
 })
 
-// PUT /api/docs/content — write a file
+// POST /api/docs/content — create OR update a file
+router.post('/content', (req, res) => {
+  const { path: relPath, content } = req.body as { path: string; content: string }
+  if (!relPath || content === undefined) return res.status(400).json({ error: 'path and content required' })
+
+  const ok = writeWorkspaceFile(relPath, content)
+  if (!ok) return res.status(400).json({ error: 'Cannot write to that path' })
+
+  res.json({ ok: true })
+})
+
+// PUT /api/docs/content — write a file (legacy, use POST instead)
 router.put('/content', (req, res) => {
   const { path: relPath, content } = req.body as { path: string; content: string }
   if (!relPath || content === undefined) return res.status(400).json({ error: 'path and content required' })
