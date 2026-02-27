@@ -879,6 +879,7 @@ export default function Organizations() {
       {renameCommunityTarget && (
         <RenameCommunityModal
           community={renameCommunityTarget}
+          existingCommunities={communities}
           onClose={() => setRenameCommunityTarget(null)}
           onSave={async (newName) => {
             try {
@@ -907,6 +908,7 @@ export default function Organizations() {
       {renameGroupTarget && (
         <RenameGroupModal
           group={renameGroupTarget}
+          existingGroups={groups}
           onClose={() => setRenameGroupTarget(null)}
           onSave={async (newName) => {
             try {
@@ -945,10 +947,12 @@ export default function Organizations() {
 
 function RenameCommunityModal({
   community,
+  existingCommunities,
   onClose,
   onSave
 }: {
   community: Community
+  existingCommunities: Community[]
   onClose: () => void
   onSave: (newName: string) => void
 }) {
@@ -958,6 +962,9 @@ function RenameCommunityModal({
   const validate = (name: string): string | null => {
     if (!name.trim()) return 'Community name is required'
     if (name === community.name) return 'New name must be different from current name'
+    if (existingCommunities.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
+      return `A community named "${name.trim()}" already exists`
+    }
     return null
   }
 
@@ -1019,10 +1026,12 @@ function RenameCommunityModal({
 
 function RenameGroupModal({
   group,
+  existingGroups,
   onClose,
   onSave
 }: {
   group: Group
+  existingGroups: Group[]
   onClose: () => void
   onSave: (newName: string) => void
 }) {
@@ -1032,6 +1041,9 @@ function RenameGroupModal({
   const validate = (name: string): string | null => {
     if (!name.trim()) return 'Group name is required'
     if (name === group.name) return 'New name must be different from current name'
+    if (existingGroups.some(g => g.name.toLowerCase() === name.trim().toLowerCase())) {
+      return `A group named "${name.trim()}" already exists`
+    }
     return null
   }
 

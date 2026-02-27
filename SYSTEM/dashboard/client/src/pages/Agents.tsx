@@ -1270,6 +1270,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {renameTarget && (
         <RenameAgentModal
           agent={renameTarget}
+          existingAgents={agents}
           onClose={() => setRenameTarget(null)}
           onSave={async (newId) => {
             try {
@@ -1441,7 +1442,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   )
 }
 
-function RenameAgentModal({ agent, onClose, onSave }: { agent: Agent; onClose: () => void; onSave: (newId: string) => void }) {
+function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: Agent; existingAgents: Agent[]; onClose: () => void; onSave: (newId: string) => void }) {
   const [newId, setNewId] = React.useState(agent.id)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1451,6 +1452,9 @@ function RenameAgentModal({ agent, onClose, onSave }: { agent: Agent; onClose: (
       return 'Must start with lowercase letter and contain only lowercase letters, numbers, dashes, and underscores'
     }
     if (id === agent.id) return 'New ID must be different from current ID'
+    if (existingAgents.some(a => a.id.toLowerCase() === id.trim().toLowerCase())) {
+      return `An agent with ID "${id.trim()}" already exists`
+    }
     return null
   }
 
