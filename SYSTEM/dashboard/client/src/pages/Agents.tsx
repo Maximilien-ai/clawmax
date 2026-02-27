@@ -1110,6 +1110,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
           onChat={() => setChatTarget(selectedAgent)}
+          onClone={() => {
+            setCloneFromAgent(selectedAgent.id)
+            setShowAddWizard(true)
+            setSelectedAgent(null)
+          }}
           onNavigateToSkills={onNavigateToSkills}
         />
       )}

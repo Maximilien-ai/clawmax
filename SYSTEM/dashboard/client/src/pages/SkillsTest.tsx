@@ -273,15 +273,20 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 .sort((a, b) => b[1].length - a[1].length)
                 .slice(0, 10)
                 .map(([skillName, users]) => (
-                  <div
+                  <button
                     key={skillName}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200"
+                    onClick={() => {
+                      setSearchQuery(skillName)
+                      setFilterAssigned('all')
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200 hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                    title={`Search for ${skillName}`}
                   >
                     <span className="text-sm font-medium text-purple-900">{skillName}</span>
                     <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
                       {users.length}
                     </span>
-                  </div>
+                  </button>
                 ))}
             </div>
           </div>

@@ -82,11 +82,13 @@ export default function AgentDetailPanel({
   agent,
   onClose,
   onChat,
+  onClone,
   onNavigateToSkills,
 }: {
   agent: Agent
   onClose: () => void
   onChat: () => void
+  onClone?: () => void
   onNavigateToSkills?: (agentId: string) => void
 }) {
   const [activity, setActivity] = useState<AgentActivity | null>(null)
@@ -167,6 +169,16 @@ export default function AgentDetailPanel({
             >
               💬
             </button>
+            {onClone && (
+              <button
+                onClick={onClone}
+                className="text-sm font-medium text-purple-500 hover:text-purple-700 transition-colors"
+                aria-label="Clone agent"
+                title="Clone agent"
+              >
+                📋
+              </button>
+            )}
             <button
               onClick={handleRefresh}
               disabled={cooling}

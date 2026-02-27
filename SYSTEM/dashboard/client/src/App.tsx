@@ -32,12 +32,16 @@ interface NavItem {
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
   { id: 'organizations', label: 'Organizations', icon: 'org' },
+  { id: 'communication', label: 'Communication', icon: 'comms' },
+  { id: 'docs', label: 'Documents', icon: 'docs' },
+  // System tabs below - separated by divider
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
-  { id: 'docs', label: 'Documents', icon: 'docs' },
-  { id: 'communication', label: 'Communication', icon: 'comms' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
 ]
+
+// User tabs that can be rearranged (first 4)
+const USER_TABS_COUNT = 4
 
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
@@ -80,6 +84,10 @@ export default function App() {
   const handleNavDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
     if (draggedNavIndex === null || draggedNavIndex === index) return
+
+    // Prevent dragging across the separator
+    if (draggedNavIndex < USER_TABS_COUNT && index >= USER_TABS_COUNT) return
+    if (draggedNavIndex >= USER_TABS_COUNT && index < USER_TABS_COUNT) return
 
     const newOrder = [...navOrder]
     const [removed] = newOrder.splice(draggedNavIndex, 1)
@@ -134,20 +142,25 @@ export default function App() {
             {/* Nav */}
             <nav className="flex-1 px-2 py-4 space-y-1">
               {navOrder.map((item, index) => (
-                <NavItemDraggable
-                  key={item.id}
-                  label={item.label}
-                  icon={item.icon}
-                  active={page === item.id}
-                  onClick={() => {
-                    setPage(item.id)
-                    setMobileNavOpen(false)
-                  }}
-                  collapsed={navCollapsed}
-                  onDragStart={() => handleNavDragStart(index)}
-                  onDragOver={(e) => handleNavDragOver(e, index)}
-                  onDragEnd={handleNavDragEnd}
-                />
+                <React.Fragment key={item.id}>
+                  <NavItemDraggable
+                    label={item.label}
+                    icon={item.icon}
+                    active={page === item.id}
+                    onClick={() => {
+                      setPage(item.id)
+                      setMobileNavOpen(false)
+                    }}
+                    collapsed={navCollapsed}
+                    onDragStart={index < USER_TABS_COUNT ? () => handleNavDragStart(index) : undefined}
+                    onDragOver={index < USER_TABS_COUNT ? (e) => handleNavDragOver(e, index) : undefined}
+                    onDragEnd={index < USER_TABS_COUNT ? handleNavDragEnd : undefined}
+                  />
+                  {/* Separator between user tabs and system tabs */}
+                  {index === USER_TABS_COUNT - 1 && (
+                    <div className="my-2 mx-3 border-t border-gray-700"></div>
+                  )}
+                </React.Fragment>
               ))}
             </nav>
 

@@ -77,10 +77,22 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     fetch('/api/agents/models')
       .then(r => r.json())
       .then(d => {
-        setAvailableModels(d.models || [])
-        // Set default model to first available
-        if (d.models && d.models.length > 0) {
-          setForm(f => ({ ...f, model: d.models[0] }))
+        // Sort models to put openai/* first for better compatibility
+        const models = (d.models || []).sort((a: string, b: string) => {
+          const aIsOpenAI = a.startsWith('openai/')
+          const bIsOpenAI = b.startsWith('openai/')
+          if (aIsOpenAI && !bIsOpenAI) return -1
+          if (!aIsOpenAI && bIsOpenAI) return 1
+          return a.localeCompare(b)
+        })
+        setAvailableModels(models)
+
+        // Set default model to gpt-4o/gpt-5 if available, otherwise first openai model, otherwise first available
+        if (models.length > 0) {
+          const defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
+            || models.find((m: string) => m.startsWith('openai/'))
+            || models[0]
+          setForm(f => ({ ...f, model: defaultModel }))
         }
       })
       .catch(() => {})

@@ -48,6 +48,8 @@ export default function Organizations() {
   const [loading, setLoading] = useState(true)
   const [expandedCommunities, setExpandedCommunities] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
+  const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [orgName, setOrgName] = useState('Maximilien.ai')
   const [orgDescription, setOrgDescription] = useState('First ClawMax organization')
@@ -199,6 +201,12 @@ export default function Organizations() {
   const handleCreateCommunity = async () => {
     if (!newCommunityName.trim()) return
 
+    // Check for duplicate names
+    if (communities.some(c => c.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
+      showToast(`Community "${newCommunityName}" already exists`, 'error')
+      return
+    }
+
     try {
       const response = await fetch('/api/communities', {
         method: 'POST',
@@ -228,6 +236,12 @@ export default function Organizations() {
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return
+
+    // Check for duplicate names
+    if (groups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
+      showToast(`Group "${newGroupName}" already exists`, 'error')
+      return
+    }
 
     try {
       const response = await fetch('/api/groups', {
@@ -444,9 +458,12 @@ export default function Organizations() {
           {communities.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
               <div className="px-4 py-3 border-b border-gray-200 bg-purple-50 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-purple-800">
-                  🏘 Communities ({communities.length})
-                </h2>
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCommunitiesSectionCollapsed(!communitiesSectionCollapsed)}>
+                  <span className="text-sm">{communitiesSectionCollapsed ? '▶' : '▼'}</span>
+                  <h2 className="text-sm font-semibold text-purple-800">
+                    🏘 Communities ({communities.length})
+                  </h2>
+                </div>
                 <button
                   onClick={() => setShowCreateCommunity(true)}
                   className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
@@ -454,7 +471,8 @@ export default function Organizations() {
                   + Create Community
                 </button>
               </div>
-              <div className="divide-y divide-gray-100">
+              {!communitiesSectionCollapsed && (
+                <div className="divide-y divide-gray-100">
                 {communities.map(community => (
                   <div key={community.name} className="p-4 group relative">
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
@@ -521,7 +539,8 @@ export default function Organizations() {
                     )}
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -529,9 +548,12 @@ export default function Organizations() {
           {groups.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
               <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-indigo-800">
-                  👥 Groups ({groups.length})
-                </h2>
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setGroupsSectionCollapsed(!groupsSectionCollapsed)}>
+                  <span className="text-sm">{groupsSectionCollapsed ? '▶' : '▼'}</span>
+                  <h2 className="text-sm font-semibold text-indigo-800">
+                    👥 Groups ({groups.length})
+                  </h2>
+                </div>
                 <button
                   onClick={() => setShowCreateGroup(true)}
                   className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
@@ -539,7 +561,8 @@ export default function Organizations() {
                   + Create Group
                 </button>
               </div>
-              <div className="divide-y divide-gray-100">
+              {!groupsSectionCollapsed && (
+                <div className="divide-y divide-gray-100">
                 {groups.map(group => (
                   <div key={group.name} className="p-4 group relative">
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
@@ -611,7 +634,8 @@ export default function Organizations() {
                     )}
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
