@@ -293,16 +293,27 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     }
   }
 
-  const handleExportAgent = (agentId: string) => {
+  const handleExportAgent = async (agentId: string) => {
     const agent = agents.find(a => a.id === agentId)
-    const url = `/api/agents/${agentId}/export`
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${agentId}.zip`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    showSuccess(`Exporting ${agent?.name || agentId}...`)
+    try {
+      showSuccess(`Exporting ${agent?.name || agentId}...`)
+      const response = await fetch(`/api/agents/${agentId}/export`)
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${agentId}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      showError(`Failed to export ${agent?.name || agentId}`)
+      console.error(err)
+    }
   }
 
   // Fetch communities and groups for bulk operations
