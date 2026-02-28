@@ -42,99 +42,99 @@
 ### Development Roadmap — Weekend + Week Ahead
 **Timeline**: Weekend (4 hours) + Next Week (40 hours) = 44 hours total
 **Released**: v0.8.3 (2026-02-27)
-**Primary Goal**: Workflows system implementation
+**Strategy**: Balanced progress across multiple high-value features
 
 ---
 
 #### **Weekend — Feb 28-Mar 1 (4 hours total: 2h/day)**
 
-**Saturday (2 hours): Workflows Backend Foundation**
+**Saturday (2 hours): WhatsApp Link Panel — v0.8.4**
+- [ ] Implement backend SSE endpoint: `POST /api/agents/:id/whatsapp/pair`
+  - Detect Baileys/Boom paths from pnpm store
+  - Determine profile mode vs default credentials dir
+  - Spawn whatsapp-pair.mjs and stream output
+  - Parse pairing code and emit SSE events
+- [ ] Integrate "Link WA" button in agent cards (when no phone number)
+- [ ] Test end-to-end pairing flow
+- [ ] **Deliverable**: v0.8.4 with WhatsApp pairing from dashboard
+
+**Sunday (2 hours): Chat Backend Foundation — v0.8.5**
+- [ ] Create `server/routes/chat.ts`
+- [ ] Implement `GET /api/agents/:id/gateway` (returns port, token, availability)
+- [ ] Implement `POST /api/agents/:id/chat` SSE proxy
+  - Open WebSocket to agent gateway
+  - Send chat.send RPC call
+  - Relay delta events back as SSE
+- [ ] Test with running agent gateway
+- [ ] **Deliverable**: Chat API ready for frontend integration
+
+---
+
+#### **Next Week — Multi-Feature Sprint (40 hours)**
+
+**Monday (8 hours): In-Dashboard Chat UI — v0.8.6**
+- [ ] Create `AgentChatPanel.tsx` slide-out component
+- [ ] Chat input + message history display
+- [ ] Stream delta text with SSE connection
+- [ ] Add "Chat" button to agent cards (show when gateway available)
+- [ ] Session management (sessionId in React state)
+- [ ] Polish chat UX (typing indicators, error states)
+- [ ] **Deliverable**: v0.8.6 with working agent chat
+
+**Tuesday (8 hours): Agent Status & Control — v0.8.7**
+- [ ] Create `AgentStatusPage` component (new route: `/agents/:id/status`)
+- [ ] Live log tail with SSE streaming from gateway
+- [ ] Gateway status display (port, uptime, connection status)
+- [ ] Start/stop gateway controls (if feasible)
+- [ ] Add "Status" button to agent cards
+- [ ] **Deliverable**: v0.8.7 with agent monitoring
+
+**Wednesday (8 hours): Workflows Backend Foundation**
 - [ ] Create WORKFLOWS directory structure and validation schema
-- [ ] Implement workflow file parser with YAML frontmatter support (gray-matter)
-- [ ] Add basic CRUD operations: create, read, update, delete workflow files
-- [ ] Define TypeScript interfaces for Workflow, WorkflowMetadata
-- [ ] **Deliverable**: `server/lib/workflows.ts` with core functions
-
-**Sunday (2 hours): Workflows API Layer**
+- [ ] Implement `server/lib/workflows.ts`:
+  - Workflow file parser with YAML frontmatter (gray-matter)
+  - CRUD operations (create, read, update, delete)
+  - TypeScript interfaces (Workflow, WorkflowMetadata)
+  - Agent participation resolution (groups + tags + IDs)
 - [ ] Create `server/routes/workflows.ts` with 6 endpoints
-  - `GET /api/workflows` — List all workflows
-  - `GET /api/workflows/:name` — Get workflow details
-  - `POST /api/workflows` — Create workflow (validate schema)
-  - `PUT /api/workflows/:name` — Update workflow
-  - `DELETE /api/workflows/:name` — Delete workflow
-  - `GET /api/agents/:id/workflows` — Get agent's workflows
-- [ ] Implement agent participation resolution logic (groups + tags + direct IDs)
-- [ ] **Deliverable**: Working API endpoints with validation
+- [ ] **Deliverable**: Workflows backend API complete
+
+**Thursday (8 hours): Workflows UI — Core**
+- [ ] Create `WorkflowsPage.tsx` (new top-level tab)
+- [ ] Build `WorkflowCard` component (name, schedule, participants)
+- [ ] Build `WorkflowDetailPanel` slide-out
+- [ ] Create `WorkflowEditorDialog` for create/edit
+- [ ] Basic markdown editor + YAML frontmatter fields
+- [ ] Agent targeting UI (communities, groups, tags, IDs)
+- [ ] **Deliverable**: Working workflows CRUD UI
+
+**Friday (8 hours): Workflows Completion + Release — v0.9.0**
+- [ ] Build `CronScheduleBuilder` component (visual + raw input)
+- [ ] Integrate workflows into AgentDetailPanel
+- [ ] Integrate workflows into Groups/Communities panels
+- [ ] Add workflows to organization template export/import
+- [ ] Test full workflow lifecycle (create → assign → export → import)
+- [ ] Polish UI (loading states, error handling, empty states)
+- [ ] Comprehensive testing across all new features
+- [ ] **Deliverable**: v0.9.0 with 5 major features complete
 
 ---
 
-#### **Next Week — Full Workflows Implementation (40 hours)**
-
-**Monday (8 hours): Workflows UI Components**
-- [ ] Create `WorkflowsPage.tsx` (main workflows tab)
-- [ ] Build `WorkflowCard` component (displays name, schedule, participant count)
-- [ ] Build `WorkflowDetailPanel` slide-out (similar to AgentDetailPanel)
-- [ ] Add loading states with LoadingSpinner
-- [ ] Wire up to backend API for list/detail views
-- [ ] **Deliverable**: Working workflows list page
-
-**Tuesday (8 hours): Workflow Editor**
-- [ ] Create `WorkflowEditorDialog` component for create/edit
-- [ ] Build markdown editor with preview (reuse document editor patterns)
-- [ ] Add YAML frontmatter editor section (name, description, schedule)
-- [ ] Implement agent targeting UI:
-  - Community dropdown
-  - Groups multi-select
-  - Tags multi-select
-  - Direct agent IDs input
-- [ ] Form validation and error handling
-- [ ] **Deliverable**: Full workflow creation/editing UI
-
-**Wednesday (8 hours): Cron Schedule Builder + Integrations**
-- [ ] Build `CronScheduleBuilder` component
-  - Visual cron builder (dropdowns for minute/hour/day/month/weekday)
-  - Raw cron expression input with validation
-  - Human-readable schedule display ("Daily at 9:00 AM")
-- [ ] Integrate workflows into `AgentDetailPanel` ("Participating Workflows" section)
-- [ ] Integrate workflows into Groups/Communities detail panels
-- [ ] Add navigation links between workflows and agents/groups
-- [ ] **Deliverable**: Complete cron UI + cross-page integration
-
-**Thursday (8 hours): Organization Templates Integration**
-- [ ] Add workflows to template export logic (`server/lib/templates.ts`)
-  - Include `WORKFLOWS/*.md` in ZIP export
-  - Add workflows to template manifest
-- [ ] Add workflows to template import logic
-  - Parse WORKFLOWS directory from uploaded template
-  - Create workflow files in target workspace
-  - Resolve agent/group references after import
-- [ ] Update `Organizations.tsx` "Save as Template" flow
-- [ ] Test full export → import → verify workflow preservation
-- [ ] **Deliverable**: Workflows fully integrated with templates
-
-**Friday (8 hours): Testing, Polish, and Documentation**
-- [ ] Write comprehensive test suite for workflows
-  - Backend: CRUD operations, validation, agent resolution
-  - Frontend: Component rendering, form validation, cron builder
-- [ ] Add workflows to `test.sh` if applicable
-- [ ] Polish UI: responsive design, error states, empty states
-- [ ] Update PLANNING.md with completed status
-- [ ] Create comprehensive commit for v0.9.0
-- [ ] Test full workflow lifecycle:
-  1. Create workflow
-  2. Assign agents via groups/tags
-  3. Export organization template
-  4. Import template to new workspace
-  5. Verify workflow preserved
-- [ ] **Deliverable**: v0.9.0 release with Workflows feature
+#### **Weekly Release Cadence**
+- **v0.8.4** (Saturday): WhatsApp Link Panel
+- **v0.8.5** (Sunday): Chat Backend
+- **v0.8.6** (Monday): Chat UI
+- **v0.8.7** (Tuesday): Agent Status & Control
+- **v0.9.0** (Friday): Workflows + Multi-feature release
 
 ---
 
-#### **Buffer Tasks** (if ahead of schedule)
-- [ ] Workflow execution history tracking (prep for future scheduler)
-- [ ] Workflow analytics dashboard (most active, completion rates)
-- [ ] Workflow templates library (common patterns: daily standup, security scan, etc.)
-- [ ] Advanced cron features (timezone selection, execution windows)
+#### **Backlog for Later**
+- [ ] Multi-agent broadcast (send message to all agents)
+- [ ] Agent templates library (SYSTEM/templates/)
+- [ ] Workflow execution engine (cron scheduler)
+- [ ] Workflow analytics dashboard
+- [ ] Browser relay bug fix (Chrome CDP session issue)
 
 ### v0.2.0 — WhatsApp Link Panel
 
