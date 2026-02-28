@@ -198,6 +198,16 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
     )
   }, [groups, searchQuery])
 
+  // Filter agents based on search query
+  const filteredAgents = useMemo(() => {
+    if (!searchQuery.trim()) return agents
+    const query = searchQuery.toLowerCase()
+    return agents.filter(a =>
+      a.name.toLowerCase().includes(query) ||
+      a.id.toLowerCase().includes(query)
+    )
+  }, [agents, searchQuery])
+
   // Count total matching agents across all filtered communities and groups
   const matchingAgentsCount = useMemo(() => {
     if (!searchQuery.trim()) return 0
@@ -519,12 +529,12 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
             <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
               <h2 className="text-sm font-semibold text-gray-700">
-                🤖 All Agents ({agents.length})
+                🤖 All Agents ({filteredAgents.length})
               </h2>
             </div>
             <div className="p-4">
               <div className="flex flex-wrap gap-2">
-                {agents.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
+                {filteredAgents.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
                   <button
                     key={agent.id}
                     onClick={() => onNavigateToAgent?.(agent.id)}
