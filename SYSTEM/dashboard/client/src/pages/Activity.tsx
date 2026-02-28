@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 
 interface ActivityEntry {
   agentId: string
@@ -234,11 +235,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
         </div>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-          Loading activity...
-        </div>
-      )}
+      {loading && <PageLoading text="Loading activity..." />}
 
       {error && (
         <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>

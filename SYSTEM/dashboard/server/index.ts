@@ -4,6 +4,7 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import simpleGit from 'simple-git'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
@@ -146,7 +147,7 @@ app.get('/api/system/logs', requireAuth, (_req, res) => {
 })
 
 // Save a workspace doc file
-app.post('/api/docs/content', requireAuth, (req, res) => {
+app.post('/api/docs/content', requireAuth, async (req, res) => {
   const { path: relPath, content } = req.body as { path?: string; content?: string }
   if (!relPath || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'Missing path or content' })
@@ -250,6 +251,24 @@ app.post('/api/docs/content', requireAuth, (req, res) => {
     res.status(403).json({ ok: false, error: 'Path not allowed or not a markdown file' })
     return
   }
+
+  // Auto-commit the change to git
+  try {
+    const git = simpleGit(getWorkspacePath())
+    const isRepo = await git.checkIsRepo()
+
+    if (isRepo) {
+      await git.add(relPath)
+      const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+      const commitMessage = `docs: Update ${relPath}\n\nEdited via ClawMax Dashboard at ${timestamp}`
+      await git.commit(commitMessage)
+      console.log(`[Git] Auto-committed: ${relPath}`)
+    }
+  } catch (err) {
+    // Log but don't fail the save operation
+    console.error('[Git] Failed to auto-commit:', err)
+  }
+
   res.json({ ok: true })
 })
 

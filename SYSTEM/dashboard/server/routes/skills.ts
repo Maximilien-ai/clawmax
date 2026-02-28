@@ -4,10 +4,39 @@ import {
   getSkillById,
   getAgentSkills,
   setAgentSkills,
-  validateSkills
+  validateSkills,
+  createCustomSkill
 } from '../lib/skills'
 
 const router = express.Router()
+
+// POST /api/skills - Create a new custom skill
+router.post('/', (req, res) => {
+  try {
+    const { name, description, emoji, requires, install, homepage, content } = req.body
+
+    if (!name || !description || !content) {
+      return res.status(400).json({
+        error: 'Missing required fields: name, description, content'
+      })
+    }
+
+    const skill = createCustomSkill({
+      name,
+      description,
+      emoji,
+      requires,
+      install,
+      homepage,
+      content
+    })
+
+    res.json({ ok: true, skill })
+  } catch (err: any) {
+    console.error('Error creating skill:', err)
+    res.status(400).json({ error: err.message || 'Failed to create skill' })
+  }
+})
 
 // GET /api/skills - List all available skills
 router.get('/', (req, res) => {

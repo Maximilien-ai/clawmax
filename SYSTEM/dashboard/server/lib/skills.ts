@@ -198,6 +198,87 @@ export function validateSkills(skillIds: string[]): { valid: boolean; missing: s
   }
 }
 
+/**
+ * Create a new custom skill in managed skills directory
+ */
+export function createCustomSkill(params: {
+  name: string
+  description: string
+  emoji?: string
+  requires?: SkillRequirements
+  install?: SkillInstallOption[]
+  homepage?: string
+  content: string
+}): OpenClawSkill {
+  const { name, description, emoji, requires, install, homepage, content } = params
+
+  // Validate skill name (alphanumeric, dashes, underscores only)
+  if (!/^[a-z0-9_-]+$/i.test(name)) {
+    throw new Error('Skill name must contain only alphanumeric characters, dashes, and underscores')
+  }
+
+  // Check if skill already exists
+  const existing = getSkillById(name)
+  if (existing) {
+    throw new Error(`Skill "${name}" already exists`)
+  }
+
+  // Ensure managed skills directory exists
+  if (!fs.existsSync(MANAGED_SKILLS_DIR)) {
+    fs.mkdirSync(MANAGED_SKILLS_DIR, { recursive: true })
+  }
+
+  // Create skill directory
+  const skillDir = path.join(MANAGED_SKILLS_DIR, name)
+  if (fs.existsSync(skillDir)) {
+    throw new Error(`Skill directory "${name}" already exists`)
+  }
+  fs.mkdirSync(skillDir, { recursive: true })
+
+  // Build frontmatter
+  const frontmatter: any = {
+    name,
+    description,
+    metadata: {
+      openclaw: {
+        ...(emoji && { emoji }),
+        ...(requires && { requires }),
+        ...(install && { install }),
+        ...(homepage && { homepage })
+      }
+    }
+  }
+
+  // Generate SKILL.md content
+  const skillMd = `---
+${Object.entries(frontmatter)
+  .map(([key, value]) => `${key}: ${JSON.stringify(value, null, 2)}`)
+  .join('\n')}
+---
+
+${content}
+`
+
+  // Write SKILL.md file
+  const skillPath = path.join(skillDir, 'SKILL.md')
+  fs.writeFileSync(skillPath, skillMd, 'utf-8')
+
+  console.log(`✓ Created custom skill: ${name}`)
+
+  // Return the created skill
+  return {
+    name,
+    description,
+    emoji,
+    filePath: skillPath,
+    bundled: false,
+    source: 'managed',
+    requires,
+    install,
+    homepage
+  }
+}
+
 // ============================================================================
 // OpenClaw Config Management
 // ============================================================================

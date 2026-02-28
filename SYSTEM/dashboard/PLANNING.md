@@ -143,6 +143,133 @@ Config location:
 
 ## Backlog
 
+### Workflows - Coordinated Agent Tasks
+
+**Goal**: Define recurring work patterns for groups of agents with specific roles/tags within communities.
+
+**Concept:**
+Workflows define periodic, coordinated work that agents execute based on their community/group membership and tags. They're cron-scheduled tasks with natural language descriptions, enabling systematic operations like daily standups, security monitoring, release processes, etc.
+
+**Example Use Cases:**
+- **Engineering/Support**: Daily security monitoring (check GH issues, scan for CVEs, notify release team)
+- **Engineering/Review**: Weekly code review rotation
+- **Product/Planning**: Monday sprint planning
+- **Operations/Monitoring**: Hourly system health checks
+
+**Data Model** (`WORKFLOWS.md` or `WORKFLOWS/*.md`):
+```yaml
+---
+name: daily-security-scan
+description: Monitor repository for security issues and CVEs
+schedule: "0 9 * * *"  # Daily at 9am (cron format)
+community: Engineering  # Optional: limit to specific community
+groups:  # Agents in these groups participate
+  - Support
+  - Security
+tags:  # OR agents with these tags (regardless of group)
+  - security-lead
+  - oncall
+agents:  # OR specific agents by ID
+  - security-bot-01
+---
+
+# Daily Security Scan Workflow
+
+## Objective
+Monitor the project repository and broader ecosystem for security vulnerabilities, new CVEs, and critical issues.
+
+## Tasks
+1. **GitHub Repository Scan**
+   - Check open issues labeled `security`, `vulnerability`, `cve`
+   - Review Dependabot alerts
+   - Check for new security advisories
+
+2. **CVE Database Check**
+   - Browse NVD, GitHub Advisory Database for new CVEs related to our stack
+   - Cross-reference with project dependencies
+   - Note any critical (CVSS >= 9.0) or high (>= 7.0) severity issues
+
+3. **Reporting**
+   - Summarize findings in #security channel
+   - Tag release manager if immediate action needed
+   - Create GitHub issues for any new vulnerabilities found
+   - Update security tracking board
+
+## Expected Output
+- Daily summary message in #security
+- GitHub issues for actionable items
+- Escalation to release manager if critical
+```
+
+**Schema Validation:**
+- `name`: Required, unique identifier (alphanumeric + dash/underscore)
+- `description`: Required, brief summary
+- `schedule`: Required, valid cron expression
+- `community`: Optional string
+- `groups`: Optional array of group names
+- `tags`: Optional array of agent tags  - `agents`: Optional array of agent IDs
+- At least one of: `groups`, `tags`, or `agents` must be specified
+- Content: Free-form markdown with task description
+
+**Storage:**
+- **Option A**: Single `WORKFLOWS.md` file (similar to GROUPS.md/COMMUNITIES.md)
+- **Option B**: `WORKFLOWS/` directory with one markdown file per workflow
+- **Recommendation**: Option B for better organization and git history
+
+**Organization Templates:**
+- Workflows MUST be included when exporting organization templates
+- Template should include directory structure: `WORKFLOWS/*.md`
+- During template import, workflows are created alongside communities/groups
+
+**UI Requirements:**
+1. **Workflows Tab** (new top-level page)
+   - List all workflows with name, description, schedule, assigned agents count
+   - Create/Edit/Delete workflow dialogs
+   - Schedule editor (cron builder UI + raw cron input)
+   - Agent assignment interface (by group, tag, or ID)
+   - Markdown editor for workflow content
+
+2. **Agent Detail Panel**
+   - Show "Participating Workflows" section
+   - List workflows this agent is part of (via group, tag, or direct assignment)
+   - Click to navigate to workflow detail
+
+3. **Groups/Communities Detail**
+   - Show workflows that target this group/community
+   - Quick-add agent to workflow
+
+**Backend API:**
+- `GET /api/workflows` - List all workflows with participant counts
+- `GET /api/workflows/:name` - Get workflow details + full participant list
+- `POST /api/workflows` - Create new workflow (validate schema)
+- `PUT /api/workflows/:name` - Update workflow
+- `DELETE /api/workflows/:name` - Delete workflow
+- `GET /api/agents/:id/workflows` - Get workflows this agent participates in
+- Workflow resolution logic: Compute agent list from groups, tags, agents fields
+
+**Execution** (Future - out of scope for now):
+- Cron daemon/scheduler to trigger workflows on schedule
+- When workflow triggers, send task description to all participating agents
+- Agents execute via their normal gateway/chat interface
+- Track execution history, results, failures
+
+**Initial Implementation Scope:**
+- [ ] Schema design + validation for WORKFLOWS/*.md files
+- [ ] Backend CRUD API for workflows
+- [ ] Workflows tab UI (list, create, edit, delete)
+- [ ] Cron schedule builder component
+- [ ] Agent participation resolution (groups + tags + direct IDs)
+- [ ] Show workflows in agent/group detail panels
+- [ ] Include workflows in organization template export/import
+
+**Future Enhancements:**
+- Execution engine (cron scheduler)
+- Workflow execution history/logs
+- Success/failure tracking
+- Agent rotation within workflows
+- Workflow dependencies (workflow A must complete before workflow B)
+- Conditional execution based on agent availability
+
 ### Browser Relay Bug (Known Issue)
 - Chrome extension relay (`cdpPort` 18892) connects successfully but Playwright's `browserContext.newCDPSession()` calls `Target.attachToBrowserTarget` which Chrome rejects with `"Not allowed"` from a tab-level debugger session
 - Workaround applied in `background.js`: intercepts `Target.attachToBrowserTarget` and returns the active tab's session ID; also added `Target.getTargets` synthetic handler

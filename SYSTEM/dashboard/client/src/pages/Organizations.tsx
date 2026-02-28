@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import { PageLoading } from '../components/LoadingSpinner'
 
 interface GroupEntry {
   name: string
@@ -69,6 +70,29 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
   } | null>(null)
   const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
   const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Filter communities and groups based on search query
+  const filteredCommunities = useMemo(() => {
+    if (!searchQuery.trim()) return communities
+    const query = searchQuery.toLowerCase()
+    return communities.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.description?.toLowerCase().includes(query) ||
+      c.tags.some(t => t.toLowerCase().includes(query))
+    )
+  }, [communities, searchQuery])
+
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return groups
+    const query = searchQuery.toLowerCase()
+    return groups.filter(g =>
+      g.name.toLowerCase().includes(query) ||
+      g.description?.toLowerCase().includes(query) ||
+      g.tags.some(t => t.toLowerCase().includes(query)) ||
+      g.community?.toLowerCase().includes(query)
+    )
+  }, [groups, searchQuery])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -388,11 +412,25 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
         </div>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-          Loading...
-        </div>
-      )}
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search communities, groups, tags..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+        />
+        {searchQuery && (
+          <p className="text-xs text-gray-500 mt-2">
+            Showing {filteredCommunities.length} {filteredCommunities.length !== 1 ? 'communities' : 'community'}
+            {' • '}
+            {filteredGroups.length} {filteredGroups.length !== 1 ? 'groups' : 'group'}
+          </p>
+        )}
+      </div>
+
+      {loading && <PageLoading text="Loading organization data..." />}
 
       {!loading && agents.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
@@ -477,7 +515,7 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
               </div>
               {!communitiesSectionCollapsed && (
                 <div className="divide-y divide-gray-100">
-                {communities.map(community => (
+                {filteredCommunities.map(community => (
                   <div key={community.name} className="p-4 group relative">
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
@@ -583,7 +621,7 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
               </div>
               {!groupsSectionCollapsed && (
                 <div className="divide-y divide-gray-100">
-                {groups.map(group => (
+                {filteredGroups.map(group => (
                   <div key={group.name} className="p-4 group relative">
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
