@@ -72,28 +72,6 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
   const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Filter communities and groups based on search query
-  const filteredCommunities = useMemo(() => {
-    if (!searchQuery.trim()) return communities
-    const query = searchQuery.toLowerCase()
-    return communities.filter(c =>
-      c.name.toLowerCase().includes(query) ||
-      c.description?.toLowerCase().includes(query) ||
-      c.tags.some(t => t.toLowerCase().includes(query))
-    )
-  }, [communities, searchQuery])
-
-  const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return groups
-    const query = searchQuery.toLowerCase()
-    return groups.filter(g =>
-      g.name.toLowerCase().includes(query) ||
-      g.description?.toLowerCase().includes(query) ||
-      g.tags.some(t => t.toLowerCase().includes(query)) ||
-      g.community?.toLowerCase().includes(query)
-    )
-  }, [groups, searchQuery])
-
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
@@ -195,6 +173,28 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
       groups: Array.from(groupMap.values()).sort((a, b) => a.name.localeCompare(b.name))
     }
   }, [agents, workspaceCommunities, workspaceGroups])
+
+  // Filter communities and groups based on search query
+  const filteredCommunities = useMemo(() => {
+    if (!searchQuery.trim()) return communities
+    const query = searchQuery.toLowerCase()
+    return communities.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.description?.toLowerCase().includes(query) ||
+      c.tags.some(t => t.toLowerCase().includes(query))
+    )
+  }, [communities, searchQuery])
+
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return groups
+    const query = searchQuery.toLowerCase()
+    return groups.filter(g =>
+      g.name.toLowerCase().includes(query) ||
+      g.description?.toLowerCase().includes(query) ||
+      g.tags.some(t => t.toLowerCase().includes(query)) ||
+      g.community?.toLowerCase().includes(query)
+    )
+  }, [groups, searchQuery])
 
   const toggleCommunity = (name: string) => {
     setExpandedCommunities(prev => {
