@@ -39,25 +39,102 @@
 
 ## In Progress / Next
 
-### DEMO DAY PREP (Tomorrow)
-**Priority**: Polish and test core features for demo
+### Development Roadmap — Weekend + Week Ahead
+**Timeline**: Weekend (4 hours) + Next Week (40 hours) = 44 hours total
+**Released**: v0.8.3 (2026-02-27)
+**Primary Goal**: Workflows system implementation
 
-**Tonight (2-3 hours):**
-- [ ] Review all pages for visual consistency
-- [ ] Test full agent lifecycle: create → assign skills → chat (if available)
-- [ ] Verify all tests pass with `./test.sh`
-- [ ] Prepare demo script/talking points
-- [ ] Check for any console errors or warnings
+---
 
-**Demo Day:**
-- [ ] Morning: Final smoke test of all features
-- [ ] Demo script ready with backup scenarios
-- [ ] Server/client running and stable
+#### **Weekend — Feb 28-Mar 1 (4 hours total: 2h/day)**
 
-**Post-Demo (Rest of Week):**
-- [ ] Gather feedback from demo
-- [ ] Fix any bugs discovered during demo
-- [ ] Prioritize next features based on feedback
+**Saturday (2 hours): Workflows Backend Foundation**
+- [ ] Create WORKFLOWS directory structure and validation schema
+- [ ] Implement workflow file parser with YAML frontmatter support (gray-matter)
+- [ ] Add basic CRUD operations: create, read, update, delete workflow files
+- [ ] Define TypeScript interfaces for Workflow, WorkflowMetadata
+- [ ] **Deliverable**: `server/lib/workflows.ts` with core functions
+
+**Sunday (2 hours): Workflows API Layer**
+- [ ] Create `server/routes/workflows.ts` with 6 endpoints
+  - `GET /api/workflows` — List all workflows
+  - `GET /api/workflows/:name` — Get workflow details
+  - `POST /api/workflows` — Create workflow (validate schema)
+  - `PUT /api/workflows/:name` — Update workflow
+  - `DELETE /api/workflows/:name` — Delete workflow
+  - `GET /api/agents/:id/workflows` — Get agent's workflows
+- [ ] Implement agent participation resolution logic (groups + tags + direct IDs)
+- [ ] **Deliverable**: Working API endpoints with validation
+
+---
+
+#### **Next Week — Full Workflows Implementation (40 hours)**
+
+**Monday (8 hours): Workflows UI Components**
+- [ ] Create `WorkflowsPage.tsx` (main workflows tab)
+- [ ] Build `WorkflowCard` component (displays name, schedule, participant count)
+- [ ] Build `WorkflowDetailPanel` slide-out (similar to AgentDetailPanel)
+- [ ] Add loading states with LoadingSpinner
+- [ ] Wire up to backend API for list/detail views
+- [ ] **Deliverable**: Working workflows list page
+
+**Tuesday (8 hours): Workflow Editor**
+- [ ] Create `WorkflowEditorDialog` component for create/edit
+- [ ] Build markdown editor with preview (reuse document editor patterns)
+- [ ] Add YAML frontmatter editor section (name, description, schedule)
+- [ ] Implement agent targeting UI:
+  - Community dropdown
+  - Groups multi-select
+  - Tags multi-select
+  - Direct agent IDs input
+- [ ] Form validation and error handling
+- [ ] **Deliverable**: Full workflow creation/editing UI
+
+**Wednesday (8 hours): Cron Schedule Builder + Integrations**
+- [ ] Build `CronScheduleBuilder` component
+  - Visual cron builder (dropdowns for minute/hour/day/month/weekday)
+  - Raw cron expression input with validation
+  - Human-readable schedule display ("Daily at 9:00 AM")
+- [ ] Integrate workflows into `AgentDetailPanel` ("Participating Workflows" section)
+- [ ] Integrate workflows into Groups/Communities detail panels
+- [ ] Add navigation links between workflows and agents/groups
+- [ ] **Deliverable**: Complete cron UI + cross-page integration
+
+**Thursday (8 hours): Organization Templates Integration**
+- [ ] Add workflows to template export logic (`server/lib/templates.ts`)
+  - Include `WORKFLOWS/*.md` in ZIP export
+  - Add workflows to template manifest
+- [ ] Add workflows to template import logic
+  - Parse WORKFLOWS directory from uploaded template
+  - Create workflow files in target workspace
+  - Resolve agent/group references after import
+- [ ] Update `Organizations.tsx` "Save as Template" flow
+- [ ] Test full export → import → verify workflow preservation
+- [ ] **Deliverable**: Workflows fully integrated with templates
+
+**Friday (8 hours): Testing, Polish, and Documentation**
+- [ ] Write comprehensive test suite for workflows
+  - Backend: CRUD operations, validation, agent resolution
+  - Frontend: Component rendering, form validation, cron builder
+- [ ] Add workflows to `test.sh` if applicable
+- [ ] Polish UI: responsive design, error states, empty states
+- [ ] Update PLANNING.md with completed status
+- [ ] Create comprehensive commit for v0.9.0
+- [ ] Test full workflow lifecycle:
+  1. Create workflow
+  2. Assign agents via groups/tags
+  3. Export organization template
+  4. Import template to new workspace
+  5. Verify workflow preserved
+- [ ] **Deliverable**: v0.9.0 release with Workflows feature
+
+---
+
+#### **Buffer Tasks** (if ahead of schedule)
+- [ ] Workflow execution history tracking (prep for future scheduler)
+- [ ] Workflow analytics dashboard (most active, completion rates)
+- [ ] Workflow templates library (common patterns: daily standup, security scan, etc.)
+- [ ] Advanced cron features (timezone selection, execution windows)
 
 ### v0.2.0 — WhatsApp Link Panel
 
