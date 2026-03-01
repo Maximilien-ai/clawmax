@@ -11,6 +11,7 @@ import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
 import workspacesRouter from './routes/workspaces'
+import chatRouter from './routes/chat'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
@@ -275,6 +276,7 @@ app.post('/api/docs/content', requireAuth, async (req, res) => {
 // API routes (all protected with auth)
 app.use('/api/docs', requireAuth, docsRouter)
 app.use('/api/agents', requireAuth, agentsRouter)
+app.use('/api/agents', requireAuth, chatRouter)
 app.use('/api/templates', requireAuth, templatesRouter)
 app.use('/api/skills', requireAuth, skillsRouter)
 app.use('/api/workspaces', requireAuth, workspacesRouter)

@@ -43,6 +43,7 @@ export default function Templates() {
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -92,6 +93,35 @@ export default function Templates() {
     }
   }
 
+  // Filter templates by search query
+  const filteredAgentTemplates = React.useMemo(() => {
+    if (!searchQuery.trim()) return agentTemplates
+    const query = searchQuery.trim().toLowerCase()
+    return agentTemplates.filter(t =>
+      t.name.toLowerCase().includes(query) ||
+      t.description?.toLowerCase().includes(query) ||
+      t.author?.toLowerCase().includes(query) ||
+      t.tags?.some(tag => tag.toLowerCase().includes(query)) ||
+      t.agents.some(a => a.id.toLowerCase().includes(query) || a.role.toLowerCase().includes(query))
+    )
+  }, [agentTemplates, searchQuery])
+
+  const filteredOrgTemplates = React.useMemo(() => {
+    if (!searchQuery.trim()) return orgTemplates
+    const query = searchQuery.trim().toLowerCase()
+    return orgTemplates.filter(t =>
+      t.name.toLowerCase().includes(query) ||
+      t.description?.toLowerCase().includes(query) ||
+      t.author?.toLowerCase().includes(query) ||
+      t.tags?.some(tag => tag.toLowerCase().includes(query)) ||
+      t.agents.some(a => a.id.toLowerCase().includes(query) || a.role.toLowerCase().includes(query)) ||
+      t.communities?.some(c => c.name.toLowerCase().includes(query)) ||
+      t.groups?.some(g => g.name.toLowerCase().includes(query))
+    )
+  }, [orgTemplates, searchQuery])
+
+  const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -110,9 +140,19 @@ export default function Templates() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Templates</h1>
             <p className="text-sm text-gray-500 mt-1">
-              {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
-              {' '}{agentTemplates.length} agent{agentTemplates.length !== 1 ? 's' : ''},
-              {' '}{orgTemplates.length} organization{orgTemplates.length !== 1 ? 's' : ''}
+              {searchQuery ? (
+                <>
+                  {totalFiltered} of {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
+                  {' '}{filteredAgentTemplates.length} agent{filteredAgentTemplates.length !== 1 ? 's' : ''},
+                  {' '}{filteredOrgTemplates.length} organization{filteredOrgTemplates.length !== 1 ? 's' : ''}
+                </>
+              ) : (
+                <>
+                  {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
+                  {' '}{agentTemplates.length} agent{agentTemplates.length !== 1 ? 's' : ''},
+                  {' '}{orgTemplates.length} organization{orgTemplates.length !== 1 ? 's' : ''}
+                </>
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -122,6 +162,28 @@ export default function Templates() {
             >
               ↻ Refresh
             </button>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="mt-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search templates by name, description, tags, or agents..."
+              className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -139,17 +201,31 @@ export default function Templates() {
               Click the 💾 button on any agent card to create a template
             </p>
           </div>
+        ) : totalFiltered === 0 && searchQuery ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">No templates found</h2>
+            <p className="text-gray-500 mb-4">
+              No templates match your search query "{searchQuery}"
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm"
+            >
+              Clear Search
+            </button>
+          </div>
         ) : (
           <div className="space-y-8">
             {/* Agent Templates */}
-            {agentTemplates.length > 0 && (
+            {filteredAgentTemplates.length > 0 && (
               <section>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span>🤖 Agent Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({agentTemplates.length})</span>
+                  <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
                 </h2>
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {agentTemplates.map((template, idx) => (
+                  {filteredAgentTemplates.map((template, idx) => (
                     <TemplateCard
                       key={idx}
                       template={template}
@@ -163,14 +239,14 @@ export default function Templates() {
             )}
 
             {/* Organization Templates */}
-            {orgTemplates.length > 0 && (
+            {filteredOrgTemplates.length > 0 && (
               <section>
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span>🏢 Organization Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({orgTemplates.length})</span>
+                  <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
                 </h2>
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {orgTemplates.map((template, idx) => (
+                  {filteredOrgTemplates.map((template, idx) => (
                     <TemplateCard
                       key={idx}
                       template={template}
