@@ -66,7 +66,7 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-type ViewMode = 'list' | 'grid'
+type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; initialAgentId?: string; isActive?: boolean } = {}) {
@@ -85,8 +85,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const PAGE_SIZE = 20
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
-    return (saved === 'list' || saved === 'grid') ? saved : 'list'
+    return (saved === 'list' || saved === 'grid' || saved === 'table') ? saved : 'grid'
   })
+  const [sortColumn, setSortColumn] = useState<string>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
@@ -662,18 +664,25 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           {/* View toggle */}
           <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
             <button
+              onClick={() => setViewMode('grid')}
+              title="Grid view (compact)"
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+            >
+              ⊞
+            </button>
+            <button
               onClick={() => setViewMode('list')}
-              title="List view"
-              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'list' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              title="Large grid view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'list' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
             >
               ☰
             </button>
             <button
-              onClick={() => setViewMode('grid')}
-              title="Grid view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              onClick={() => setViewMode('table')}
+              title="Table view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'table' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
             >
-              ⊞
+              ≡
             </button>
           </div>
           <button
@@ -1132,6 +1141,32 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             />
           ))}
         </div>
+      )}
+
+      {/* Table View */}
+      {!loading && !error && filteredAgents.length > 0 && viewMode === 'table' && (
+        <AgentTableView
+          agents={filteredAgents}
+          selectedAgent={selectedAgent}
+          selectedAgentIds={selectedAgentIds}
+          selectionMode={selectionMode}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={(column) => {
+            if (sortColumn === column) {
+              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+            } else {
+              setSortColumn(column)
+              setSortDirection('asc')
+            }
+          }}
+          onSelectAgent={setSelectedAgent}
+          onToggleSelect={toggleAgentSelection}
+          onChat={setChatTarget}
+          onDelete={(id) => setDeleteTarget(id)}
+          onArchive={setArchiveTarget}
+          onUnarchive={setUnarchiveTarget}
+        />
       )}
 
       {/* Load More button */}
@@ -2106,6 +2141,500 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           )}
         </div>
       </div>
+    </div>
+  )
+})
+
+// Agent Table View Component
+const AgentTableView = React.memo(function AgentTableView({
+  agents,
+  selectedAgent,
+  selectedAgentIds,
+  selectionMode,
+  sortColumn,
+  sortDirection,
+  onSort,
+  onSelectAgent,
+  onToggleSelect,
+  onChat,
+  onDelete,
+  onArchive,
+  onUnarchive,
+}: {
+  agents: Agent[]
+  selectedAgent: Agent | null
+  selectedAgentIds: Set<string>
+  selectionMode: boolean
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  onSort: (column: string) => void
+  onSelectAgent: (agent: Agent) => void
+  onToggleSelect: (id: string) => void
+  onChat: (agent: Agent) => void
+  onDelete: (id: string) => void
+  onArchive: (agent: Agent) => void
+  onUnarchive: (agent: Agent) => void
+}) {
+  // Sort agents
+  const sortedAgents = React.useMemo(() => {
+    const sorted = [...agents]
+    sorted.sort((a, b) => {
+      let aVal: any, bVal: any
+
+      switch (sortColumn) {
+        case 'name':
+          aVal = a.name.toLowerCase()
+          bVal = b.name.toLowerCase()
+          break
+        case 'status':
+          const statusOrder = { online: 0, offline: 1, unknown: 2 }
+          aVal = statusOrder[a.status]
+          bVal = statusOrder[b.status]
+          break
+        case 'heartbeat':
+          aVal = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0
+          bVal = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0
+          break
+        case 'whatsapp':
+          aVal = a.whatsapp || ''
+          bVal = b.whatsapp || ''
+          break
+        case 'groups':
+          aVal = a.groups.length
+          bVal = b.groups.length
+          break
+        case 'skills':
+          aVal = a.skills?.length || 0
+          bVal = b.skills?.length || 0
+          break
+        default:
+          aVal = a.id
+          bVal = b.id
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+    return sorted
+  }, [agents, sortColumn, sortDirection])
+
+  const SortHeader = ({ column, label }: { column: string; label: string }) => (
+    <th
+      onClick={() => onSort(column)}
+      className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <span className="text-sky-600">
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </div>
+    </th>
+  )
+
+  return (
+    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50 sticky top-0 z-10">
+          <tr>
+            {selectionMode && (
+              <th className="px-4 py-3 w-12">
+                <input
+                  type="checkbox"
+                  checked={agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))}
+                  onChange={(e) => {
+                    agents.forEach(a => {
+                      if (e.target.checked && !selectedAgentIds.has(a.id)) {
+                        onToggleSelect(a.id)
+                      } else if (!e.target.checked && selectedAgentIds.has(a.id)) {
+                        onToggleSelect(a.id)
+                      }
+                    })
+                  }}
+                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                />
+              </th>
+            )}
+            <SortHeader column="name" label="Name" />
+            <SortHeader column="status" label="Status" />
+            <SortHeader column="heartbeat" label="Last Seen" />
+            <SortHeader column="whatsapp" label="WhatsApp" />
+            <SortHeader column="groups" label="Groups" />
+            <SortHeader column="skills" label="Skills" />
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tags</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedAgents.map(agent => (
+            <tr
+              key={agent.id}
+              onClick={() => onSelectAgent(agent)}
+              className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                selectedAgent?.id === agent.id ? 'bg-sky-50' : ''
+              }`}
+            >
+              {selectionMode && (
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedAgentIds.has(agent.id)}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      onToggleSelect(agent.id)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                  />
+                </td>
+              )}
+              <td className="px-4 py-3 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                  <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
+                </div>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${STATUS_TEXT[agent.status]}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
+                  {agent.status}
+                </span>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                {agent.whatsapp ? (
+                  <span className="text-green-600 font-medium">✓ {agent.whatsapp}</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.groups.slice(0, 3).map(g => (
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px]" title={g.name}>
+                      {g.name}
+                    </span>
+                  ))}
+                  {agent.groups.length > 3 && (
+                    <span className="text-xs text-gray-400">+{agent.groups.length - 3}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.skills?.slice(0, 3).map(s => (
+                    <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 text-sky-700 rounded">
+                      {s}
+                    </span>
+                  ))}
+                  {(agent.skills?.length || 0) > 3 && (
+                    <span className="text-xs text-gray-400">+{(agent.skills?.length || 0) - 3}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.tags.filter(t => t !== 'archived').slice(0, 2).map(t => (
+                    <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-purple-50 text-purple-700 rounded">
+                      {t}
+                    </span>
+                  ))}
+                  {agent.tags.filter(t => t !== 'archived').length > 2 && (
+                    <span className="text-xs text-gray-400">+{agent.tags.filter(t => t !== 'archived').length - 2}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onChat(agent); }}
+                    className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                    title="Chat"
+                  >
+                    💬
+                  </button>
+                  {agent.archived ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onUnarchive(agent); }}
+                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                      title="Unarchive"
+                    >
+                      📤
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onArchive(agent); }}
+                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                      title="Archive"
+                    >
+                      📦
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(agent.id); }}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete"
+                  >
+                    🗑
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+})
+
+// Agent Table View Component
+const AgentTableView = React.memo(function AgentTableView({
+  agents,
+  selectedAgent,
+  selectedAgentIds,
+  selectionMode,
+  sortColumn,
+  sortDirection,
+  onSort,
+  onSelectAgent,
+  onToggleSelect,
+  onChat,
+  onDelete,
+  onArchive,
+  onUnarchive,
+}: {
+  agents: Agent[]
+  selectedAgent: Agent | null
+  selectedAgentIds: Set<string>
+  selectionMode: boolean
+  sortColumn: string
+  sortDirection: 'asc' | 'desc'
+  onSort: (column: string) => void
+  onSelectAgent: (agent: Agent) => void
+  onToggleSelect: (id: string) => void
+  onChat: (agent: Agent) => void
+  onDelete: (id: string) => void
+  onArchive: (agent: Agent) => void
+  onUnarchive: (agent: Agent) => void
+}) {
+  // Sort agents
+  const sortedAgents = React.useMemo(() => {
+    const sorted = [...agents]
+    sorted.sort((a, b) => {
+      let aVal: any, bVal: any
+
+      switch (sortColumn) {
+        case 'name':
+          aVal = a.name.toLowerCase()
+          bVal = b.name.toLowerCase()
+          break
+        case 'status':
+          const statusOrder = { online: 0, offline: 1, unknown: 2 }
+          aVal = statusOrder[a.status]
+          bVal = statusOrder[b.status]
+          break
+        case 'heartbeat':
+          aVal = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0
+          bVal = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0
+          break
+        case 'whatsapp':
+          aVal = a.whatsapp || ''
+          bVal = b.whatsapp || ''
+          break
+        case 'groups':
+          aVal = a.groups.length
+          bVal = b.groups.length
+          break
+        case 'skills':
+          aVal = a.skills?.length || 0
+          bVal = b.skills?.length || 0
+          break
+        default:
+          aVal = a.id
+          bVal = b.id
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+    return sorted
+  }, [agents, sortColumn, sortDirection])
+
+  const SortHeader = ({ column, label }: { column: string; label: string }) => (
+    <th
+      onClick={() => onSort(column)}
+      className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <span className="text-sky-600">
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </div>
+    </th>
+  )
+
+  return (
+    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50 sticky top-0 z-10">
+          <tr>
+            {selectionMode && (
+              <th className="px-4 py-3 w-12">
+                <input
+                  type="checkbox"
+                  checked={agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))}
+                  onChange={(e) => {
+                    agents.forEach(a => {
+                      if (e.target.checked && !selectedAgentIds.has(a.id)) {
+                        onToggleSelect(a.id)
+                      } else if (!e.target.checked && selectedAgentIds.has(a.id)) {
+                        onToggleSelect(a.id)
+                      }
+                    })
+                  }}
+                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                />
+              </th>
+            )}
+            <SortHeader column="name" label="Name" />
+            <SortHeader column="status" label="Status" />
+            <SortHeader column="heartbeat" label="Last Seen" />
+            <SortHeader column="whatsapp" label="WhatsApp" />
+            <SortHeader column="groups" label="Groups" />
+            <SortHeader column="skills" label="Skills" />
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tags</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedAgents.map(agent => (
+            <tr
+              key={agent.id}
+              onClick={() => onSelectAgent(agent)}
+              className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                selectedAgent?.id === agent.id ? 'bg-sky-50' : ''
+              }`}
+            >
+              {selectionMode && (
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedAgentIds.has(agent.id)}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      onToggleSelect(agent.id)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                  />
+                </td>
+              )}
+              <td className="px-4 py-3 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                  <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
+                </div>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${STATUS_TEXT[agent.status]}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
+                  {agent.status}
+                </span>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                {agent.whatsapp ? (
+                  <span className="text-green-600 font-medium">✓ {agent.whatsapp}</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.groups.slice(0, 3).map(g => (
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px]" title={g.name}>
+                      {g.name}
+                    </span>
+                  ))}
+                  {agent.groups.length > 3 && (
+                    <span className="text-xs text-gray-400">+{agent.groups.length - 3}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.skills?.slice(0, 3).map(s => (
+                    <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 text-sky-700 rounded">
+                      {s}
+                    </span>
+                  ))}
+                  {(agent.skills?.length || 0) > 3 && (
+                    <span className="text-xs text-gray-400">+{(agent.skills?.length || 0) - 3}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-1 max-w-xs">
+                  {agent.tags.filter(t => t !== 'archived').slice(0, 2).map(t => (
+                    <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-purple-50 text-purple-700 rounded">
+                      {t}
+                    </span>
+                  ))}
+                  {agent.tags.filter(t => t !== 'archived').length > 2 && (
+                    <span className="text-xs text-gray-400">+{agent.tags.filter(t => t !== 'archived').length - 2}</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onChat(agent); }}
+                    className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                    title="Chat"
+                  >
+                    💬
+                  </button>
+                  {agent.archived ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onUnarchive(agent); }}
+                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                      title="Unarchive"
+                    >
+                      📤
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onArchive(agent); }}
+                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                      title="Archive"
+                    >
+                      📦
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(agent.id); }}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete"
+                  >
+                    🗑
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 })
