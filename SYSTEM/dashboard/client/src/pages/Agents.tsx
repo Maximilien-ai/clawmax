@@ -7,9 +7,11 @@ import UnarchiveAgentPanel from '../components/UnarchiveAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
+import AgentChatPanel from '../components/AgentChatPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
 import BulkOperationsPanel from '../components/BulkOperationsPanel'
 import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
 
 function secAgo(ts: number): string {
@@ -1251,6 +1253,33 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onClose={() => setChatTarget(null)}
         />
       )}
+
+      {/* TODO: Replace ChatPanel with AgentChatPanel once WebSocket auth is fixed
+      {chatTarget && (
+        <ErrorBoundary
+          fallback={
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Chat Error</h3>
+                <p className="text-sm text-gray-600 mb-4">Failed to load chat panel</p>
+                <button
+                  onClick={() => setChatTarget(null)}
+                  className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <AgentChatPanel
+            agentId={chatTarget.id}
+            agentName={chatTarget.name}
+            onClose={() => setChatTarget(null)}
+          />
+        </ErrorBoundary>
+      )}
+      */}
 
       {tagToRemove && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>

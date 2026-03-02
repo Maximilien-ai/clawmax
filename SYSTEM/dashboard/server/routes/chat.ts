@@ -98,7 +98,7 @@ router.post('/:id/chat', (req, res) => {
   const cleanup = () => clearInterval(keepalive)
 
   // Open WebSocket connection to gateway
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
+  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}/rpc`)
   const requestId = randomUUID()
   let authenticated = false
 
@@ -184,15 +184,20 @@ router.post('/:id/chat', (req, res) => {
   })
 
   ws.on('error', (err) => {
+    console.error(`[Chat Route] WebSocket error for agent ${id}:`, err)
     clearTimeout(timeout)
     cleanup()
-    send('error', err.message || 'WebSocket error')
+    send('error', `WebSocket error: ${err.message}`)
     res.end()
   })
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
+    console.log(`[Chat Route] WebSocket closed for agent ${id}: code=${code}, reason=${reason.toString()}`)
     clearTimeout(timeout)
     cleanup()
+    if (!authenticated) {
+      send('error', 'Connection closed before authentication')
+    }
     res.end()
   })
 

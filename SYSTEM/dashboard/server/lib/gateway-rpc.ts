@@ -54,7 +54,7 @@ export class GatewayRPCClient {
 
   constructor() {
     const config = this.loadGatewayConfig()
-    this.gatewayUrl = `ws://127.0.0.1:${config.port}`
+    this.gatewayUrl = `ws://127.0.0.1:${config.port}/rpc`
     this.authToken = config.auth.token
   }
 
