@@ -48,46 +48,50 @@
 
 #### **Weekend — Feb 28-Mar 1 (4 hours total: 2h/day)**
 
-**Saturday (2 hours): WhatsApp Link Panel — v0.8.4**
-- [ ] Implement backend SSE endpoint: `POST /api/agents/:id/whatsapp/pair`
+**Saturday (2 hours): WhatsApp Link Panel — v0.8.4** ✅
+- [x] Implement backend SSE endpoint: `POST /api/agents/:id/whatsapp/pair`
   - Detect Baileys/Boom paths from pnpm store
   - Determine profile mode vs default credentials dir
   - Spawn whatsapp-pair.mjs and stream output
   - Parse pairing code and emit SSE events
-- [ ] Integrate "Link WA" button in agent cards (when no phone number)
-- [ ] Test end-to-end pairing flow
-- [ ] **Deliverable**: v0.8.4 with WhatsApp pairing from dashboard
+- [x] Integrate "Link WA" button in agent cards (when no phone number)
+- [x] Test end-to-end pairing flow
+- [x] **Deliverable**: v0.8.4 with WhatsApp pairing from dashboard
 
-**Sunday (2 hours): Chat Backend Foundation — v0.8.5**
-- [ ] Create `server/routes/chat.ts`
-- [ ] Implement `GET /api/agents/:id/gateway` (returns port, token, availability)
-- [ ] Implement `POST /api/agents/:id/chat` SSE proxy
+**Sunday (2 hours): Chat Backend Foundation — v0.8.5** ✅
+- [x] Create `server/routes/chat.ts`
+- [x] Implement `GET /api/agents/:id/gateway` (returns port, token, availability)
+- [x] Implement `POST /api/agents/:id/chat` SSE proxy
   - Open WebSocket to agent gateway
   - Send chat.send RPC call
   - Relay delta events back as SSE
-- [ ] Test with running agent gateway
-- [ ] **Deliverable**: Chat API ready for frontend integration
+- [x] Test with running agent gateway
+- [x] Added Templates search functionality
+- [x] **Deliverable**: Chat API ready for frontend integration
 
 ---
 
 #### **Next Week — Multi-Feature Sprint (40 hours)**
 
-**Monday (8 hours): In-Dashboard Chat UI — v0.8.6**
-- [ ] Create `AgentChatPanel.tsx` slide-out component
-- [ ] Chat input + message history display
-- [ ] Stream delta text with SSE connection
-- [ ] Add "Chat" button to agent cards (show when gateway available)
-- [ ] Session management (sessionId in React state)
-- [ ] Polish chat UX (typing indicators, error states)
-- [ ] **Deliverable**: v0.8.6 with working agent chat
+**Monday (8 hours): In-Dashboard Chat UI — v0.8.6** ✅
+- [x] Create `AgentChatPanel.tsx` slide-out component
+- [x] Chat input + message history display
+- [x] Stream delta text with SSE connection
+- [x] Add "Chat" button to agent cards (show when gateway available)
+- [x] Session management (sessionId in React state)
+- [x] Polish chat UX (typing indicators, error states, resubmit button)
+- [x] **BONUS**: Agent Table View with sortable columns and dropdown menus
+- [x] **Deliverable**: v0.8.6 with working agent chat + table view
+- **Note**: Gateway WebSocket auth protocol needs fixing (moved to v0.8.7)
 
 **Tuesday (8 hours): Agent Status & Control — v0.8.7**
+- [ ] **Fix Gateway WebSocket auth protocol** (challenge-response authentication)
 - [ ] Create `AgentStatusPage` component (new route: `/agents/:id/status`)
 - [ ] Live log tail with SSE streaming from gateway
 - [ ] Gateway status display (port, uptime, connection status)
 - [ ] Start/stop gateway controls (if feasible)
 - [ ] Add "Status" button to agent cards
-- [ ] **Deliverable**: v0.8.7 with agent monitoring
+- [ ] **Deliverable**: v0.8.7 with agent monitoring + fixed chat
 
 **Wednesday (8 hours): Workflows Backend Foundation**
 - [ ] Create WORKFLOWS directory structure and validation schema
