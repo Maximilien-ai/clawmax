@@ -2144,7 +2144,6 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
     </div>
   )
 })
-
 // Agent Table View Component
 const AgentTableView = React.memo(function AgentTableView({
   agents,
@@ -2175,6 +2174,15 @@ const AgentTableView = React.memo(function AgentTableView({
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
 }) {
+  const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClick = () => setOpenDropdown(null)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
+
   // Sort agents
   const sortedAgents = React.useMemo(() => {
     const sorted = [...agents]
@@ -2350,285 +2358,81 @@ const AgentTableView = React.memo(function AgentTableView({
                 </div>
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                <div className="flex items-center justify-end gap-1">
+                <div className="relative">
                   <button
-                    onClick={(e) => { e.stopPropagation(); onChat(agent); }}
-                    className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
-                    title="Chat"
-                  >
-                    💬
-                  </button>
-                  {agent.archived ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onUnarchive(agent); }}
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                      title="Unarchive"
-                    >
-                      📤
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onArchive(agent); }}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                      title="Archive"
-                    >
-                      📦
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(agent.id); }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="Delete"
-                  >
-                    🗑
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-})
-
-// Agent Table View Component
-const AgentTableView = React.memo(function AgentTableView({
-  agents,
-  selectedAgent,
-  selectedAgentIds,
-  selectionMode,
-  sortColumn,
-  sortDirection,
-  onSort,
-  onSelectAgent,
-  onToggleSelect,
-  onChat,
-  onDelete,
-  onArchive,
-  onUnarchive,
-}: {
-  agents: Agent[]
-  selectedAgent: Agent | null
-  selectedAgentIds: Set<string>
-  selectionMode: boolean
-  sortColumn: string
-  sortDirection: 'asc' | 'desc'
-  onSort: (column: string) => void
-  onSelectAgent: (agent: Agent) => void
-  onToggleSelect: (id: string) => void
-  onChat: (agent: Agent) => void
-  onDelete: (id: string) => void
-  onArchive: (agent: Agent) => void
-  onUnarchive: (agent: Agent) => void
-}) {
-  // Sort agents
-  const sortedAgents = React.useMemo(() => {
-    const sorted = [...agents]
-    sorted.sort((a, b) => {
-      let aVal: any, bVal: any
-
-      switch (sortColumn) {
-        case 'name':
-          aVal = a.name.toLowerCase()
-          bVal = b.name.toLowerCase()
-          break
-        case 'status':
-          const statusOrder = { online: 0, offline: 1, unknown: 2 }
-          aVal = statusOrder[a.status]
-          bVal = statusOrder[b.status]
-          break
-        case 'heartbeat':
-          aVal = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0
-          bVal = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0
-          break
-        case 'whatsapp':
-          aVal = a.whatsapp || ''
-          bVal = b.whatsapp || ''
-          break
-        case 'groups':
-          aVal = a.groups.length
-          bVal = b.groups.length
-          break
-        case 'skills':
-          aVal = a.skills?.length || 0
-          bVal = b.skills?.length || 0
-          break
-        default:
-          aVal = a.id
-          bVal = b.id
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-    return sorted
-  }, [agents, sortColumn, sortDirection])
-
-  const SortHeader = ({ column, label }: { column: string; label: string }) => (
-    <th
-      onClick={() => onSort(column)}
-      className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortColumn === column && (
-          <span className="text-sky-600">
-            {sortDirection === 'asc' ? '↑' : '↓'}
-          </span>
-        )}
-      </div>
-    </th>
-  )
-
-  return (
-    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50 sticky top-0 z-10">
-          <tr>
-            {selectionMode && (
-              <th className="px-4 py-3 w-12">
-                <input
-                  type="checkbox"
-                  checked={agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))}
-                  onChange={(e) => {
-                    agents.forEach(a => {
-                      if (e.target.checked && !selectedAgentIds.has(a.id)) {
-                        onToggleSelect(a.id)
-                      } else if (!e.target.checked && selectedAgentIds.has(a.id)) {
-                        onToggleSelect(a.id)
-                      }
-                    })
-                  }}
-                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
-                />
-              </th>
-            )}
-            <SortHeader column="name" label="Name" />
-            <SortHeader column="status" label="Status" />
-            <SortHeader column="heartbeat" label="Last Seen" />
-            <SortHeader column="whatsapp" label="WhatsApp" />
-            <SortHeader column="groups" label="Groups" />
-            <SortHeader column="skills" label="Skills" />
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tags</th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {sortedAgents.map(agent => (
-            <tr
-              key={agent.id}
-              onClick={() => onSelectAgent(agent)}
-              className={`hover:bg-gray-50 transition-colors cursor-pointer ${
-                selectedAgent?.id === agent.id ? 'bg-sky-50' : ''
-              }`}
-            >
-              {selectionMode && (
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedAgentIds.has(agent.id)}
-                    onChange={(e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      onToggleSelect(agent.id)
+                      setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
-                  />
-                </td>
-              )}
-              <td className="px-4 py-3 whitespace-nowrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{agent.name}</span>
-                  <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
-                </div>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${STATUS_TEXT[agent.status]}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
-                  {agent.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                {agent.whatsapp ? (
-                  <span className="text-green-600 font-medium">✓ {agent.whatsapp}</span>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                <div className="flex flex-wrap gap-1 max-w-xs">
-                  {agent.groups.slice(0, 3).map(g => (
-                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px]" title={g.name}>
-                      {g.name}
-                    </span>
-                  ))}
-                  {agent.groups.length > 3 && (
-                    <span className="text-xs text-gray-400">+{agent.groups.length - 3}</span>
-                  )}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                <div className="flex flex-wrap gap-1 max-w-xs">
-                  {agent.skills?.slice(0, 3).map(s => (
-                    <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 text-sky-700 rounded">
-                      {s}
-                    </span>
-                  ))}
-                  {(agent.skills?.length || 0) > 3 && (
-                    <span className="text-xs text-gray-400">+{(agent.skills?.length || 0) - 3}</span>
-                  )}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                <div className="flex flex-wrap gap-1 max-w-xs">
-                  {agent.tags.filter(t => t !== 'archived').slice(0, 2).map(t => (
-                    <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-purple-50 text-purple-700 rounded">
-                      {t}
-                    </span>
-                  ))}
-                  {agent.tags.filter(t => t !== 'archived').length > 2 && (
-                    <span className="text-xs text-gray-400">+{agent.tags.filter(t => t !== 'archived').length - 2}</span>
-                  )}
-                </div>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                <div className="flex items-center justify-end gap-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onChat(agent); }}
-                    className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
-                    title="Chat"
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="Actions"
                   >
-                    💬
+                    ⋮
                   </button>
-                  {agent.archived ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onUnarchive(agent); }}
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                      title="Unarchive"
-                    >
-                      📤
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onArchive(agent); }}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                      title="Archive"
-                    >
-                      📦
-                    </button>
+
+                  {openDropdown === agent.id && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenDropdown(null)
+                          onSelectAgent(agent)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <span>👁️</span>
+                        View Details
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenDropdown(null)
+                          onChat(agent)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <span>💬</span>
+                        Chat
+                      </button>
+                      {agent.archived ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onUnarchive(agent)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        >
+                          <span>📤</span>
+                          Unarchive
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onArchive(agent)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        >
+                          <span>📦</span>
+                          Archive
+                        </button>
+                      )}
+                      <div className="border-t border-gray-200 my-1"></div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenDropdown(null)
+                          onDelete(agent.id)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                      >
+                        <span>🗑️</span>
+                        Delete
+                      </button>
+                    </div>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(agent.id); }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="Delete"
-                  >
-                    🗑
-                  </button>
                 </div>
               </td>
             </tr>
