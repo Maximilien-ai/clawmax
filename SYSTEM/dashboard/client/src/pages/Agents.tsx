@@ -2371,7 +2371,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   </button>
 
                   {openDropdown === agent.id && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
