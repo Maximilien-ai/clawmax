@@ -77,32 +77,37 @@
 - [x] Track 6 security issues for future work
 - [x] Release v0.8.8
 
-### Tomorrow (Mar 4) - v0.8.9
-**Security Improvements Day 1**
-- [ ] Remove allowInsecureAuth workaround (device pairing)
-- [ ] Add rate limiting to all endpoints
-- [ ] Implement log PII redaction
+### Tomorrow (Mar 4) - v0.8.9 🎯 **PRIORITY**
+**Workflows Backend Foundation**
+- [ ] Create WORKFLOWS directory structure and validation schema
+- [ ] Implement `server/lib/workflows.ts` (parser, CRUD, interfaces)
+- [ ] Create `server/routes/workflows.ts` with 6 endpoints
+- [ ] Add gray-matter dependency for YAML frontmatter
 - [ ] Testing & documentation
 - [ ] Release v0.8.9
 
-### Wednesday (Mar 5)
-**Security Improvements Day 2**
-- [ ] Implement TLS for WebSocket connections (WSS)
-- [ ] Support both WS (localhost) and WSS (remote)
-- [ ] Certificate generation and validation
+### Thursday (Mar 5) 🎯 **PRIORITY**
+**Workflows UI Core**
+- [ ] Create WorkflowsPage.tsx (new top-level tab)
+- [ ] Build WorkflowCard, WorkflowDetailPanel, WorkflowEditorDialog
+- [ ] Agent targeting UI (communities, groups, tags, IDs)
+- [ ] Test full workflow CRUD lifecycle
 
-### Thursday (Mar 6)
-**Security Improvements Day 3**
-- [ ] Add CSRF protection
-- [ ] Implement SameSite cookies
+### Friday (Mar 6) 🎯 **PRIORITY**
+**Import/Export + Organization Templates**
+- [ ] Agent Import from .tar.gz
+- [ ] Organization Template Export
+- [ ] Organization Template Import
+- [ ] Workflows integration: Cron scheduler component
+
+### Saturday (Mar 7)
+**Polish + Essential Security - Release v0.9.0**
+- [ ] Polish workflows UI
+- [ ] Integrate workflows into panels
+- [ ] Add rate limiting (10/min chat, 30/min status)
+- [ ] Implement basic PII redaction
 - [ ] Security testing
-
-### Friday (Mar 7)
-**Release v0.9.0 - Security Hardening Complete**
-- [ ] Full security test suite
-- [ ] Penetration testing
-- [ ] Update all security documentation
-- [ ] Release v0.9.0
+- [ ] **Release v0.9.0 with Workflows + Import/Export**
 
 ---
 

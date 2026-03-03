@@ -67,85 +67,80 @@ da6759c - fix(orgs): Filter "All Agents" section by search query
 
 ## 📋 Tomorrow's Plan (March 4, 2026)
 
-### Priority: Security Improvements
-
-Based on SECURITY_ISSUES.md tracking document, tackle high-priority items:
+### 🎯 PRIORITY: Workflows Backend Foundation (v0.8.9)
 
 #### Morning (4 hours)
-**1. Issue #1: Remove allowInsecureAuth Workaround** (2.5h)
-- Research OpenClaw device pairing protocol
-- Implement device registration for dashboard client
-- Generate and store device credentials securely
-- Update chat.ts and logs.ts to use device identity
-- Remove `allowInsecureAuth` from gateway config
-- Test authentication flow end-to-end
+**1. Workflows Infrastructure** (2h)
+- Create WORKFLOWS directory structure in workspace
+- Define workflow validation schema (TypeScript interfaces)
+- Add `gray-matter` dependency for YAML frontmatter parsing
+- Create workflow file format specification
 
-**2. Issue #4: Add Rate Limiting** (1.5h)
-- Install `express-rate-limit` package
-- Add rate limiting middleware:
-  - Chat messages: 10/minute per session
-  - Status checks: 30/minute per IP
-  - Log streaming: 5 concurrent connections
-- Return 429 Too Many Requests when exceeded
-- Add configuration for rate limit values
-- Test with rapid requests
+**2. Workflows Library Implementation** (2h)
+- Implement `server/lib/workflows.ts`:
+  - Workflow file parser (YAML frontmatter + markdown body)
+  - CRUD operations (create, read, update, delete)
+  - TypeScript interfaces: `Workflow`, `WorkflowMetadata`, `AgentTargeting`
+  - Agent participation resolution (by communities, groups, tags, IDs)
+  - Cron schedule validation
 
 #### Afternoon (4 hours)
-**3. Issue #3: Implement Log PII Redaction** (2.5h)
-- Create configurable redaction patterns
-- Implement server-side filtering in logs.ts SSE stream
-- Redact common PII patterns:
-  - Email addresses: `/[\w\.-]+@[\w\.-]+\.\w+/g`
-  - API keys/tokens: `/[a-zA-Z0-9_-]{20,}/g`
-  - File paths (optional): `/\/[\w\/-]+/g`
-  - IP addresses: `/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g`
-- Add configuration file for patterns
-- Balance security vs debugging needs
+**3. Workflows API Endpoints** (2.5h)
+- Create `server/routes/workflows.ts` with 6 endpoints:
+  - `GET /api/workflows` - List all workflows
+  - `GET /api/workflows/:id` - Get workflow details
+  - `POST /api/workflows` - Create new workflow
+  - `PUT /api/workflows/:id` - Update workflow
+  - `DELETE /api/workflows/:id` - Delete workflow
+  - `GET /api/workflows/:id/participants` - Resolve agent participants
+- Add error handling and validation
+- Integrate with workspace file system
 
 **4. Testing & Documentation** (1.5h)
-- Test rate limiting with concurrent requests
-- Test PII redaction with sample logs
-- Update SECURITY.md with completed items
-- Update SECURITY_ISSUES.md status
-- Write tests for security features
+- Write API integration tests for workflows
+- Test CRUD operations end-to-end
+- Test agent targeting resolution
+- Document workflow file format
 - Create v0.8.9 release notes
 
 ---
 
 ## 📅 Rest of Week Plan (March 5-7, 2026)
 
-### Wednesday (4 hours)
-**Issue #2: Implement TLS for WebSocket Connections**
-- Research OpenClaw Gateway WSS support
-- Generate/obtain TLS certificates (consider Let's Encrypt)
-- Configure OpenClaw Gateway for WSS
-- Update dashboard WebSocket URLs to use `wss://`
-- Add certificate validation
-- Support both WS (localhost) and WSS (remote) modes
-- Add environment variable for WS vs WSS mode
+### Thursday (4 hours) 🎯 **PRIORITY: Workflows UI**
+**Workflows UI Core (v0.9.0)**
+- Create `WorkflowsPage.tsx` - New top-level tab in dashboard
+- Build `WorkflowCard` component (name, schedule, participants count)
+- Build `WorkflowDetailPanel` slide-out (view workflow details)
+- Create `WorkflowEditorDialog` for create/edit workflows
+- Basic markdown editor + YAML frontmatter fields
+- Agent targeting UI (select communities, groups, tags, individual IDs)
+- Test full workflow CRUD lifecycle
+- Release v0.9.0
 
-### Thursday (4 hours)
-**Issue #5: Add CSRF Protection**
-- Install `csurf` middleware
-- Implement CSRF token generation
-- Add token to frontend on initial page load
-- Include token in all POST requests
-- Validate token server-side
-- Use SameSite cookies as additional protection
-- Test CSRF protection with simulated attacks
+### Friday (4 hours) 🎯 **PRIORITY: Import/Export**
+**Organization Templates + Agent Import**
+- **Agent Import**: `POST /api/agents/import` endpoint + UI
+  - Upload .tar.gz → extract → validate → provision
+  - Import dialog with file upload and validation feedback
+- **Org Template Export**: `POST /api/templates/export` endpoint + UI
+  - Bundle agents, workflows, groups, communities into .tar.gz
+  - Include manifest.json with metadata
+- **Org Template Import**: `POST /api/templates/import` endpoint + UI
+  - Extract and validate manifest
+  - Provision all agents, create workflows, groups, communities
+- Workflows: Add `CronScheduleBuilder` component (visual + raw input)
 
-### Friday (4 hours)
-**Testing, Documentation & Release v0.9.0**
-- Run full security test suite
-- Penetration testing for implemented features
-- Update SECURITY.md with all completed items
-- Close GitHub issues for completed security improvements
-- Security review process:
-  - Code review by security-focused developer
-  - Test all security scenarios
-  - Verify no new vulnerabilities introduced
-- Create v0.9.0 release (Security Hardening Release)
-- Update STATUS.md and NEXT_WORK.md
+### Saturday (4 hours)
+**Polish + Essential Security - Release v0.9.0**
+- Polish workflows UI (loading states, error handling, empty states)
+- Integrate workflows into AgentDetailPanel (show agent's workflows)
+- Integrate workflows into Groups/Communities panels
+- Add rate limiting to all endpoints (10/min chat, 30/min status)
+- Implement basic PII redaction in log streams
+- Security testing
+- Update all documentation
+- **Release v0.9.0 with Workflows + Import/Export + Essential Security**
 
 ---
 

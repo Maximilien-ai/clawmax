@@ -5,7 +5,7 @@
 
 ---
 
-## 🎯 This Week: Security Hardening (Mar 3-7)
+## 🎯 This Week: Workflows + Essential Security (Mar 3-7)
 
 ### Day 1: Tuesday, Mar 3 ✅
 **v0.8.8 - Secure Chat, Auto-completion, Slide UI**
@@ -15,47 +15,87 @@
 - [x] Create comprehensive security documentation
 - [x] Track 6 security issues for future work
 
-### Day 2: Wednesday, Mar 4
-**v0.8.9 - Rate Limiting, PII Redaction, Device Pairing**
-- [ ] Remove allowInsecureAuth workaround (device pairing)
-- [ ] Add rate limiting to all endpoints
-- [ ] Implement log PII redaction
+### Day 2: Wednesday, Mar 4 🎯 **PRIORITY: WORKFLOWS**
+**v0.8.9 - Workflows Backend Foundation**
+- [ ] Create WORKFLOWS directory structure and validation schema
+- [ ] Implement `server/lib/workflows.ts`:
+  - Workflow file parser with YAML frontmatter (gray-matter)
+  - CRUD operations (create, read, update, delete)
+  - TypeScript interfaces (Workflow, WorkflowMetadata)
+  - Agent participation resolution (groups + tags + IDs)
+- [ ] Create `server/routes/workflows.ts` with 6 endpoints:
+  - GET /api/workflows - List all workflows
+  - GET /api/workflows/:id - Get workflow details
+  - POST /api/workflows - Create new workflow
+  - PUT /api/workflows/:id - Update workflow
+  - DELETE /api/workflows/:id - Delete workflow
+  - GET /api/workflows/:id/participants - Resolve agent participants
+- [ ] Add gray-matter dependency for YAML frontmatter parsing
 - [ ] Testing & documentation
 
-### Day 3: Thursday, Mar 5
-**TLS/WSS Implementation**
-- [ ] Implement TLS for WebSocket connections (WSS)
-- [ ] Support both WS (localhost) and WSS (remote)
-- [ ] Certificate generation and validation
-
-### Day 4: Friday, Mar 6
-**CSRF Protection**
-- [ ] Add CSRF protection
-- [ ] Implement SameSite cookies
-- [ ] Security testing
-
-### Day 5: Saturday, Mar 7
-**v0.9.0 - Security Hardening Complete**
-- [ ] Full security test suite
-- [ ] Penetration testing
-- [ ] Update all security documentation
+### Day 3: Thursday, Mar 5 🎯 **PRIORITY: WORKFLOWS UI**
+**v0.9.0 - Workflows UI Core**
+- [ ] Create `WorkflowsPage.tsx` (new top-level tab in dashboard)
+- [ ] Build `WorkflowCard` component (name, schedule, participants count)
+- [ ] Build `WorkflowDetailPanel` slide-out (view workflow details)
+- [ ] Create `WorkflowEditorDialog` for create/edit
+- [ ] Basic markdown editor + YAML frontmatter fields
+- [ ] Agent targeting UI (communities, groups, tags, individual IDs)
+- [ ] Test full workflow CRUD lifecycle
 - [ ] Release v0.9.0
+
+### Day 4: Friday, Mar 6 🎯 **PRIORITY: IMPORT/EXPORT**
+**Organization Templates Import/Export + Agent Import**
+- [ ] **Agent Import** - Import individual agent from .tar.gz archive
+  - `POST /api/agents/import` endpoint
+  - Upload .tar.gz → extract → validate → provision
+  - UI: "Import Agent" button on Agents page
+  - Import dialog with file upload and validation feedback
+- [ ] **Organization Template Export** - Export entire org as template
+  - `POST /api/templates/export` endpoint
+  - Bundle agents, workflows, groups, communities into .tar.gz
+  - Include manifest.json with metadata
+  - UI: "Export as Template" button in Organizations page
+- [ ] **Organization Template Import** - Import org template
+  - `POST /api/templates/import` endpoint
+  - Extract and validate manifest
+  - Provision all agents, create workflows, groups, communities
+  - UI: "Import Template" button with upload dialog
+- [ ] Workflows integration: Cron scheduler component
+- [ ] Testing & documentation
+
+### Day 5: Saturday, Mar 7 (Polish + Security)
+**Polish & Essential Security**
+- [ ] Polish workflows UI (loading states, error handling, empty states)
+- [ ] Integrate workflows into AgentDetailPanel
+- [ ] Integrate workflows into Groups/Communities panels
+- [ ] Add rate limiting to all endpoints (10/min chat, 30/min status)
+- [ ] Implement basic PII redaction in log streams
+- [ ] Security testing
+- [ ] Update security documentation
+- [ ] **Release v0.9.0 with Workflows + Import/Export**
 
 ---
 
-## 🚀 Next Week: Production Features (Mar 10-14)
+## 🚀 Next Week: Multi-Workspace + Advanced Features (Mar 10-14)
 
-### Multi-Workspace Support
+### Multi-Workspace Support (P0)
 - [ ] Multi-workspace backend implementation
 - [ ] Workspace switcher UI
 - [ ] Workspace creation flow
 - [ ] Workspace isolation and data management
 
-### Organization Templates
-- [ ] Ready-to-go org templates
-- [ ] Template library UI
-- [ ] Template creation workflow
-- [ ] Template sharing/export
+### Workflow Execution Engine
+- [ ] Cron scheduler for workflows
+- [ ] Workflow execution runner
+- [ ] Workflow history/logs
+- [ ] Workflow failure handling and retries
+
+### Advanced Security (Deferred from This Week)
+- [ ] Device pairing implementation (remove allowInsecureAuth)
+- [ ] TLS/WSS support for remote access
+- [ ] CSRF protection
+- [ ] Full security penetration testing
 
 ---
 
