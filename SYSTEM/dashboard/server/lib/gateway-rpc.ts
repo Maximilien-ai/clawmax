@@ -118,14 +118,14 @@ export class GatewayRPCClient {
           id: randomUUID(),
           method: 'connect',
           params: {
-            minProtocol: 1,
-            maxProtocol: 1,
+            minProtocol: 3,
+            maxProtocol: 3,
             client: {
-              id: 'dashboard-rpc',
+              id: 'cli',  // Must use approved client ID from GATEWAY_CLIENT_IDS
               displayName: 'Dashboard RPC Client',
               version: '1.0.0',
-              platform: 'dashboard',
-              mode: 'cli'
+              platform: process.platform,
+              mode: 'cli'  // Must use approved mode from GATEWAY_CLIENT_MODES
             },
             caps: [],
             auth: { token: this.authToken },

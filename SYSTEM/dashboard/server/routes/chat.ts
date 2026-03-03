@@ -121,14 +121,14 @@ router.post('/:id/chat', (req, res) => {
       id: randomUUID(),
       method: 'connect',
       params: {
-        minProtocol: 1,
-        maxProtocol: 1,
+        minProtocol: 3,
+        maxProtocol: 3,
         client: {
-          id: 'dashboard',
+          id: 'cli',  // Must use approved client ID from GATEWAY_CLIENT_IDS
           displayName: 'Dashboard Chat',
           version: '1.0.0',
-          platform: 'dashboard',
-          mode: 'cli'
+          platform: process.platform,
+          mode: 'cli'  // Must use approved mode from GATEWAY_CLIENT_MODES
         },
         caps: [],
         auth: { token: gatewayConfig.token },
