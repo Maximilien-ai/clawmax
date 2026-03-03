@@ -27,7 +27,11 @@ router.get('/:id/status', async (req, res) => {
 
   // Connect to gateway and request status
   return new Promise<void>((resolve) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
+    const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+      headers: {
+        'Origin': `http://localhost:${gatewayConfig.port}`
+      }
+    })
     const requestId = randomUUID()
     let authenticated = false
     let connectNonce: string | null = null
@@ -51,16 +55,16 @@ router.get('/:id/status', async (req, res) => {
           minProtocol: 3,
           maxProtocol: 3,
           client: {
-            id: 'cli',
+            id: 'openclaw-control-ui',  // Use Control UI client ID for scope permissions
             displayName: 'Dashboard Status',
             version: '1.0.0',
             platform: process.platform,
-            mode: 'cli'
+            mode: 'ui'  // UI mode for Control UI client
           },
           caps: [],
           auth: { token: gatewayConfig.token },
           role: 'operator',
-          scopes: ['operator.admin']
+          scopes: ['operator.admin', 'operator.write', 'operator.read']
         }
       }
       ws.send(JSON.stringify(connectMessage))
@@ -169,7 +173,9 @@ router.get('/:id/logs', (req, res) => {
   res.flushHeaders()
 
   const send = (type: string, data: any) => {
-    res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+    }
   }
 
   const keepalive = setInterval(() => {
@@ -179,7 +185,11 @@ router.get('/:id/logs', (req, res) => {
   const cleanup = () => clearInterval(keepalive)
 
   // Open WebSocket connection to gateway
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
+  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+    headers: {
+      'Origin': `http://localhost:${gatewayConfig.port}`
+    }
+  })
   const requestId = randomUUID()
   let authenticated = false
   let connectNonce: string | null = null
@@ -189,7 +199,9 @@ router.get('/:id/logs', (req, res) => {
     cleanup()
     send('error', 'Gateway timeout')
     ws.close()
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   }, 60000)
 
   const sendConnect = () => {
@@ -204,16 +216,16 @@ router.get('/:id/logs', (req, res) => {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'cli',
+          id: 'openclaw-control-ui',  // Use Control UI client ID for scope permissions
           displayName: 'Dashboard Logs',
           version: '1.0.0',
           platform: process.platform,
-          mode: 'cli'
+          mode: 'ui'  // UI mode for Control UI client
         },
         caps: [],
         auth: { token: gatewayConfig.token },
         role: 'operator',
-        scopes: ['operator.admin']
+        scopes: ['operator.admin', 'operator.write', 'operator.read']
       }
     }
     ws.send(JSON.stringify(connectMessage))
@@ -254,7 +266,9 @@ router.get('/:id/logs', (req, res) => {
           cleanup()
           send('error', message.error?.message || 'Authentication failed')
           ws.close()
-          res.end()
+          if (!res.writableEnded) {
+            res.end()
+          }
         }
         return
       }
@@ -266,7 +280,9 @@ router.get('/:id/logs', (req, res) => {
           cleanup()
           send('error', message.error.message || 'Logs error')
           ws.close()
-          res.end()
+          if (!res.writableEnded) {
+            res.end()
+          }
         } else if (message.payload) {
           // Initial logs payload
           send('logs', message.payload)
@@ -289,20 +305,28 @@ router.get('/:id/logs', (req, res) => {
     clearTimeout(timeout)
     cleanup()
     send('error', `WebSocket error: ${err.message}`)
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   })
 
   ws.on('close', () => {
     clearTimeout(timeout)
     cleanup()
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   })
 
   // Handle client disconnect
   req.on('close', () => {
     clearTimeout(timeout)
     cleanup()
-    ws.close()
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close()
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      ws.terminate() // Force close if still connecting
+    }
   })
 })
 

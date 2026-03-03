@@ -1035,6 +1035,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         selected={selectedAgent?.id === agent.id}
                         onClick={() => setSelectedAgent(agent)}
                         onChat={() => setChatTarget(agent)}
+                        onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                         onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
@@ -1076,6 +1077,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               selected={selectedAgent?.id === agent.id}
                               onClick={() => setSelectedAgent(agent)}
                               onChat={() => setChatTarget(agent)}
+                              onStatus={() => setStatusTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
@@ -1128,6 +1130,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
               onChat={() => setChatTarget(agent)}
+              onStatus={() => setStatusTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
@@ -2001,7 +2004,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
   return (
@@ -2107,7 +2110,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   <span className="text-sky-500">💬</span> Chat
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setStatusTarget(agent); setShowActionsMenu(false); }}
+                  onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
                 >
                   <span className="text-green-500">📊</span> Status & Logs
@@ -2387,14 +2390,35 @@ const AgentTableView = React.memo(function AgentTableView({
                 </div>
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                <div className="relative">
+                <div className="relative flex items-center justify-end gap-1">
+                  {/* Quick action icons */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setChatTarget(agent)
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                    title="Chat"
+                  >
+                    💬
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelectAgent(agent)
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="View Details & Files"
+                  >
+                    📁
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
                     className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                    title="Actions"
+                    title="More actions"
                   >
                     ⋮
                   </button>

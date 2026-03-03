@@ -26,7 +26,11 @@ router.get('/:id/gateway', (req, res) => {
   }
 
   // Check if gateway is actually running by attempting a quick connection (no /rpc path)
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
+  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+    headers: {
+      'Origin': `http://localhost:${gatewayConfig.port}`
+    }
+  })
   const timeout = setTimeout(() => {
     ws.close()
     res.json({
@@ -79,6 +83,8 @@ router.post('/:id/chat', (req, res) => {
     return res.status(503).json({ error: 'Gateway not configured for this agent' })
   }
 
+  console.log(`[Chat Route] Starting chat for agent ${id}, gateway port: ${gatewayConfig.port}`)
+
   // Set up SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -88,17 +94,30 @@ router.post('/:id/chat', (req, res) => {
   res.flushHeaders()
 
   const send = (type: string, data: any) => {
-    res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+    }
   }
 
   const keepalive = setInterval(() => {
     try { res.write(': keepalive\n\n') } catch {}
   }, 2000)
 
-  const cleanup = () => clearInterval(keepalive)
+  const cleanup = () => {
+    clearInterval(keepalive)
+    if (completionCheckInterval) clearInterval(completionCheckInterval)
+  }
+
+  console.log(`[Chat Route] Creating WebSocket connection to ws://127.0.0.1:${gatewayConfig.port}`)
 
   // Open WebSocket connection to gateway (no /rpc path, just port)
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
+  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+    headers: {
+      'Origin': `http://localhost:${gatewayConfig.port}`
+    }
+  })
+
+  console.log(`[Chat Route] WebSocket created for agent ${id}, initial state: ${ws.readyState}`)
   const requestId = randomUUID()
   let authenticated = false
   let connectNonce: string | null = null
@@ -108,13 +127,19 @@ router.post('/:id/chat', (req, res) => {
     cleanup()
     send('error', 'Gateway timeout')
     ws.close()
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   }, 120000) // 2 minute timeout
+
+  let lastDeltaTime = Date.now()
+  let completionCheckInterval: NodeJS.Timeout | null = null
 
   const sendConnect = () => {
     if (connectSent) return
     connectSent = true
 
+    console.log(`[Chat Route] Sending connect for agent ${id}`)
     // Send connect request (simplified - no device auth for now, just token)
     const connectMessage = {
       type: 'req',
@@ -124,28 +149,31 @@ router.post('/:id/chat', (req, res) => {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'cli',  // Must use approved client ID from GATEWAY_CLIENT_IDS
+          id: 'openclaw-control-ui',  // Use Control UI client ID for scope permissions
           displayName: 'Dashboard Chat',
           version: '1.0.0',
           platform: process.platform,
-          mode: 'cli'  // Must use approved mode from GATEWAY_CLIENT_MODES
+          mode: 'ui'  // UI mode for Control UI client
         },
         caps: [],
         auth: { token: gatewayConfig.token },
         role: 'operator',
-        scopes: ['operator.admin']
+        scopes: ['operator.admin', 'operator.write', 'operator.read']
       }
     }
+    console.log(`[Chat Route] Connect message scopes:`, connectMessage.params.scopes)
     ws.send(JSON.stringify(connectMessage))
   }
 
   ws.on('open', () => {
+    console.log(`[Chat Route] WebSocket opened for agent ${id}`)
     // Wait for connect.challenge event before sending connect
   })
 
   ws.on('message', (data: Buffer) => {
     try {
       const message = JSON.parse(data.toString())
+      console.log(`[Chat Route] Received message for agent ${id}:`, message.event || message.type)
 
       // Handle connect.challenge event
       if (message.event === 'connect.challenge') {
@@ -168,7 +196,8 @@ router.post('/:id/chat', (req, res) => {
             method: 'chat.send',
             params: {
               message: req.body.message,
-              sessionId: sessionId || `dashboard-chat-${id}-${Date.now()}`
+              sessionKey: sessionId || `dashboard-chat-${id}`,
+              idempotencyKey: `${Date.now()}-${Math.random().toString(36).slice(2)}`
             }
           }
           ws.send(JSON.stringify(chatRequest))
@@ -177,7 +206,9 @@ router.post('/:id/chat', (req, res) => {
           cleanup()
           send('error', message.error?.message || 'Authentication failed')
           ws.close()
-          res.end()
+          if (!res.writableEnded) {
+            res.end()
+          }
         }
         return
       }
@@ -189,7 +220,9 @@ router.post('/:id/chat', (req, res) => {
           cleanup()
           send('error', message.error.message || 'Chat error')
           ws.close()
-          res.end()
+          if (!res.writableEnded) {
+            res.end()
+          }
         } else if (message.payload) {
           // Chat request accepted
           send('start', { sessionId: message.payload.sessionId })
@@ -199,17 +232,47 @@ router.post('/:id/chat', (req, res) => {
 
       // Handle event frames (chat deltas, completion, etc.)
       if (message.event) {
-        // Handle chat delta events
-        if (message.event === 'chat.delta' || message.event === 'chat') {
-          const payload = message.payload || {}
-          if (payload.state === 'delta' && payload.text) {
-            send('delta', { text: payload.text })
-          } else if (payload.state === 'final') {
+        // Handle agent assistant stream (chat deltas)
+        if (message.event === 'agent' && message.payload?.stream === 'assistant') {
+          const delta = message.payload?.data?.delta
+
+          if (delta) {
+            send('delta', { text: delta })
+            lastDeltaTime = Date.now()
+
+            // Start completion check interval after first delta
+            if (!completionCheckInterval) {
+              completionCheckInterval = setInterval(() => {
+                const timeSinceLastDelta = Date.now() - lastDeltaTime
+                // If no delta for 2 seconds, consider response complete
+                if (timeSinceLastDelta > 2000) {
+                  console.log(`[Chat Route] Auto-completing for agent ${id} after ${timeSinceLastDelta}ms without deltas`)
+                  clearTimeout(timeout)
+                  if (completionCheckInterval) clearInterval(completionCheckInterval)
+                  cleanup()
+                  send('complete', {})
+                  ws.close()
+                  if (!res.writableEnded) {
+                    res.end()
+                  }
+                }
+              }, 500) // Check every 500ms
+            }
+          }
+          return
+        }
+
+        // Handle agent lifecycle events
+        if (message.event === 'agent' && message.payload?.stream === 'lifecycle') {
+          const phase = message.payload?.data?.phase
+          if (phase === 'complete' || phase === 'error') {
             clearTimeout(timeout)
             cleanup()
-            send('complete', { text: payload.text })
+            send('complete', { text: message.payload?.data?.text || '' })
             ws.close()
-            res.end()
+            if (!res.writableEnded) {
+              res.end()
+            }
           }
           return
         }
@@ -228,7 +291,9 @@ router.post('/:id/chat', (req, res) => {
     clearTimeout(timeout)
     cleanup()
     send('error', `WebSocket error: ${err.message}`)
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   })
 
   ws.on('close', (code, reason) => {
@@ -238,14 +303,21 @@ router.post('/:id/chat', (req, res) => {
     if (!authenticated) {
       send('error', 'Connection closed before authentication')
     }
-    res.end()
+    if (!res.writableEnded) {
+      res.end()
+    }
   })
 
   // Handle client disconnect
   req.on('close', () => {
+    console.log(`[Chat Route] Client disconnected for agent ${id}, WebSocket state: ${ws.readyState}`)
     clearTimeout(timeout)
     cleanup()
-    ws.close()
+    // Only close WebSocket if it's actually open to avoid errors
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close()
+    }
+    // Don't call terminate() on CONNECTING sockets - let them fail naturally
   })
 })
 

@@ -21,13 +21,15 @@ export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [sessionId] = useState<string>(`dashboard-${agentId}-${Date.now()}`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
+  const [isSlideMode, setIsSlideMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     checkGateway()
-    inputRef.current?.focus()
+    // Delay focus slightly to ensure component is fully mounted
+    setTimeout(() => inputRef.current?.focus(), 100)
   }, [agentId])
 
   useEffect(() => {
@@ -162,11 +164,20 @@ export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
 
   if (gatewayAvailable === false) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="bg-white rounded-xl shadow-2xl w-[600px] p-6">
+      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
+        <div className={`bg-white shadow-2xl ${isSlideMode ? 'h-full w-[600px] absolute right-0 top-0' : 'rounded-xl w-[600px]'} p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800">Agent Chat: {agentName}</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSlideMode(!isSlideMode)}
+                className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors"
+                title={isSlideMode ? "Switch to modal" : "Switch to slide"}
+              >
+                {isSlideMode ? '◧' : '»'}
+              </button>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
           </div>
           <div className="text-center py-8">
             <div className="text-6xl mb-4">⚠️</div>
@@ -184,18 +195,38 @@ export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[700px] h-[600px] flex flex-col">
+    <div
+      className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
+      onClick={(e) => {
+        // Close when clicking outside panel (backdrop)
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        className={`bg-white shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[600px]'} w-[700px] flex flex-col`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">Agent Chat: {agentName}</h2>
             <p className="text-xs text-gray-400 mt-0.5">Real-time streaming via gateway</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
-          >×</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSlideMode(!isSlideMode)}
+              className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors"
+              title={isSlideMode ? "Switch to modal" : "Switch to slide"}
+            >
+              {isSlideMode ? '◧' : '»'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
+            >×</button>
+          </div>
         </div>
 
         {/* Messages */}
