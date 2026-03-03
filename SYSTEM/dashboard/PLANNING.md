@@ -224,6 +224,96 @@ Config location:
 
 ## Backlog
 
+### Agent Response Time Tracking & Performance Analytics
+
+**Goal**: Track and visualize agent response times for common commands to identify performance bottlenecks and monitor LLM/network latency.
+
+**Motivation**: Users report agents may be responding slower over time. We need data to confirm if this is:
+- LLM response latency
+- Network/internet connection issues
+- Dashboard overhead
+- Agent processing time
+- Gateway RPC latency
+
+**Concept:**
+Track response times for simple, predictable commands:
+- `status` - Agent status check
+- `test` - Connectivity test
+- `who are you` - Identity query
+- `ping` - Simple round-trip test
+- Common queries that should have fast, deterministic responses
+
+**Implementation Ideas:**
+1. **Client-side tracking** (AgentChatPanel.tsx):
+   - Record timestamps: message sent → first delta received → complete
+   - Store in local metrics DB (IndexedDB)
+   - Tag by agent, command type, timestamp
+
+2. **Gateway RPC metrics** (gateway-rpc.ts):
+   - Measure WebSocket connect time
+   - Measure auth challenge-response time
+   - Measure RPC call round-trip time
+   - Expose via `/api/agents/:id/metrics` endpoint
+
+3. **Performance Dashboard**:
+   - New "Performance" tab showing:
+     - Response time trends over time (chart)
+     - Per-agent average response times
+     - Command type breakdown (status vs chat vs other)
+     - P50/P95/P99 percentiles
+     - Outlier detection (slow responses)
+
+4. **Benchmark Commands**:
+   - Add "Benchmark" button in agent detail panel
+   - Runs series of test commands and measures:
+     - Connection setup time
+     - First token time (TTFT)
+     - Tokens per second
+     - Total response time
+   - Compare against baseline metrics
+
+**Data Model**:
+```typescript
+interface ResponseTimeMetric {
+  timestamp: number
+  agentId: string
+  command: string  // 'status', 'test', 'who-are-you', 'chat'
+  sendTime: number
+  firstDeltaTime?: number
+  completeTime: number
+  totalMs: number
+  ttftMs?: number  // Time to first token
+  tokensCount?: number
+  llmProvider?: string  // From agent config
+  error?: string
+}
+```
+
+**Storage**:
+- IndexedDB for client-side metrics (30 day retention)
+- Optional server-side aggregation for analytics
+- Export to CSV for external analysis
+
+**UI Components**:
+- Performance tab with charts (recharts library)
+- "Response Time" badge on agent cards (show recent average)
+- Performance alerts (if response > 2x baseline)
+
+**Scope for Initial Implementation:**
+- [ ] Add timestamp tracking to AgentChatPanel
+- [ ] Store metrics in IndexedDB
+- [ ] Create simple performance dashboard
+- [ ] Add response time indicator to agent cards
+
+**Future Enhancements:**
+- Real-time performance monitoring
+- Automatic slowness alerts
+- A/B testing different LLM providers
+- Network diagnostics integration
+- Historical trend analysis
+
+---
+
 ### Workflows - Coordinated Agent Tasks
 
 **Goal**: Define recurring work patterns for groups of agents with specific roles/tags within communities.
