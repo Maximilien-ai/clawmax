@@ -8,6 +8,7 @@ import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import AgentChatPanel from '../components/AgentChatPanel'
+import AgentStatusPanel from '../components/AgentStatusPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
 import BulkOperationsPanel from '../components/BulkOperationsPanel'
 import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
@@ -100,6 +101,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
+  const [statusTarget, setStatusTarget] = useState<Agent | null>(null)
   const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
   const [saveAsTemplateTarget, setSaveAsTemplateTarget] = useState<Agent | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1281,6 +1283,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         />
       )}
 
+      {/* Old ChatPanel - replaced with AgentChatPanel after WebSocket auth fix
       {chatTarget && (
         <ChatPanel
           agentId={chatTarget.id}
@@ -1288,8 +1291,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onClose={() => setChatTarget(null)}
         />
       )}
+      */}
 
-      {/* TODO: Replace ChatPanel with AgentChatPanel once WebSocket auth is fixed
       {chatTarget && (
         <ErrorBoundary
           fallback={
@@ -1314,7 +1317,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           />
         </ErrorBoundary>
       )}
-      */}
+
+      {statusTarget && (
+        <AgentStatusPanel
+          agentId={statusTarget.id}
+          agentName={statusTarget.name}
+          onClose={() => setStatusTarget(null)}
+        />
+      )}
 
       {tagToRemove && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
@@ -2096,6 +2106,12 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                 >
                   <span className="text-sky-500">💬</span> Chat
                 </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setStatusTarget(agent); setShowActionsMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-green-500">📊</span> Status & Logs
+                </button>
                 <div className="border-t border-gray-200 my-1"></div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
@@ -2407,6 +2423,18 @@ const AgentTableView = React.memo(function AgentTableView({
                         <span>💬</span>
                         Chat
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenDropdown(null)
+                          setStatusTarget(agent)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                      >
+                        <span className="text-green-500">📊</span>
+                        Status & Logs
+                      </button>
+                      <div className="border-t border-gray-200 my-1"></div>
                       {agent.archived ? (
                         <button
                           onClick={(e) => {
