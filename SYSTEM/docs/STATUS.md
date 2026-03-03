@@ -1,18 +1,36 @@
-# OpenClaw Dashboard Status - Feb 26, 2026
+# OpenClaw Dashboard Status - Mar 3, 2026
 
 ## 🎯 Current Focus
-**Post-Demo: OpenClaw Compatibility & Multi-Workspace**
+**Security Hardening & Production Readiness**
 
-## ✅ Latest Work: OpenClaw Compatibility (Feb 26, 2026)
-**Critical P0 Issue Fixed**
+## ✅ Latest Release: v0.8.8 (Mar 3, 2026)
+**Secure Chat, Auto-completion, Slide UI, Security Documentation**
 
 ### What's New
-- **Gateway RPC Integration**: All config writes now go through OpenClaw Gateway
-- **Full Zod Validation**: Config changes validated against canonical schema
-- **Metadata Stamping**: Automatic lastTouchedVersion and lastTouchedAt tracking
-- **Environment Preservation**: Secrets stay as ${ENV_VAR} references
-- **Audit Trail**: All config modifications logged via Gateway
-- **71 automated tests** (100% passing - added 3 Gateway RPC tests)
+- **Chat System Fixed**: OpenClaw Gateway Protocol v3 integration with challenge-response auth
+- **Auto-completion Detection**: 2-second inactivity timeout for stream completion
+- **Slide Mode UI**: Chat panel with toggle, Status & Logs as slide (400px)
+- **Security Documentation**: Comprehensive SECURITY.md + SECURITY_ISSUES.md
+- **6 Security Issues Tracked**: 2 high priority, 3 medium, 1 low
+- **Control UI Client Mode**: Proper scope permissions for dashboard operations
+
+### Technical Improvements
+- WebSocket Origin header validation
+- Gateway token authentication with challenge-response
+- SSE streaming with proper cleanup
+- Auto-focus input fields
+- Click-outside-to-dismiss for modal mode
+- Compact slide layouts for monitoring while interacting
+
+### Commits
+- `77b69d2` - docs: Move security docs to SYSTEM/docs for consistency
+- `52e99c9` - chore: Bump version to 0.8.8
+- `23f9269` - fix(orgs): Show total agent count in header for consistency
+- `da6759c` - fix(orgs): Filter "All Agents" section by search query
+- `9f7ea32` - feat(orgs): Enhance search with agent filtering and clear button
+- `12ef05c` - fix: Organizations page crash - define communities/groups before use
+
+---
 
 ## ✅ Previous Release: v0.7.0 (Feb 25, 2026)
 **Skills & Tools Management Integration**
@@ -24,15 +42,6 @@
 - Interactive stat cards for quick filtering
 - Agent context navigation (click skill → correct agent selected)
 - 5 new Skills API endpoints
-
-### Commits
-- `0535c95` - fix(skills): Navigate to Skills page with correct agent selected
-- `4267d05` - feat(skills): Make stat cards clickable filters with active state
-- `5d81b8f` - fix(skills): Auto-filter to assigned skills when selecting agent
-- `3ef5f04` - fix(test): Use valid skill names in Skills API tests
-- `57aa3d0` - test: Add comprehensive Skills API test suite
-- `58f841b` - feat(dashboard): Enhance Skills page with advanced UX features
-- `78961bd` - feat(dashboard): Integrate Skills & Tools into agent UI
 
 ---
 
@@ -58,39 +67,60 @@
 
 ---
 
-## 🗓️ Immediate Roadmap
+## 🗓️ This Week Roadmap
 
-### Today (Feb 26) - COMPLETED ✅
-- [x] OpenClaw Compatibility Audit
-- [x] Gateway RPC Client Implementation
-- [x] Replace Direct Config Writes
-- [x] End-to-end Compatibility Tests
-- [x] Demo Day (went great!)
+### ✅ Today (Mar 3) - COMPLETED
+- [x] Fix chat WebSocket connection errors
+- [x] Implement auto-completion detection
+- [x] Convert Chat & Status panels to slide mode
+- [x] Create comprehensive security documentation
+- [x] Track 6 security issues for future work
+- [x] Release v0.8.8
 
-### Post-Demo Priorities (This Week)
-- [ ] Multi-workspace support (P0)
-- [ ] Multi-org architecture (P0)
-- [ ] Ready-to-go org templates (P1)
+### Tomorrow (Mar 4) - v0.8.9
+**Security Improvements Day 1**
+- [ ] Remove allowInsecureAuth workaround (device pairing)
+- [ ] Add rate limiting to all endpoints
+- [ ] Implement log PII redaction
+- [ ] Testing & documentation
+- [ ] Release v0.8.9
 
-### Weekend (4 hours/day)
-- [ ] Multi-workspace backend implementation
-- [ ] Workspace switcher UI
-- [ ] Workspace creation flow
+### Wednesday (Mar 5)
+**Security Improvements Day 2**
+- [ ] Implement TLS for WebSocket connections (WSS)
+- [ ] Support both WS (localhost) and WSS (remote)
+- [ ] Certificate generation and validation
+
+### Thursday (Mar 6)
+**Security Improvements Day 3**
+- [ ] Add CSRF protection
+- [ ] Implement SameSite cookies
+- [ ] Security testing
+
+### Friday (Mar 7)
+**Release v0.9.0 - Security Hardening Complete**
+- [ ] Full security test suite
+- [ ] Penetration testing
+- [ ] Update all security documentation
+- [ ] Release v0.9.0
 
 ---
 
 ## 📚 Active Planning Documents
 
 ### Primary
-- `/SYSTEM/docs/planning/DEMO_DAY_ROADMAP_FEB26.md` - **Current roadmap** (tonight through Friday)
-- `/SYSTEM/dashboard/PLANNING.md` - Dashboard-specific features backlog
+- `/SYSTEM/docs/WORK_SUMMARY_MAR3.md` - Today's work and this week's plan
+- `/SYSTEM/docs/SECURITY_ISSUES.md` - Security improvements tracking
+- `/SYSTEM/docs/SECURITY.md` - Security architecture documentation
 
 ### Reference
 - `/SYSTEM/docs/NEXT_WORK.md` - Feature ideas and backlog
 - `/SYSTEM/docs/BUGS.md` - Known issues tracker
+- `/SYSTEM/docs/planning/MULTI_WORKSPACE_ARCHITECTURE.md` - Future multi-workspace design
 
 ### Archived
-- `/SYSTEM/docs/planning/archive/` - Historical planning documents
+- `/SYSTEM/docs/archive/` - Completed OpenClaw compatibility work
+- `/SYSTEM/docs/planning/archive/` - Completed demo day planning
 
 ---
 
@@ -108,12 +138,13 @@
 - **APIs**: 15+ REST endpoints
 - **Streaming**: Server-Sent Events (SSE)
 - **Data**: File-based (workspace directory)
+- **Gateway Integration**: OpenClaw Protocol v3
 
-### Skills System
-- **Catalog**: 51 bundled skills
-- **Storage**: ~/.openclaw/openclaw.json
-- **API**: 5 endpoints (list, get, agent skills, update, validate)
-- **UI**: Dedicated Skills page with advanced filtering
+### Security Features
+- **Authentication**: Gateway token + challenge-response
+- **Authorization**: Scope-based (operator.admin, operator.write, operator.read)
+- **Network**: Localhost-only binding (WSS for remote coming soon)
+- **Cleanup**: Proper resource management and AbortController usage
 
 ### Testing
 - **Framework**: Bash scripts with curl + jq
@@ -125,18 +156,17 @@
 
 ## 🎯 Success Criteria
 
-### Demo Day (Feb 26)
-- [ ] Demo runs without crashes
-- [ ] All core features demonstrated
-- [ ] Positive feedback received
-- [ ] Next priorities identified
+### This Week (Mar 3-7)
+- [x] Ship v0.8.8 (Secure chat) ✅
+- [ ] Ship v0.8.9 (Rate limiting + PII redaction)
+- [ ] Ship v0.9.0 (Security hardening complete)
+- [ ] All high-priority security issues resolved
+- [ ] Production-ready secure dashboard
 
-### Week Goals (Feb 24-28)
-- [x] Ship v0.7.0 (Skills & Tools) ✅
-- [x] Demo Day success ✅
-- [x] OpenClaw compatibility fixed ✅
-- [x] 71+ tests passing ✅
-- [ ] Multi-workspace architecture designed
+### Next Week
+- [ ] Multi-workspace architecture implementation
+- [ ] Organization templates
+- [ ] Ready for v1.0.0
 
 ---
 
@@ -164,15 +194,17 @@ cd /Users/maximilien/.openclaw/workspace/SYSTEM
 - Agent configs: `~/.openclaw/openclaw.json`
 - Skills catalog: `~/github/maximilien/openclaw/skills/`
 - Dashboard code: `SYSTEM/dashboard/`
+- Security docs: `SYSTEM/docs/SECURITY*.md`
 - Tests: `SYSTEM/test.sh`
 
 ---
 
 ## 🚀 Next Steps
 
-1. **Today (Remaining 4 hours)**: Multi-workspace architecture design
-2. **Tomorrow (4 hours)**: Multi-workspace backend implementation
-3. **Weekend (8 hours)**: UI polish + workspace creation
-4. **Next Week**: Org templates
+1. **Tomorrow (4 hours)**: Device pairing + Rate limiting + PII redaction → v0.8.9
+2. **Wednesday (4 hours)**: TLS/WSS implementation
+3. **Thursday (4 hours)**: CSRF protection
+4. **Friday (4 hours)**: Security testing + v0.9.0 release
+5. **Next Week**: Multi-workspace + v1.0.0
 
-**Status**: OpenClaw compatibility ✅ | Multi-workspace next 🚀
+**Status**: v0.8.8 shipped ✅ | Security hardening in progress 🔒
