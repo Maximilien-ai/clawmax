@@ -25,7 +25,7 @@ router.get('/:id/gateway', (req, res) => {
     })
   }
 
-  // Check if gateway is actually running by attempting a quick connection
+  // Check if gateway is actually running by attempting a quick connection (no /rpc path)
   const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
   const timeout = setTimeout(() => {
     ws.close()
@@ -97,10 +97,12 @@ router.post('/:id/chat', (req, res) => {
 
   const cleanup = () => clearInterval(keepalive)
 
-  // Open WebSocket connection to gateway
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}/rpc`)
+  // Open WebSocket connection to gateway (no /rpc path, just port)
+  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`)
   const requestId = randomUUID()
   let authenticated = false
+  let connectNonce: string | null = null
+  let connectSent = false
 
   const timeout = setTimeout(() => {
     cleanup()
@@ -109,73 +111,111 @@ router.post('/:id/chat', (req, res) => {
     res.end()
   }, 120000) // 2 minute timeout
 
-  ws.on('open', () => {
-    // Send auth message
-    const authMessage = {
-      jsonrpc: '2.0' as const,
+  const sendConnect = () => {
+    if (connectSent) return
+    connectSent = true
+
+    // Send connect request (simplified - no device auth for now, just token)
+    const connectMessage = {
+      type: 'req',
       id: randomUUID(),
-      method: 'auth',
-      params: { token: gatewayConfig.token }
+      method: 'connect',
+      params: {
+        minProtocol: 1,
+        maxProtocol: 1,
+        client: {
+          id: 'dashboard',
+          displayName: 'Dashboard Chat',
+          version: '1.0.0',
+          platform: 'dashboard',
+          mode: 'cli'
+        },
+        caps: [],
+        auth: { token: gatewayConfig.token },
+        role: 'operator',
+        scopes: ['operator.admin']
+      }
     }
-    ws.send(JSON.stringify(authMessage))
+    ws.send(JSON.stringify(connectMessage))
+  }
+
+  ws.on('open', () => {
+    // Wait for connect.challenge event before sending connect
   })
 
   ws.on('message', (data: Buffer) => {
     try {
       const message = JSON.parse(data.toString())
 
-      // Handle auth response
-      if (message.id && message.result?.authenticated) {
-        authenticated = true
-        // Send chat.send RPC call
-        const chatRequest = {
-          jsonrpc: '2.0' as const,
-          id: requestId,
-          method: 'chat.send',
-          params: {
-            message: req.body.message,
-            sessionId: sessionId || `dashboard-chat-${id}-${Date.now()}`
-          }
+      // Handle connect.challenge event
+      if (message.event === 'connect.challenge') {
+        const nonce = message.payload?.nonce
+        if (nonce) {
+          connectNonce = nonce
+          sendConnect()
         }
-        ws.send(JSON.stringify(chatRequest))
         return
       }
 
-      // Handle RPC response
-      if (message.id === requestId) {
+      // Handle connect response (type: 'res', method: 'connect')
+      if (message.type === 'res' && !authenticated) {
+        if (message.ok) {
+          authenticated = true
+          // Send chat.send request
+          const chatRequest = {
+            type: 'req',
+            id: requestId,
+            method: 'chat.send',
+            params: {
+              message: req.body.message,
+              sessionId: sessionId || `dashboard-chat-${id}-${Date.now()}`
+            }
+          }
+          ws.send(JSON.stringify(chatRequest))
+        } else {
+          clearTimeout(timeout)
+          cleanup()
+          send('error', message.error?.message || 'Authentication failed')
+          ws.close()
+          res.end()
+        }
+        return
+      }
+
+      // Handle chat.send response
+      if (message.type === 'res' && message.id === requestId) {
         if (message.error) {
           clearTimeout(timeout)
           cleanup()
           send('error', message.error.message || 'Chat error')
           ws.close()
           res.end()
-        } else if (message.result) {
+        } else if (message.payload) {
           // Chat request accepted
-          send('start', { sessionId: message.result.sessionId })
+          send('start', { sessionId: message.payload.sessionId })
         }
         return
       }
 
-      // Handle delta events (from chat.send streaming)
-      if (message.method === 'chat.delta') {
-        const delta = message.params
-        send('delta', delta)
-        return
-      }
+      // Handle event frames (chat deltas, completion, etc.)
+      if (message.event) {
+        // Handle chat delta events
+        if (message.event === 'chat.delta' || message.event === 'chat') {
+          const payload = message.payload || {}
+          if (payload.state === 'delta' && payload.text) {
+            send('delta', { text: payload.text })
+          } else if (payload.state === 'final') {
+            clearTimeout(timeout)
+            cleanup()
+            send('complete', { text: payload.text })
+            ws.close()
+            res.end()
+          }
+          return
+        }
 
-      // Handle completion event
-      if (message.method === 'chat.complete') {
-        clearTimeout(timeout)
-        cleanup()
-        send('complete', message.params)
-        ws.close()
-        res.end()
-        return
-      }
-
-      // Handle other events
-      if (message.method) {
-        send('event', { method: message.method, params: message.params })
+        // Handle other events
+        send('event', { event: message.event, payload: message.payload })
       }
 
     } catch (err) {

@@ -54,7 +54,7 @@ export class GatewayRPCClient {
 
   constructor() {
     const config = this.loadGatewayConfig()
-    this.gatewayUrl = `ws://127.0.0.1:${config.port}/rpc`
+    this.gatewayUrl = `ws://127.0.0.1:${config.port}`
     this.authToken = config.auth.token
   }
 
@@ -98,6 +98,9 @@ export class GatewayRPCClient {
       const requestId = randomUUID()
       const ws = new WebSocket(this.gatewayUrl)
       let responseReceived = false
+      let authenticated = false
+      let connectNonce: string | null = null
+      let connectSent = false
 
       const timeout = setTimeout(() => {
         if (!responseReceived) {
@@ -106,32 +109,73 @@ export class GatewayRPCClient {
         }
       }, 30000) // 30 second timeout
 
-      ws.on('open', () => {
-        // Send auth and request
-        const authMessage = {
-          jsonrpc: '2.0' as const,
+      const sendConnect = () => {
+        if (connectSent) return
+        connectSent = true
+
+        const connectMessage = {
+          type: 'req',
           id: randomUUID(),
-          method: 'auth',
-          params: { token: this.authToken }
+          method: 'connect',
+          params: {
+            minProtocol: 1,
+            maxProtocol: 1,
+            client: {
+              id: 'dashboard-rpc',
+              displayName: 'Dashboard RPC Client',
+              version: '1.0.0',
+              platform: 'dashboard',
+              mode: 'cli'
+            },
+            caps: [],
+            auth: { token: this.authToken },
+            role: 'operator',
+            scopes: ['operator.admin']
+          }
         }
+        ws.send(JSON.stringify(connectMessage))
+      }
 
-        const request: RPCRequest = {
-          jsonrpc: '2.0',
-          id: requestId,
-          method,
-          params
-        }
-
-        ws.send(JSON.stringify(authMessage))
-        ws.send(JSON.stringify(request))
+      ws.on('open', () => {
+        // Wait for connect.challenge event
       })
 
       ws.on('message', (data: Buffer) => {
         try {
-          const message = JSON.parse(data.toString()) as RPCResponse | RPCEvent
+          const message = JSON.parse(data.toString())
+
+          // Handle connect.challenge event
+          if (message.event === 'connect.challenge') {
+            const nonce = message.payload?.nonce
+            if (nonce) {
+              connectNonce = nonce
+              sendConnect()
+            }
+            return
+          }
+
+          // Handle connect response
+          if (message.type === 'res' && !authenticated) {
+            if (message.ok) {
+              authenticated = true
+              // Send actual RPC request
+              const request = {
+                type: 'req',
+                id: requestId,
+                method,
+                params
+              }
+              ws.send(JSON.stringify(request))
+            } else {
+              clearTimeout(timeout)
+              ws.close()
+              reject(new Error(`Gateway auth failed: ${message.error?.message || 'unknown'}`))
+            }
+            return
+          }
 
           // Handle RPC response
-          if ('id' in message && message.id === requestId) {
+          if (message.type === 'res' && message.id === requestId) {
             responseReceived = true
             clearTimeout(timeout)
 
@@ -140,7 +184,7 @@ export class GatewayRPCClient {
               reject(new Error(`Gateway RPC error: ${message.error.message}`))
             } else {
               ws.close()
-              resolve(message.result as T)
+              resolve(message.payload as T)
             }
           }
           // Ignore events and other responses
