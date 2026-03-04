@@ -677,6 +677,121 @@ mv ~/.openclaw/openclaw.json.rpc-test-backup ~/.openclaw/openclaw.json
 echo ""
 
 # =========================================
+# Section 16: Workflows APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "16. Workflows APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test list workflows
+test_api "List workflows" "/api/workflows"
+test_json_field "Workflows array exists" "/api/workflows" ".workflows"
+
+# Count existing workflows
+workflow_count=$(curl -s "$API_BASE/api/workflows" | jq '.workflows | length')
+if [ "$workflow_count" -ge 0 ]; then
+  pass "Workflows endpoint returns array (count: $workflow_count)"
+else
+  fail "Workflows endpoint invalid response"
+fi
+
+# Test get specific workflow (if any exist)
+if [ "$workflow_count" -gt 0 ]; then
+  first_workflow_id=$(curl -s "$API_BASE/api/workflows" | jq -r '.workflows[0].id')
+  test_api "Get workflow by ID" "/api/workflows/$first_workflow_id"
+  test_json_field "Workflow has name" "/api/workflows/$first_workflow_id" ".name"
+  test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_id" ".schedule"
+  test_json_field "Workflow has targeting" "/api/workflows/$first_workflow_id" ".targeting"
+  test_json_field "Workflow has content" "/api/workflows/$first_workflow_id" ".content"
+  test_json_field "Workflow has scheduleHuman" "/api/workflows/$first_workflow_id" ".scheduleHuman"
+
+  # Test participants endpoint
+  test_api "Get workflow participants" "/api/workflows/$first_workflow_id/participants"
+  test_json_field "Participants array" "/api/workflows/$first_workflow_id/participants" ".participants"
+
+  # Test executions endpoint
+  test_api "Get workflow executions" "/api/workflows/$first_workflow_id/executions"
+  test_json_field "Executions array" "/api/workflows/$first_workflow_id/executions" ".executions"
+else
+  warn "No workflows found for detailed testing"
+fi
+
+# Test create workflow
+test_workflow_payload='{"name":"Test Workflow","description":"Test workflow for testing","schedule":"0 9 * * *","enabled":true,"targeting":{"communities":[],"groups":[],"tags":[],"agents":[]},"author":"test-suite","executionMode":"automated","content":"# Test Workflow\\n\\nThis is a test."}'
+
+response=$(curl -s -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d "$test_workflow_payload")
+
+if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
+  test_workflow_id=$(echo "$response" | jq -r '.id')
+  pass "Create workflow (ID: $test_workflow_id)"
+
+  # Test update workflow
+  response=$(curl -s -X PUT "$API_BASE/api/workflows/$test_workflow_id" \
+    -H 'Content-Type: application/json' \
+    -d '{"enabled":false}')
+
+  if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
+    pass "Update workflow (disable)"
+  else
+    fail "Update workflow failed"
+  fi
+
+  # Verify update
+  updated_workflow=$(curl -s "$API_BASE/api/workflows/$test_workflow_id")
+  if [ "$(echo "$updated_workflow" | jq -r '.enabled')" = "false" ]; then
+    pass "Workflow update persisted"
+  else
+    fail "Workflow update not persisted"
+  fi
+
+  # Test delete workflow
+  response=$(curl -s -X DELETE "$API_BASE/api/workflows/$test_workflow_id")
+
+  if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
+    pass "Delete workflow"
+  else
+    fail "Delete workflow failed"
+  fi
+
+  # Verify deletion
+  response=$(curl -s -w "\n%{http_code}" "$API_BASE/api/workflows/$test_workflow_id")
+  code=$(echo "$response" | tail -n 1)
+  if [ "$code" -eq 404 ]; then
+    pass "Workflow deleted successfully"
+  else
+    fail "Workflow still exists after deletion"
+  fi
+else
+  fail "Create workflow failed"
+fi
+
+# Test invalid cron expression
+response=$(curl -s -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Bad Cron","description":"Test","schedule":"invalid","content":"test"}')
+
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Invalid cron expression rejected"
+else
+  fail "Invalid cron expression not rejected"
+fi
+
+# Test missing required fields
+response=$(curl -s -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Incomplete"}')
+
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Missing required fields rejected"
+else
+  fail "Missing required fields not rejected"
+fi
+
+echo ""
+
+# =========================================
 # Summary
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
