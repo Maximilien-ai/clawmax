@@ -48,6 +48,17 @@ interface WorkflowsProps {
   onNavigateToDoc?: (file: string) => void
 }
 
+// Helper function to strip YAML frontmatter from markdown content
+function stripFrontmatter(content: string): string {
+  // Match YAML frontmatter: starts with ---, ends with ---
+  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
+  const match = content.match(frontmatterRegex)
+  if (match) {
+    return content.slice(match[0].length).trim()
+  }
+  return content.trim()
+}
+
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
@@ -486,7 +497,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Workflow Content</h3>
                 <pre className="text-xs text-gray-700 bg-gray-50 p-4 rounded border border-gray-200 overflow-x-auto whitespace-pre-wrap">
-                  {selectedWorkflow.content}
+                  {stripFrontmatter(selectedWorkflow.content) || '(No content)'}
                 </pre>
               </div>
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-type DocSection = 'ORG' | 'AGENTS' | 'SYSTEM'
+type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
 interface DocEntry {
   path: string
@@ -43,6 +43,13 @@ const SECTION_CONFIG: Record<DocSection, { label: string; accent: string; header
     itemCls: 'text-gray-700 hover:bg-emerald-50',
     selectedCls: 'bg-emerald-50 text-emerald-700 font-medium',
   },
+  WORKFLOWS: {
+    label: 'WORKFLOWS',
+    accent: 'text-purple-600',
+    headerCls: 'text-purple-600 bg-purple-50 border-purple-100',
+    itemCls: 'text-gray-700 hover:bg-purple-50',
+    selectedCls: 'bg-purple-50 text-purple-700 font-medium',
+  },
   SYSTEM: {
     label: 'SYSTEM',
     accent: 'text-gray-400',
@@ -52,7 +59,17 @@ const SECTION_CONFIG: Record<DocSection, { label: string; accent: string; header
   },
 }
 
-const SECTION_ORDER: DocSection[] = ['ORG', 'AGENTS', 'SYSTEM']
+const SECTION_ORDER: DocSection[] = ['ORG', 'AGENTS', 'WORKFLOWS', 'SYSTEM']
+
+// Helper function to strip YAML frontmatter from markdown content
+function stripFrontmatter(content: string): string {
+  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
+  const match = content.match(frontmatterRegex)
+  if (match) {
+    return content.slice(match[0].length).trim()
+  }
+  return content.trim()
+}
 
 function stripPrefix(fullPath: string, section: DocSection): string {
   const prefix = section + '/'
@@ -65,7 +82,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [content, setContent] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, SYSTEM: true })
+  const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, WORKFLOWS: false, SYSTEM: true })
   const [treeCollapsed, setTreeCollapsed] = useState(false)
   // collapsedDirs: Set of "SECTION/dir" keys for collapsed subdirectories
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
@@ -608,7 +625,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-3xl mx-auto px-8 py-8">
                   <div className="prose">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</ReactMarkdown>
                   </div>
                 </div>
               </div>

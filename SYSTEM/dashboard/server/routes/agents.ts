@@ -7,6 +7,7 @@ import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImp
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getGatewayClient } from '../lib/gateway-rpc'
+import { listWorkflows, resolveParticipants } from '../lib/workflows'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -1576,6 +1577,35 @@ router.get('/:id/communities', (req, res) => {
     communities: agent.communities.map(c => c.name),
     groups: agent.groups.map(g => g.name),
   })
+})
+
+// GET /api/agents/:id/workflows — get workflows targeting this agent
+router.get('/:id/workflows', (req, res) => {
+  const { id } = req.params
+  const agents = listAgents()
+  const agent = agents.find(a => a.id === id)
+
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    const allWorkflows = listWorkflows()
+    const agentWorkflows = allWorkflows.filter(workflow => {
+      const participants = resolveParticipants(workflow, agents)
+      return participants.some(p => p.agentId === id)
+    }).map(wf => ({
+      id: wf.id,
+      name: wf.name,
+      description: wf.description,
+      enabled: wf.enabled,
+      schedule: wf.schedule,
+    }))
+
+    res.json({ workflows: agentWorkflows })
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get agent workflows', message: error.message })
+  }
 })
 
 // POST /api/agents/:id/archive — archive an agent (move to archive directory)

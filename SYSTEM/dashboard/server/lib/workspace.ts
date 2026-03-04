@@ -41,7 +41,7 @@ interface StatusCache {
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
 
-export type DocSection = 'ORG' | 'AGENTS' | 'SYSTEM'
+export type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
 export interface DocEntry {
   path: string       // relative to WORKSPACE
@@ -51,7 +51,7 @@ export interface DocEntry {
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
 
 /** Return all .md file paths with section classification, sorted by section then path.
- *  ORG/ → ORG, AGENTS/ → AGENTS (per-agent docs), SYSTEM/ → SYSTEM, root → SYSTEM fallback */
+ *  ORG/ → ORG, AGENTS/ → AGENTS (per-agent docs), WORKFLOWS/ → WORKFLOWS, SYSTEM/ → SYSTEM, root → SYSTEM fallback */
 export function listMarkdownFiles(): DocEntry[] {
   const results: DocEntry[] = []
   const workspacePath = getWorkspacePath()
@@ -60,6 +60,7 @@ export function listMarkdownFiles(): DocEntry[] {
   function sectionFor(relPath: string): DocSection {
     if (relPath.startsWith('ORG/') || relPath.startsWith('ORG\\')) return 'ORG'
     if (relPath.startsWith('AGENTS/') || relPath.startsWith('AGENTS\\')) return 'AGENTS'
+    if (relPath.startsWith('WORKFLOWS/') || relPath.startsWith('WORKFLOWS\\')) return 'WORKFLOWS'
     return 'SYSTEM'
   }
 
@@ -102,7 +103,7 @@ export function listMarkdownFiles(): DocEntry[] {
   walkAgents(agentsDir)
 
   return results.sort((a, b) => {
-    const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, SYSTEM: 2 }
+    const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, WORKFLOWS: 2, SYSTEM: 3 }
     const sd = sOrder[a.section] - sOrder[b.section]
     return sd !== 0 ? sd : a.path.localeCompare(b.path)
   })
