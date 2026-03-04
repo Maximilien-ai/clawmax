@@ -13,6 +13,7 @@ import skillsRouter from './routes/skills'
 import workspacesRouter from './routes/workspaces'
 import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
+import workflowsRouter from './routes/workflows'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
@@ -281,6 +282,7 @@ app.use('/api/agents', requireAuth, chatRouter)
 app.use('/api/agents', requireAuth, logsRouter)
 app.use('/api/templates', requireAuth, templatesRouter)
 app.use('/api/skills', requireAuth, skillsRouter)
+app.use('/api/workflows', requireAuth, workflowsRouter)
 app.use('/api/workspaces', requireAuth, workspacesRouter)
 app.use('/api', requireAuth, channelsRouter)
 
