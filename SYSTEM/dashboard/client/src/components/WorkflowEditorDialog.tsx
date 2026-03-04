@@ -307,6 +307,53 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Target Agents (OR logic)
               </label>
               <div className="space-y-4 bg-gray-50 border border-gray-200 rounded-md p-4">
+                {/* Specific Agents */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
+                  {/* Search */}
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search agents..."
+                      value={agentSearch}
+                      onChange={e => setAgentSearch(e.target.value)}
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                    {agentSearch && (
+                      <button
+                        onClick={() => setAgentSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    {agents.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No agents available</p>
+                    ) : agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No agents match search</p>
+                    ) : (
+                      agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).map(agent => (
+                        <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.targeting.agents.includes(agent.id)}
+                            onChange={e => {
+                              const newAgents = e.target.checked
+                                ? [...formData.targeting.agents, agent.id]
+                                : formData.targeting.agents.filter(a => a !== agent.id)
+                              handleTargetingChange('agents', newAgents)
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">{agent.name || agent.id}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 {/* Groups */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Groups</label>
@@ -447,53 +494,6 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       }
                     }}
                   />
-                </div>
-
-                {/* Specific Agents */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
-                  {/* Search */}
-                  <div className="relative mb-2">
-                    <input
-                      type="text"
-                      placeholder="Search agents..."
-                      value={agentSearch}
-                      onChange={e => setAgentSearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                    {agentSearch && (
-                      <button
-                        onClick={() => setAgentSearch('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
-                    {agents.length === 0 ? (
-                      <p className="text-xs text-gray-400 py-2 px-1">No agents available</p>
-                    ) : agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).length === 0 ? (
-                      <p className="text-xs text-gray-400 py-2 px-1">No agents match search</p>
-                    ) : (
-                      agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).map(agent => (
-                        <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.targeting.agents.includes(agent.id)}
-                            onChange={e => {
-                              const newAgents = e.target.checked
-                                ? [...formData.targeting.agents, agent.id]
-                                : formData.targeting.agents.filter(a => a !== agent.id)
-                              handleTargetingChange('agents', newAgents)
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm text-gray-700">{agent.name || agent.id}</span>
-                        </label>
-                      ))
-                    )}
-                  </div>
                 </div>
               </div>
             </div>

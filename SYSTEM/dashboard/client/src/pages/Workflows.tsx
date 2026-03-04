@@ -584,8 +584,7 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
 
-  const handleOpenFile = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleOpenFile = async () => {
     const filePath = `${workspacePath}/WORKFLOWS/${workflow.id}.md`
 
     try {
@@ -611,8 +610,11 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-gray-900 text-sm">{workflow.name}</h3>
             <button
-              onClick={handleOpenFile}
-              className="text-gray-400 hover:text-sky-600 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleOpenFile()
+              }}
+              className="text-gray-400 hover:text-sky-600 transition-colors text-base"
               title="Open file in editor"
             >
               📄
@@ -663,7 +665,7 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
           />
           <div className="absolute right-4 top-12 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
             <button
-              onClick={handleOpenFile}
+              onClick={(e) => { e.stopPropagation(); handleOpenFile(); setShowMenu(false); }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
             >
               📄 Open File
