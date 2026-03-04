@@ -63,8 +63,9 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [agents, setAgents] = useState<Agent[]>([])
   const [communities, setCommunities] = useState<Community[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [allTags, setAllTags] = useState<string[]>([])
 
-  // Load available agents, communities, groups
+  // Load available agents, communities, groups, and extract all tags
   useEffect(() => {
     if (isOpen) {
       Promise.all([
@@ -75,6 +76,13 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
         setAgents(agentsData.agents || [])
         setCommunities(communitiesData.communities || [])
         setGroups(groupsData.groups || [])
+
+        // Extract unique tags from all agents
+        const tagSet = new Set<string>()
+        ;(agentsData.agents || []).forEach((agent: any) => {
+          ;(agent.tags || []).forEach((tag: string) => tagSet.add(tag))
+        })
+        setAllTags(Array.from(tagSet).sort())
       })
     }
   }, [isOpen])
@@ -350,13 +358,61 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                 {/* Tags */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Tags (comma-separated)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Tags</label>
+
+                  {/* Selected tags */}
+                  {formData.targeting.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {formData.targeting.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-sky-100 text-sky-700 text-xs rounded"
+                        >
+                          {tag}
+                          <button
+                            onClick={() => handleTargetingChange('tags', formData.targeting.tags.filter(t => t !== tag))}
+                            className="hover:text-sky-900"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Available tags to select */}
+                  {allTags.length > 0 && (
+                    <div className="space-y-1.5 max-h-32 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                      {allTags.filter(tag => !formData.targeting.tags.includes(tag)).map(tag => (
+                        <label key={tag} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            onChange={() => handleTargetingChange('tags', [...formData.targeting.tags, tag])}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">{tag}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Manual tag input */}
                   <input
                     type="text"
-                    value={formData.targeting.tags.join(', ')}
-                    onChange={e => handleTargetingChange('tags', e.target.value.split(',').map(t => t.trim()).filter(t => t))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    placeholder="e.g., developer, qa, frontend"
+                    placeholder="Type custom tag and press Enter..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 mt-2"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const input = e.currentTarget
+                        const newTag = input.value.trim()
+                        if (newTag && !formData.targeting.tags.includes(newTag)) {
+                          handleTargetingChange('tags', [...formData.targeting.tags, newTag])
+                          input.value = ''
+                        }
+                      }
+                    }}
                   />
                 </div>
 
