@@ -40,7 +40,13 @@ interface WorkflowExecution {
   failureCount: number
 }
 
-export default function Workflows() {
+interface WorkflowsProps {
+  onNavigateToAgent?: (agentId: string) => void
+  onNavigateToGroup?: (groupName: string) => void
+  onNavigateToCommunity?: (communityName: string) => void
+}
+
+export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
@@ -344,13 +350,33 @@ export default function Workflows() {
                   {selectedWorkflow.targeting.communities.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Communities:</span>{' '}
-                      <span className="text-gray-900">{selectedWorkflow.targeting.communities.join(', ')}</span>
+                      {selectedWorkflow.targeting.communities.map((community, idx) => (
+                        <React.Fragment key={community}>
+                          {idx > 0 && ', '}
+                          <button
+                            onClick={() => onNavigateToCommunity?.(community)}
+                            className="text-sky-600 hover:text-sky-700 hover:underline"
+                          >
+                            {community}
+                          </button>
+                        </React.Fragment>
+                      ))}
                     </div>
                   )}
                   {selectedWorkflow.targeting.groups.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Groups:</span>{' '}
-                      <span className="text-gray-900">{selectedWorkflow.targeting.groups.join(', ')}</span>
+                      {selectedWorkflow.targeting.groups.map((group, idx) => (
+                        <React.Fragment key={group}>
+                          {idx > 0 && ', '}
+                          <button
+                            onClick={() => onNavigateToGroup?.(group)}
+                            className="text-sky-600 hover:text-sky-700 hover:underline"
+                          >
+                            {group}
+                          </button>
+                        </React.Fragment>
+                      ))}
                     </div>
                   )}
                   {selectedWorkflow.targeting.tags.length > 0 && (
@@ -362,7 +388,17 @@ export default function Workflows() {
                   {selectedWorkflow.targeting.agents.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Specific Agents:</span>{' '}
-                      <span className="text-gray-900">{selectedWorkflow.targeting.agents.join(', ')}</span>
+                      {selectedWorkflow.targeting.agents.map((agent, idx) => (
+                        <React.Fragment key={agent}>
+                          {idx > 0 && ', '}
+                          <button
+                            onClick={() => onNavigateToAgent?.(agent)}
+                            className="text-sky-600 hover:text-sky-700 hover:underline"
+                          >
+                            {agent}
+                          </button>
+                        </React.Fragment>
+                      ))}
                     </div>
                   )}
                   {selectedWorkflow.participantCount === 0 && (
@@ -462,8 +498,16 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete }: {
   onToggle: (currentEnabled: boolean) => void
   onDelete: () => void
 }) {
+  const [showMenu, setShowMenu] = React.useState(false)
+
+  const handleOpenFile = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const filePath = `file://${process.env.HOME || '~'}/.openclaw/workspace/WORKFLOWS/${workflow.id}.md`
+    window.open(filePath, '_blank')
+  }
+
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer">
+    <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer relative">
       <div onClick={onClick}>
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-semibold text-gray-900 text-sm">{workflow.name}</h3>
@@ -471,6 +515,13 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete }: {
             <span className={`w-2 h-2 rounded-full ${
               workflow.enabled ? 'bg-green-400' : 'bg-gray-300'
             }`} />
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1"
+              title="Actions"
+            >
+              ⋮
+            </button>
           </div>
         </div>
 
@@ -496,21 +547,35 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete }: {
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggle(workflow.enabled); }}
-          className="text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
-        >
-          {workflow.enabled ? 'Disable' : 'Enable'}
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="text-xs px-3 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 font-medium transition-colors"
-        >
-          Delete
-        </button>
-      </div>
+      {/* Actions Menu Dropdown */}
+      {showMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}
+          />
+          <div className="absolute right-4 top-12 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+            <button
+              onClick={handleOpenFile}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              📄 Open File
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggle(workflow.enabled); setShowMenu(false); }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              {workflow.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); setShowMenu(false); }}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

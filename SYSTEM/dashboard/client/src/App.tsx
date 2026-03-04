@@ -209,7 +209,11 @@ export default function App() {
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
-              <Workflows />
+              <Workflows
+                onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                onNavigateToCommunity={() => { setPage('organizations'); }}
+              />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
               <SkillsTest initialAgentId={initialSkillsAgent} />
