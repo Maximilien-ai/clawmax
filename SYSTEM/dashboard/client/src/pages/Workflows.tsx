@@ -45,9 +45,10 @@ interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToGroup?: (groupName: string) => void
   onNavigateToCommunity?: (communityName: string) => void
+  onNavigateToDoc?: (file: string) => void
 }
 
-export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity }: WorkflowsProps = {}) {
+export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
@@ -58,15 +59,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
-  const [workspacePath, setWorkspacePath] = useState('')
-
-  // Get workspace path
-  useEffect(() => {
-    fetch('/api/health')
-      .then(r => r.json())
-      .then(data => setWorkspacePath(data.workspace || ''))
-      .catch(() => {})
-  }, [])
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -345,10 +337,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <WorkflowCard
                 key={workflow.id}
                 workflow={workflow}
-                workspacePath={workspacePath}
                 onClick={() => fetchWorkflowDetails(workflow.id)}
                 onToggle={(enabled) => handleToggleEnabled(workflow.id, enabled)}
                 onDelete={() => handleDelete(workflow.id)}
+                onOpenFile={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
               />
             ))}
           </div>
@@ -575,33 +567,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile }: {
   workflow: Workflow
-  workspacePath: string
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
   onDelete: () => void
+  onOpenFile: () => void
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
-
-  const handleOpenFile = async () => {
-    const filePath = `${workspacePath}/WORKFLOWS/${workflow.id}.md`
-
-    try {
-      const resp = await fetch('/api/open-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath })
-      })
-
-      if (!resp.ok) {
-        const error = await resp.json()
-        console.error('Failed to open file:', error.error || 'Unknown error')
-      }
-    } catch (err) {
-      console.error('Failed to open file:', err)
-    }
-  }
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer relative">
@@ -612,10 +585,10 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                handleOpenFile()
+                onOpenFile()
               }}
               className="text-gray-400 hover:text-sky-600 transition-colors text-base"
-              title="Open file in editor"
+              title="Open file in Documents"
             >
               📄
             </button>
@@ -665,7 +638,7 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
           />
           <div className="absolute right-4 top-12 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
             <button
-              onClick={(e) => { e.stopPropagation(); handleOpenFile(); setShowMenu(false); }}
+              onClick={(e) => { e.stopPropagation(); onOpenFile(); setShowMenu(false); }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
             >
               📄 Open File

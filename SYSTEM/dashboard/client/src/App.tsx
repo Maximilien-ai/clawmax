@@ -213,6 +213,7 @@ export default function App() {
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                 onNavigateToCommunity={() => { setPage('organizations'); }}
+                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
