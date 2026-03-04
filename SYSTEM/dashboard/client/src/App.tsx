@@ -5,6 +5,7 @@ import Activity from './pages/Activity'
 import Communication from './pages/Communication'
 import Templates from './pages/Templates'
 import Organizations from './pages/Organizations'
+import Workflows from './pages/Workflows'
 import Logs from './pages/Logs'
 import { SkillsTest } from './pages/SkillsTest'
 import { ToastProvider } from './components/Toast'
@@ -14,7 +15,7 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'skills' | 'logs'
+type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'logs'
 
 interface SystemInfo {
   hostname: string
@@ -36,6 +37,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'communication', label: 'Communication', icon: 'comms' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   // System tabs below - separated by divider
+  { id: 'workflows', label: 'Workflows', icon: 'workflows' },
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
   { id: 'logs', label: 'Logs', icon: 'logs' },
@@ -206,6 +208,9 @@ export default function App() {
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
               />
             </div>
+            <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
+              <Workflows />
+            </div>
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
               <SkillsTest initialAgentId={initialSkillsAgent} />
             </div>
@@ -303,6 +308,7 @@ function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart
     robot: '🤖',
     org: '🏢',
     templates: '📑',
+    workflows: '⚙️',
     skills: '🛠️',
     comms: '💬',
     activity: '📊',
