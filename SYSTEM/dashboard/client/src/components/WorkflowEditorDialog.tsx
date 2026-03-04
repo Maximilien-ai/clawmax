@@ -65,6 +65,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [groups, setGroups] = useState<Group[]>([])
   const [allTags, setAllTags] = useState<string[]>([])
 
+  // Search filters for checkbox lists
+  const [groupSearch, setGroupSearch] = useState('')
+  const [communitySearch, setCommunitySearch] = useState('')
+  const [agentSearch, setAgentSearch] = useState('')
+
   // Load available agents, communities, groups, and extract all tags
   useEffect(() => {
     if (isOpen) {
@@ -305,11 +310,31 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Groups */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Groups</label>
+                  {/* Search */}
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search groups..."
+                      value={groupSearch}
+                      onChange={e => setGroupSearch(e.target.value)}
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                    {groupSearch && (
+                      <button
+                        onClick={() => setGroupSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
                     {groups.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No groups available</p>
+                    ) : groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No groups match search</p>
                     ) : (
-                      groups.map(group => (
+                      groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).map(group => (
                         <label key={group.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
                           <input
                             type="checkbox"
@@ -332,27 +357,35 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Communities */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Communities</label>
-                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
-                    {communities.length === 0 ? (
-                      <p className="text-xs text-gray-400 py-2 px-1">No communities available</p>
-                    ) : (
-                      communities.map(community => (
-                        <label key={community.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.targeting.communities.includes(community.name)}
-                            onChange={e => {
-                              const newCommunities = e.target.checked
-                                ? [...formData.targeting.communities, community.name]
-                                : formData.targeting.communities.filter(c => c !== community.name)
-                              handleTargetingChange('communities', newCommunities)
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm text-gray-700">{community.name}</span>
-                        </label>
-                      ))
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search communities..."
+                      value={communitySearch}
+                      onChange={e => setCommunitySearch(e.target.value)}
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                    {communitySearch && (
+                      <button onClick={() => setCommunitySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
                     )}
+                  </div>
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    {communities.filter(c => c.name.toLowerCase().includes(communitySearch.toLowerCase())).map(community => (
+                      <label key={community.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.targeting.communities.includes(community.name)}
+                          onChange={e => {
+                            const newCommunities = e.target.checked
+                              ? [...formData.targeting.communities, community.name]
+                              : formData.targeting.communities.filter(c => c !== community.name)
+                            handleTargetingChange('communities', newCommunities)
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700">{community.name}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
@@ -419,11 +452,31 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
+                  {/* Search */}
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search agents..."
+                      value={agentSearch}
+                      onChange={e => setAgentSearch(e.target.value)}
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                    {agentSearch && (
+                      <button
+                        onClick={() => setAgentSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
                     {agents.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No agents available</p>
+                    ) : agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No agents match search</p>
                     ) : (
-                      agents.map(agent => (
+                      agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).map(agent => (
                         <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
                           <input
                             type="checkbox"

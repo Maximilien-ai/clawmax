@@ -21,6 +21,7 @@ interface Workflow {
   modified: string
   author: string
   participantCount: number
+  targeting: AgentTargeting
 }
 
 interface WorkflowDetails extends Workflow {
@@ -53,9 +54,19 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
+  const [workspacePath, setWorkspacePath] = useState('')
+
+  // Get workspace path
+  useEffect(() => {
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => setWorkspacePath(data.workspace || ''))
+      .catch(() => {})
+  }, [])
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -207,16 +218,47 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
   }
 
-  // Filter workflows by search query
+  // Get all unique tags from workflow targeting
+  const allTags = React.useMemo(() => {
+    const tags = new Set<string>()
+    workflows.forEach(w => {
+      w.targeting.tags.forEach(tag => tags.add(tag))
+    })
+    return Array.from(tags).sort()
+  }, [workflows])
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  // Filter workflows by search query and selected tags
   const filteredWorkflows = React.useMemo(() => {
-    if (!searchQuery.trim()) return workflows
-    const query = searchQuery.trim().toLowerCase()
-    return workflows.filter(w =>
-      w.name.toLowerCase().includes(query) ||
-      w.description.toLowerCase().includes(query) ||
-      w.id.toLowerCase().includes(query)
-    )
-  }, [workflows, searchQuery])
+    let filtered = workflows
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase()
+      filtered = filtered.filter(w =>
+        w.name.toLowerCase().includes(query) ||
+        w.description.toLowerCase().includes(query) ||
+        w.id.toLowerCase().includes(query)
+      )
+    }
+
+    // Filter by selected tags
+    if (selectedTags.size > 0) {
+      filtered = filtered.filter(w =>
+        w.targeting.tags.some(t => selectedTags.has(t))
+      )
+    }
+
+    return filtered
+  }, [workflows, searchQuery, selectedTags])
 
   return (
     <div className="h-full flex flex-col">
@@ -238,19 +280,59 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         </div>
 
         {/* Search */}
-        <div className="mt-4">
+        <div className="mt-4 relative">
           <input
             type="text"
             placeholder="Search workflows..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
+        {/* Tag filters */}
+        {allTags.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+              <button
+                onClick={() => setSelectedTags(new Set())}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  selectedTags.size === 0
+                    ? 'bg-sky-600 text-white border border-sky-600'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                }`}
+              >
+                All
+              </button>
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    selectedTags.has(tag)
+                      ? 'bg-sky-600 text-white border border-sky-600'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center text-gray-500 py-12">Loading workflows...</div>
         ) : filteredWorkflows.length === 0 ? (
@@ -263,6 +345,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <WorkflowCard
                 key={workflow.id}
                 workflow={workflow}
+                workspacePath={workspacePath}
                 onClick={() => fetchWorkflowDetails(workflow.id)}
                 onToggle={(enabled) => handleToggleEnabled(workflow.id, enabled)}
                 onDelete={() => handleDelete(workflow.id)}
@@ -492,25 +575,44 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete }: {
+function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: {
   workflow: Workflow
+  workspacePath: string
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
   onDelete: () => void
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
 
-  const handleOpenFile = (e: React.MouseEvent) => {
+  const handleOpenFile = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    const filePath = `file://${process.env.HOME || '~'}/.openclaw/workspace/WORKFLOWS/${workflow.id}.md`
-    window.open(filePath, '_blank')
+    const filePath = `${workspacePath}/WORKFLOWS/${workflow.id}.md`
+
+    try {
+      await fetch('/api/open-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      })
+    } catch (err) {
+      console.error('Failed to open file:', err)
+    }
   }
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer relative">
       <div onClick={onClick}>
         <div className="flex items-start justify-between mb-2">
-          <h3 className="font-semibold text-gray-900 text-sm">{workflow.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 text-sm">{workflow.name}</h3>
+            <button
+              onClick={handleOpenFile}
+              className="text-gray-400 hover:text-sky-600 transition-colors"
+              title="Open file in editor"
+            >
+              📄
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${
               workflow.enabled ? 'bg-green-400' : 'bg-gray-300'

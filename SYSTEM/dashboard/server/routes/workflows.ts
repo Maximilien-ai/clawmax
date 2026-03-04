@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
   try {
     const workflows = listWorkflows()
 
-    // Include participant count for each workflow
+    // Include participant count and targeting for each workflow
     const agents = listAgents()
     const workflowsWithCounts = workflows.map(workflow => {
       const participants = resolveParticipants(workflow, agents)
@@ -36,7 +36,8 @@ router.get('/', (req, res) => {
         owner: workflow.owner,
         created: workflow.created,
         modified: workflow.modified,
-        participantCount: participants.length
+        participantCount: participants.length,
+        targeting: workflow.targeting
       }
     })
 

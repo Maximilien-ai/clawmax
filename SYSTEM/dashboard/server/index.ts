@@ -275,6 +275,26 @@ app.post('/api/docs/content', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
+// Open file in editor
+app.post('/api/open-file', requireAuth, (req, res) => {
+  const { path: filePath } = req.body as { path?: string }
+  if (!filePath) {
+    res.status(400).json({ ok: false, error: 'Missing file path' })
+    return
+  }
+
+  const { spawn } = require('child_process')
+
+  // Try to open in VSCode (code command)
+  const child = spawn('code', [filePath], {
+    detached: true,
+    stdio: 'ignore'
+  })
+
+  child.unref()
+  res.json({ ok: true })
+})
+
 // API routes (all protected with auth)
 app.use('/api/docs', requireAuth, docsRouter)
 app.use('/api/agents', requireAuth, agentsRouter)
