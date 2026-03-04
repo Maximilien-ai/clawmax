@@ -589,11 +589,16 @@ function WorkflowCard({ workflow, workspacePath, onClick, onToggle, onDelete }: 
     const filePath = `${workspacePath}/WORKFLOWS/${workflow.id}.md`
 
     try {
-      await fetch('/api/open-file', {
+      const resp = await fetch('/api/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: filePath })
       })
+
+      if (!resp.ok) {
+        const error = await resp.json()
+        console.error('Failed to open file:', error.error || 'Unknown error')
+      }
     } catch (err) {
       console.error('Failed to open file:', err)
     }

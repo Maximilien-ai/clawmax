@@ -286,13 +286,22 @@ app.post('/api/open-file', requireAuth, (req, res) => {
   const { spawn } = require('child_process')
 
   // Try to open in VSCode (code command)
-  const child = spawn('code', [filePath], {
-    detached: true,
-    stdio: 'ignore'
-  })
+  try {
+    const child = spawn('code', [filePath], {
+      detached: true,
+      stdio: 'ignore'
+    })
 
-  child.unref()
-  res.json({ ok: true })
+    child.on('error', (err: Error) => {
+      console.error('[Open File] Failed to spawn code command:', err.message)
+    })
+
+    child.unref()
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error('[Open File] Error:', err.message)
+    res.status(500).json({ ok: false, error: 'Failed to open file in editor. Make sure VS Code command-line tools are installed.' })
+  }
 })
 
 // API routes (all protected with auth)
