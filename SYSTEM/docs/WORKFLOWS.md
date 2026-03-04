@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Workflows enable scheduled, recurring tasks to be executed across one or more agents in the ClawMax organization. Examples include:
+Workflows enable scheduled, recurring tasks to be executed across one or more agents in an organization. Examples include:
 - Daily standup reports from all agents
 - Weekly progress summaries
 - Periodic health checks
@@ -23,7 +23,8 @@ Workflows enable scheduled, recurring tasks to be executed across one or more ag
 2. **Agent targeting flexibility** - Target agents by communities, groups, tags, or individual IDs
 3. **Human-readable** - Workflows are plain text, editable in any text editor
 4. **Cron-based scheduling** - Standard cron syntax for scheduling
-5. **No execution engine (v1)** - v0.9.0 stores workflows only; execution engine in future release
+5. **Execution engine with agent ownership** - Workflows can have an agent owner responsible for execution management, OR be fully automated
+6. **Execution logging** - Track execution history, traces, success/failure for all workflow runs
 
 ---
 
@@ -36,6 +37,13 @@ Workflows enable scheduled, recurring tasks to be executed across one or more ag
 │   ├── daily-standup.md
 │   ├── weekly-summary.md
 │   ├── health-check.md
+│   ├── executions/              # Execution history logs
+│   │   ├── daily-standup/
+│   │   │   ├── 2026-03-04-09-00.json
+│   │   │   ├── 2026-03-05-09-00.json
+│   │   │   └── ...
+│   │   └── weekly-summary/
+│   │       └── ...
 │   └── ...
 ├── AGENTS/
 │   ├── max0/
@@ -63,6 +71,8 @@ targeting:
 created: 2026-03-04T10:00:00Z
 modified: 2026-03-04T10:00:00Z
 author: max
+owner: max0  # Optional: Agent responsible for managing workflow execution
+executionMode: automated  # "automated" | "managed"
 ---
 
 # Daily Standup Report
@@ -92,6 +102,8 @@ interface Workflow {
   created: string               // ISO timestamp
   modified: string              // ISO timestamp
   author: string                // Creator username
+  owner?: string                // Optional: Agent ID responsible for managing execution
+  executionMode: 'automated' | 'managed'  // Automated or agent-managed
   content: string               // Markdown body (the actual task)
 }
 
@@ -107,6 +119,85 @@ interface WorkflowParticipant {
   agentName: string
   reason: string                // "community:maximilien" | "group:engineering" | "tag:developer" | "agent:max0"
 }
+
+interface WorkflowExecution {
+  id: string                    // Unique execution ID
+  workflowId: string            // Parent workflow ID
+  startedAt: string             // ISO timestamp
+  completedAt?: string          // ISO timestamp (undefined if still running)
+  status: 'running' | 'completed' | 'failed' | 'paused'
+  triggerType: 'scheduled' | 'manual' | 'agent'  // How was it triggered
+  triggeredBy?: string          // Agent ID if agent-triggered
+  participants: WorkflowExecutionParticipant[]
+  logs: string[]                // Execution log entries
+}
+
+interface WorkflowExecutionParticipant {
+  agentId: string
+  agentName: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  startedAt?: string
+  completedAt?: string
+  result?: any                  // Agent's response/result
+  error?: string                // Error message if failed
+}
+```
+
+---
+
+## Execution Modes
+
+### Automated Mode
+- **executionMode:** `automated`
+- **No owner agent required**
+- Workflow execution engine handles scheduling, execution, and monitoring
+- Runs automatically based on cron schedule
+- Failures trigger automatic retries (configurable)
+- Results logged to `WORKFLOWS/executions/`
+
+### Managed Mode
+- **executionMode:** `managed`
+- **Requires owner agent** (specified in `owner` field)
+- Owner agent is responsible for:
+  - Starting workflow execution (can override schedule)
+  - Monitoring participant progress
+  - Pausing/resuming execution
+  - Handling failures and retries
+  - Deciding when workflow is complete
+- Owner receives notifications about workflow status
+- Owner can manually intervene if participants fail
+
+### Example: Automated Workflow
+```yaml
+---
+id: health-check
+name: Daily Health Check
+schedule: "0 */6 * * *"  # Every 6 hours
+enabled: true
+executionMode: automated  # Fully automated
+targeting:
+  communities: ["maximilien"]
+---
+
+# Health Check
+Report your current status and any issues.
+```
+
+### Example: Managed Workflow
+```yaml
+---
+id: quarterly-review
+name: Quarterly Performance Review
+schedule: "0 9 1 */3 *"  # First day of quarter at 9am
+enabled: true
+executionMode: managed
+owner: max0  # Hernan manages this workflow
+targeting:
+  communities: ["maximilien"]
+---
+
+# Quarterly Review
+Provide a comprehensive review of your quarterly performance...
 ```
 
 ---
@@ -362,6 +453,83 @@ GET /api/workflows/:id/participants
     }
   ],
   "count": 3
+}
+```
+
+### 7. Get Execution History
+```
+GET /api/workflows/:id/executions?limit=10
+```
+
+**Response:**
+```json
+{
+  "workflowId": "daily-standup",
+  "executions": [
+    {
+      "id": "2026-03-04-09-00",
+      "startedAt": "2026-03-04T09:00:00Z",
+      "completedAt": "2026-03-04T09:05:23Z",
+      "status": "completed",
+      "triggerType": "scheduled",
+      "participantCount": 12,
+      "successCount": 12,
+      "failureCount": 0
+    }
+  ]
+}
+```
+
+### 8. Get Execution Details
+```
+GET /api/workflows/:id/executions/:executionId
+```
+
+**Response:**
+```json
+{
+  "id": "2026-03-04-09-00",
+  "workflowId": "daily-standup",
+  "startedAt": "2026-03-04T09:00:00Z",
+  "completedAt": "2026-03-04T09:05:23Z",
+  "status": "completed",
+  "triggerType": "scheduled",
+  "participants": [
+    {
+      "agentId": "max0",
+      "agentName": "Hernan",
+      "status": "completed",
+      "startedAt": "2026-03-04T09:00:15Z",
+      "completedAt": "2026-03-04T09:02:45Z",
+      "result": "Yesterday: Fixed auth bug. Today: Working on workflows..."
+    }
+  ],
+  "logs": [
+    "2026-03-04T09:00:00Z - Workflow started (scheduled)",
+    "2026-03-04T09:00:15Z - Sent to max0 (Hernan)",
+    "2026-03-04T09:02:45Z - max0 completed successfully",
+    "2026-03-04T09:05:23Z - Workflow completed (12/12 agents)"
+  ]
+}
+```
+
+### 9. Trigger Manual Execution (Future - v1.0)
+```
+POST /api/workflows/:id/execute
+```
+
+**Request:**
+```json
+{
+  "triggeredBy": "max0"  // Optional: agent ID triggering execution
+}
+```
+
+**Response:**
+```json
+{
+  "executionId": "2026-03-04-14-30",
+  "message": "Workflow execution started"
 }
 ```
 
@@ -743,8 +911,11 @@ Common presets for CronScheduleBuilder:
 
 4. **Agent Offline Handling:**
    - What happens if targeted agent is offline during execution?
-   - **Decision:** Deferred to execution engine (v1.0).
+   - **Decision:** Execution waits/retries for offline agents. Configurable timeout per workflow.
 
+5. **Execution Logging:**
+   - How do we track execution history and agent responses?
+   - **Decision:** Store execution logs in `WORKFLOWS/executions/` with full trace data per run.
 ---
 
 ## Success Criteria
