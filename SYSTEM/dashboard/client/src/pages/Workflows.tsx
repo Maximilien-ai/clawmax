@@ -49,6 +49,7 @@ export default function Workflows() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showEditorDialog, setShowEditorDialog] = useState(false)
+  const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -161,6 +162,45 @@ export default function Workflows() {
     }
   }
 
+  const handleEditWorkflow = async (data: any) => {
+    if (!editingWorkflow) return
+
+    try {
+      const resp = await fetch(`/api/workflows/${editingWorkflow.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          schedule: data.schedule,
+          enabled: data.enabled,
+          targeting: data.targeting,
+          executionMode: data.executionMode,
+          owner: data.owner,
+          content: data.content
+        })
+      })
+
+      if (!resp.ok) {
+        const error = await resp.json()
+        throw new Error(error.details || 'Failed to update workflow')
+      }
+
+      showSuccess('Workflow updated successfully')
+      fetchWorkflows()
+
+      // Refresh detail panel if it's still open
+      if (selectedWorkflow?.id === editingWorkflow.id) {
+        fetchWorkflowDetails(editingWorkflow.id)
+      }
+
+      setEditingWorkflow(null)
+    } catch (err: any) {
+      showError(err.message || 'Failed to update workflow')
+      throw err
+    }
+  }
+
   // Filter workflows by search query
   const filteredWorkflows = React.useMemo(() => {
     if (!searchQuery.trim()) return workflows
@@ -239,12 +279,23 @@ export default function Workflows() {
           <div className="fixed top-0 right-0 bottom-0 w-full md:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">{selectedWorkflow.name}</h2>
-              <button
-                onClick={() => setShowDetailPanel(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setEditingWorkflow(selectedWorkflow)
+                    setShowDetailPanel(false)
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setShowDetailPanel(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
@@ -374,13 +425,33 @@ export default function Workflows() {
         </>
       )}
 
-      {/* Editor Dialog */}
+      {/* Create Dialog */}
       <WorkflowEditorDialog
         isOpen={showEditorDialog}
         onClose={() => setShowEditorDialog(false)}
         onSave={handleCreateWorkflow}
         mode="create"
       />
+
+      {/* Edit Dialog */}
+      {editingWorkflow && (
+        <WorkflowEditorDialog
+          isOpen={!!editingWorkflow}
+          onClose={() => setEditingWorkflow(null)}
+          onSave={handleEditWorkflow}
+          initialData={{
+            name: editingWorkflow.name,
+            description: editingWorkflow.description,
+            schedule: editingWorkflow.schedule,
+            enabled: editingWorkflow.enabled,
+            executionMode: editingWorkflow.executionMode,
+            owner: editingWorkflow.owner,
+            targeting: editingWorkflow.targeting,
+            content: editingWorkflow.content
+          }}
+          mode="edit"
+        />
+      )}
     </div>
   )
 }

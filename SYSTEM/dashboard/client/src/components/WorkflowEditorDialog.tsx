@@ -296,40 +296,56 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               <div className="space-y-4 bg-gray-50 border border-gray-200 rounded-md p-4">
                 {/* Groups */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Groups</label>
-                  <select
-                    multiple
-                    value={formData.targeting.groups}
-                    onChange={e => handleTargetingChange('groups', Array.from(e.target.selectedOptions, opt => opt.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    size={Math.min(5, groups.length)}
-                  >
-                    {groups.map(group => (
-                      <option key={group.name} value={group.name}>
-                        {group.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Hold Cmd/Ctrl to select multiple</p>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Groups</label>
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    {groups.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No groups available</p>
+                    ) : (
+                      groups.map(group => (
+                        <label key={group.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.targeting.groups.includes(group.name)}
+                            onChange={e => {
+                              const newGroups = e.target.checked
+                                ? [...formData.targeting.groups, group.name]
+                                : formData.targeting.groups.filter(g => g !== group.name)
+                              handleTargetingChange('groups', newGroups)
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">{group.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 {/* Communities */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Communities</label>
-                  <select
-                    multiple
-                    value={formData.targeting.communities}
-                    onChange={e => handleTargetingChange('communities', Array.from(e.target.selectedOptions, opt => opt.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    size={Math.min(5, communities.length)}
-                  >
-                    {communities.map(community => (
-                      <option key={community.name} value={community.name}>
-                        {community.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Hold Cmd/Ctrl to select multiple</p>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Communities</label>
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    {communities.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No communities available</p>
+                    ) : (
+                      communities.map(community => (
+                        <label key={community.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.targeting.communities.includes(community.name)}
+                            onChange={e => {
+                              const newCommunities = e.target.checked
+                                ? [...formData.targeting.communities, community.name]
+                                : formData.targeting.communities.filter(c => c !== community.name)
+                              handleTargetingChange('communities', newCommunities)
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">{community.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 {/* Tags */}
@@ -346,21 +362,29 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                 {/* Specific Agents */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Specific Agents</label>
-                  <select
-                    multiple
-                    value={formData.targeting.agents}
-                    onChange={e => handleTargetingChange('agents', Array.from(e.target.selectedOptions, opt => opt.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    size={Math.min(5, agents.length)}
-                  >
-                    {agents.map(agent => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name || agent.id}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Hold Cmd/Ctrl to select multiple</p>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    {agents.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No agents available</p>
+                    ) : (
+                      agents.map(agent => (
+                        <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.targeting.agents.includes(agent.id)}
+                            onChange={e => {
+                              const newAgents = e.target.checked
+                                ? [...formData.targeting.agents, agent.id]
+                                : formData.targeting.agents.filter(a => a !== agent.id)
+                              handleTargetingChange('agents', newAgents)
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">{agent.name || agent.id}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
