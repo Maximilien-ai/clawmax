@@ -19,6 +19,26 @@ interface Agent {
   groups: GroupEntry[]
 }
 
+interface Workflow {
+  id: string
+  name: string
+  description: string
+  schedule: string
+  enabled: boolean
+  executionMode: 'automated' | 'managed'
+  owner?: string
+  created: string
+  modified: string
+  author: string
+  participantCount: number
+  targeting: {
+    communities: string[]
+    groups: string[]
+    tags: string[]
+    agents: string[]
+  }
+}
+
 interface Community {
   name: string
   description: string | null
@@ -42,13 +62,15 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent?: (agentId: string) => void }) {
+export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCommunities, setExpandedCommunities] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [communityWorkflows, setCommunityWorkflows] = useState<Map<string, Workflow[]>>(new Map())
+  const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
@@ -233,22 +255,50 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
     return agentSet.size
   }, [filteredCommunities, filteredGroups, searchQuery])
 
-  const toggleCommunity = (name: string) => {
+  const toggleCommunity = async (name: string) => {
+    const isExpanding = !expandedCommunities.has(name)
     setExpandedCommunities(prev => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
+
+    // Fetch workflows when expanding
+    if (isExpanding && !communityWorkflows.has(name)) {
+      try {
+        const response = await fetch(`/api/communities/${encodeURIComponent(name)}/workflows`)
+        if (response.ok) {
+          const data = await response.json()
+          setCommunityWorkflows(prev => new Map(prev).set(name, data.workflows || []))
+        }
+      } catch (err) {
+        console.error('Failed to fetch community workflows:', err)
+      }
+    }
   }
 
-  const toggleGroup = (name: string) => {
+  const toggleGroup = async (name: string) => {
+    const isExpanding = !expandedGroups.has(name)
     setExpandedGroups(prev => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
+
+    // Fetch workflows when expanding
+    if (isExpanding && !groupWorkflows.has(name)) {
+      try {
+        const response = await fetch(`/api/groups/${encodeURIComponent(name)}/workflows`)
+        if (response.ok) {
+          const data = await response.json()
+          setGroupWorkflows(prev => new Map(prev).set(name, data.workflows || []))
+        }
+      } catch (err) {
+        console.error('Failed to fetch group workflows:', err)
+      }
+    }
   }
 
   const expandAll = () => {
@@ -631,21 +681,52 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
                       </svg>
                     </button>
 
+                    {/* Community Workflows */}
+                    {expandedCommunities.has(community.name) && communityWorkflows.has(community.name) && (
+                      <div className="ml-10 mt-3 pl-4 border-l-2 border-purple-200">
+                        <div className="mb-2">
+                          <h4 className="text-xs font-semibold text-purple-700 mb-1.5">
+                            Workflows ({communityWorkflows.get(community.name)?.length || 0})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {(communityWorkflows.get(community.name) || []).sort((a, b) => a.name.localeCompare(b.name)).map(workflow => (
+                              <button
+                                key={workflow.id}
+                                onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                                title={`Go to ${workflow.name} in Workflows page`}
+                              >
+                                {workflow.name}
+                              </button>
+                            ))}
+                            {(communityWorkflows.get(community.name)?.length === 0) && (
+                              <span className="text-xs text-gray-400 italic">No workflows</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Community Members */}
                     {expandedCommunities.has(community.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-purple-200">
-                        <div className="flex flex-wrap gap-2">
-                          {community.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                            <button
-                              key={agent.id}
-                              onClick={() => onNavigateToAgent?.(agent.id)}
-                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
-                              title={`Go to ${agent.name} in Agents page`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
-                              {agent.name}
-                            </button>
-                          ))}
+                        <div className="mb-2">
+                          <h4 className="text-xs font-semibold text-purple-700 mb-1.5">
+                            Members ({community.members.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {community.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
+                              <button
+                                key={agent.id}
+                                onClick={() => onNavigateToAgent?.(agent.id)}
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                                title={`Go to ${agent.name} in Agents page`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                                {agent.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -742,21 +823,52 @@ export default function Organizations({ onNavigateToAgent }: { onNavigateToAgent
                       </svg>
                     </button>
 
+                    {/* Group Workflows */}
+                    {expandedGroups.has(group.name) && groupWorkflows.has(group.name) && (
+                      <div className="ml-10 mt-3 pl-4 border-l-2 border-indigo-200">
+                        <div className="mb-2">
+                          <h4 className="text-xs font-semibold text-indigo-700 mb-1.5">
+                            Workflows ({groupWorkflows.get(group.name)?.length || 0})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {(groupWorkflows.get(group.name) || []).sort((a, b) => a.name.localeCompare(b.name)).map(workflow => (
+                              <button
+                                key={workflow.id}
+                                onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                                title={`Go to ${workflow.name} in Workflows page`}
+                              >
+                                {workflow.name}
+                              </button>
+                            ))}
+                            {(groupWorkflows.get(group.name)?.length === 0) && (
+                              <span className="text-xs text-gray-400 italic">No workflows</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Group Members */}
                     {expandedGroups.has(group.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-indigo-200">
-                        <div className="flex flex-wrap gap-2">
-                          {group.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                            <button
-                              key={agent.id}
-                              onClick={() => onNavigateToAgent?.(agent.id)}
-                              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
-                              title={`Go to ${agent.name} in Agents page`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
-                              {agent.name}
-                            </button>
-                          ))}
+                        <div className="mb-2">
+                          <h4 className="text-xs font-semibold text-indigo-700 mb-1.5">
+                            Members ({group.members.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {group.members.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
+                              <button
+                                key={agent.id}
+                                onClick={() => onNavigateToAgent?.(agent.id)}
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                                title={`Go to ${agent.name} in Agents page`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                                {agent.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}

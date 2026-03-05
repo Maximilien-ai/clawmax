@@ -46,6 +46,7 @@ interface WorkflowsProps {
   onNavigateToGroup?: (groupName: string) => void
   onNavigateToCommunity?: (communityName: string) => void
   onNavigateToDoc?: (file: string) => void
+  initialWorkflowId?: string
 }
 
 // Helper function to strip YAML frontmatter from markdown content
@@ -59,7 +60,7 @@ function stripFrontmatter(content: string): string {
   return content.trim()
 }
 
-export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc }: WorkflowsProps = {}) {
+export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
@@ -88,6 +89,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     fetchWorkflows()
   }, [])
+
+  // Handle initialWorkflowId
+  useEffect(() => {
+    if (initialWorkflowId && workflows.length > 0) {
+      const workflow = workflows.find(w => w.id === initialWorkflowId)
+      if (workflow) {
+        fetchWorkflowDetails(initialWorkflowId)
+      }
+    }
+  }, [initialWorkflowId, workflows])
 
   const fetchWorkflowDetails = async (id: string) => {
     try {

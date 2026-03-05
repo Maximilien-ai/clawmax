@@ -56,6 +56,7 @@ export default function App() {
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
+  const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
   const [showWorkspaceDialog, setShowWorkspaceDialog] = useState(false)
   const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
     const saved = localStorage.getItem('nav-order')
@@ -196,6 +197,7 @@ export default function App() {
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                 onNavigateToSkills={(agentId) => { setInitialSkillsAgent(agentId); setPage('skills'); }}
+                onNavigateToWorkflows={() => { setPage('workflows'); }}
                 initialAgentId={initialAgentId}
                 isActive={page === 'agents'}
               />
@@ -206,6 +208,7 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'organizations' ? '' : 'hidden'}`}>
               <Organizations
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
@@ -214,6 +217,7 @@ export default function App() {
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                 onNavigateToCommunity={() => { setPage('organizations'); }}
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                initialWorkflowId={initialWorkflowId}
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>

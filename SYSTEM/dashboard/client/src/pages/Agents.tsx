@@ -27,6 +27,14 @@ interface GroupEntry {
   description: string | null
 }
 
+interface Workflow {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  schedule: string
+}
+
 interface Agent {
   id: string
   name: string
@@ -70,7 +78,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; initialAgentId?: string; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; initialAgentId?: string; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +125,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [systemStatus, setSystemStatus] = useState<{ total: number; online: number; offline: number; unknown: number; runningGateways: number; gatewayAvailable: boolean } | null>(null)
   const [allCommunities, setAllCommunities] = useState<GroupEntry[]>([])
   const [allGroups, setAllGroups] = useState<GroupEntry[]>([])
+  const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
@@ -500,11 +509,34 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     setSelectedAgentIds(next)
   }
 
+  const fetchWorkflows = useCallback(async (agentId: string) => {
+    // Skip if already fetched
+    if (agentWorkflows.has(agentId)) return
+
+    try {
+      const res = await fetch(`/api/agents/${agentId}/workflows`)
+      if (!res.ok) {
+        console.error('Failed to fetch workflows:', res.statusText)
+        return
+      }
+      const data = await res.json()
+      setAgentWorkflows(prev => new Map(prev).set(agentId, data.workflows || []))
+    } catch (err) {
+      console.error('Error fetching workflows:', err)
+    }
+  }, [agentWorkflows])
+
   const toggleCollapse = (id: string) => {
     setCollapsedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        // Expanding the card - fetch workflows
+        next.delete(id)
+        fetchWorkflows(id)
+      } else {
+        // Collapsing the card
+        next.add(id)
+      }
       return next
     })
   }
@@ -982,12 +1014,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onManageCommunities={() => setCommunitiesTarget(agent)}
               onNavigateToGroup={onNavigateToGroup}
               onNavigateToSkills={onNavigateToSkills}
+              onNavigateToWorkflow={onNavigateToWorkflows}
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
               onRename={() => setRenameTarget(agent)}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
               onExport={() => handleExportAgent(agent.id)}
+              workflows={agentWorkflows.get(agent.id)}
               onUnlinkWa={() => {
                 fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                   .then(() => fetchAgents())
@@ -1636,7 +1670,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows,
 }: {
   agent: Agent
   selected: boolean
@@ -1657,10 +1691,12 @@ const AgentCard = React.memo(function AgentCard({
   onManageCommunities: () => void
   onNavigateToGroup?: (groupName: string) => void
   onNavigateToSkills?: () => void
+  onNavigateToWorkflow?: (workflowId: string) => void
   onRestart: () => void
   onRename: () => void
   onSaveAsTemplate: () => void
   onExport: () => void
+  workflows?: Workflow[]
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -1943,6 +1979,31 @@ const AgentCard = React.memo(function AgentCard({
               ) : (
                 <p className="text-xs text-gray-300">No skills configured</p>
               )
+            )}
+          </div>
+
+          {/* Workflows */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-400">
+                Workflows {workflows && workflows.length > 0 && `(${workflows.length})`}
+              </span>
+            </div>
+            {workflows && workflows.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {workflows.map(workflow => (
+                  <button
+                    key={workflow.id}
+                    title={workflow.description}
+                    onClick={e => { e.stopPropagation(); if (onNavigateToWorkflow) onNavigateToWorkflow(workflow.id); }}
+                    className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200 font-medium hover:bg-purple-100 transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    {workflow.enabled ? '🔄' : '⏸️'} {workflow.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-300">No workflows configured</p>
             )}
           </div>
 

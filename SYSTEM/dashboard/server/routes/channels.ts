@@ -2,8 +2,9 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup } from '../lib/workspace'
+import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
+import { listWorkflows, resolveParticipants } from '../lib/workflows'
 
 const router = Router()
 
@@ -573,6 +574,56 @@ router.delete('/groups/:name/archives/:filename', (req, res) => {
   const { deleteArchivedMessages } = require('../lib/messages')
   const success = deleteArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ ok: success })
+})
+
+// GET /api/communities/:name/workflows — get workflows targeting this community
+router.get('/communities/:name/workflows', (req, res) => {
+  const { name } = req.params
+  const communityName = decodeURIComponent(name)
+
+  try {
+    const agents = listAgents()
+    const allWorkflows = listWorkflows()
+
+    const communityWorkflows = allWorkflows.filter(workflow => {
+      return workflow.targeting.communities.some(c => c.toLowerCase() === communityName.toLowerCase())
+    }).map(wf => ({
+      id: wf.id,
+      name: wf.name,
+      description: wf.description,
+      enabled: wf.enabled,
+      schedule: wf.schedule,
+    }))
+
+    res.json({ workflows: communityWorkflows })
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get community workflows', message: error.message })
+  }
+})
+
+// GET /api/groups/:name/workflows — get workflows targeting this group
+router.get('/groups/:name/workflows', (req, res) => {
+  const { name } = req.params
+  const groupName = decodeURIComponent(name)
+
+  try {
+    const agents = listAgents()
+    const allWorkflows = listWorkflows()
+
+    const groupWorkflows = allWorkflows.filter(workflow => {
+      return workflow.targeting.groups.some(g => g.toLowerCase() === groupName.toLowerCase())
+    }).map(wf => ({
+      id: wf.id,
+      name: wf.name,
+      description: wf.description,
+      enabled: wf.enabled,
+      schedule: wf.schedule,
+    }))
+
+    res.json({ workflows: groupWorkflows })
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get group workflows', message: error.message })
+  }
 })
 
 export default router
