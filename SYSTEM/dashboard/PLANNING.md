@@ -418,28 +418,59 @@ Monitor the project repository and broader ecosystem for security vulnerabilitie
 - `GET /api/agents/:id/workflows` - Get workflows this agent participates in
 - Workflow resolution logic: Compute agent list from groups, tags, agents fields
 
-**Execution** (Future - out of scope for now):
+**Execution Implementation:**
+
+**Phase 1: Manual Trigger (v0.9.3) — COMPLETED ✅**
+- [x] Manual trigger button in UI
+- [x] `POST /api/workflows/:id/trigger` endpoint
+- [x] Execution tracking (`WORKFLOWS/executions/{workflowId}/{executionId}.json`)
+- [x] Execution detail view with participant status and logs
+- [x] Real-time execution status indicators
+
+**Phase 2: CLI Execution Command (v0.9.4) — COMPLETED ✅**
+- [x] Implement `openclaw workflow run <workflowId>` command in OpenClaw CLI
+  - Read workflow file from `~/.openclaw/workspace/WORKFLOWS/{id}.md`
+  - Read execution record from `WORKFLOWS/executions/{workflowId}/{executionId}.json`
+  - For each participant agent:
+    - Detect gateway config from agent's openclaw.json
+    - Open WebSocket connection to agent gateway
+    - Send workflow content via `chat.send` RPC call
+    - Update participant status (pending → running → completed/failed)
+    - Capture results and errors
+  - Update execution record with completion status and timestamps
+  - Write final execution state back to JSON file
+- [x] Update dashboard `server/lib/workflows.ts`:
+  - Reverted temporary "immediate completion" logic
+  - Restored spawning of `openclaw workflow run` command
+  - Execution now properly delegates to CLI
+- [x] Added dependencies to OpenClaw: `gray-matter`, `ws`, `@types/ws`
+- [x] Registered command in OpenClaw CLI registry
+- [x] Built and tested command successfully
+- [ ] Test end-to-end: Dashboard trigger → CLI execution → Agent receives workflow → Results captured (requires running agent)
+
+**Phase 3: Scheduled Execution (Future)**
 - Cron daemon/scheduler to trigger workflows on schedule
-- When workflow triggers, send task description to all participating agents
-- Agents execute via their normal gateway/chat interface
-- Track execution history, results, failures
+- Integration with OpenClaw's existing cron system
+- Scheduled vs manual trigger tracking
 
 **Initial Implementation Scope:**
-- [ ] Schema design + validation for WORKFLOWS/*.md files
-- [ ] Backend CRUD API for workflows
-- [ ] Workflows tab UI (list, create, edit, delete)
-- [ ] Cron schedule builder component
-- [ ] Agent participation resolution (groups + tags + direct IDs)
-- [ ] Show workflows in agent/group detail panels
-- [ ] Include workflows in organization template export/import
+- [x] Schema design + validation for WORKFLOWS/*.md files
+- [x] Backend CRUD API for workflows
+- [x] Workflows tab UI (list, create, edit, delete)
+- [x] Cron schedule builder component
+- [x] Agent participation resolution (groups + tags + direct IDs)
+- [x] Show workflows in agent/group detail panels
+- [x] Include workflows in organization template export/import
+- [x] Manual trigger with execution tracking
+- [ ] CLI execution command (`openclaw workflow run`)
 
 **Future Enhancements:**
-- Execution engine (cron scheduler)
-- Workflow execution history/logs
-- Success/failure tracking
+- Automated cron scheduler execution
+- Success/failure tracking with notifications
 - Agent rotation within workflows
 - Workflow dependencies (workflow A must complete before workflow B)
 - Conditional execution based on agent availability
+- Workflow templates library
 
 ### Browser Relay Bug (Known Issue)
 - Chrome extension relay (`cdpPort` 18892) connects successfully but Playwright's `browserContext.newCDPSession()` calls `Target.attachToBrowserTarget` which Chrome rejects with `"Not allowed"` from a tab-level debugger session

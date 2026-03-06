@@ -2,6 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
+import { spawn } from 'child_process'
+import { randomUUID } from 'crypto'
 
 const WORKSPACE_DIR = path.join(process.env.HOME || '', '.openclaw', 'workspace')
 const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
@@ -395,5 +397,66 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
   } catch (error) {
     console.error(`Error reading execution ${executionId}:`, error)
     return null
+  }
+}
+
+// Trigger workflow manually
+export function triggerWorkflow(workflowId: string): { success: boolean; executionId?: string; error?: string } {
+  try {
+    // Check if workflow exists
+    const workflow = getWorkflow(workflowId)
+    if (!workflow) {
+      return { success: false, error: 'Workflow not found' }
+    }
+
+    // Generate execution ID
+    const executionId = randomUUID()
+
+    // Create executions directory for workflow if it doesn't exist
+    const workflowExecutionDir = path.join(EXECUTIONS_DIR, workflowId)
+    if (!fs.existsSync(workflowExecutionDir)) {
+      fs.mkdirSync(workflowExecutionDir, { recursive: true })
+    }
+
+    // Resolve participants upfront
+    const { listAgents } = require('./workspace')
+    const agents = listAgents()
+    const workflowParticipants = resolveParticipants(workflow, agents)
+
+    // Convert to execution participants with pending status
+    const executionParticipants: WorkflowExecutionParticipant[] = workflowParticipants.map(p => ({
+      agentId: p.agentId,
+      agentName: p.agentName,
+      status: 'pending' as const
+    }))
+
+    // Create execution record with participants
+    const execution: WorkflowExecution = {
+      id: executionId,
+      workflowId,
+      startedAt: new Date().toISOString(),
+      status: 'running',
+      triggerType: 'manual',
+      participants: executionParticipants,
+      logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`]
+    }
+
+    // Write execution file
+    const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
+    fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+    // Spawn openclaw workflow run process (fire and forget)
+    const child = spawn('openclaw', ['workflow', 'run', workflowId], {
+      detached: true,
+      stdio: 'ignore'
+    })
+
+    // Detach the child process so it continues running independently
+    child.unref()
+
+    return { success: true, executionId }
+  } catch (error: any) {
+    console.error('Error triggering workflow:', error)
+    return { success: false, error: error.message }
   }
 }

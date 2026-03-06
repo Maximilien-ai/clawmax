@@ -541,6 +541,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     })
   }
 
+  // Fetch workflows for all expanded agents on initial load
+  useEffect(() => {
+    if (agents.length > 0) {
+      agents.forEach(agent => {
+        // Only fetch for agents that are not collapsed (expanded by default)
+        if (!collapsedIds.has(agent.id)) {
+          fetchWorkflows(agent.id)
+        }
+      })
+    }
+  }, [agents, collapsedIds, fetchWorkflows])
+
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     const primaryTags = new Set<string>() // Tags that are first for at least one agent
@@ -1989,7 +2001,9 @@ const AgentCard = React.memo(function AgentCard({
                 Workflows {workflows && workflows.length > 0 && `(${workflows.length})`}
               </span>
             </div>
-            {workflows && workflows.length > 0 ? (
+            {!workflows ? (
+              <p className="text-xs text-gray-400">Loading...</p>
+            ) : workflows.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {workflows.map(workflow => (
                   <button
@@ -2003,7 +2017,7 @@ const AgentCard = React.memo(function AgentCard({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-300">No workflows configured</p>
+              <p className="text-xs text-gray-300">No workflows targeting this agent</p>
             )}
           </div>
 

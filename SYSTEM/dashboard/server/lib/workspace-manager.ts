@@ -159,8 +159,6 @@ export class WorkspaceManager {
 
   /** Get active workspace */
   getActiveWorkspace(): Workspace {
-    // Force reload from disk to avoid stale cache
-    this.registry = null
     const registry = this.loadRegistry()
     const workspace = registry.workspaces.find(w => w.id === registry.activeWorkspaceId)
 
@@ -170,7 +168,6 @@ export class WorkspaceManager {
       return registry.workspaces[0]
     }
 
-    console.log(`Active workspace: ${workspace.name} (${workspace.id}) at ${workspace.path}`)
     return workspace
   }
 

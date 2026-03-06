@@ -8,7 +8,8 @@ import {
   resolveParticipants,
   listExecutions,
   getExecution,
-  validateCron
+  validateCron,
+  triggerWorkflow
 } from '../lib/workflows'
 import { listAgents } from '../lib/workspace'
 
@@ -77,6 +78,43 @@ router.get('/:id', (req, res) => {
   } catch (error: any) {
     console.error('Error getting workflow:', error)
     res.status(500).json({ error: 'Failed to get workflow', message: error.message })
+  }
+})
+
+/**
+ * POST /api/workflows/:id/trigger
+ * Trigger workflow manually
+ */
+router.post('/:id/trigger', (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Validate workflow ID format
+    if (!/^[a-z0-9-]+$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid workflow ID' })
+    }
+
+    // Check if workflow exists
+    const workflow = getWorkflow(id)
+    if (!workflow) {
+      return res.status(404).json({ error: 'Workflow not found', workflowId: id })
+    }
+
+    // Trigger the workflow
+    const result = triggerWorkflow(id)
+
+    if (!result.success) {
+      return res.status(500).json({ error: 'Failed to trigger workflow', details: result.error })
+    }
+
+    res.status(200).json({
+      message: 'Workflow triggered successfully',
+      executionId: result.executionId,
+      workflowId: id
+    })
+  } catch (error: any) {
+    console.error('Error triggering workflow:', error)
+    res.status(500).json({ error: 'Failed to trigger workflow', message: error.message })
   }
 })
 

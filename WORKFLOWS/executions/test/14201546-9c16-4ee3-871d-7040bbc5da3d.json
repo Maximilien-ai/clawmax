@@ -1,0 +1,18 @@
+{
+  "id": "14201546-9c16-4ee3-871d-7040bbc5da3d",
+  "workflowId": "test",
+  "startedAt": "2026-03-06T18:10:08.415Z",
+  "status": "running",
+  "triggerType": "manual",
+  "participants": [
+    {
+      "agentId": "agent0",
+      "agentName": "agent0",
+      "status": "pending"
+    }
+  ],
+  "logs": [
+    "Workflow triggered at 2026-03-06T18:10:08.415Z",
+    "Targeting 1 agent(s)"
+  ]
+}

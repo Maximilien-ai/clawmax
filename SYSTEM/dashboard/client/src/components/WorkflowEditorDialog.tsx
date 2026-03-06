@@ -58,6 +58,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [saving, setSaving] = useState(false)
   const [cronError, setCronError] = useState<string | null>(null)
   const [cronHuman, setCronHuman] = useState<string>('')
+  const [validationErrors, setValidationErrors] = useState<{
+    name?: string
+    description?: string
+    schedule?: string
+    content?: string
+    targeting?: string
+    owner?: string
+  }>({})
 
   // Available options for targeting
   const [agents, setAgents] = useState<Agent[]>([])
@@ -69,6 +77,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [groupSearch, setGroupSearch] = useState('')
   const [communitySearch, setCommunitySearch] = useState('')
   const [agentSearch, setAgentSearch] = useState('')
+  const [showCronBuilder, setShowCronBuilder] = useState(false)
+  const [recentCrons, setRecentCrons] = useState<string[]>(() => {
+    const saved = localStorage.getItem('recent-cron-expressions')
+    return saved ? JSON.parse(saved) : []
+  })
 
   // Load available agents, communities, groups, and extract all tags
   useEffect(() => {
@@ -129,25 +142,60 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
   const handleSave = async () => {
     // Validation
+    const errors: typeof validationErrors = {}
+
     if (!formData.name.trim()) {
-      alert('Name is required')
-      return
+      errors.name = 'Name is required'
     }
+
     if (!formData.description.trim()) {
-      alert('Description is required')
-      return
+      errors.description = 'Description is required'
     }
+
     if (!formData.schedule.trim()) {
-      alert('Schedule is required')
-      return
+      errors.schedule = 'Schedule is required'
+    } else if (cronError) {
+      errors.schedule = cronError
     }
+
     if (!formData.content.trim()) {
-      alert('Workflow content is required')
+      errors.content = 'Workflow content is required'
+    }
+
+    // Check if at least one targeting criterion is selected
+    const hasTargeting =
+      formData.targeting.agents.length > 0 ||
+      formData.targeting.groups.length > 0 ||
+      formData.targeting.communities.length > 0 ||
+      formData.targeting.tags.length > 0
+
+    if (!hasTargeting) {
+      errors.targeting = 'At least one targeting criterion is required (agents, groups, communities, or tags)'
+    }
+
+    if (formData.executionMode === 'managed' && !formData.owner) {
+      errors.owner = 'Owner is required for managed workflows'
+    }
+
+    // If there are errors, show them and don't save
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors)
       return
     }
-    if (formData.executionMode === 'managed' && !formData.owner) {
-      alert('Owner is required for managed workflows')
-      return
+
+    // Clear any previous errors
+    setValidationErrors({})
+
+    // Save cron to recent list if it's custom (not in presets)
+    const presetCrons = [
+      '0 * * * *', '0 */6 * * *', '0 9 * * *', '0 17 * * *',
+      '0 9 * * 1-5', '0 9 * * 0,6', '0 9 * * 1,3,5', '0 9 * * 2,4',
+      '0 9 * * 1', '0 9 1 * *'
+    ]
+    if (!presetCrons.includes(formData.schedule) && !recentCrons.includes(formData.schedule)) {
+      const updated = [formData.schedule, ...recentCrons].slice(0, 3)
+      setRecentCrons(updated)
+      localStorage.setItem('recent-cron-expressions', JSON.stringify(updated))
     }
 
     setSaving(true)
@@ -169,6 +217,10 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
         [field]: value
       }
     })
+    // Clear targeting error when any targeting changes
+    if (validationErrors.targeting) {
+      setValidationErrors({ ...validationErrors, targeting: undefined })
+    }
   }
 
   if (!isOpen) return null
@@ -204,10 +256,20 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               <input
                 type="text"
                 value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                onChange={e => {
+                  setFormData({ ...formData, name: e.target.value })
+                  if (validationErrors.name) {
+                    setValidationErrors({ ...validationErrors, name: undefined })
+                  }
+                }}
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
+                  validationErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                }`}
                 placeholder="e.g., Daily Standup Report"
               />
+              {validationErrors.name && (
+                <p className="text-xs text-red-600 mt-1">{validationErrors.name}</p>
+              )}
             </div>
 
             {/* Description */}
@@ -217,11 +279,21 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </label>
               <textarea
                 value={formData.description}
-                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                onChange={e => {
+                  setFormData({ ...formData, description: e.target.value })
+                  if (validationErrors.description) {
+                    setValidationErrors({ ...validationErrors, description: undefined })
+                  }
+                }}
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
+                  validationErrors.description ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                }`}
                 rows={2}
                 placeholder="Brief description of what this workflow does"
               />
+              {validationErrors.description && (
+                <p className="text-xs text-red-600 mt-1">{validationErrors.description}</p>
+              )}
             </div>
 
             {/* Schedule */}
@@ -229,21 +301,170 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Schedule (Cron Expression) *
               </label>
+
+              {/* Recent crons */}
+              {recentCrons.length > 0 && (
+                <div className="mb-2">
+                  <span className="text-xs text-gray-500 font-medium mr-2">Recent:</span>
+                  {recentCrons.map(cron => (
+                    <button
+                      key={cron}
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, schedule: cron })
+                        if (validationErrors.schedule) {
+                          setValidationErrors({ ...validationErrors, schedule: undefined })
+                        }
+                      }}
+                      className={`text-xs px-2.5 py-1.5 rounded border transition-colors mr-2 ${
+                        formData.schedule === cron
+                          ? 'bg-purple-100 border-purple-500 text-purple-700 font-medium'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
+                      }`}
+                    >
+                      {cron}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Cron presets */}
+              <div className="mb-3 flex flex-wrap gap-2">
+                {[
+                  { label: 'Every hour', cron: '0 * * * *' },
+                  { label: 'Every 6 hours', cron: '0 */6 * * *' },
+                  { label: 'Daily 9am', cron: '0 9 * * *' },
+                  { label: 'Daily 5pm', cron: '0 17 * * *' },
+                  { label: 'Weekdays 9am', cron: '0 9 * * 1-5' },
+                  { label: 'Weekends 9am', cron: '0 9 * * 0,6' },
+                  { label: 'M-W-F 9am', cron: '0 9 * * 1,3,5' },
+                  { label: 'Tu-Th 9am', cron: '0 9 * * 2,4' },
+                  { label: 'Monday 9am', cron: '0 9 * * 1' },
+                  { label: 'Monthly 1st 9am', cron: '0 9 1 * *' },
+                ].map(preset => (
+                  <button
+                    key={preset.cron}
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, schedule: preset.cron })
+                      if (validationErrors.schedule) {
+                        setValidationErrors({ ...validationErrors, schedule: undefined })
+                      }
+                    }}
+                    className={`text-xs px-2.5 py-1.5 rounded border transition-colors ${
+                      formData.schedule === preset.cron
+                        ? 'bg-sky-100 border-sky-500 text-sky-700 font-medium'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowCronBuilder(!showCronBuilder)}
+                  className="text-xs px-2.5 py-1.5 rounded border bg-white border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                >
+                  {showCronBuilder ? '✕ Close' : '🔧 Builder'}
+                </button>
+              </div>
+
+              {/* Cron builder */}
+              {showCronBuilder && (
+                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md space-y-3">
+                  <div className="grid grid-cols-5 gap-2 text-xs">
+                    <div>
+                      <label className="block text-gray-600 mb-1 font-medium">Minute</label>
+                      <input
+                        type="text"
+                        placeholder="0-59 or *"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        onChange={e => {
+                          const parts = formData.schedule.split(' ')
+                          parts[0] = e.target.value || '*'
+                          setFormData({ ...formData, schedule: parts.join(' ') })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 mb-1 font-medium">Hour</label>
+                      <input
+                        type="text"
+                        placeholder="0-23 or *"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        onChange={e => {
+                          const parts = formData.schedule.split(' ')
+                          parts[1] = e.target.value || '*'
+                          setFormData({ ...formData, schedule: parts.join(' ') })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 mb-1 font-medium">Day</label>
+                      <input
+                        type="text"
+                        placeholder="1-31 or *"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        onChange={e => {
+                          const parts = formData.schedule.split(' ')
+                          parts[2] = e.target.value || '*'
+                          setFormData({ ...formData, schedule: parts.join(' ') })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 mb-1 font-medium">Month</label>
+                      <input
+                        type="text"
+                        placeholder="1-12 or *"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        onChange={e => {
+                          const parts = formData.schedule.split(' ')
+                          parts[3] = e.target.value || '*'
+                          setFormData({ ...formData, schedule: parts.join(' ') })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 mb-1 font-medium">Weekday</label>
+                      <input
+                        type="text"
+                        placeholder="0-6 or *"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        onChange={e => {
+                          const parts = formData.schedule.split(' ')
+                          parts[4] = e.target.value || '*'
+                          setFormData({ ...formData, schedule: parts.join(' ') })
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Use * for any, numbers for specific values, or ranges like 1-5
+                  </p>
+                </div>
+              )}
+
+              {/* Manual input */}
               <input
                 type="text"
                 value={formData.schedule}
-                onChange={e => setFormData({ ...formData, schedule: e.target.value })}
+                onChange={e => {
+                  setFormData({ ...formData, schedule: e.target.value })
+                  if (validationErrors.schedule) {
+                    setValidationErrors({ ...validationErrors, schedule: undefined })
+                  }
+                }}
                 className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 ${
-                  cronError ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                  cronError || validationErrors.schedule ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
                 }`}
-                placeholder="e.g., 0 9 * * *"
+                placeholder="0 9 * * *"
               />
-              {cronError && (
-                <p className="text-xs text-red-600 mt-1">{cronError}</p>
+              {(cronError || validationErrors.schedule) && (
+                <p className="text-xs text-red-600 mt-1">{validationErrors.schedule || cronError}</p>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                Examples: <code className="bg-gray-100 px-1 rounded">0 9 * * *</code> (9am daily),{' '}
-                <code className="bg-gray-100 px-1 rounded">0 */6 * * *</code> (every 6 hours)
+                Format: minute hour day month weekday
               </p>
             </div>
 
@@ -288,8 +509,15 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 </label>
                 <select
                   value={formData.owner || ''}
-                  onChange={e => setFormData({ ...formData, owner: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  onChange={e => {
+                    setFormData({ ...formData, owner: e.target.value })
+                    if (validationErrors.owner) {
+                      setValidationErrors({ ...validationErrors, owner: undefined })
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
+                    validationErrors.owner ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                  }`}
                 >
                   <option value="">Select agent...</option>
                   {agents.map(agent => (
@@ -298,15 +526,20 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     </option>
                   ))}
                 </select>
+                {validationErrors.owner && (
+                  <p className="text-xs text-red-600 mt-1">{validationErrors.owner}</p>
+                )}
               </div>
             )}
 
             {/* Agent Targeting */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Target Agents (OR logic)
+                Target Agents (OR logic) *
               </label>
-              <div className="space-y-4 bg-gray-50 border border-gray-200 rounded-md p-4">
+              <div className={`space-y-4 bg-gray-50 border rounded-md p-4 ${
+                validationErrors.targeting ? 'border-red-300' : 'border-gray-200'
+              }`}>
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
@@ -496,6 +729,9 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   />
                 </div>
               </div>
+              {validationErrors.targeting && (
+                <p className="text-xs text-red-600 mt-1">{validationErrors.targeting}</p>
+              )}
             </div>
 
             {/* Workflow Content */}
@@ -505,11 +741,21 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </label>
               <textarea
                 value={formData.content}
-                onChange={e => setFormData({ ...formData, content: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+                onChange={e => {
+                  setFormData({ ...formData, content: e.target.value })
+                  if (validationErrors.content) {
+                    setValidationErrors({ ...validationErrors, content: undefined })
+                  }
+                }}
+                className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 ${
+                  validationErrors.content ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                }`}
                 rows={10}
                 placeholder="# Task Description&#10;&#10;Write the instructions for what agents should do..."
               />
+              {validationErrors.content && (
+                <p className="text-xs text-red-600 mt-1">{validationErrors.content}</p>
+              )}
               <p className="text-xs text-gray-500 mt-1">
                 This content will be sent to all matching agents when the workflow executes
               </p>

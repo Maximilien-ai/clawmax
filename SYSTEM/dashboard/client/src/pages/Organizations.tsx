@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
@@ -62,13 +62,17 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void }) {
+export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, initialCommunityName, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void, initialCommunityName?: string, initialGroupName?: string }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCommunities, setExpandedCommunities] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [highlightedCommunity, setHighlightedCommunity] = useState<string | null>(null)
+  const [highlightedGroup, setHighlightedGroup] = useState<string | null>(null)
+  const communityRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const groupRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [communityWorkflows, setCommunityWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
@@ -255,6 +259,36 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
     return agentSet.size
   }, [filteredCommunities, filteredGroups, searchQuery])
 
+  const fetchCommunityWorkflows = useCallback(async (name: string) => {
+    // Skip if already fetched
+    if (communityWorkflows.has(name)) return
+
+    try {
+      const response = await fetch(`/api/communities/${encodeURIComponent(name)}/workflows`)
+      if (response.ok) {
+        const data = await response.json()
+        setCommunityWorkflows(prev => new Map(prev).set(name, data.workflows || []))
+      }
+    } catch (err) {
+      console.error('Failed to fetch community workflows:', err)
+    }
+  }, [communityWorkflows])
+
+  const fetchGroupWorkflows = useCallback(async (name: string) => {
+    // Skip if already fetched
+    if (groupWorkflows.has(name)) return
+
+    try {
+      const response = await fetch(`/api/groups/${encodeURIComponent(name)}/workflows`)
+      if (response.ok) {
+        const data = await response.json()
+        setGroupWorkflows(prev => new Map(prev).set(name, data.workflows || []))
+      }
+    } catch (err) {
+      console.error('Failed to fetch group workflows:', err)
+    }
+  }, [groupWorkflows])
+
   const toggleCommunity = async (name: string) => {
     const isExpanding = !expandedCommunities.has(name)
     setExpandedCommunities(prev => {
@@ -265,16 +299,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
     })
 
     // Fetch workflows when expanding
-    if (isExpanding && !communityWorkflows.has(name)) {
-      try {
-        const response = await fetch(`/api/communities/${encodeURIComponent(name)}/workflows`)
-        if (response.ok) {
-          const data = await response.json()
-          setCommunityWorkflows(prev => new Map(prev).set(name, data.workflows || []))
-        }
-      } catch (err) {
-        console.error('Failed to fetch community workflows:', err)
-      }
+    if (isExpanding) {
+      fetchCommunityWorkflows(name)
     }
   }
 
@@ -288,18 +314,66 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
     })
 
     // Fetch workflows when expanding
-    if (isExpanding && !groupWorkflows.has(name)) {
-      try {
-        const response = await fetch(`/api/groups/${encodeURIComponent(name)}/workflows`)
-        if (response.ok) {
-          const data = await response.json()
-          setGroupWorkflows(prev => new Map(prev).set(name, data.workflows || []))
-        }
-      } catch (err) {
-        console.error('Failed to fetch group workflows:', err)
-      }
+    if (isExpanding) {
+      fetchGroupWorkflows(name)
     }
   }
+
+  // Fetch workflows for all communities and groups on initial load
+  useEffect(() => {
+    if (communities.length > 0) {
+      communities.forEach(community => {
+        fetchCommunityWorkflows(community.name)
+      })
+    }
+  }, [communities, fetchCommunityWorkflows])
+
+  useEffect(() => {
+    if (groups.length > 0) {
+      groups.forEach(group => {
+        fetchGroupWorkflows(group.name)
+      })
+    }
+  }, [groups, fetchGroupWorkflows])
+
+  // Handle initial community/group highlighting
+  useEffect(() => {
+    if (initialCommunityName && communities.length > 0) {
+      const community = communities.find(c => c.name === initialCommunityName)
+      if (community) {
+        setExpandedCommunities(prev => new Set(prev).add(initialCommunityName))
+        setHighlightedCommunity(initialCommunityName)
+        setTimeout(() => setHighlightedCommunity(null), 2000)
+
+        // Scroll to the community after a brief delay to ensure it's rendered
+        setTimeout(() => {
+          const element = communityRefs.current.get(initialCommunityName)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+      }
+    }
+  }, [initialCommunityName, communities])
+
+  useEffect(() => {
+    if (initialGroupName && groups.length > 0) {
+      const group = groups.find(g => g.name === initialGroupName)
+      if (group) {
+        setExpandedGroups(prev => new Set(prev).add(initialGroupName))
+        setHighlightedGroup(initialGroupName)
+        setTimeout(() => setHighlightedGroup(null), 2000)
+
+        // Scroll to the group after a brief delay to ensure it's rendered
+        setTimeout(() => {
+          const element = groupRefs.current.get(initialGroupName)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+      }
+    }
+  }, [initialGroupName, groups])
 
   const expandAll = () => {
     setExpandedCommunities(new Set(communities.map(c => c.name)))
@@ -620,7 +694,14 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
               {!communitiesSectionCollapsed && (
                 <div className="divide-y divide-gray-100">
                 {filteredCommunities.map(community => (
-                  <div key={community.name} className="p-4 group relative">
+                  <div
+                    key={community.name}
+                    ref={(el) => {
+                      if (el) communityRefs.current.set(community.name, el)
+                      else communityRefs.current.delete(community.name)
+                    }}
+                    className={`p-4 group relative transition-all ${highlightedCommunity === community.name ? 'ring-2 ring-purple-400 bg-purple-50 rounded-lg' : ''}`}
+                  >
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
                         onClick={() => toggleCommunity(community.name)}
@@ -681,8 +762,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
                       </svg>
                     </button>
 
-                    {/* Community Workflows */}
-                    {expandedCommunities.has(community.name) && communityWorkflows.has(community.name) && (
+                    {/* Community Workflows - Always show */}
+                    {communityWorkflows.has(community.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-purple-200">
                         <div className="mb-2">
                           <h4 className="text-xs font-semibold text-purple-700 mb-1.5">
@@ -757,7 +838,14 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
               {!groupsSectionCollapsed && (
                 <div className="divide-y divide-gray-100">
                 {filteredGroups.map(group => (
-                  <div key={group.name} className="p-4 group relative">
+                  <div
+                    key={group.name}
+                    ref={(el) => {
+                      if (el) groupRefs.current.set(group.name, el)
+                      else groupRefs.current.delete(group.name)
+                    }}
+                    className={`p-4 group relative transition-all ${highlightedGroup === group.name ? 'ring-2 ring-indigo-400 bg-indigo-50 rounded-lg' : ''}`}
+                  >
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
                         onClick={() => toggleGroup(group.name)}
@@ -823,8 +911,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow 
                       </svg>
                     </button>
 
-                    {/* Group Workflows */}
-                    {expandedGroups.has(group.name) && groupWorkflows.has(group.name) && (
+                    {/* Group Workflows - Always show */}
+                    {groupWorkflows.has(group.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-indigo-200">
                         <div className="mb-2">
                           <h4 className="text-xs font-semibold text-indigo-700 mb-1.5">

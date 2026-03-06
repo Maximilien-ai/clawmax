@@ -17,6 +17,26 @@ interface Agent {
   groups: GroupEntry[]
 }
 
+interface Workflow {
+  id: string
+  name: string
+  description: string
+  schedule: string
+  enabled: boolean
+  executionMode: 'automated' | 'managed'
+  owner?: string
+  created: string
+  modified: string
+  author: string
+  participantCount: number
+  targeting: {
+    communities: string[]
+    groups: string[]
+    tags: string[]
+    agents: string[]
+  }
+}
+
 type ViewMode = 'list' | 'grid'
 type ChannelType = 'community' | 'group'
 
@@ -43,12 +63,14 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
+export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
+  const [communityWorkflows, setCommunityWorkflows] = useState<Map<string, Workflow[]>>(new Map())
+  const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('communication-view-mode')
     return (saved === 'list' || saved === 'grid') ? saved : 'list'
@@ -481,8 +503,13 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
                     onManageTags={() => setTagManageTarget(channel)}
                     onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
+                    onNavigateToWorkflow={onNavigateToWorkflow}
                     onOpenChat={() => setChatPanelChannel(channel)}
                     isHighlighted={highlightedChannel === channel.name}
+                    communityWorkflows={communityWorkflows}
+                    groupWorkflows={groupWorkflows}
+                    setCommunityWorkflows={setCommunityWorkflows}
+                    setGroupWorkflows={setGroupWorkflows}
                   />
                 ))}
               </div>
@@ -503,8 +530,13 @@ export default function Communication({ onNavigateToAgent, initialGroupName, onC
                     onManageTags={() => setTagManageTarget(channel)}
                     onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
+                    onNavigateToWorkflow={onNavigateToWorkflow}
                     onOpenChat={() => setChatPanelChannel(channel)}
                     isHighlighted={highlightedChannel === channel.name}
+                    communityWorkflows={communityWorkflows}
+                    groupWorkflows={groupWorkflows}
+                    setCommunityWorkflows={setCommunityWorkflows}
+                    setGroupWorkflows={setGroupWorkflows}
                   />
                 ))}
               </div>
@@ -911,8 +943,9 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onOpenChat, isHighlighted }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onNavigateToWorkflow, onOpenChat, isHighlighted, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean; communityWorkflows: Map<string, Workflow[]>; groupWorkflows: Map<string, Workflow[]>; setCommunityWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; setGroupWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>> }) {
   const [expanded, setExpanded] = useState(false)
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false)
   const [messageText, setMessageText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [sending, setSending] = useState(false)
@@ -935,14 +968,33 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
     teams: '💼'
   }
 
-  // Fetch messages when expanded
-  useEffect(() => {
-    if (expanded) {
-      fetchMessages()
-    }
-  }, [expanded])
+  const fetchWorkflows = useCallback(async () => {
+    const workflowMap = channel.type === 'community' ? communityWorkflows : groupWorkflows
+    const setWorkflowMap = channel.type === 'community' ? setCommunityWorkflows : setGroupWorkflows
 
-  const fetchMessages = async () => {
+    // Check if already fetched
+    if (workflowMap.has(channel.name)) {
+      return
+    }
+
+    setLoadingWorkflows(true)
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}/workflows`
+        : `/api/groups/${encodeURIComponent(channel.name)}/workflows`
+      const res = await fetch(endpoint)
+      if (res.ok) {
+        const data = await res.json()
+        setWorkflowMap(prev => new Map(prev).set(channel.name, data.workflows || []))
+      }
+    } catch (err) {
+      console.error('Failed to fetch workflows:', err)
+    } finally {
+      setLoadingWorkflows(false)
+    }
+  }, [channel.type, channel.name, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows])
+
+  const fetchMessages = useCallback(async () => {
     try {
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
@@ -955,7 +1007,19 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
     } catch (err) {
       console.error('Failed to fetch messages:', err)
     }
-  }
+  }, [channel.type, channel.name])
+
+  // Fetch workflows on mount (always)
+  useEffect(() => {
+    fetchWorkflows()
+  }, [fetchWorkflows])
+
+  // Fetch messages when expanded
+  useEffect(() => {
+    if (expanded) {
+      fetchMessages()
+    }
+  }, [expanded, fetchMessages])
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || sending) return
@@ -1172,20 +1236,72 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
         </div>
       </div>
 
+      {/* Workflows Section - Always show */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-gray-400">Workflows</span>
+        </div>
+        {loadingWorkflows ? (
+          <div className="text-xs text-gray-400">Loading workflows...</div>
+        ) : (
+          (() => {
+            const workflowMap = channel.type === 'community' ? communityWorkflows : groupWorkflows
+            const workflows = workflowMap.get(channel.name) || []
+            const themeColors = channel.type === 'community'
+              ? 'border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 text-purple-700'
+              : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700'
+
+            if (workflows.length === 0) {
+              return <span className="text-xs text-gray-300">No workflows</span>
+            }
+
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {workflows.sort((a, b) => a.name.localeCompare(b.name)).map(workflow => (
+                  <button
+                    key={workflow.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onNavigateToWorkflow?.(workflow.id)
+                    }}
+                    title={`Go to ${workflow.name} in Workflows page`}
+                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-medium transition-all cursor-pointer ${themeColors}`}
+                  >
+                    {workflow.name}
+                  </button>
+                ))}
+              </div>
+            )
+          })()
+        )}
+      </div>
+
       {/* Messaging Section */}
       <div className="border-t border-gray-100 pt-3 -mx-4 px-4 -mb-4 pb-4">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenChat?.()
-          }}
-          className="w-full flex items-center justify-center text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
-        >
-          <span className="flex items-center gap-1.5">
-            💬 Chat
-            <span>→</span>
-          </span>
-        </button>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenChat?.()
+            }}
+            className="flex-1 flex items-center justify-center text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              💬 Chat
+              <span>→</span>
+            </span>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpanded(!expanded)
+            }}
+            className="text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors px-2"
+            title={expanded ? "Collapse details" : "Show workflows"}
+          >
+            {expanded ? '▼' : '▶'}
+          </button>
+        </div>
 
         {false && (
           <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>

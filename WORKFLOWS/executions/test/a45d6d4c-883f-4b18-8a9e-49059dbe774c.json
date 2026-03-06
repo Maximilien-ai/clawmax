@@ -1,0 +1,13 @@
+{
+  "id": "a45d6d4c-883f-4b18-8a9e-49059dbe774c",
+  "workflowId": "test",
+  "startedAt": "2026-03-06T17:08:28.565Z",
+  "status": "completed",
+  "triggerType": "manual",
+  "participants": [],
+  "logs": [
+    "Workflow execution started by CLI at 2026-03-06T18:10:09.491Z",
+    "Workflow execution completed at 2026-03-06T18:10:09.492Z"
+  ],
+  "completedAt": "2026-03-06T18:10:09.492Z"
+}

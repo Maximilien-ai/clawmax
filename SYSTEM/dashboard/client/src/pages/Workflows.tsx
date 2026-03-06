@@ -41,6 +41,28 @@ interface WorkflowExecution {
   failureCount: number
 }
 
+interface WorkflowExecutionParticipant {
+  agentId: string
+  agentName: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  startedAt?: string
+  completedAt?: string
+  result?: any
+  error?: string
+}
+
+interface WorkflowExecutionDetails {
+  id: string
+  workflowId: string
+  startedAt: string
+  completedAt?: string
+  status: 'running' | 'completed' | 'failed' | 'paused'
+  triggerType: 'scheduled' | 'manual' | 'agent'
+  triggeredBy?: string
+  participants: WorkflowExecutionParticipant[]
+  logs: string[]
+}
+
 interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToGroup?: (groupName: string) => void
@@ -71,6 +93,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<Set<string>>(new Set())
+  const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
+  const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
+  const [showExecutionPanel, setShowExecutionPanel] = useState(false)
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -89,6 +116,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     fetchWorkflows()
   }, [])
+
+  // Poll for running workflows
+  useEffect(() => {
+    const checkRunningWorkflows = async () => {
+      try {
+        const workflowIds = workflows.map(w => w.id)
+        const checks = await Promise.all(
+          workflowIds.map(async id => {
+            const res = await fetch(`/api/workflows/${id}/executions?limit=1`)
+            const data = await res.json()
+            const latest = data.executions?.[0]
+            return { id, isRunning: latest?.status === 'running' }
+          })
+        )
+        const running = new Set(checks.filter(c => c.isRunning).map(c => c.id))
+        setRunningWorkflows(running)
+      } catch (err) {
+        console.error('Error checking running workflows:', err)
+      }
+    }
+
+    if (workflows.length > 0) {
+      checkRunningWorkflows()
+      const interval = setInterval(checkRunningWorkflows, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [workflows])
 
   // Handle initialWorkflowId
   useEffect(() => {
@@ -113,8 +167,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setSelectedWorkflow(workflow)
       setExecutions(executionsData.executions || [])
       setShowDetailPanel(true)
+      setShowExecutionPanel(false) // Close execution panel when viewing workflow
     } catch (err) {
       showError('Failed to load workflow details')
+    }
+  }
+
+  const fetchExecutionDetails = async (workflowId: string, executionId: string) => {
+    try {
+      const resp = await fetch(`/api/workflows/${workflowId}/executions/${executionId}`)
+      if (!resp.ok) throw new Error('Failed to fetch execution')
+      const execution = await resp.json()
+      setSelectedExecution(execution)
+      setShowExecutionPanel(true)
+      setShowDetailPanel(false) // Close workflow panel when viewing execution
+    } catch (err) {
+      showError('Failed to load execution details')
     }
   }
 
@@ -232,6 +300,96 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
   }
 
+  const toggleWorkflowSelection = (workflowId: string) => {
+    const next = new Set(selectedWorkflowIds)
+    if (next.has(workflowId)) next.delete(workflowId)
+    else next.add(workflowId)
+    setSelectedWorkflowIds(next)
+  }
+
+  const handleBulkEnable = async () => {
+    const workflowsToEnable = workflows.filter(w => selectedWorkflowIds.has(w.id) && !w.enabled)
+    if (workflowsToEnable.length === 0) {
+      showError('No disabled workflows selected')
+      return
+    }
+
+    try {
+      await Promise.all(
+        workflowsToEnable.map(w =>
+          fetch(`/api/workflows/${w.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true })
+          })
+        )
+      )
+      showSuccess(`Enabled ${workflowsToEnable.length} workflow${workflowsToEnable.length !== 1 ? 's' : ''}`)
+      fetchWorkflows()
+      setSelectedWorkflowIds(new Set())
+      setSelectionMode(false)
+    } catch (err) {
+      showError('Failed to enable workflows')
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    const workflowsToDisable = workflows.filter(w => selectedWorkflowIds.has(w.id) && w.enabled)
+    if (workflowsToDisable.length === 0) {
+      showError('No enabled workflows selected')
+      return
+    }
+
+    try {
+      await Promise.all(
+        workflowsToDisable.map(w =>
+          fetch(`/api/workflows/${w.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: false })
+          })
+        )
+      )
+      showSuccess(`Disabled ${workflowsToDisable.length} workflow${workflowsToDisable.length !== 1 ? 's' : ''}`)
+      fetchWorkflows()
+      setSelectedWorkflowIds(new Set())
+      setSelectionMode(false)
+    } catch (err) {
+      showError('Failed to disable workflows')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedWorkflowIds.size === 0) return
+
+    const selectedWorkflowsList = workflows.filter(w => selectedWorkflowIds.has(w.id))
+    const workflowNames = selectedWorkflowsList.map(w => w.name).join(', ')
+
+    if (!confirm(`Delete ${selectedWorkflowIds.size} workflow${selectedWorkflowIds.size !== 1 ? 's' : ''}?\n\n${workflowNames}`)) {
+      return
+    }
+
+    try {
+      await Promise.all(
+        Array.from(selectedWorkflowIds).map(id =>
+          fetch(`/api/workflows/${id}`, { method: 'DELETE' })
+        )
+      )
+      showSuccess(`Deleted ${selectedWorkflowIds.size} workflow${selectedWorkflowIds.size !== 1 ? 's' : ''}`)
+      fetchWorkflows()
+      setSelectedWorkflowIds(new Set())
+      setSelectionMode(false)
+
+      // Close detail panel if showing a deleted workflow
+      if (selectedWorkflow && selectedWorkflowIds.has(selectedWorkflow.id)) {
+        setSelectedWorkflow(null)
+        setShowDetailPanel(false)
+      }
+    } catch (err) {
+      showError('Failed to delete workflows')
+    }
+  }
+
   // Get all unique tags from workflow targeting
   const allTags = React.useMemo(() => {
     const tags = new Set<string>()
@@ -285,12 +443,55 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               Scheduled tasks and multi-agent coordination
             </p>
           </div>
-          <button
-            onClick={() => setShowEditorDialog(true)}
-            className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors"
-          >
-            + New Workflow
-          </button>
+          <div className="flex items-center gap-2">
+            {selectionMode && selectedWorkflowIds.size > 0 && (
+              <>
+                <span className="text-sm text-gray-600 mr-2">
+                  {selectedWorkflowIds.size} selected
+                </span>
+                <button
+                  onClick={handleBulkEnable}
+                  className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Enable Selected
+                </button>
+                <button
+                  onClick={handleBulkDisable}
+                  className="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
+                >
+                  Disable Selected
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Delete Selected
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode)
+                if (selectionMode) {
+                  setSelectedWorkflowIds(new Set())
+                }
+              }}
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                selectionMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title={selectionMode ? 'Exit selection mode' : 'Select multiple workflows'}
+            >
+              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+            <button
+              onClick={() => setShowEditorDialog(true)}
+              className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors"
+            >
+              + New Workflow
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -363,6 +564,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 onToggle={(enabled) => handleToggleEnabled(workflow.id, enabled)}
                 onDelete={() => handleDelete(workflow.id)}
                 onOpenFile={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
+                isSelected={selectedWorkflowIds.has(workflow.id)}
+                onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
+                isRunning={runningWorkflows.has(workflow.id)}
               />
             ))}
           </div>
@@ -383,6 +587,29 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">{selectedWorkflow.name}</h2>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    if (!confirm('Trigger this workflow to run now?')) return
+                    try {
+                      const resp = await fetch(`/api/workflows/${selectedWorkflow.id}/trigger`, {
+                        method: 'POST'
+                      })
+                      if (!resp.ok) throw new Error('Failed to trigger workflow')
+                      showSuccess('Workflow triggered successfully')
+                      // Add to running workflows immediately
+                      setRunningWorkflows(prev => new Set(prev).add(selectedWorkflow.id))
+                      // Refresh executions after 2 seconds
+                      setTimeout(() => {
+                        fetchWorkflowDetails(selectedWorkflow.id)
+                      }, 2000)
+                    } catch (err) {
+                      showError('Failed to trigger workflow')
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                >
+                  ▶ Run Now
+                </button>
                 <button
                   onClick={() => {
                     setEditingWorkflow(selectedWorkflow)
@@ -520,15 +747,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 ) : (
                   <div className="space-y-2">
                     {executions.map(exec => (
-                      <div
+                      <button
                         key={exec.id}
-                        className="text-sm border border-gray-200 rounded p-3 bg-gray-50"
+                        onClick={() => fetchExecutionDetails(selectedWorkflow.id, exec.id)}
+                        className="w-full text-left text-sm border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className={`px-2 py-0.5 text-xs font-medium rounded ${
                             exec.status === 'completed' ? 'bg-green-100 text-green-700' :
                             exec.status === 'failed' ? 'bg-red-100 text-red-700' :
-                            exec.status === 'running' ? 'bg-blue-100 text-blue-700' :
+                            exec.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
                             'bg-yellow-100 text-yellow-700'
                           }`}>
                             {exec.status}
@@ -540,7 +768,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <div className="text-xs text-gray-600">
                           {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -552,6 +780,127 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <div>Created: {new Date(selectedWorkflow.created).toLocaleString()}</div>
                 <div>Modified: {new Date(selectedWorkflow.modified).toLocaleString()}</div>
                 <div>Author: {selectedWorkflow.author}</div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Execution Detail Panel */}
+      {showExecutionPanel && selectedExecution && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={() => setShowExecutionPanel(false)}
+          />
+          <div className="fixed right-0 top-0 bottom-0 w-2/3 bg-white shadow-2xl z-50 overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Execution Details</h2>
+                <p className="text-xs text-gray-500 font-mono mt-0.5">{selectedExecution.id}</p>
+              </div>
+              <button
+                onClick={() => setShowExecutionPanel(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Status and timing */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Status</h3>
+                <div className="flex items-center gap-4">
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${
+                    selectedExecution.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    selectedExecution.status === 'failed' ? 'bg-red-100 text-red-700' :
+                    selectedExecution.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {selectedExecution.status}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    Trigger: {selectedExecution.triggerType}
+                    {selectedExecution.triggeredBy && ` by ${selectedExecution.triggeredBy}`}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-gray-600 space-y-1">
+                  <div>Started: {new Date(selectedExecution.startedAt).toLocaleString()}</div>
+                  {selectedExecution.completedAt && (
+                    <div>Completed: {new Date(selectedExecution.completedAt).toLocaleString()}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Participants */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                  Participants ({selectedExecution.participants.length})
+                </h3>
+                {selectedExecution.participants.length === 0 ? (
+                  <p className="text-sm text-gray-500">No participants</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedExecution.participants.map(participant => (
+                      <div
+                        key={participant.agentId}
+                        className="border border-gray-200 rounded p-3 bg-gray-50"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <button
+                            onClick={() => onNavigateToAgent?.(participant.agentId)}
+                            className="text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline"
+                          >
+                            {participant.agentName}
+                          </button>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            participant.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            participant.status === 'failed' ? 'bg-red-100 text-red-700' :
+                            participant.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {participant.status}
+                          </span>
+                        </div>
+                        {participant.error && (
+                          <div className="text-xs text-red-600 mt-1 bg-red-50 p-2 rounded">
+                            Error: {participant.error}
+                          </div>
+                        )}
+                        {participant.result && (
+                          <div className="text-xs text-gray-600 mt-1">
+                            Result: <pre className="inline font-mono">{JSON.stringify(participant.result, null, 2)}</pre>
+                          </div>
+                        )}
+                        {participant.startedAt && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Started: {new Date(participant.startedAt).toLocaleString()}
+                          </div>
+                        )}
+                        {participant.completedAt && (
+                          <div className="text-xs text-gray-500">
+                            Completed: {new Date(participant.completedAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Logs */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Execution Logs</h3>
+                {selectedExecution.logs.length === 0 ? (
+                  <p className="text-sm text-gray-500">No logs available</p>
+                ) : (
+                  <div className="bg-gray-900 text-gray-100 p-4 rounded font-mono text-xs overflow-x-auto">
+                    {selectedExecution.logs.map((log, idx) => (
+                      <div key={idx} className="whitespace-pre-wrap">{log}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -589,20 +938,36 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
   onDelete: () => void
   onOpenFile: () => void
+  isSelected?: boolean
+  onToggleSelect?: () => void
+  isRunning?: boolean
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer relative">
-      <div onClick={onClick}>
+    <div className={`border rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer relative ${
+      isSelected ? 'border-blue-500 border-2 bg-blue-50' : 'border-gray-200'
+    }`}>
+      <div onClick={onToggleSelect || onClick}>
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
+            {onToggleSelect && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  onToggleSelect()
+                }}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            )}
             <h3 className="font-semibold text-gray-900 text-sm">{workflow.name}</h3>
             <button
               onClick={(e) => {
@@ -618,14 +983,16 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile }: {
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${
               workflow.enabled ? 'bg-green-400' : 'bg-gray-300'
-            }`} />
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-              className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1"
-              title="Actions"
-            >
-              ⋮
-            </button>
+            } ${isRunning ? 'animate-pulse' : ''}`} />
+            {!onToggleSelect && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1"
+                title="Actions"
+              >
+                ⋮
+              </button>
+            )}
           </div>
         </div>
 
@@ -651,8 +1018,8 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile }: {
         </div>
       </div>
 
-      {/* Actions Menu Dropdown */}
-      {showMenu && (
+      {/* Actions Menu Dropdown - only show when not in selection mode */}
+      {showMenu && !onToggleSelect && (
         <>
           <div
             className="fixed inset-0 z-10"

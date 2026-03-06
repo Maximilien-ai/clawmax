@@ -57,6 +57,8 @@ export default function App() {
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
+  const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
+  const [initialOrgGroupName, setInitialOrgGroupName] = useState<string | undefined>(undefined)
   const [showWorkspaceDialog, setShowWorkspaceDialog] = useState(false)
   const [navOrder, setNavOrder] = useState<NavItem[]>(() => {
     const saved = localStorage.getItem('nav-order')
@@ -70,6 +72,7 @@ export default function App() {
     return DEFAULT_NAV_ORDER
   })
   const [draggedNavIndex, setDraggedNavIndex] = useState<number | null>(null)
+  const [runningWorkflowsCount, setRunningWorkflowsCount] = useState(0)
 
   useEffect(() => {
     const load = () =>
@@ -80,6 +83,35 @@ export default function App() {
     load()
     const t = setInterval(load, 30000)
     return () => clearInterval(t)
+  }, [])
+
+  // Poll for running workflows count
+  useEffect(() => {
+    const checkRunningWorkflows = async () => {
+      try {
+        const res = await fetch('/api/workflows')
+        const data = await res.json()
+        const workflows = data.workflows || []
+
+        const checks = await Promise.all(
+          workflows.map(async (w: any) => {
+            const execRes = await fetch(`/api/workflows/${w.id}/executions?limit=1`)
+            const execData = await execRes.json()
+            const latest = execData.executions?.[0]
+            return latest?.status === 'running'
+          })
+        )
+
+        const count = checks.filter(Boolean).length
+        setRunningWorkflowsCount(count)
+      } catch (err) {
+        console.error('Error checking running workflows:', err)
+      }
+    }
+
+    checkRunningWorkflows()
+    const interval = setInterval(checkRunningWorkflows, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleNavDragStart = (index: number) => {
@@ -191,6 +223,8 @@ export default function App() {
               system={system}
               onMobileMenuToggle={() => setMobileNavOpen(true)}
               onOpenWorkspaceDialog={() => setShowWorkspaceDialog(true)}
+              runningWorkflowsCount={runningWorkflowsCount}
+              onClickRunningWorkflows={() => setPage('workflows')}
             />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
@@ -209,13 +243,15 @@ export default function App() {
               <Organizations
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                initialCommunityName={initialCommunityName}
+                initialGroupName={initialOrgGroupName}
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
               <Workflows
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-                onNavigateToCommunity={() => { setPage('organizations'); }}
+                onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialWorkflowId={initialWorkflowId}
               />
@@ -226,6 +262,7 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
                 initialGroupName={initialGroupName}
                 onClearInitialGroupName={() => setInitialGroupName(undefined)}
                 isActive={page === 'communication'}
@@ -248,7 +285,13 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog }: { system: SystemInfo | null; onMobileMenuToggle?: () => void; onOpenWorkspaceDialog?: () => void }) {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows }: {
+  system: SystemInfo | null
+  onMobileMenuToggle?: () => void
+  onOpenWorkspaceDialog?: () => void
+  runningWorkflowsCount?: number
+  onClickRunningWorkflows?: () => void
+}) {
   if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
 
@@ -296,6 +339,19 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog }: { system:
             <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
             {system.onlineCount} online
           </span>
+          {runningWorkflowsCount !== undefined && runningWorkflowsCount > 0 && (
+            <>
+              <span className="text-gray-300">·</span>
+              <button
+                onClick={onClickRunningWorkflows}
+                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                title="View running workflows"
+              >
+                <span className="animate-pulse">⚙️</span>
+                <span>{runningWorkflowsCount} running</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
       <span className="text-xs text-gray-300 font-mono">{system.version}</span>
