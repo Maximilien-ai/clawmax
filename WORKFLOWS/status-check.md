@@ -20,9 +20,9 @@ executionMode: manual
 ---
 # Status Check
 
-Check your session status using the session_status tool, then post a brief status update to the "Status" group. Include:
-- Current session state
-- Any active sessions
-- Recent activity
+IMPORTANT: You MUST post your status to the Status group.
 
-Use the message_send tool to post your status update to the Status group.
+1. First, check your session using the session_status tool
+2. Then IMMEDIATELY post a message to the Status group saying "I'm online and ready" using message_send tool with to="Status"
+
+DO NOT just run session_status and stop. You MUST send a message to Status group.
