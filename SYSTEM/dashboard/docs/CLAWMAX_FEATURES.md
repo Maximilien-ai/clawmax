@@ -82,6 +82,13 @@
 - **Agent Configuration**: Gateway ports, auth tokens
 - **Backup & Export**: Workspace backup and migration
 
+**Day 2 Operations** (Roadmap v1.0.0):
+- System logs viewer (dashboard server logs)
+- Agent logs aggregation (tail logs from all agents)
+- Workflow execution history and analytics
+- Health monitoring and alerting
+- Performance metrics dashboard
+
 ---
 
 ## Agent Management
@@ -138,6 +145,8 @@ Pre-integrated skills available for assignment:
 - **1password**: Password and secrets management
 - **apple-notes**: Apple Notes integration
 - **bear-notes**: Bear notes integration
+
+**Extensibility**: Skills are built into OpenClaw's core framework. Future versions will support custom skill plugins, allowing teams to add organization-specific capabilities (internal APIs, proprietary tools, custom integrations).
 
 ---
 
@@ -281,6 +290,15 @@ Agents participate if they match ANY of:
 ### Multi-Channel Agents
 Agents can be active on multiple platforms simultaneously for maximum reach and flexibility.
 
+**Current Status**: WhatsApp integration is production-ready via OpenClaw's built-in support.
+
+**Roadmap** (v1.0.0-v1.1.0):
+- **Slack**: Full integration with slash commands and interactive messages
+- **Discord**: Bot account management and server automation
+- **Email**: SMTP/IMAP for email-based agent communication
+- **Teams**: Microsoft Teams integration for enterprise users
+- **Custom Channels**: Plugin architecture for proprietary chat systems
+
 ---
 
 ## Document Management
@@ -326,6 +344,13 @@ Agents can be active on multiple platforms simultaneously for maximum reach and 
 ---
 
 ## Use Cases & Demos
+
+**Demo Priority for Next Week**:
+1. Daily Standup (simplest, reliable)
+2. Code Review Reminder (GitHub integration)
+3. Sprint Planning (managed workflow with approval)
+
+Working implementations with real agents planned for Monday.
 
 ### Use Case 1: Daily Standup Automation
 **Problem**: Distributed team, hard to sync
@@ -429,6 +454,14 @@ Navigate to `http://localhost:5173`
 4. Customize targeting to your team structure
 5. Set schedule or leave disabled for manual testing
 6. Save workflow
+
+**Agent Gateway Auto-Start**: Currently, gateways must be started manually per agent. This allows fine-grained control over which agents are active. Future versions will support:
+- Auto-start on system boot (via systemd/launchd)
+- Gateway process management UI in dashboard
+- Bulk start/stop for agent groups
+- Health monitoring and auto-restart
+
+For now, start gateways manually before workflow execution.
 
 **Step 5: Test Workflow**
 1. Ensure at least one agent gateway is running:

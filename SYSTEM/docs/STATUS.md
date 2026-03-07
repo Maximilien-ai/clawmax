@@ -67,6 +67,8 @@
 
 ---
 
+NOTE: I think some of this is completed. Let's mark off and also let's consolidate to have one of two checklist of what is beind done and to do. Currently spread accross multiple files. Let's simplify please.
+
 ## 🗓️ This Week Roadmap
 
 ### ✅ Today (Mar 3) - COMPLETED

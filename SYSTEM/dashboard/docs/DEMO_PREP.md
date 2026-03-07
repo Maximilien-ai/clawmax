@@ -30,6 +30,20 @@
 - [ ] Clean execution history (old test runs removed ✅)
 - [ ] Workflow templates available
 
+**Demo Workspace Goals** (Weekend Setup):
+1. **Multi-Agent Workflows**: 3-5 agents executing reliably
+   - Status Check (simple, proven)
+   - Daily Standup (tag-based targeting)
+   - Code Review Reminder (GitHub skill demo)
+
+2. **Template Workspace** (Stretch Goal):
+   - QA Organization template
+   - Pre-configured agents with roles/tags
+   - Ready-to-run workflows
+   - One-click instantiation
+
+**Priority**: Get #1 working reliably this weekend. #2 is bonus if time permits.
+
 ### ✅ Technical Setup
 - [ ] Dashboard accessible at `http://localhost:5173`
 - [ ] Screen recording software ready (for creating demo videos)

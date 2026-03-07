@@ -5,6 +5,9 @@
 
 ---
 
+NOTE: can we update this list? I feel like some of these items are completed. If yes, mark so and let's start dividing into completed and not and eventually move completed to docs/archive
+NOTE2: what is not completed let's make sure we are planning to address especially with up coming demo
+
 ## 🎯 This Week: Workflows + Essential Security (Mar 3-7)
 
 ### Day 1: Tuesday, Mar 3 ✅

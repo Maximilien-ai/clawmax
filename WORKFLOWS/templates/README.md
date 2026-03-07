@@ -2,6 +2,13 @@
 
 Pre-built workflow templates for common team coordination and automation scenarios.
 
+**Tag-Based Targeting**: Workflows use tag-based targeting for flexibility. For example:
+- `tags: [engineer]` → All agents tagged "engineer" participate
+- `tags: [product-manager]` → All product managers provide status
+- `tags: [qa, engineer]` → Both QA and engineering agents included
+
+This allows dynamic participant lists without hardcoding agent IDs. As you add/remove agents with specific tags, workflows automatically adjust.
+
 ## Available Templates
 
 ### 1. **Daily Standup** (`daily-standup.md`)

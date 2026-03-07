@@ -322,6 +322,24 @@ While our initial use cases focus on software development (standups, code review
 - **Operations teams**: Automated monitoring and incident response
 - **Creative teams**: Content generation and review workflows
 
+**Current Limitations & Security Considerations**:
+- **Authentication**: WebSocket connections use tokens, local-only by default (127.0.0.1)
+- **TLS/Encryption**: Not enabled by default for local agents; configure for remote deployments
+- **Access Control**: File-based permissions; no RBAC yet (roadmap v1.1.0)
+- **Secrets Management**: Relies on OpenClaw's skill-based approach (1Password integration)
+- **Rate Limiting**: No built-in throttling; workflows can overwhelm agents if misconfigured
+- **Audit Logs**: Execution logs captured but no centralized audit trail yet
+
+**Production Readiness**: ClawMax is suitable for:
+✅ Internal team coordination
+✅ Development/staging environments
+✅ Trusted network deployments
+
+⚠️ Additional hardening recommended for:
+- Public-facing deployments
+- Sensitive data handling
+- Multi-tenant environments
+
 ---
 
 ## Section 7: Getting Started (150 words)
