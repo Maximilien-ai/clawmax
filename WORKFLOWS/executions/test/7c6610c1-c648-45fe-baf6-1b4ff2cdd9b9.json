@@ -1,9 +1,0 @@
-{
-  "id": "7c6610c1-c648-45fe-baf6-1b4ff2cdd9b9",
-  "workflowId": "test",
-  "startedAt": "2026-03-06T17:22:54.826Z",
-  "status": "running",
-  "triggerType": "manual",
-  "participants": [],
-  "logs": []
-}
