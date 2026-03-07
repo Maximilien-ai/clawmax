@@ -8,19 +8,14 @@
 ---
 
 ## Title Options
-1. **Introducing ClawMax: OpenClaw to the Max!** ⭐ (Primary)
-2. From One Agent to an Army: Building ClawMax on OpenClaw
-3. ClawMax: When Your AI Agents Need Mission Control
+**Introducing ClawMax: OpenClaw to the Max!** ⭐ (Primary)
+From One Agent to an Army: Building ClawMax on OpenClaw
 
 ---
 
 ## Opening Hook (100 words)
 
-**Option A** (Problem-focused):
-"You started with one OpenClaw agent. Then three. Then ten. Suddenly you're managing dozens of AI agents across multiple projects, each with their own identity, skills, and responsibilities. You're drowning in terminal windows, losing track of which agent is doing what, and manually coordinating tasks that should happen automatically. Sound familiar?"
-
-**Option B** (Vision-focused):
-"What if managing 100 AI agents was as easy as managing a 10-person team? What if your AI agents could coordinate themselves, run scheduled workflows, and operate 24/7 without constant supervision? That's the vision behind ClawMax - taking OpenClaw's powerful agent framework to the max."
+What if managing 100 AI agents was as easy as managing a 10-person team? What if your AI agents could coordinate themselves, run scheduled workflows, and operate 24/7 without constant supervision? That's the vision behind ClawMax - taking OpenClaw's powerful agent framework to the max.
 
 ---
 
@@ -28,6 +23,7 @@
 
 ### What is OpenClaw?
 - Open-source framework for building autonomous AI agents
+- Amazing adoption and success -- fastest growing OSS AI agents project
 - Each agent has identity, skills, tools, and persistent workspace
 - WebSocket gateway for real-time communication
 - File-based agent memory (markdown documents)
@@ -41,12 +37,14 @@
   - How do I send tasks to groups of agents?
   - How do I track multi-agent workflows?
   - Where is my centralized view?
+  - Where can I see agent's logs? and take actions on groups of agents?
 
 ### The Gap ClawMax Fills
 - **Visibility**: See your entire agent ecosystem
 - **Organization**: Structure agents into communities and groups
 - **Coordination**: Automated multi-agent workflows
 - **Control**: Centralized management interface
+- **Refinement**: Refine and currate your agents. Then clone and create templates to replicate
 
 ---
 
@@ -57,13 +55,16 @@
 - **File-based compatibility** - works with existing OpenClaw workspaces
 - **No agent modifications required** - uses standard gateway API
 - **Open integration** - leverage OpenClaw CLI and tools
+- **Enhancement** - make enhancement and submit upstream
 
 ### Technical Stack
 ```
 ┌─────────────────────────────────┐
 │  ClawMax Dashboard (React)      │
 │  - Visual management UI         │
+│  - Agent creator                │
 │  - Workflow editor              │
+│  - Template management          │
 │  - Real-time status             │
 └──────────────┬──────────────────┘
                │
@@ -133,7 +134,7 @@
 **Features**:
 - Visual hierarchy of communities → groups → agents
 - Flexible membership (agents in multiple groups)
-- Workflow targeting based on organization
+- Workflow targeting based on organization or agent's tags
 
 **Value**: Structure scales from 5 to 500 agents
 
@@ -194,6 +195,10 @@ executionMode: automated
 - Modify schedule (cron expression)
 - Edit instructions (markdown content)
 
+**Additional Templates**
+- Agent template to allow easy creation of many agents after curation
+- Organization templates to address collection of agents, collection of groups and communities, and workflows
+
 **Value**: Get started in 5 minutes, not 5 hours
 
 ---
@@ -223,6 +228,7 @@ executionMode: automated
 
 **Features**:
 - Inline markdown editor
+- Schemas to ensure that edited YAML are correct
 - YAML frontmatter support
 - File system sync
 - Search and filter
@@ -273,7 +279,6 @@ executionMode: automated
 - Communication platform integration (WhatsApp, Slack, Discord)
 
 ✅ **Technical Achievement**:
-- Fixed critical infinite loop bug blocking API calls
 - Integrated OpenClaw CLI workflow execution
 - Real-time WebSocket communication
 - File-based state management
@@ -286,6 +291,7 @@ executionMode: automated
 - Agent health monitoring dashboard
 - Multi-workspace management UI
 - Workflow result parsing and aggregation
+- Templates for agents and organizations
 
 ### v1.1.0 (Future - Q3 2026)
 🔮 **Advanced Features**:
@@ -309,6 +315,7 @@ OpenClaw gives you powerful individual agents. ClawMax turns those agents into a
 - **Automated coordination** without human bottlenecks
 - **24/7 operation** with intelligent scheduling
 - **Emergent intelligence** from agent collaboration
+- **System ClawMax agents** to help create, optimize, and update system
 
 ### Why This Matters
 As AI agents become more capable, the challenge shifts from "how do I build one good agent?" to "how do I coordinate many agents effectively?"
@@ -339,6 +346,7 @@ While our initial use cases focus on software development (standups, code review
 - Public-facing deployments
 - Sensitive data handling
 - Multi-tenant environments
+- Currency with OpenClaw
 
 ---
 

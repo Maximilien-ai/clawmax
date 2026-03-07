@@ -1,0 +1,27 @@
+{
+  "id": "simple-test",
+  "workflowId": "test",
+  "startedAt": "2026-03-07T19:10:00.000Z",
+  "status": "completed",
+  "triggerType": "manual",
+  "participants": [
+    {
+      "agentId": "ceo",
+      "agentName": "CEO",
+      "status": "completed",
+      "startedAt": "2026-03-07T19:39:43.439Z",
+      "completedAt": "2026-03-07T19:39:45.744Z",
+      "result": {
+        "response": ""
+      }
+    }
+  ],
+  "logs": [
+    "Workflow execution created for routing test",
+    "Workflow execution started by CLI at 2026-03-07T19:39:43.438Z",
+    "Started execution for CEO",
+    "CEO completed successfully",
+    "Workflow execution completed at 2026-03-07T19:39:45.745Z"
+  ],
+  "completedAt": "2026-03-07T19:39:45.745Z"
+}

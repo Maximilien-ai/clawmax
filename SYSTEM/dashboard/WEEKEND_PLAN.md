@@ -29,26 +29,27 @@ All documentation NOTEs have been resolved:
 
 **1. Verify Current Setup** (30 min)
 ```bash
-# Ensure these agents have gateways configured
-- agent0
-- engineer
-- max0
-- ceo
-- product-manager
+# You are using a SHARED gateway for all agents
+# This is configured in ~/.openclaw/openclaw.json
+# Port: 18889
 
-# Check gateway configs exist
-ls ~/.openclaw/openclaw.json
-# Should show gateway.port and gateway.auth.token
+# Check if shared gateway is running
+lsof -ti:18889
+# If not running, start it with:
+# openclaw gateway run
+
+# Check gateway config
+cat ~/.openclaw/openclaw.json | grep -A 5 gateway
+# Should show gateway.port: 18889 and gateway.auth.token
 ```
 
 **2. Test Status Check Workflow** (1 hour)
 ```bash
-# Start 3 gateways
-openclaw gateway run --agent agent0 &
-openclaw gateway run --engineer &
-openclaw gateway run --agent max0 &
+# Gateway should already be running (check with: lsof -ti:18889)
+# If not running, start it:
+# openclaw gateway run &
 
-# Start dashboard
+# Start dashboard (if not already running)
 cd ~/.openclaw/workspace/SYSTEM/dashboard
 npm run dev
 
@@ -63,9 +64,10 @@ npm run dev
 ```
 
 **Expected Issues & Fixes**:
-- Gateway not found → Check openclaw.json has gateway config
-- Timeout → Increase timeout in workflow-cli.ts if needed
-- Connection refused → Verify agent gateway is actually listening on port
+- Gateway not found → Check shared gateway is running (lsof -ti:18889)
+- Timeout → Increase timeout in workflow-cli.ts if needed (currently 2 min)
+- Connection refused → Restart gateway with: openclaw gateway run
+- No participants → Verify agents are in "Status" group (check GROUPS.md)
 
 **3. Create Daily Standup with Tags** (1.5 hours)
 
@@ -209,32 +211,34 @@ Document how ClawMax handles failures.
 
 ### Sunday Afternoon (2-3 hours)
 
-**11. Create Test Workspace Helper Script** (1 hour)
+**11. Create Quick Start Guide** (30 min)
 
-`scripts/start-test-agents.sh`:
+Create `SYSTEM/dashboard/QUICKSTART.md`:
+```markdown
+# ClawMax Dashboard - Quick Start
+
+## Prerequisites
+1. Shared gateway running: `lsof -ti:18889` (should return PID)
+2. If not running: `openclaw gateway run &`
+
+## Start Dashboard
 ```bash
-#!/bin/bash
-# Start all test agents for demo
-
-echo "Starting agent gateways..."
-openclaw gateway run --agent agent0 &
-openclaw gateway run --agent engineer &
-openclaw gateway run --agent max0 &
-openclaw gateway run --agent ceo &
-openclaw gateway run --agent product-manager &
-
-echo "Waiting for gateways to start..."
-sleep 5
-
-echo "✓ All agents started"
-echo "Dashboard: http://localhost:5173"
-echo "Press Ctrl+C to stop all agents"
-
-# Keep script running
-wait
+cd ~/.openclaw/workspace/SYSTEM/dashboard
+npm run dev
 ```
 
-Make executable: `chmod +x scripts/start-test-agents.sh`
+## First Workflow Test
+1. Open http://localhost:5173
+2. Go to Workflows → "Status Check"
+3. Click "Trigger Workflow"
+4. Watch execution in real-time
+5. Review results in execution history
+
+## Troubleshooting
+- Gateway not found: Check `openclaw.json` has gateway config
+- No participants: Verify agents in correct group
+- Timeout: Restart gateway and try again
+```
 
 **12. Polish Documentation** (1 hour)
 

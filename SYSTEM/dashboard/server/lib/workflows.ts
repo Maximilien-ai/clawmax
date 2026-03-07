@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto'
 const WORKSPACE_DIR = path.join(process.env.HOME || '', '.openclaw', 'workspace')
 const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
 const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
+const TEMPLATES_DIR = path.join(WORKFLOWS_DIR, 'templates')
 
 // Interfaces
 export interface AgentTargeting {
@@ -114,6 +115,45 @@ export function listWorkflows(): Workflow[] {
   }
 
   return workflows
+}
+
+// List workflow templates from templates directory
+export function listWorkflowTemplates(): Workflow[] {
+  if (!fs.existsSync(TEMPLATES_DIR)) {
+    return []
+  }
+
+  const files = fs.readdirSync(TEMPLATES_DIR).filter(f => f.endsWith('.md') && f !== 'README.md')
+  const templates: Workflow[] = []
+
+  for (const file of files) {
+    const filePath = path.join(TEMPLATES_DIR, file)
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const { data, content: markdownContent } = matter(content)
+
+      const template: Workflow = {
+        id: path.basename(file, '.md'),
+        name: data.name || path.basename(file, '.md'),
+        description: data.description || '',
+        schedule: data.schedule || '',
+        enabled: false, // Templates are disabled by default
+        targeting: data.targeting || { communities: [], groups: [], tags: [], agents: [] },
+        created: data.created || '',
+        modified: data.modified || '',
+        author: data.author || 'system',
+        owner: data.owner,
+        executionMode: data.executionMode || 'automated',
+        content: markdownContent.trim()
+      }
+
+      templates.push(template)
+    } catch (error) {
+      console.error(`Error reading workflow template ${file}:`, error)
+    }
+  }
+
+  return templates
 }
 
 // Get single workflow

@@ -20,9 +20,6 @@ executionMode: manual
 ---
 # Status Check
 
-IMPORTANT: You MUST post your status to the Status group.
+Check your session status and report if you're online and ready.
 
-1. First, check your session using the session_status tool
-2. Then IMMEDIATELY post a message to the Status group saying "I'm online and ready" using message_send tool with to="Status"
-
-DO NOT just run session_status and stop. You MUST send a message to Status group.
+Use the session_status tool to check your current session.

@@ -10,25 +10,39 @@ import {
   validateTemplate,
   slugify
 } from '../lib/templates'
+import { listWorkflowTemplates } from '../lib/workflows'
 
 const router = Router()
 
 // GET /api/templates - List all templates (with optional type filter)
-// Query params: ?type=agent or ?type=organization
+// Query params: ?type=agent or ?type=organization or ?type=workflow
 router.get('/', (req, res) => {
   const { type } = req.query
 
-  if (type && type !== 'agent' && type !== 'organization') {
-    return res.status(400).json({ error: 'Type must be "agent" or "organization"' })
+  if (type && type !== 'agent' && type !== 'organization' && type !== 'workflow') {
+    return res.status(400).json({ error: 'Type must be "agent", "organization", or "workflow"' })
   }
 
   const templates = listTemplates(type as 'agent' | 'organization' | undefined)
+  const workflowTemplates = listWorkflowTemplates()
 
   // Separate by type for easier frontend consumption
   const agents = templates.filter(t => t.type === 'agent')
   const organizations = templates.filter(t => t.type === 'organization')
+  const workflows = workflowTemplates
 
-  res.json({ agents, organizations, total: templates.length })
+  // Filter by type if specified
+  if (type === 'agent') {
+    return res.json({ agents, organizations: [], workflows: [], total: agents.length })
+  }
+  if (type === 'organization') {
+    return res.json({ agents: [], organizations, workflows: [], total: organizations.length })
+  }
+  if (type === 'workflow') {
+    return res.json({ agents: [], organizations: [], workflows, total: workflows.length })
+  }
+
+  res.json({ agents, organizations, workflows, total: agents.length + organizations.length + workflows.length })
 })
 
 // GET /api/templates/agents - List agent templates only

@@ -12,7 +12,7 @@ targeting:
   tags:
     - test
   agents:
-    - agent0
+    - ceo
 created: '2026-03-04T16:11:04.783Z'
 modified: '2026-03-04T16:12:01.487Z'
 author: dashboard

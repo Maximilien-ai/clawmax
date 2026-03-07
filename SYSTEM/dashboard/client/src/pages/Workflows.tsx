@@ -98,6 +98,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+  const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
+  const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -173,18 +175,39 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
   }
 
-  const fetchExecutionDetails = async (workflowId: string, executionId: string) => {
+  const fetchExecutionDetails = async (workflowId: string, executionId: string, silent = false) => {
     try {
-      const resp = await fetch(`/api/workflows/${workflowId}/executions/${executionId}`)
-      if (!resp.ok) throw new Error('Failed to fetch execution')
-      const execution = await resp.json()
+      const [execResp, workflowResp, executionsResp] = await Promise.all([
+        fetch(`/api/workflows/${workflowId}/executions/${executionId}`),
+        fetch(`/api/workflows/${workflowId}`),
+        fetch(`/api/workflows/${workflowId}/executions?limit=20`)
+      ])
+      if (!execResp.ok) throw new Error('Failed to fetch execution')
+      const execution = await execResp.json()
+      const workflow = workflowResp.ok ? await workflowResp.json() : null
+      const executionsData = executionsResp.ok ? await executionsResp.json() : { executions: [] }
+
       setSelectedExecution(execution)
+      setExecutionWorkflow(workflow)
+      setExecutionsList(executionsData.executions || [])
       setShowExecutionPanel(true)
       setShowDetailPanel(false) // Close workflow panel when viewing execution
     } catch (err) {
-      showError('Failed to load execution details')
+      if (!silent) {
+        showError('Failed to load execution details')
+      }
     }
   }
+
+  // Poll execution details when status is running
+  useEffect(() => {
+    if (selectedExecution && selectedExecution.status === 'running') {
+      const interval = setInterval(() => {
+        fetchExecutionDetails(selectedExecution.workflowId, selectedExecution.id, true)
+      }, 3000) // Poll every 3 seconds
+      return () => clearInterval(interval)
+    }
+  }, [selectedExecution?.id, selectedExecution?.status])
 
   const handleToggleEnabled = async (id: string, currentEnabled: boolean) => {
     try {
@@ -794,17 +817,55 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             onClick={() => setShowExecutionPanel(false)}
           />
           <div className="fixed right-0 top-0 bottom-0 w-2/3 bg-white shadow-2xl z-50 overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Execution Details</h2>
-                <p className="text-xs text-gray-500 font-mono mt-0.5">{selectedExecution.id}</p>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setShowExecutionPanel(false)
+                      if (executionWorkflow) {
+                        fetchWorkflowDetails(executionWorkflow.id)
+                      }
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-xl"
+                    title="Back to workflow"
+                  >
+                    ←
+                  </button>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Execution Details</h2>
+                    {executionWorkflow && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Workflow: <span className="font-medium">{executionWorkflow.name}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowExecutionPanel(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => setShowExecutionPanel(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
+
+              {/* Execution selector */}
+              {executionsList.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 font-medium">View execution:</label>
+                  <select
+                    value={selectedExecution.id}
+                    onChange={(e) => fetchExecutionDetails(selectedExecution.workflowId, e.target.value)}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    {executionsList.map(exec => (
+                      <option key={exec.id} value={exec.id}>
+                        {new Date(exec.startedAt).toLocaleString()} - {exec.status} ({exec.successCount}/{exec.participantCount})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="p-6 space-y-6">
@@ -832,6 +893,53 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   )}
                 </div>
               </div>
+
+              {/* Workflow Targeting */}
+              {executionWorkflow && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Workflow Targets</h3>
+                  <div className="space-y-2">
+                    {executionWorkflow.targeting.groups.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Groups:</span>{' '}
+                        {executionWorkflow.targeting.groups.map((group, idx) => (
+                          <React.Fragment key={group}>
+                            {idx > 0 && ', '}
+                            <button
+                              onClick={() => onNavigateToGroup?.(group)}
+                              className="text-sky-600 hover:text-sky-700 hover:underline font-medium"
+                            >
+                              {group}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )}
+                    {executionWorkflow.targeting.communities.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Communities:</span>{' '}
+                        {executionWorkflow.targeting.communities.map((community, idx) => (
+                          <React.Fragment key={community}>
+                            {idx > 0 && ', '}
+                            <button
+                              onClick={() => onNavigateToCommunity?.(community)}
+                              className="text-sky-600 hover:text-sky-700 hover:underline font-medium"
+                            >
+                              {community}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )}
+                    {executionWorkflow.targeting.tags.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Tags:</span>{' '}
+                        <span className="text-gray-900">{executionWorkflow.targeting.tags.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Participants */}
               <div>

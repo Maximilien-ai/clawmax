@@ -34,12 +34,33 @@ interface OrganizationTemplate {
   groups?: Array<{ name: string }>
 }
 
+interface WorkflowTemplate {
+  id: string
+  name: string
+  description: string
+  schedule: string
+  enabled: boolean
+  targeting: {
+    communities: string[]
+    groups: string[]
+    tags: string[]
+    agents: string[]
+  }
+  created: string
+  modified: string
+  author: string
+  owner?: string
+  executionMode: 'automated' | 'managed'
+  content: string
+}
+
 type Template = AgentTemplate | OrganizationTemplate
 
 export default function Templates() {
   const { showSuccess, showError } = useToast()
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [orgTemplates, setOrgTemplates] = useState<OrganizationTemplate[]>([])
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
@@ -52,6 +73,7 @@ export default function Templates() {
       .then(data => {
         setAgentTemplates(data.agents || [])
         setOrgTemplates(data.organizations || [])
+        setWorkflowTemplates(data.workflows || [])
         setLoading(false)
       })
       .catch(err => {
@@ -120,7 +142,21 @@ export default function Templates() {
     )
   }, [orgTemplates, searchQuery])
 
-  const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length
+  const filteredWorkflowTemplates = React.useMemo(() => {
+    if (!searchQuery.trim()) return workflowTemplates
+    const query = searchQuery.trim().toLowerCase()
+    return workflowTemplates.filter(t =>
+      t.name.toLowerCase().includes(query) ||
+      t.description.toLowerCase().includes(query) ||
+      t.author.toLowerCase().includes(query) ||
+      t.targeting.communities.some(c => c.toLowerCase().includes(query)) ||
+      t.targeting.groups.some(g => g.toLowerCase().includes(query)) ||
+      t.targeting.tags.some(tag => tag.toLowerCase().includes(query)) ||
+      t.targeting.agents.some(a => a.toLowerCase().includes(query))
+    )
+  }, [workflowTemplates, searchQuery])
+
+  const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length + filteredWorkflowTemplates.length
 
   if (loading) {
     return (
@@ -130,7 +166,7 @@ export default function Templates() {
     )
   }
 
-  const totalTemplates = agentTemplates.length + orgTemplates.length
+  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -144,13 +180,15 @@ export default function Templates() {
                 <>
                   {totalFiltered} of {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
                   {' '}{filteredAgentTemplates.length} agent{filteredAgentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{filteredOrgTemplates.length} organization{filteredOrgTemplates.length !== 1 ? 's' : ''}
+                  {' '}{filteredOrgTemplates.length} organization{filteredOrgTemplates.length !== 1 ? 's' : ''},
+                  {' '}{filteredWorkflowTemplates.length} workflow{filteredWorkflowTemplates.length !== 1 ? 's' : ''}
                 </>
               ) : (
                 <>
                   {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
                   {' '}{agentTemplates.length} agent{agentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{orgTemplates.length} organization{orgTemplates.length !== 1 ? 's' : ''}
+                  {' '}{orgTemplates.length} organization{orgTemplates.length !== 1 ? 's' : ''},
+                  {' '}{workflowTemplates.length} workflow{workflowTemplates.length !== 1 ? 's' : ''}
                 </>
               )}
             </p>
@@ -253,6 +291,24 @@ export default function Templates() {
                       onDelete={() => handleDelete('organization', template.name)}
                       onClick={() => setSelectedTemplate(template)}
                       selected={selectedTemplate?.name === template.name}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Workflow Templates */}
+            {filteredWorkflowTemplates.length > 0 && (
+              <section>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span>⚡ Workflow Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
+                </h2>
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {filteredWorkflowTemplates.map((template, idx) => (
+                    <WorkflowTemplateCard
+                      key={idx}
+                      template={template}
                     />
                   ))}
                 </div>
@@ -507,5 +563,53 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
         </div>
       </div>
     </div>
+  )
+}
+
+function WorkflowTemplateCard({ template }: { template: WorkflowTemplate }) {
+  const targetingCount =
+    template.targeting.communities.length +
+    template.targeting.groups.length +
+    template.targeting.tags.length +
+    template.targeting.agents.length
+
+  return (
+    <a
+      href={`/#/workflows/${template.id}`}
+      className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md hover:border-sky-400 transition-all block"
+    >
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1">
+          {template.name}
+        </h3>
+        <span className="text-lg">⚡</span>
+      </div>
+
+      {template.description && (
+        <p className="text-xs text-gray-500 mb-3 line-clamp-2">{template.description}</p>
+      )}
+
+      <div className="space-y-2 text-xs text-gray-600">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">📅</span>
+          <span>{template.schedule}</span>
+        </div>
+        {targetingCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400">🎯</span>
+            <span>{targetingCount} target{targetingCount !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">⚙️</span>
+          <span className="capitalize">{template.executionMode}</span>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+        <span>{template.enabled ? '✓ Enabled' : '○ Disabled'}</span>
+        {template.author && <span>by {template.author}</span>}
+      </div>
+    </a>
   )
 }

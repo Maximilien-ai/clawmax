@@ -70,6 +70,32 @@ Registered the new `workflow` command in the CLI command registry.
 - Configured as subcommand with description "Manage and execute workflows"
 - Lazy-loaded via dynamic import of `workflow-cli.js`
 
+### `src/gateway/server-methods/chat.ts` **(NEW - March 7, 2026)**
+Added agent routing logic to enable multi-agent workflow execution through a shared gateway.
+
+**Changes:**
+- Added workflow session key parsing (lines 738-746)
+- Detects workflow format: `workflow-{executionId}-{agentId}`
+- Routes to agent-specific context by converting to: `agent:{agentId}:workflow:{executionId}`
+- Leverages existing agent scope resolution infrastructure
+- No breaking changes - standard session keys work as before
+
+**Functionality:**
+When a workflow sends messages with session keys like `workflow-abc123-ceo`:
+1. Pattern is detected via regex: `/^workflow-([^-]+)-(.+)$/`
+2. Agent ID is extracted (`ceo`)
+3. Session key is rewritten to standard format: `agent:ceo:workflow:abc123`
+4. Existing agent context loading infrastructure routes to correct agent workspace
+5. Agent identity (IDENTITY.md), soul, and tools are loaded from agent-specific paths
+6. Message is processed in that agent's context
+
+**Why This Matters:**
+- Enables **single shared gateway** to serve all agents (no per-agent gateways needed)
+- No global lock issues - gateway routes to agent contexts dynamically
+- Simpler architecture than running multiple gateway instances
+- Better resource utilization for multi-agent systems
+- Foundation for ClawMax Dashboard multi-agent orchestration
+
 ## Dependencies
 
 ### Production Dependencies
@@ -250,10 +276,14 @@ This feature is production-ready and would benefit the broader OpenClaw communit
 3. Should workflow execution be integrated with OpenClaw's existing cron system?
 4. Any concerns about the WebSocket-based agent communication approach?
 5. Should workflow templates ship with OpenClaw core, or remain plugin/extension territory?
+6. **NEW**: Is the workflow session key format (`workflow-{executionId}-{agentId}`) acceptable, or should it follow a different pattern?
+7. **NEW**: Should agent routing in the gateway be extended to support other multi-agent use cases beyond workflows?
+8. **NEW**: Any concerns about dynamically routing to agent contexts based on session key patterns?
 
 ## Timeline
 
-- **2026-03-06**: Initial implementation
+- **2026-03-06**: Initial workflow CLI implementation
+- **2026-03-07**: Added agent routing to gateway for multi-agent support
 - **Next Week**: Discussion with OpenClaw maintainers
 - **TBD**: PR submission to upstream
 
