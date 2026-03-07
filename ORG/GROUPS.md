@@ -49,6 +49,13 @@
 - **Channels:** whatsapp
 
 - **Members:** product-manager, product-owner, qa-engineer, release-engineer, engineer, dave, max0, ceo, agent-manager
+### Status
+- **Description:** Quick status checks and health monitoring
+- **Tags:** monitoring, status
+- **Community:** Engineering Team
+- **Channels:** slack
+
+- **Members:** agent0, engineer, max0
 ### Onboarding
 - **Description:** New team member onboarding
 - **Tags:** onboarding, hr
