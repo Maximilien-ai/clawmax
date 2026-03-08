@@ -414,7 +414,7 @@ router.get('/communities/:name/messages', (req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions } = req.body as { content?: string; mentions?: string[] }
+  const { content, mentions, from } = req.body as { content?: string; mentions?: string[]; from?: string }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -423,9 +423,9 @@ router.post('/communities/:name/messages', async (req, res) => {
 
   const decodedName = decodeURIComponent(name)
 
-  // Save user message
+  // Save message (use provided 'from' or default to 'User')
   const message = addMessage('community', decodedName, {
-    from: 'User',
+    from: from || 'User',
     content,
     mentions: mentions || []
   })
@@ -473,7 +473,7 @@ router.get('/groups/:name/messages', (req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions } = req.body as { content?: string; mentions?: string[] }
+  const { content, mentions, from } = req.body as { content?: string; mentions?: string[]; from?: string }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -482,9 +482,9 @@ router.post('/groups/:name/messages', async (req, res) => {
 
   const decodedName = decodeURIComponent(name)
 
-  // Save user message
+  // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
-    from: 'User',
+    from: from || 'User',
     content,
     mentions: mentions || []
   })
