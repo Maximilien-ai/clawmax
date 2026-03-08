@@ -403,9 +403,8 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
 
   const files = fs.readdirSync(executionDir)
     .filter(f => f.endsWith('.json'))
-    .sort()
-    .reverse() // Most recent first
-    .slice(0, limit)
+    .sort() // Alphabetical order (chronological)
+    .slice(-limit) // Take last N (most recent executions, oldest to newest)
 
   const executions: WorkflowExecution[] = []
 

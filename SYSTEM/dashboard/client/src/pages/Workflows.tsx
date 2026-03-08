@@ -100,6 +100,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [executionsPage, setExecutionsPage] = useState(1)
+  const executionsPerPage = 5
+  const [showArchivedModal, setShowArchivedModal] = useState(false)
+  const [archivedExecutions, setArchivedExecutions] = useState<WorkflowExecution[]>([])
+  const [archivedWorkflowId, setArchivedWorkflowId] = useState<string | null>(null)
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -196,6 +202,63 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       if (!silent) {
         showError('Failed to load execution details')
       }
+    }
+  }
+
+  const fetchArchivedExecutions = async (workflowId: string) => {
+    try {
+      const resp = await fetch(`/api/workflows/${workflowId}/executions/archived`)
+      if (!resp.ok) throw new Error('Failed to fetch archived executions')
+      const data = await resp.json()
+      setArchivedExecutions(data.executions || [])
+      setArchivedWorkflowId(workflowId)
+      setShowArchivedModal(true)
+    } catch (err) {
+      showError('Failed to load archived executions')
+    }
+  }
+
+  const archiveExecution = async (workflowId: string, executionId: string) => {
+    try {
+      const resp = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/archive`, {
+        method: 'POST'
+      })
+      if (!resp.ok) throw new Error('Failed to archive execution')
+
+      // Remove from current executions list
+      setExecutions(executions.filter(e => e.id !== executionId))
+      showSuccess('Execution archived')
+
+      // If we're viewing the execution panel, refresh it
+      if (selectedWorkflow) {
+        const executionsResp = await fetch(`/api/workflows/${selectedWorkflow.id}/executions?limit=20`)
+        const executionsData = executionsResp.ok ? await executionsResp.json() : { executions: [] }
+        setExecutions(executionsData.executions || [])
+      }
+    } catch (err) {
+      showError('Failed to archive execution')
+    }
+  }
+
+  const unarchiveExecution = async (workflowId: string, executionId: string) => {
+    try {
+      const resp = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/unarchive`, {
+        method: 'POST'
+      })
+      if (!resp.ok) throw new Error('Failed to unarchive execution')
+
+      // Remove from archived executions list
+      setArchivedExecutions(archivedExecutions.filter(e => e.id !== executionId))
+      showSuccess('Execution unarchived')
+
+      // Refresh current executions list
+      if (archivedWorkflowId) {
+        const executionsResp = await fetch(`/api/workflows/${archivedWorkflowId}/executions?limit=20`)
+        const executionsData = executionsResp.ok ? await executionsResp.json() : { executions: [] }
+        setExecutions(executionsData.executions || [])
+      }
+    } catch (err) {
+      showError('Failed to unarchive execution')
     }
   }
 
@@ -492,6 +555,30 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 </button>
               </>
             )}
+            <div className="flex items-center gap-1 bg-gray-200 rounded-md p-0.5">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                title="Grid view"
+              >
+                ⊞
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                title="List view"
+              >
+                ☰
+              </button>
+            </div>
             <button
               onClick={() => {
                 setSelectionMode(!selectionMode)
@@ -577,7 +664,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="text-center text-gray-500 py-12">
             {searchQuery ? 'No workflows match your search' : 'No workflows yet'}
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredWorkflows.map(workflow => (
               <WorkflowCard
@@ -591,6 +678,72 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
                 isRunning={runningWorkflows.has(workflow.id)}
               />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredWorkflows.map(workflow => (
+              <div
+                key={workflow.id}
+                className="bg-white border border-gray-200 rounded-lg hover:border-sky-300 transition-colors"
+              >
+                <div className="px-4 py-3 flex items-center gap-4">
+                  {selectionMode && (
+                    <input
+                      type="checkbox"
+                      checked={selectedWorkflowIds.has(workflow.id)}
+                      onChange={() => toggleWorkflowSelection(workflow.id)}
+                      className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => fetchWorkflowDetails(workflow.id)}>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">{workflow.name}</h3>
+                      {runningWorkflows.has(workflow.id) && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded animate-pulse">
+                          Running
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                        workflow.enabled
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {workflow.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate mt-0.5">{workflow.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>{workflow.participantCount} agents</span>
+                    <span>·</span>
+                    <span>{workflow.schedule || 'Manual'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleToggleEnabled(workflow.id, !workflow.enabled)}
+                      className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                      title={workflow.enabled ? 'Disable workflow' : 'Enable workflow'}
+                    >
+                      {workflow.enabled ? '⏸' : '▶'}
+                    </button>
+                    <button
+                      onClick={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
+                      className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                      title="Open file"
+                    >
+                      📄
+                    </button>
+                    <button
+                      onClick={() => handleDelete(workflow.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete workflow"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -764,35 +917,97 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Recent Executions */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent Executions</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-700">Recent Executions</h3>
+                    <button
+                      onClick={() => fetchArchivedExecutions(selectedWorkflow.id)}
+                      className="px-2 py-0.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded border border-gray-300"
+                      title="View archived executions"
+                    >
+                      📦 Archived
+                    </button>
+                  </div>
+                  {executions.length > executionsPerPage && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setExecutionsPage(p => Math.max(1, p - 1))}
+                        disabled={executionsPage === 1}
+                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+                      >
+                        ‹ Prev
+                      </button>
+                      <span className="text-xs text-gray-500">
+                        Page {executionsPage} of {Math.ceil(executions.length / executionsPerPage)}
+                      </span>
+                      <button
+                        onClick={() => setExecutionsPage(p => Math.min(Math.ceil(executions.length / executionsPerPage), p + 1))}
+                        disabled={executionsPage >= Math.ceil(executions.length / executionsPerPage)}
+                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+                      >
+                        Next ›
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {executions.length === 0 ? (
                   <p className="text-sm text-gray-500">No execution history</p>
                 ) : (
                   <div className="space-y-2">
-                    {executions.map(exec => (
-                      <button
-                        key={exec.id}
-                        onClick={() => fetchExecutionDetails(selectedWorkflow.id, exec.id)}
-                        className="w-full text-left text-sm border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            exec.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            exec.status === 'failed' ? 'bg-red-100 text-red-700' :
-                            exec.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                            'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {exec.status}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(exec.startedAt).toLocaleString()}
-                          </span>
+                    {executions
+                      .slice((executionsPage - 1) * executionsPerPage, executionsPage * executionsPerPage)
+                      .map(exec => (
+                        <div key={exec.id} className="relative group">
+                          <button
+                            onClick={() => fetchExecutionDetails(selectedWorkflow.id, exec.id)}
+                            className="w-full text-left text-sm border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                          >
+                            <div className="flex items-center mb-1">
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                exec.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                exec.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                exec.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {exec.status}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-600 mb-1">
+                              {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(exec.startedAt).toLocaleString()}
+                            </div>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              archiveExecution(selectedWorkflow.id, exec.id)
+                            }}
+                            className="absolute top-2 right-9 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Archive execution"
+                          >
+                            📦
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm(`Delete execution ${exec.id}?`)) {
+                                fetch(`/api/workflows/${selectedWorkflow.id}/executions/${exec.id}`, { method: 'DELETE' })
+                                  .then(() => {
+                                    setExecutions(executions.filter(e => e.id !== exec.id))
+                                    showSuccess('Execution deleted')
+                                  })
+                                  .catch(() => showError('Failed to delete execution'))
+                              }
+                            }}
+                            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete execution"
+                          >
+                            🗑
+                          </button>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
-                        </div>
-                      </button>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>
@@ -1041,6 +1256,67 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           }}
           mode="edit"
         />
+      )}
+
+      {/* Archived Executions Modal */}
+      {showArchivedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowArchivedModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Archived Executions</h2>
+              <button
+                onClick={() => setShowArchivedModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {archivedExecutions.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">No archived executions</p>
+              ) : (
+                <div className="space-y-2">
+                  {archivedExecutions.map(exec => (
+                    <div key={exec.id} className="relative group border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center mb-1">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          exec.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          exec.status === 'failed' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {exec.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 mb-1">
+                        {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(exec.startedAt).toLocaleString()}
+                      </div>
+                      <button
+                        onClick={() => archivedWorkflowId && unarchiveExecution(archivedWorkflowId, exec.id)}
+                        className="absolute top-2 right-2 p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Unarchive execution"
+                      >
+                        ↩️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowArchivedModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
