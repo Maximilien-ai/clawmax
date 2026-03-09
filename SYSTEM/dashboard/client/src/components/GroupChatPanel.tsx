@@ -60,15 +60,70 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   useEffect(() => {
     fetchMessages()
     fetchArchivesList()
+    fetchActiveWorkflows()
     // Poll for new messages every 2 seconds
     const interval = setInterval(fetchMessages, 2000)
-    return () => clearInterval(interval)
+    // Check for active workflows every 5 seconds
+    const workflowInterval = setInterval(fetchActiveWorkflows, 5000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(workflowInterval)
+    }
   }, [channel.name])
 
   useEffect(() => {
     // Always scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  async function fetchActiveWorkflows() {
+    try {
+      // Get all workflows
+      const workflowsRes = await fetch('/api/workflows')
+      const workflowsData = await workflowsRes.json()
+      const workflows = workflowsData.workflows || []
+
+      // Find workflows targeting this channel
+      const relevantWorkflows = workflows.filter((w: any) => {
+        if (channel.type === 'community') {
+          return w.targeting.communities.includes(channel.name)
+        } else {
+          return w.targeting.groups.includes(channel.name)
+        }
+      })
+
+      // Check if any have running executions
+      for (const workflow of relevantWorkflows) {
+        const execRes = await fetch(`/api/workflows/${workflow.id}/executions?limit=1`)
+        const execData = await execRes.json()
+        const executions = execData.executions || []
+
+        if (executions.length > 0) {
+          const latestExec = executions[0]
+          if (latestExec.status === 'running' || latestExec.status === 'pending') {
+            // Find participants that are still pending or running
+            const workingAgents = new Set<string>()
+            for (const participant of latestExec.participants) {
+              if (participant.status === 'pending' || participant.status === 'running') {
+                // Check if this agent is in the current channel
+                const agentInChannel = channel.members.some(m => m.id === participant.agentId)
+                if (agentInChannel) {
+                  workingAgents.add(participant.agentId)
+                }
+              }
+            }
+
+            if (workingAgents.size > 0) {
+              setTypingAgents(workingAgents)
+              return // Found active workflow, stop checking others
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch active workflows:', err)
+    }
+  }
 
   async function fetchMessages() {
     // Only show loading on initial fetch, not on polling

@@ -237,10 +237,13 @@ Please provide your daily standup update:
 - Include identity, skills, tools, and community memberships
 - One-click cloning with customization
 
-**Organization Templates**:
+**Organization Templates** (2 pre-built included):
 - Export entire organizational structures
-- Include agents, communities, groups, and workflows
+- Include agents, communities, groups, **and workflows**
 - Import to replicate setups across workspaces
+- Pre-built templates:
+  - **Small Startup Team**: CEO, Engineer, Product Manager (3 agents + 2 workflows)
+  - **Engineering Team**: Engineer, QA, Release Engineer (3 agents + 3 workflows)
 
 **Enhanced Template Management**:
 - **View Details**: Click any template to see full configuration
@@ -254,7 +257,13 @@ Please provide your daily standup update:
 - Modify schedule (cron expression)
 - Edit instructions (markdown content)
 
-**Value**: Get started in 5 minutes, not 5 hours. Don't reinvent the wheel.
+**Real-World Value**:
+- **Fast onboarding**: Apply "Small Startup Team" template → 3 agents + 2 workflows in 30 seconds
+- **Zero configuration**: Pre-configured communities, groups, and targeting
+- **Conflict-free imports**: Add prefix/suffix to agent IDs when importing
+- **Complete packages**: Organization templates include everything (agents, structure, workflows)
+
+**Get started in 5 minutes, not 5 hours.**
 
 ---
 
@@ -384,6 +393,12 @@ Please provide your daily standup update:
 
 ### Recent Enhancements
 
+**Organization Template System**:
+- **Workflow integration**: Org templates now include all workflows
+- **Pre-built templates**: 2 production-ready org templates (Small Startup, Engineering Team)
+- **Smart import**: Automatic agent ID prefix/suffix for conflict-free imports
+- **Bug fixes**: Archived agents no longer break template export
+
 **Workflow Management Improvements**:
 - Template details panel with full configuration view
 - Edit, delete, and instantiate actions
@@ -445,6 +460,13 @@ Please provide your daily standup update:
 ## Roadmap
 
 ### v1.0.0 (March 2026)
+
+**Recently Completed**:
+- ✅ Organization templates with workflow support
+- ✅ Pre-built org templates (Small Startup Team, Engineering Team)
+- ✅ Workflow completion toast notifications
+- ✅ Smart execution sorting
+- ✅ Template export/import bug fixes
 
 **Planned Features**:
 - 📅 Workflow scheduler daemon (fully automated cron)
