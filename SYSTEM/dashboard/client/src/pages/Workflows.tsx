@@ -135,12 +135,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         const checks = await Promise.all(
           workflowIds.map(async id => {
             const workflow = workflows.find(w => w.id === id)
-            const res = await fetch(`/api/workflows/${id}/executions?limit=1`)
+            // Fetch recent executions (limit=5) to catch newly triggered ones
+            const res = await fetch(`/api/workflows/${id}/executions?limit=5`)
             const data = await res.json()
-            const latest = data.executions?.[0]
+            const executions = data.executions || []
+            const latest = executions[0]
             return {
               id,
               isRunning: latest?.status === 'running',
+              executions, // Return all executions to check tracked ones
               execution: latest,
               workflowName: workflow?.name || id
             }
@@ -155,70 +158,71 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           const next = new Map(prev)
 
           for (const check of checks) {
-            if (!check.execution) continue
+            // Check ALL recent executions for this workflow, not just the latest
+            for (const execution of check.executions || []) {
+              const key = `${check.id}:${execution.id}`
+              const tracked = prev.get(key)
 
-            const key = `${check.id}:${check.execution.id}`
-            const tracked = prev.get(key)
-
-            console.log('[Workflow Toast] Checking execution:', {
-              key,
-              executionStatus: check.execution.status,
-              wasTracked: !!tracked,
-              trackedStatus: tracked?.status
-            })
-
-            // Detect transition from running/pending to completed/failed
-            const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
-            const isComplete = check.execution.status === 'completed' || check.execution.status === 'failed'
-
-            if (wasInProgress && isComplete) {
-              const status = check.execution.status
-              const isSuccess = status === 'completed'
-              const icon = isSuccess ? '✅' : '❌'
-              const successRate = check.execution.participantCount > 0
-                ? `${check.execution.successCount}/${check.execution.participantCount}`
-                : '0/0'
-
-              console.log(`[Workflow Toast] TRANSITION DETECTED! ${check.workflowName} ${tracked.status} → ${status}`)
-              console.log('[Workflow Toast] Showing toast with showSuccess:', typeof showSuccess)
-
-              if (isSuccess) {
-                showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
-              } else {
-                showError(`${icon} ${check.workflowName} ${status} (${successRate} agents)`)
-              }
-
-              // Refresh the workflow details if it's currently selected
-              if (selectedWorkflow?.id === check.id) {
-                // Inline refresh to avoid circular dependency
-                fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
-                  setSelectedWorkflow(workflow)
-                }).catch(() => {})
-                fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
-                  const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
-                    if (a.status === 'running' && b.status !== 'running') return -1
-                    if (a.status !== 'running' && b.status === 'running') return 1
-                    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-                  })
-                  setExecutions(sortedExecutions)
-                }).catch(() => {})
-              }
-            }
-
-            // Track all non-complete execution states
-            const isInProgress = check.execution.status === 'running' || check.execution.status === 'pending'
-            if (isInProgress || wasInProgress) {
-              console.log('[Workflow Toast] Tracking execution:', key, check.execution.status)
-              next.set(key, {
-                status: check.execution.status,
-                executionId: check.execution.id,
-                workflowName: check.workflowName
+              console.log('[Workflow Toast] Checking execution:', {
+                key,
+                executionStatus: execution.status,
+                wasTracked: !!tracked,
+                trackedStatus: tracked?.status
               })
-            } else {
-              // Clean up completed executions after notification
-              if (tracked) {
-                console.log('[Workflow Toast] Cleaning up tracked execution:', key)
-                next.delete(key)
+
+              // Detect transition from running/pending to completed/failed
+              const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
+              const isComplete = execution.status === 'completed' || execution.status === 'failed'
+
+              if (wasInProgress && isComplete) {
+                const status = execution.status
+                const isSuccess = status === 'completed'
+                const icon = isSuccess ? '✅' : '❌'
+                const successRate = execution.participantCount > 0
+                  ? `${execution.successCount}/${execution.participantCount}`
+                  : '0/0'
+
+                console.log(`[Workflow Toast] TRANSITION DETECTED! ${check.workflowName} ${tracked.status} → ${status}`)
+                console.log('[Workflow Toast] Showing toast with showSuccess:', typeof showSuccess)
+
+                if (isSuccess) {
+                  showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
+                } else {
+                  showError(`${icon} ${check.workflowName} ${status} (${successRate} agents)`)
+                }
+
+                // Refresh the workflow details if it's currently selected
+                if (selectedWorkflow?.id === check.id) {
+                  // Inline refresh to avoid circular dependency
+                  fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
+                    setSelectedWorkflow(workflow)
+                  }).catch(() => {})
+                  fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
+                    const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+                      if (a.status === 'running' && b.status !== 'running') return -1
+                      if (a.status !== 'running' && b.status === 'running') return 1
+                      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+                    })
+                    setExecutions(sortedExecutions)
+                  }).catch(() => {})
+                }
+              }
+
+              // Track all non-complete execution states
+              const isInProgress = execution.status === 'running' || execution.status === 'pending'
+              if (isInProgress || wasInProgress) {
+                console.log('[Workflow Toast] Tracking execution:', key, execution.status)
+                next.set(key, {
+                  status: execution.status,
+                  executionId: execution.id,
+                  workflowName: check.workflowName
+                })
+              } else {
+                // Clean up completed executions after notification
+                if (tracked) {
+                  console.log('[Workflow Toast] Cleaning up tracked execution:', key)
+                  next.delete(key)
+                }
               }
             }
           }
