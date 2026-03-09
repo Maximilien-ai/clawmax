@@ -17,7 +17,7 @@ Managing 100 AI agents isn't like managing a team of 10 people. It's worse.
 
 Individual agents are easy. You give them an identity, some skills, a workspace. They do their job. But when you scale to dozens or hundreds? Chaos. Which agents are online? Who's working on what? How do you coordinate them? Where's the execution history?
 
-I've been using OpenClaw for months now—managing agent teams for research, development workflows, and community coordination. OpenClaw is an incredible foundation: file-based workspaces, extensible skills, WebSocket communication, persistent memory. But it's built for individual agents, not teams.
+I've been using OpenClaw for weeks now—managing agent teams for research, development workflows, and community coordination. OpenClaw is an incredible foundation: file-based workspaces, extensible skills, WebSocket communication, persistent memory. But it's built for individual agents, not teams.
 
 So I built ClawMax. The orchestration layer OpenClaw needed.
 
@@ -37,7 +37,7 @@ OpenClaw is an open-source framework for building autonomous AI agents. It's bec
 
 ### The Problems I Hit
 
-After a few months running 15+ agents, the cracks showed:
+After a few days running 15+ agents, the cracks showed:
 
 **Visibility crisis**: Opening 15 terminal windows to check agent status? Ridiculous.
 **Organization chaos**: Agents scattered across directories. No sense of team structure.
@@ -97,7 +97,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
                │
                ▼
 ┌─────────────────────────────────┐
-│  OpenClaw CLI                   │
+│  OpenClaw CLI (enhancements)    │
 │  - openclaw workflow run        │
 │  - WebSocket communication      │
 │  - Execution orchestration      │
@@ -132,19 +132,24 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 **Features**:
 - Real-time online/offline status via gateway detection
 - Agent cards showing identity, skills, communities, tags
-- **Token usage tracking** with formatted counts (1.2K, 500M tokens)
 - Activity timeline across all agents
 - Filter by status, communities, groups, or tags
 - Grid, list, and table views with persistent preferences
 
-**Token Usage Monitoring** ⏳:
-*Planned feature - requires OpenClaw v2.9.0+ with expanded Gateway RPC scopes*
+**Agent Actions**:
+- **Add Skills**: Assign GitHub, Slack, WhatsApp, or custom skills with one click
+- **Chat Directly**: Message agents via their group channels
+- **Clone & Template**: Save successful agents as reusable templates
+- **Edit Files**: Modify IDENTITY.md, SOUL.md, TOOLS.md directly in dashboard
+- **AI-Assisted Creation**: Create new agents from simple descriptions:
+  ```
+  "QA engineer that monitors CI/CD, reviews PRs,
+  and ensures all tests pass before merge"
+  ```
 
-When available, each agent card will display:
-- Total token count (last 30 days)
-- Breakdown: input/output tokens
-- Cost tracking in USD
-- Visual indicator with 🪙 icon
+**Planned Features** ⏳:
+- Token usage monitoring (requires OpenClaw Gateway RPC updates)
+- Agent health metrics and uptime tracking
 - Hover tooltip with full details
 
 **Implementation Status**: Dashboard code is ready but blocked by OpenClaw Gateway RPC permissions. The `sessions.usage` API requires the `operator.admin` scope which is not currently exposed to external clients. See `docs/TOKEN_USAGE_LIMITATION.md` for details.
@@ -163,18 +168,19 @@ When available, each agent card will display:
 - **Communities**: Departments or large groups (Engineering, Product, Customer Success)
 - **Groups**: Cross-functional teams (Daily Standup, Security Team, Onboarding)
 - **Tags**: Flexible labels for targeting (engineer, manager, security, qa)
+  - First tag becomes the **primary tag** for quick filtering and organization
 
-**New Navigation Features**:
+**Navigation Features**:
 - Click community/group names to jump directly to their chat in Communication page
 - 💬 Chat icons for quick access to group conversations
 - Visual hierarchy showing community → groups → agents
 - Agent membership badges and counts
 
 **Features**:
-- Drag-and-drop agent assignment (coming soon)
 - Flexible membership (agents can be in multiple groups)
 - Workflow targeting based on organizational structure
 - Import/export organization templates
+- Drag-and-drop agent assignment (coming soon)
 
 **Value**: Scale from 5 to 500 agents with clear organizational structure.
 
@@ -208,6 +214,9 @@ Please provide your daily standup update:
 - Any blockers?
 ```
 
+**Workflow Design Philosophy**:
+Workflows follow OpenClaw's file-based approach—written in plain English like prompts. They can reference tags, communities, and roles, letting agents independently interpret their responsibilities based on their identity. No rigid code structures. Just natural language instructions.
+
 **Execution Flow**:
 1. Schedule triggers (cron) OR manual button click
 2. Dashboard resolves target agents by community/group/tag
@@ -218,7 +227,7 @@ Please provide your daily standup update:
 7. Captures agent responses in execution JSON
 8. Dashboard polls for updates every 5 seconds
 
-**New Execution Features**:
+**Execution Features**:
 - **Completion Toasts**: Get notified when workflows finish with success/failure counts
 - **Smart Sorting**: Running executions always appear first in the list
 - **Auto-refresh**: Selected workflow details refresh when execution completes
@@ -248,13 +257,15 @@ Please provide your daily standup update:
 - Include identity, skills, tools, and community memberships
 - One-click cloning with customization
 
-**Organization Templates** (2 pre-built included):
+**Organization Templates** (3 pre-built included):
 - Export entire organizational structures
 - Include agents, communities, groups, **and workflows**
 - Import to replicate setups across workspaces
 - Pre-built templates:
   - **Small Startup Team**: CEO, Engineer, Product Manager (3 agents + 2 workflows)
   - **Engineering Team**: Engineer, QA, Release Engineer (3 agents + 3 workflows)
+  - **QA Team**: QA Engineer, GitHub Triager, Release Coordinator (3 agents + 4 workflows)
+    - Workflows: PR Review, Issue Triage, CI/CD Monitor, Status Report to PM
 
 **Enhanced Template Management**:
 - **View Details**: Click any template to see full configuration
@@ -293,6 +304,12 @@ Please provide your daily standup update:
 - Execution history with pagination
 - Archive system for long-term storage
 - Delete individual executions
+
+**Log Viewing**:
+- Filter logs by agent (see individual agent activity)
+- Log level filtering (info, warning, error)
+- Unified view across all participants in one place
+- Search and export capabilities
 
 **Execution Details**:
 - Participant count and success rate
@@ -400,9 +417,9 @@ Please provide your daily standup update:
 
 ---
 
-## What's New in v0.9.2 (March 2026)
+## What's New in v1.0.0 (March 14, 2026)
 
-### Recent Enhancements
+### Latest Release Features
 
 **Organization Template System**:
 - **Workflow integration**: Org templates now include all workflows
@@ -427,6 +444,14 @@ Please provide your daily standup update:
 - Real-time status updates
 - Loading states and error handling
 - Keyboard shortcuts (coming soon)
+
+**System AI Agents** (Beta):
+- **ClawMax Assistant**: Helps create optimized workflows and agents
+- **Template Optimizer**: Analyzes and suggests improvements to your templates
+- **Organization Architect**: Recommends community/group structures based on usage
+- **Workflow Debugger**: Identifies common issues and suggests fixes
+- These meta-agents use ClawMax APIs to help you get more value from your agent ecosystem
+- Example: "Create a QA workflow targeting engineers" → Assistant generates complete workflow with proper targeting, schedule, and instructions
 
 **Token Usage Monitoring** (Planned):
 - Dashboard code implemented and ready
@@ -454,23 +479,25 @@ Please provide your daily standup update:
 
 ### Security Considerations
 
-**Current Status**:
+**Current Status** (Development & Testing):
 - ✅ Token-based WebSocket authentication
 - ✅ Local-only by default (127.0.0.1)
 - ✅ File-based permissions
 - ✅ Execution audit logs
 
-**Recommended for Production**:
+**Production Deployment** (Coming late March 2026):
+We're moving ClawMax to production this month. Key hardening in progress:
 - 🔄 TLS/encryption for remote deployments
-- 🔄 Role-based access control (RBAC) - v1.1.0 roadmap
+- 🔄 Role-based access control (RBAC)
 - 🔄 Secrets management hardening
 - 🔄 Rate limiting for workflow execution
+- 🔄 OpenClaw compatibility updates (tracking latest releases)
 
 ---
 
 ## Roadmap
 
-### v1.0.0 (March 2026)
+### v1.0.0 (mid March 2026)
 
 **Recently Completed**:
 - ✅ Organization templates with workflow support
@@ -488,6 +515,7 @@ Please provide your daily standup update:
 - 🔀 Multi-workspace management
 - 🧮 Workflow result parsing and aggregation
 - 🔐 Enhanced authentication and RBAC
+- 🔄 Currency to latest OpenClaw
 
 ### v1.1.0 (April 2026)
 
@@ -499,10 +527,11 @@ Please provide your daily standup update:
 - ⚡ Performance metrics and optimization
 - 🧩 Custom skill integration UI
 - 🤖 AI-assisted workflow creation
-- Deploying and managing ClawMax as a cloud service in Kubernetes
-- Single pane dashboard for multiple ClawMax deployments
-- Deploying ClawMax on premise (Mac mini or other)
-- Templates to remote mangement of ClawMax itself!
+- 📈 Evaluation of workflows and agents
+- ☁️ Deploying and managing ClawMax as a cloud service in Kubernetes
+- 🎛️ Single pane dashboard for multiple ClawMax deployments
+- 🖥️ Deploying ClawMax on premise (Mac mini or other)
+- 🔧 Templates to remote management of ClawMax itself!
 
 ---
 
@@ -614,9 +643,9 @@ ClawMax is open source and welcomes contributions:
 
 ## Closing
 
-ClawMax isn't just a dashboard - it's a new paradigm for multi-agent coordination. By building on OpenClaw's solid foundation and adding organizational structure, workflow automation, visual management, and intelligent tracking, we're making it possible to operate AI agent teams at scale.
+ClawMax isn't just a dashboard—it's a new paradigm for multi-agent coordination. By building on OpenClaw's solid foundation and adding organizational structure, workflow automation, visual management, and execution tracking, we're making it possible to operate AI agent teams at scale.
 
-From token usage monitoring to workflow completion notifications, every feature is designed with one goal: **make managing many agents as easy as managing one**.
+From workflow completion notifications to template-based replication, every feature is designed with one goal: **make managing many agents as easy as managing one**.
 
 We're excited to see what you build with ClawMax. Whether you're managing 5 agents or 500, centralized coordination is key to unlocking the full potential of multi-agent AI systems.
 
@@ -624,30 +653,26 @@ We're excited to see what you build with ClawMax. Whether you're managing 5 agen
 
 ---
 
-## Assets Needed Before Publication
+TODOs 
 
-### Screenshots (Priority Order)
+### Images
 
-1. ✅ Organizations page with clickable navigation
-2. ✅ Workflow template details panel
-3. ⏳ Workflow execution with completion toast
-4. ⏳ Agents page grid view with filters
-5. ⏳ Execution history with running executions first
-6. ⏳ Template library browser
-7. ⏳ Document workspace editor
-8. ⏳ Dashboard overview with agent cards
+- [ ] ⏳ Execution history with running executions first
+- [ ] ⏳ Template library browser
+- [ ] ⏳ Document workspace editor
+- [ ] ⏳ Dashboard overview with agent cards
 
 ### Videos
 
-1. ⏳ 90-second feature overview (YouTube)
-2. ⏳ 5-minute workflow demo walkthrough
-3. ⏳ Organization navigation demo
-4. ⏳ Workflow completion toast demo
+- [ ] ⏳ 90-second feature overview (YouTube)
+- [ ] ⏳ 5-minute workflow demo walkthrough
+- [ ] ⏳ Organization navigation demo
+- [ ] ⏳ Workflow completion toast demo
 
 ### Diagrams
 
-1. ✅ Architecture overview (in outline)
-2. ⏳ Workflow execution sequence diagram
+- [ ] ⏳ Improve architecture overview (in outline) to a SVG
+- [ ] ⏳ Workflow execution sequence diagram
 
 ---
 
