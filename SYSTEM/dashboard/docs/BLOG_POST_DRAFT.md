@@ -1,18 +1,25 @@
 # ClawMax: OpenClaw to the Max! 🚀
 
+*Building the orchestration layer OpenClaw needed—and what I learned managing 100 AI agents*
+
 **Status**: DRAFT - March 9, 2026
 **Target Publication**: AI Musings Substack: https://maximilien.substack.com/publish/posts/published
-NOTE: review published posts (locally here: /Users/maximilien/github/maximilien/musings/blogs/ai/published/**/published.md) to ensure we keep some of the same voice. Previous posts were not about a new product so I don't expect perfect alignment.
 **Target Length**: 1800-2200 words
 **Target Audience**: OpenClaw users, AI/ML engineers, DevOps teams
 
 ---
 
-## Opening Hook
+**TL;DR:** OpenClaw is a powerful framework for building autonomous AI agents. But managing 10, 50, or 100 agents? That's where things get messy. I built ClawMax to solve this—adding visual management, organizational structure, workflow automation, and templates on top of OpenClaw's foundation. This post explains what it is, why I built it, and what I learned.
 
-What if managing 100 AI agents was as easy as managing a 10-person team? What if your agents could coordinate themselves, run scheduled workflows, and operate 24/7 without constant supervision?
+---
 
-That's the vision behind **ClawMax** - taking OpenClaw's powerful agent framework and adding the orchestration layer needed to manage agent teams at scale.
+Managing 100 AI agents isn't like managing a team of 10 people. It's worse.
+
+Individual agents are easy. You give them an identity, some skills, a workspace. They do their job. But when you scale to dozens or hundreds? Chaos. Which agents are online? Who's working on what? How do you coordinate them? Where's the execution history?
+
+I've been using OpenClaw for months now—managing agent teams for research, development workflows, and community coordination. OpenClaw is an incredible foundation: file-based workspaces, extensible skills, WebSocket communication, persistent memory. But it's built for individual agents, not teams.
+
+So I built ClawMax. The orchestration layer OpenClaw needed.
 
 ---
 
@@ -28,25 +35,29 @@ OpenClaw is an open-source framework for building autonomous AI agents. It's bec
 - **Communication**: Real-time WebSocket gateway for agent interaction
 - **Tools**: Rich CLI for agent management and orchestration
 
-### The Challenge of Scale
+### The Problems I Hit
 
-OpenClaw excels at managing individual agents. But when you have 10, 50, or 100 agents, new challenges emerge:
+After a few months running 15+ agents, the cracks showed:
 
-- **Visibility**: Which agents are online? What are they working on?
-- **Organization**: How do I structure agents into teams?
-- **Coordination**: How do I send tasks to groups of agents at once?
-- **Tracking**: Where can I see execution history and agent responses?
-- **Replication**: How do I clone successful agents or create templates?
+**Visibility crisis**: Opening 15 terminal windows to check agent status? Ridiculous.
+**Organization chaos**: Agents scattered across directories. No sense of team structure.
+**Coordination nightmare**: Manually messaging each agent when I wanted a team response? Tedious.
+**No execution history**: "Did that workflow run yesterday?" *checks 47 log files*
+**Template hell**: Cloning a successful agent meant copying files and fixing paths manually.
 
-### Enter ClawMax
+The CLI is great for one agent. Terrible for one hundred.
 
-ClawMax fills these gaps by adding three critical layers:
+### What I Built
 
-1. **Visual Management**: See your entire agent ecosystem at a glance
-2. **Organizational Structure**: Group agents into communities and teams
-3. **Workflow Automation**: Coordinate multi-agent tasks with scheduling
-4. **Template System**: Replicate agents and workflows quickly
-5. **Execution Tracking**: Monitor workflow progress in real-time
+ClawMax adds five layers on top of OpenClaw:
+
+1. **Visual Dashboard**: See all agents, their status, and recent activity—one page
+2. **Organizations**: Structure agents into communities and groups (like Slack channels)
+3. **Workflows**: Send tasks to agent teams with scheduling (cron-style automation)
+4. **Templates**: Export/import agents and entire org structures—one click
+5. **Execution Tracking**: Watch workflows run in real-time, see agent responses, review history
+
+The result? Managing 100 agents feels like managing 10.
 
 ---
 
