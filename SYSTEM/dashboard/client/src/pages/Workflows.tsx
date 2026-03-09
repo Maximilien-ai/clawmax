@@ -130,6 +130,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     const checkRunningWorkflows = async () => {
       try {
+        console.log('[Workflow Toast] Polling workflows...', workflows.length, 'workflows')
         const workflowIds = workflows.map(w => w.id)
         const checks = await Promise.all(
           workflowIds.map(async id => {
@@ -150,6 +151,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
         // Check for completion transitions and show toasts
         setTrackedExecutions(prev => {
+          console.log('[Workflow Toast] Current trackedExecutions:', prev.size, Array.from(prev.keys()))
           const next = new Map(prev)
 
           for (const check of checks) {
@@ -157,6 +159,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
             const key = `${check.id}:${check.execution.id}`
             const tracked = prev.get(key)
+
+            console.log('[Workflow Toast] Checking execution:', {
+              key,
+              executionStatus: check.execution.status,
+              wasTracked: !!tracked,
+              trackedStatus: tracked?.status
+            })
 
             // Detect transition from running/pending to completed/failed
             const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
@@ -170,7 +179,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 ? `${check.execution.successCount}/${check.execution.participantCount}`
                 : '0/0'
 
-              console.log(`[Workflow Toast] ${check.workflowName} ${tracked.status} → ${status}`)
+              console.log(`[Workflow Toast] TRANSITION DETECTED! ${check.workflowName} ${tracked.status} → ${status}`)
+              console.log('[Workflow Toast] Showing toast with showSuccess:', typeof showSuccess)
 
               if (isSuccess) {
                 showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
@@ -198,6 +208,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             // Track all non-complete execution states
             const isInProgress = check.execution.status === 'running' || check.execution.status === 'pending'
             if (isInProgress || wasInProgress) {
+              console.log('[Workflow Toast] Tracking execution:', key, check.execution.status)
               next.set(key, {
                 status: check.execution.status,
                 executionId: check.execution.id,
@@ -206,24 +217,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             } else {
               // Clean up completed executions after notification
               if (tracked) {
+                console.log('[Workflow Toast] Cleaning up tracked execution:', key)
                 next.delete(key)
               }
             }
           }
 
+          console.log('[Workflow Toast] Updated trackedExecutions:', next.size, Array.from(next.keys()))
           return next
         })
 
         setRunningWorkflows(running)
       } catch (err) {
-        console.error('Error checking running workflows:', err)
+        console.error('[Workflow Toast] Error checking running workflows:', err)
       }
     }
 
     if (workflows.length > 0) {
+      console.log('[Workflow Toast] Setting up polling for', workflows.length, 'workflows')
       checkRunningWorkflows()
       const interval = setInterval(checkRunningWorkflows, 5000)
-      return () => clearInterval(interval)
+      console.log('[Workflow Toast] Polling interval set up (every 5s)')
+      return () => {
+        console.log('[Workflow Toast] Cleaning up polling interval')
+        clearInterval(interval)
+      }
+    } else {
+      console.log('[Workflow Toast] No workflows, skipping polling setup')
     }
   }, [workflows, selectedWorkflow, showSuccess, showError])
 
@@ -860,17 +880,24 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   onClick={async () => {
                     if (!confirm('Trigger this workflow to run now?')) return
                     try {
+                      console.log('[Workflow Toast] Triggering workflow:', selectedWorkflow.id, selectedWorkflow.name)
                       const resp = await fetch(`/api/workflows/${selectedWorkflow.id}/trigger`, {
                         method: 'POST'
                       })
                       if (!resp.ok) throw new Error('Failed to trigger workflow')
                       const data = await resp.json()
+                      console.log('[Workflow Toast] Trigger response:', data)
                       showSuccess('Workflow triggered successfully')
                       // Add to running workflows immediately
                       setRunningWorkflows(prev => new Set(prev).add(selectedWorkflow.id))
                       // Track the execution for completion toast
                       if (data.executionId) {
                         const key = `${selectedWorkflow.id}:${data.executionId}`
+                        console.log('[Workflow Toast] Adding to tracked executions:', key, {
+                          status: 'pending',
+                          executionId: data.executionId,
+                          workflowName: selectedWorkflow.name
+                        })
                         setTrackedExecutions(prev => {
                           const next = new Map(prev)
                           next.set(key, {
@@ -878,14 +905,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                             executionId: data.executionId,
                             workflowName: selectedWorkflow.name
                           })
+                          console.log('[Workflow Toast] trackedExecutions after add:', next.size, Array.from(next.keys()))
                           return next
                         })
+                      } else {
+                        console.warn('[Workflow Toast] No executionId in trigger response!')
                       }
                       // Refresh executions after 2 seconds
                       setTimeout(() => {
                         fetchWorkflowDetails(selectedWorkflow.id)
                       }, 2000)
                     } catch (err) {
+                      console.error('[Workflow Toast] Failed to trigger workflow:', err)
                       showError('Failed to trigger workflow')
                     }
                   }}
