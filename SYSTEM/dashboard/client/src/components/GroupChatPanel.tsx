@@ -101,25 +101,34 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         if (executions.length > 0) {
           const latestExec = executions[0]
           if (latestExec.status === 'running' || latestExec.status === 'pending') {
-            // Find participants that are still pending or running
-            const workingAgents = new Set<string>()
-            for (const participant of latestExec.participants) {
-              if (participant.status === 'pending' || participant.status === 'running') {
-                // Check if this agent is in the current channel
-                const agentInChannel = channel.members.some(m => m.id === participant.agentId)
-                if (agentInChannel) {
-                  workingAgents.add(participant.agentId)
+            // Fetch full execution details to get participants
+            const detailsRes = await fetch(`/api/workflows/${workflow.id}/executions/${latestExec.id}`)
+            const fullExec = await detailsRes.json()
+
+            if (fullExec.participants) {
+              // Find participants that are still pending or running
+              const workingAgents = new Set<string>()
+              for (const participant of fullExec.participants) {
+                if (participant.status === 'pending' || participant.status === 'running') {
+                  // Check if this agent is in the current channel
+                  const agentInChannel = channel.members.some(m => m.id === participant.agentId)
+                  if (agentInChannel) {
+                    workingAgents.add(participant.agentId)
+                  }
                 }
               }
-            }
 
-            if (workingAgents.size > 0) {
-              setTypingAgents(workingAgents)
-              return // Found active workflow, stop checking others
+              if (workingAgents.size > 0) {
+                setTypingAgents(workingAgents)
+                return // Found active workflow, stop checking others
+              }
             }
           }
         }
       }
+
+      // No active workflows, clear typing indicators
+      setTypingAgents(new Set())
     } catch (err) {
       console.error('Failed to fetch active workflows:', err)
     }

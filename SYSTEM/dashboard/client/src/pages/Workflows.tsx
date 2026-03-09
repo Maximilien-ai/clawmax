@@ -864,9 +864,23 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         method: 'POST'
                       })
                       if (!resp.ok) throw new Error('Failed to trigger workflow')
+                      const data = await resp.json()
                       showSuccess('Workflow triggered successfully')
                       // Add to running workflows immediately
                       setRunningWorkflows(prev => new Set(prev).add(selectedWorkflow.id))
+                      // Track the execution for completion toast
+                      if (data.executionId) {
+                        const key = `${selectedWorkflow.id}:${data.executionId}`
+                        setTrackedExecutions(prev => {
+                          const next = new Map(prev)
+                          next.set(key, {
+                            status: 'pending',
+                            executionId: data.executionId,
+                            workflowName: selectedWorkflow.name
+                          })
+                          return next
+                        })
+                      }
                       // Refresh executions after 2 seconds
                       setTimeout(() => {
                         fetchWorkflowDetails(selectedWorkflow.id)
