@@ -62,7 +62,7 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, initialCommunityName, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void, initialCommunityName?: string, initialGroupName?: string }) {
+export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToGroup, initialCommunityName, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void, onNavigateToGroup?: (groupName: string) => void, initialCommunityName?: string, initialGroupName?: string }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
@@ -711,10 +711,29 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           <span className="text-sm">
                             {expandedCommunities.has(community.name) ? '▼' : '▶'}
                           </span>
-                          <h3 className="font-semibold text-gray-900 text-sm">{community.name}</h3>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onNavigateToGroup?.(community.name)
+                            }}
+                            className="font-semibold text-gray-900 text-sm hover:text-purple-600 hover:underline transition-colors"
+                            title="View chat in Communication page"
+                          >
+                            {community.name}
+                          </button>
                           <span className="text-xs text-gray-400">
                             ({community.members.length} member{community.members.length !== 1 ? 's' : ''})
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onNavigateToGroup?.(community.name)
+                            }}
+                            className="text-xs text-purple-600 hover:text-purple-800 font-medium transition-colors ml-1"
+                            title="View chat in Communication page"
+                          >
+                            💬
+                          </button>
                         </div>
                         {community.description && (
                           <p className="text-xs text-gray-500 ml-6">{community.description}</p>
@@ -855,14 +874,40 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           <span className="text-sm">
                             {expandedGroups.has(group.name) ? '▼' : '▶'}
                           </span>
-                          <h3 className="font-semibold text-gray-900 text-sm">{group.name}</h3>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onNavigateToGroup?.(group.name)
+                            }}
+                            className="font-semibold text-gray-900 text-sm hover:text-indigo-600 hover:underline transition-colors"
+                            title="View chat in Communication page"
+                          >
+                            {group.name}
+                          </button>
                           <span className="text-xs text-gray-400">
                             ({group.members.length} member{group.members.length !== 1 ? 's' : ''})
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onNavigateToGroup?.(group.name)
+                            }}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors ml-1"
+                            title="View chat in Communication page"
+                          >
+                            💬
+                          </button>
                           {group.community && (
-                            <span className="text-xs text-purple-600">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onNavigateToGroup?.(group.community!)
+                              }}
+                              className="text-xs text-purple-600 hover:text-purple-800 hover:underline transition-colors"
+                              title="View community chat in Communication page"
+                            >
                               → {group.community}
-                            </span>
+                            </button>
                           )}
                         </div>
                         {group.description && (

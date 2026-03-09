@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import Ajv from 'ajv'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
+import { listWorkflows, createWorkflow } from './workflows'
 
 // Template storage paths (dynamic functions)
 export function getTemplatesDir(): string {
@@ -74,6 +75,22 @@ export interface Group {
   channels?: string[]
 }
 
+export interface Workflow {
+  id: string
+  name: string
+  description: string
+  schedule: string
+  enabled: boolean
+  executionMode: 'automated' | 'managed'
+  targeting: {
+    communities: string[]
+    groups: string[]
+    tags: string[]
+    agents: string[]
+  }
+  content: string
+}
+
 export interface OrganizationTemplate {
   name: string
   type: 'organization'
@@ -84,6 +101,7 @@ export interface OrganizationTemplate {
   agents: OrganizationTemplateAgent[]
   communities?: Community[]
   groups?: Group[]
+  workflows?: Workflow[]
 }
 
 export type Template = AgentTemplate | OrganizationTemplate
@@ -566,10 +584,12 @@ export function createOrganizationTemplate(
   }
 ): { ok: boolean; template?: OrganizationTemplate; error?: string } {
   try {
-    const agents = listAgents()
+    // Filter out archived agents
+    const allAgents = listAgents()
+    const agents = allAgents.filter(a => !a.archived)
 
     if (agents.length === 0) {
-      return { ok: false, error: 'No agents found in workspace' }
+      return { ok: false, error: 'No active agents found in workspace' }
     }
 
     // Build maps for communities and groups
@@ -664,6 +684,19 @@ export function createOrganizationTemplate(
       }
     })
 
+    // Get all workflows
+    const workflows = listWorkflows()
+    const workflowsData: Workflow[] = workflows.map(wf => ({
+      id: wf.id,
+      name: wf.name,
+      description: wf.description,
+      schedule: wf.schedule,
+      enabled: wf.enabled,
+      executionMode: wf.executionMode,
+      targeting: wf.targeting,
+      content: wf.content
+    }))
+
     const template: OrganizationTemplate = {
       name: templateName,
       type: 'organization',
@@ -673,7 +706,8 @@ export function createOrganizationTemplate(
       tags: options?.tags || [],
       agents: templateAgents,
       communities: communityMap.size > 0 ? Array.from(communityMap.values()) : undefined,
-      groups: groupMap.size > 0 ? Array.from(groupMap.values()) : undefined
+      groups: groupMap.size > 0 ? Array.from(groupMap.values()) : undefined,
+      workflows: workflowsData.length > 0 ? workflowsData : undefined
     }
 
     // Validate template
@@ -831,6 +865,33 @@ export function importOrganizationTemplate(
               .join('\n---\n\n')
 
             fs.writeFileSync(groupsPath, `# Groups\n\n${groupsContent}`, 'utf-8')
+          }
+        }
+      }
+
+      // Step 4: Create workflows from template
+      if (template.workflows && template.workflows.length > 0) {
+        for (const wf of template.workflows) {
+          // Update targeting to use new agent IDs if prefix/suffix was applied
+          const updatedTargeting = {
+            ...wf.targeting,
+            agents: wf.targeting.agents.map(agentId => `${prefix}${agentId}${suffix}`)
+          }
+
+          const result = createWorkflow({
+            name: wf.name,
+            description: wf.description,
+            schedule: wf.schedule,
+            enabled: wf.enabled,
+            executionMode: wf.executionMode,
+            targeting: updatedTargeting,
+            content: wf.content,
+            author: template.author || 'imported'
+          })
+
+          if (!result.success) {
+            console.warn(`Failed to create workflow ${wf.name}: ${result.error}`)
+            // Don't fail the whole import for workflow creation failures
           }
         }
       }

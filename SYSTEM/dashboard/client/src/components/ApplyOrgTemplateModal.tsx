@@ -8,6 +8,7 @@ interface OrganizationTemplate {
   agents: Array<{ id: string; role: string }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
+  workflows?: Array<{ id: string; name: string }>
 }
 
 interface ApplyOrgTemplateModalProps {
@@ -68,6 +69,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           Will create {template.agents.length} agents
           {template.communities && template.communities.length > 0 && `, ${template.communities.length} communities`}
           {template.groups && template.groups.length > 0 && `, ${template.groups.length} groups`}
+          {template.workflows && template.workflows.length > 0 && `, ${template.workflows.length} workflows`}
         </p>
 
         {error && (

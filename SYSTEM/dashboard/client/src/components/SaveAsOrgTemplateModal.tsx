@@ -74,7 +74,7 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-gray-900 mb-1">Save Organization as Template</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Export your entire organization structure ({agentCount} agents, {communityCount} communities, {groupCount} groups) as a reusable template
+          Export your entire organization structure ({agentCount} agents, {communityCount} communities, {groupCount} groups, and all workflows) as a reusable template
         </p>
 
         {error && (

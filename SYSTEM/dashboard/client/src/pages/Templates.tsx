@@ -32,11 +32,13 @@ interface OrganizationTemplate {
   agents: Array<{ id: string; role: string }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
+  workflows?: Array<{ id: string; name: string }>
 }
 
 interface WorkflowTemplate {
   id: string
   name: string
+  type: 'workflow'
   description: string
   schedule: string
   enabled: boolean
@@ -54,7 +56,7 @@ interface WorkflowTemplate {
   content: string
 }
 
-type Template = AgentTemplate | OrganizationTemplate
+type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
 
 export default function Templates() {
   const { showSuccess, showError } = useToast()
@@ -94,24 +96,66 @@ export default function Templates() {
     return () => window.removeEventListener('template-created', handleTemplateCreated)
   }, [])
 
-  const handleDelete = async (type: 'agent' | 'organization', name: string) => {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const typeParam = type === 'agent' ? 'agents' : 'organizations'
+  const handleDelete = async (type: 'agent' | 'organization' | 'workflow', name: string, id?: string) => {
+    if (type === 'workflow') {
+      if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return
 
-    if (!confirm(`Delete template "${name}"?`)) return
+      try {
+        const resp = await fetch(`/api/workflows/${id}`, {
+          method: 'DELETE',
+        })
+
+        if (!resp.ok) throw new Error('Failed to delete')
+
+        showSuccess(`Deleted workflow "${name}"`)
+        fetchTemplates()
+        setSelectedTemplate(null)
+      } catch (err) {
+        showError('Failed to delete workflow')
+      }
+    } else {
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const typeParam = type === 'agent' ? 'agents' : 'organizations'
+
+      if (!confirm(`Delete template "${name}"?`)) return
+
+      try {
+        const resp = await fetch(`/api/templates/${typeParam}/${slug}`, {
+          method: 'DELETE',
+        })
+
+        if (!resp.ok) throw new Error('Failed to delete')
+
+        showSuccess(`Deleted template "${name}"`)
+        fetchTemplates()
+        setSelectedTemplate(null)
+      } catch (err) {
+        showError('Failed to delete template')
+      }
+    }
+  }
+
+  const handleEditWorkflow = (id: string) => {
+    // Navigate to workflows page with this workflow selected
+    // This will be implemented by the parent component
+    window.location.hash = `#/workflows/${id}`
+    window.location.reload()
+  }
+
+  const handleInstantiateWorkflow = async (id: string, name: string) => {
+    if (!confirm(`Run workflow "${name}" now?`)) return
 
     try {
-      const resp = await fetch(`/api/templates/${typeParam}/${slug}`, {
-        method: 'DELETE',
+      const resp = await fetch(`/api/workflows/${id}/run`, {
+        method: 'POST',
       })
 
-      if (!resp.ok) throw new Error('Failed to delete')
+      if (!resp.ok) throw new Error('Failed to run workflow')
 
-      showSuccess(`Deleted template "${name}"`)
-      fetchTemplates()
+      showSuccess(`Started workflow "${name}"`)
       setSelectedTemplate(null)
     } catch (err) {
-      showError('Failed to delete template')
+      showError('Failed to run workflow')
     }
   }
 
@@ -309,6 +353,8 @@ export default function Templates() {
                     <WorkflowTemplateCard
                       key={idx}
                       template={template}
+                      onClick={() => setSelectedTemplate(template)}
+                      selected={selectedTemplate?.name === template.name}
                     />
                   ))}
                 </div>
@@ -323,11 +369,17 @@ export default function Templates() {
         <TemplateDetailPanel
           template={selectedTemplate}
           onClose={() => setSelectedTemplate(null)}
-          onDelete={() => handleDelete(selectedTemplate.type, selectedTemplate.name)}
+          onDelete={() => handleDelete(
+            selectedTemplate.type,
+            selectedTemplate.name,
+            selectedTemplate.type === 'workflow' ? selectedTemplate.id : undefined
+          )}
           onApply={selectedTemplate.type === 'organization' ? () => {
             setApplyingTemplate(selectedTemplate as OrganizationTemplate)
             setSelectedTemplate(null)
           } : undefined}
+          onEdit={selectedTemplate.type === 'workflow' ? () => handleEditWorkflow(selectedTemplate.id) : undefined}
+          onInstantiate={selectedTemplate.type === 'workflow' ? () => handleInstantiateWorkflow(selectedTemplate.id, selectedTemplate.name) : undefined}
         />
       )}
 
@@ -418,13 +470,16 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
   )
 }
 
-function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
+function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onInstantiate }: {
   template: Template
   onClose: () => void
   onDelete: () => void
   onApply?: () => void
+  onEdit?: () => void
+  onInstantiate?: () => void
 }) {
   const isOrg = template.type === 'organization'
+  const isWorkflow = template.type === 'workflow'
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -439,12 +494,12 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
         <div className="p-6 space-y-4">
           {/* Type & Version */}
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{isOrg ? '🏢' : '🤖'}</span>
+            <span className="text-2xl">{isOrg ? '🏢' : isWorkflow ? '⚡' : '🤖'}</span>
             <div>
               <div className="text-sm font-medium text-gray-700">
-                {isOrg ? 'Organization Template' : 'Agent Template'}
+                {isOrg ? 'Organization Template' : isWorkflow ? 'Workflow Template' : 'Agent Template'}
               </div>
-              <div className="text-xs text-gray-400">Version {template.version}</div>
+              {!isWorkflow && <div className="text-xs text-gray-400">Version {template.version}</div>}
             </div>
           </div>
 
@@ -465,7 +520,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
           )}
 
           {/* Tags */}
-          {template.tags && template.tags.length > 0 && (
+          {!isWorkflow && template.tags && template.tags.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Tags</h3>
               <div className="flex flex-wrap gap-1">
@@ -478,7 +533,99 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
             </div>
           )}
 
+          {/* Workflow-specific details */}
+          {isWorkflow && (
+            <>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">Schedule</h3>
+                <p className="text-sm text-gray-600 font-mono">{template.schedule}</p>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">Execution Mode</h3>
+                <p className="text-sm text-gray-600 capitalize">{template.executionMode}</p>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">Status</h3>
+                <p className="text-sm text-gray-600">{template.enabled ? '✓ Enabled' : '○ Disabled'}</p>
+              </div>
+
+              {/* Targeting */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Targeting</h3>
+                <div className="space-y-2 text-sm">
+                  {template.targeting.communities.length > 0 && (
+                    <div>
+                      <span className="text-gray-500">Communities:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {template.targeting.communities.map((c, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-600 border border-purple-200">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {template.targeting.groups.length > 0 && (
+                    <div>
+                      <span className="text-gray-500">Groups:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {template.targeting.groups.map((g, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-200">
+                            {g}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {template.targeting.tags.length > 0 && (
+                    <div>
+                      <span className="text-gray-500">Tags:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {template.targeting.tags.map((t, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-sky-50 text-sky-600 border border-sky-200">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {template.targeting.agents.length > 0 && (
+                    <div>
+                      <span className="text-gray-500">Agents:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {template.targeting.agents.map((a, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-green-50 text-green-600 border border-green-200">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {template.targeting.communities.length === 0 &&
+                   template.targeting.groups.length === 0 &&
+                   template.targeting.tags.length === 0 &&
+                   template.targeting.agents.length === 0 && (
+                    <span className="text-xs text-gray-400 italic">No targeting configured</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Workflow Content Preview */}
+              {template.content && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Content Preview</h3>
+                  <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-auto max-h-60 text-gray-700 whitespace-pre-wrap">
+                    {template.content.substring(0, 500)}{template.content.length > 500 ? '...' : ''}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Agents */}
+          {!isWorkflow && (
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">
               Agents ({template.agents.length})
@@ -492,6 +639,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
               ))}
             </div>
           </div>
+          )}
 
           {/* Communities & Groups (for org templates) */}
           {isOrg && template.communities && template.communities.length > 0 && (
@@ -538,7 +686,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
             {isOrg && onApply && (
               <button
                 onClick={onApply}
@@ -547,11 +695,27 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
                 ⚡ Apply Template
               </button>
             )}
+            {isWorkflow && onInstantiate && (
+              <button
+                onClick={onInstantiate}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                ▶ Run Workflow
+              </button>
+            )}
+            {isWorkflow && onEdit && (
+              <button
+                onClick={onEdit}
+                className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm font-medium"
+              >
+                ✏️ Edit Workflow
+              </button>
+            )}
             <button
               onClick={onDelete}
               className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
             >
-              Delete Template
+              {isWorkflow ? 'Delete Workflow' : 'Delete Template'}
             </button>
             <button
               onClick={onClose}
@@ -566,7 +730,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply }: {
   )
 }
 
-function WorkflowTemplateCard({ template }: { template: WorkflowTemplate }) {
+function WorkflowTemplateCard({ template, onClick, selected }: { template: WorkflowTemplate; onClick: () => void; selected: boolean }) {
   const targetingCount =
     template.targeting.communities.length +
     template.targeting.groups.length +
@@ -574,9 +738,11 @@ function WorkflowTemplateCard({ template }: { template: WorkflowTemplate }) {
     template.targeting.agents.length
 
   return (
-    <a
-      href={`/#/workflows/${template.id}`}
-      className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md hover:border-sky-400 transition-all block"
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200'
+      }`}
     >
       <div className="flex items-start justify-between mb-2">
         <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1">
@@ -610,6 +776,6 @@ function WorkflowTemplateCard({ template }: { template: WorkflowTemplate }) {
         <span>{template.enabled ? '✓ Enabled' : '○ Disabled'}</span>
         {template.author && <span>by {template.author}</span>}
       </div>
-    </a>
+    </div>
   )
 }

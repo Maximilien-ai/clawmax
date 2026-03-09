@@ -127,6 +127,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [allGroups, setAllGroups] = useState<GroupEntry[]>([])
   const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
+  const [agentUsage, setAgentUsage] = useState<Record<string, { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }>>({})
+  const [usageDays, setUsageDays] = useState(30)
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
     const url = resetPagination
@@ -182,6 +184,25 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       fetchAgents(true, true) // silent refresh when page becomes active
     }
   }, [isActive, fetchAgents])
+
+  // Fetch agent usage data
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const response = await fetch(`/api/agents/usage?days=${usageDays}`)
+        const data = await response.json()
+        if (data.agentUsage) {
+          setAgentUsage(data.agentUsage)
+        }
+      } catch (err) {
+        console.error('Failed to fetch agent usage:', err)
+      }
+    }
+    fetchUsage()
+    // Refresh usage every 5 minutes
+    const interval = setInterval(fetchUsage, 300000)
+    return () => clearInterval(interval)
+  }, [usageDays])
 
   useEffect(() => {
     const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
@@ -1094,6 +1115,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onRename={() => setRenameTarget(agent)}
                         isSelected={selectedAgentIds.has(agent.id)}
                         onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+                        usage={agentUsage[agent.id]}
                       />
                     ))}
                   </div>
@@ -1136,6 +1158,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onRename={() => setRenameTarget(agent)}
                               isSelected={selectedAgentIds.has(agent.id)}
                               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+                              usage={agentUsage[agent.id]}
                             />
                           ))}
                         </div>
@@ -1189,6 +1212,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onRename={() => setRenameTarget(agent)}
               isSelected={selectedAgentIds.has(agent.id)}
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+              usage={agentUsage[agent.id]}
             />
           ))}
         </div>
@@ -2079,9 +2103,16 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number } }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
+
+  // Format token count for display
+  const formatTokens = (count: number): string => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`
+    return count.toString()
+  }
   return (
     <div
       id={`agent-card-${agent.id}`}
@@ -2158,6 +2189,11 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         </div>
         {totalGroups > 0 && (
           <div className="text-xs text-gray-400 shrink-0">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
+        )}
+        {usage && usage.totalTokens > 0 && (
+          <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${usage.totalTokens.toLocaleString()} tokens (${usage.inputTokens.toLocaleString()} in / ${usage.outputTokens.toLocaleString()} out)${usage.totalCost > 0 ? ` • $${usage.totalCost.toFixed(4)}` : ''}`}>
+            {formatTokens(usage.totalTokens)} 🪙
+          </div>
         )}
         <div className="relative shrink-0">
           <button

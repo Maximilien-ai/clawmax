@@ -482,6 +482,47 @@ router.get('/models', (req, res) => {
   res.json({ models })
 })
 
+// GET /api/agents/usage — get token usage for all agents
+router.get('/usage', async (req, res) => {
+  const days = parseInt(req.query.days as string) || 30
+
+  try {
+    const gateway = getGatewayClient()
+
+    // Call sessions.usage with days param
+    const result = await gateway.call('sessions.usage', { days })
+
+    // Extract agent usage from aggregates
+    const agentUsage: Record<string, any> = {}
+    if (result.aggregates?.byAgent) {
+      for (const entry of result.aggregates.byAgent) {
+        agentUsage[entry.agentId] = {
+          totalTokens: entry.totals.totalTokens || 0,
+          inputTokens: entry.totals.input || 0,
+          outputTokens: entry.totals.output || 0,
+          cacheReadTokens: entry.totals.cacheRead || 0,
+          cacheWriteTokens: entry.totals.cacheWrite || 0,
+          totalCost: entry.totals.totalCost || 0,
+        }
+      }
+    }
+
+    res.json({ agentUsage, days })
+  } catch (err: any) {
+    console.error('Failed to fetch agent usage:', err)
+    console.error('Error details:', err.stack)
+
+    // Return empty usage data instead of error to prevent UI breakage
+    // Gateway might not be available or usage data might not exist yet
+    res.json({
+      agentUsage: {},
+      days,
+      error: 'Gateway unavailable or no usage data',
+      details: err.message
+    })
+  }
+})
+
 // GET /api/agents/:id — single agent
 router.get('/:id', (req, res) => {
   const agents = listAgents()

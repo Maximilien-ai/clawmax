@@ -106,6 +106,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showArchivedModal, setShowArchivedModal] = useState(false)
   const [archivedExecutions, setArchivedExecutions] = useState<WorkflowExecution[]>([])
   const [archivedWorkflowId, setArchivedWorkflowId] = useState<string | null>(null)
+  const [trackedExecutions, setTrackedExecutions] = useState<Map<string, { status: string; executionId: string; workflowName: string }>>(new Map())
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -125,20 +126,94 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     fetchWorkflows()
   }, [])
 
-  // Poll for running workflows
+  // Poll for running workflows and detect completions
   useEffect(() => {
     const checkRunningWorkflows = async () => {
       try {
         const workflowIds = workflows.map(w => w.id)
         const checks = await Promise.all(
           workflowIds.map(async id => {
+            const workflow = workflows.find(w => w.id === id)
             const res = await fetch(`/api/workflows/${id}/executions?limit=1`)
             const data = await res.json()
             const latest = data.executions?.[0]
-            return { id, isRunning: latest?.status === 'running' }
+            return {
+              id,
+              isRunning: latest?.status === 'running',
+              execution: latest,
+              workflowName: workflow?.name || id
+            }
           })
         )
+
         const running = new Set(checks.filter(c => c.isRunning).map(c => c.id))
+
+        // Check for completion transitions and show toasts
+        setTrackedExecutions(prev => {
+          const next = new Map(prev)
+
+          for (const check of checks) {
+            if (!check.execution) continue
+
+            const key = `${check.id}:${check.execution.id}`
+            const tracked = prev.get(key)
+
+            // Detect transition from running/pending to completed/failed
+            const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
+            const isComplete = check.execution.status === 'completed' || check.execution.status === 'failed'
+
+            if (wasInProgress && isComplete) {
+              const status = check.execution.status
+              const isSuccess = status === 'completed'
+              const icon = isSuccess ? '✅' : '❌'
+              const successRate = check.execution.participantCount > 0
+                ? `${check.execution.successCount}/${check.execution.participantCount}`
+                : '0/0'
+
+              console.log(`[Workflow Toast] ${check.workflowName} ${tracked.status} → ${status}`)
+
+              if (isSuccess) {
+                showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
+              } else {
+                showError(`${icon} ${check.workflowName} ${status} (${successRate} agents)`)
+              }
+
+              // Refresh the workflow details if it's currently selected
+              if (selectedWorkflow?.id === check.id) {
+                // Inline refresh to avoid circular dependency
+                fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
+                  setSelectedWorkflow(workflow)
+                }).catch(() => {})
+                fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
+                  const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+                    if (a.status === 'running' && b.status !== 'running') return -1
+                    if (a.status !== 'running' && b.status === 'running') return 1
+                    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+                  })
+                  setExecutions(sortedExecutions)
+                }).catch(() => {})
+              }
+            }
+
+            // Track all non-complete execution states
+            const isInProgress = check.execution.status === 'running' || check.execution.status === 'pending'
+            if (isInProgress || wasInProgress) {
+              next.set(key, {
+                status: check.execution.status,
+                executionId: check.execution.id,
+                workflowName: check.workflowName
+              })
+            } else {
+              // Clean up completed executions after notification
+              if (tracked) {
+                next.delete(key)
+              }
+            }
+          }
+
+          return next
+        })
+
         setRunningWorkflows(running)
       } catch (err) {
         console.error('Error checking running workflows:', err)
@@ -150,7 +225,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const interval = setInterval(checkRunningWorkflows, 5000)
       return () => clearInterval(interval)
     }
-  }, [workflows])
+  }, [workflows, selectedWorkflow, showSuccess, showError])
 
   // Handle initialWorkflowId
   useEffect(() => {
@@ -172,8 +247,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const workflow = await workflowResp.json()
       const executionsData = await executionsResp.json()
 
+      // Sort executions: running first, then by start time descending
+      const sortedExecutions = (executionsData.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+        // Running executions always come first
+        if (a.status === 'running' && b.status !== 'running') return -1
+        if (a.status !== 'running' && b.status === 'running') return 1
+        // Otherwise sort by start time (most recent first)
+        return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      })
+
       setSelectedWorkflow(workflow)
-      setExecutions(executionsData.executions || [])
+      setExecutions(sortedExecutions)
       setShowDetailPanel(true)
       setShowExecutionPanel(false) // Close execution panel when viewing workflow
     } catch (err) {
@@ -193,9 +277,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const workflow = workflowResp.ok ? await workflowResp.json() : null
       const executionsData = executionsResp.ok ? await executionsResp.json() : { executions: [] }
 
+      // Sort executions: running first, then by start time descending
+      const sortedExecutions = (executionsData.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+        // Running executions always come first
+        if (a.status === 'running' && b.status !== 'running') return -1
+        if (a.status !== 'running' && b.status === 'running') return 1
+        // Otherwise sort by start time (most recent first)
+        return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      })
+
       setSelectedExecution(execution)
       setExecutionWorkflow(workflow)
-      setExecutionsList(executionsData.executions || [])
+      setExecutionsList(sortedExecutions)
       setShowExecutionPanel(true)
       setShowDetailPanel(false) // Close workflow panel when viewing execution
     } catch (err) {

@@ -243,6 +243,7 @@ export default function App() {
               <Organizations
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                 initialCommunityName={initialCommunityName}
                 initialGroupName={initialOrgGroupName}
               />
