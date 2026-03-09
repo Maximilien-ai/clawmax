@@ -261,50 +261,85 @@
 
 ## 🗓️ Timeline & Schedule
 
-### Thursday PM (March 13, Evening - 4-5 hours)
-**Focus**: Critical bugs + QA template
+### Monday (March 10 - Today)
+**Duration**: 4-6 hours
+**Focus**: 🚨 Critical Bug Fixes
 
 - [ ] Debug typing indicators (#1) - 2-3 hours
 - [ ] Debug completion toast (#2) - 2-3 hours
-- [ ] Create QA Team template (#3) - 1 hour
 - [ ] Run test pass (#9) - 30 minutes
+- [ ] Documentation updates if time permits
 
-**Deliverable**: All critical bugs resolved, QA template created
+**Deliverable**: Both critical bugs resolved
 
 ---
 
-### Friday AM (March 14, Morning - 3-4 hours)
-**Focus**: Assets, system agents, testing
+### Tuesday (March 11)
+**Duration**: 4-6 hours
+**Focus**: 🎯 High Priority Features
 
 - [ ] Create system AI agents (#6) - 2-3 hours
-- [ ] Capture screenshots/video (#5) - 1 hour
+  - ClawMax Assistant
+  - Template Optimizer
+  - Organization Architect
+  - Workflow Debugger
+- [ ] Create QA Team template (#3) - 1-2 hours
 - [ ] Test org templates (#4) - 1 hour
-- [ ] Final test pass (#9) - 30 minutes
 
-**Deliverable**: All features complete and tested
-
----
-
-### Friday Midday (March 14, 12pm-2pm - 2 hours)
-**Focus**: Presentation prep
-
-- [ ] Create presentation deck (#11) - 2 hours
-- [ ] Practice demo run-through - 30 minutes
-- [ ] Update blog with final screenshots (#10) - 30 minutes
-
-**Deliverable**: Presentation ready
+**Deliverable**: System agents functional, QA template created, all templates tested
 
 ---
 
-### Friday PM (March 14, Afternoon - 1 hour)
-**Focus**: Launch!
+### Wednesday (March 12)
+**Duration**: 4-5 hours
+**Focus**: 📸 Assets & Testing
 
-- [ ] Final blog review and publish (#10) - 30 minutes
-- [ ] Git tag and commit (#12) - 15 minutes
-- [ ] Announce v1.0.0 release - 15 minutes
-- [ ] **Give presentation** 🎉
+- [ ] Capture screenshots for blog (#5) - 1-2 hours
+  - Dashboard home
+  - Workflow execution
+  - Organization view
+  - Template library
+  - Execution detail
+- [ ] Optional: Record demo video - 30-60 minutes
+- [ ] Final comprehensive test pass (#9) - 2 hours
+- [ ] Update documentation (#7) - 1 hour
 
-**Deliverable**: v1.0.0 launched and presented
+**Deliverable**: All assets captured, comprehensive testing complete
+
+---
+
+### Thursday (March 13)
+**Duration**: 4-5 hours
+**Focus**: 🎤 Presentation Preparation
+
+- [ ] Create presentation deck (#11) - 2-3 hours
+- [ ] Practice demo run-through - 1 hour
+- [ ] Add screenshots to blog (#10) - 30 minutes
+- [ ] Proofread blog post - 30 minutes
+- [ ] Production hardening documentation (#8) - 30 minutes
+
+**Deliverable**: Presentation ready, blog polished
+
+---
+
+### Friday (March 14 - Launch Day!)
+**Duration**: 2-3 hours
+**Focus**: 🚀 Launch & Present
+
+**Morning** (9am-11am):
+- [ ] Final blog review and format for Substack - 30 minutes
+- [ ] Verify all features working - 30 minutes
+- [ ] Git commit and tag v1.0.0 (#12) - 15 minutes
+- [ ] Prepare demo environment - 15 minutes
+
+**Afternoon** (2pm-4pm):
+- [ ] Publish blog post - 15 minutes
+- [ ] Push git tags to GitHub - 5 minutes
+- [ ] Create GitHub release - 15 minutes
+- [ ] **Give presentation** (10-15 min) 🎉
+- [ ] Announce on social media - 15 minutes
+
+**Deliverable**: v1.0.0 launched and presented!
 
 ---
 
@@ -374,9 +409,11 @@
 ## 📞 Communication Plan
 
 ### Internal Updates
-- Thursday evening: Progress report on critical bugs
-- Friday morning: Final status before presentation
-- Friday PM: Post-presentation debrief
+- Monday EOD: Progress report on critical bugs
+- Tuesday EOD: Status on system agents and QA template
+- Wednesday EOD: Confirm all assets captured
+- Thursday EOD: Presentation deck review
+- Friday morning: Final checklist before launch
 
 ### External Announcement
 - Blog post published: Friday 2pm
@@ -388,21 +425,35 @@
 
 ## 📚 Reference Documents
 
-- `SYSTEM/dashboard/docs/BLOG_POST_DRAFT.md` - Blog post (ready for assets)
-- `SYSTEM/dashboard/docs/KNOWN_ISSUES.md` - Active bugs
-- `SYSTEM/dashboard/docs/TESTING_GUIDE.md` - Testing procedures
-- `SYSTEM/docs/ROADMAP.md` - Long-term roadmap
-- `SYSTEM/docs/STATUS.md` - Project status
+### General Documentation (`SYSTEM/docs/`)
+- `BLOG_POST_DRAFT.md` - Blog post (ready for assets)
+- `TESTING_GUIDE.md` - Testing procedures
+- `PRESENTATION_OUTLINE.md` - Presentation deck outline
+- `PLAN.md` - This file (complete release plan)
+- `TASK_SUMMARY.md` - Daily task breakdown
+- `ROADMAP.md` - Long-term roadmap
+- `STATUS.md` - Project status
+
+### Dashboard-Specific (`SYSTEM/dashboard/docs/`)
+- `KNOWN_ISSUES.md` - Active dashboard bugs
+- `TOKEN_USAGE_LIMITATION.md` - Technical limitation details
 
 ---
 
-**Last Updated**: March 9, 2026
-**Next Review**: Thursday evening (after bug fixes)
+**Last Updated**: March 10, 2026
+**Next Review**: Monday EOD (after bug fixes)
 
 ---
 
-**Total Estimated Time**: 15-20 hours
-**Available Time**: ~16 hours (Thu PM: 5h, Fri AM: 4h, Fri Midday: 3h, Fri PM: 4h)
-**Buffer**: ~0-1 hour (tight!)
+**Total Estimated Time**: 18-26 hours
+**Available Time**:
+- Monday: 4-6 hours
+- Tuesday: 4-6 hours
+- Wednesday: 4-5 hours
+- Thursday: 4-5 hours
+- Friday: 2-3 hours
+- **Total**: ~20-25 hours
+
+**Buffer**: ~0-5 hours (comfortable pace!)
 
 🚀 **Let's ship it!**
