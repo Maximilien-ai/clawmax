@@ -105,6 +105,14 @@ if (cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1 | grep -v "Skill 
 else
   fail "Skills API unit tests"
 fi
+
+echo ""
+echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
+if (cd dashboard && npx ts-node server/lib/templates.test.ts 2>&1) | grep -q "All tests passed"; then
+  pass "Templates API unit tests (15 tests)"
+else
+  fail "Templates API unit tests"
+fi
 echo ""
 
 # =========================================
