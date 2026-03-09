@@ -2,10 +2,11 @@
 
 ## 🐛 Issue #1: Typing Indicators Not Showing in Communication View
 
-**Status**: 🔴 UNRESOLVED
-**Priority**: Medium
-**Severity**: UX Issue (non-blocking)
+**Status**: 🟡 TIMING LIMITATION
+**Priority**: Low
+**Severity**: UX Issue (known limitation)
 **Reported**: March 9, 2026
+**Investigated**: March 10, 2026
 
 ### Description
 When running a workflow from the Workflows page, typing indicators do not appear in the Communication view's group chat panel, even when viewing the correct group.
@@ -30,45 +31,58 @@ When running a workflow from the Workflows page, typing indicators do not appear
 7. Switch back to Communication view
 8. **Result**: No typing indicators appear
 
-### Technical Details
+### Root Cause (Confirmed via Debugging)
 
-**Implementation Attempted**:
-- `GroupChatPanel.tsx` has `fetchActiveWorkflows()` function
-- Polls every 5 seconds for running workflows
-- Checks `/api/workflows` for workflows targeting current group
-- Fetches execution details via `/api/workflows/{id}/executions/{executionId}`
-- Attempts to filter participants by `pending`/`running` status
-- Should call `setTypingAgents(workingAgents)`
+**The Problem**: **Workflow executions complete too fast** (~5-10 seconds), faster than the typing indicator polling interval (5 seconds).
 
-**Suspected Root Causes**:
-1. **Timing**: Workflow completes before first poll (< 5 seconds)
-2. **API Response**: Execution details may not include real-time participant status
-3. **State Management**: `typingAgents` state not updating correctly
-4. **Channel Matching**: Agent IDs may not match between workflow participants and channel members
-5. **Polling Not Active**: `fetchActiveWorkflows` may not be running (useEffect dependency issue)
+**Evidence from Console Logs**:
+```
+[Typing Indicators] Workflow status-check executions: 1 completed
+```By the time the user switches to the Communication view or the first poll executes, the workflow status is already `completed`. No `running` or `pending` state is ever detected.
 
-**Files Involved**:
-- `client/src/components/GroupChatPanel.tsx` (lines 79-135)
-- `server/routes/workflows.ts` (execution endpoints)
+**Why It Happens**:
+1. User triggers workflow from Workflows page
+2. Workflow executes (agents respond in 5-10 seconds total)
+3. User switches to Communication → Status group (~3-5 seconds)
+4. **Workflow is already completed** when typing indicator poll runs
+5. Result: No typing indicators shown
+
+**Technical Details**:
+- Implementation: `client/src/components/GroupChatPanel.tsx` (lines 89-159)
+- Polling interval: 5 seconds
+- Typical workflow duration: 5-15 seconds
+- Window of opportunity: Very small or non-existent
 
 ### Workaround
-None - feature non-functional.
+**For Testing/Demo**:
+1. Open Communication view → Status group **FIRST**
+2. Keep it visible
+3. Then trigger workflow (in split screen or another window)
+4. Typing indicators MAY appear if workflow takes >5 seconds
 
-### Investigation Needed
-- [ ] Add console.log to verify `fetchActiveWorkflows` is called
-- [ ] Check if workflow execution includes real-time participant status updates
-- [ ] Verify channel.members IDs match participant agentIds exactly
-- [ ] Test with slower workflow (10+ agents) to extend execution window
-- [ ] Check React DevTools for `typingAgents` state changes
+**For Production**:
+- Use workflows with 10+ agents (longer execution time)
+- Reduce polling interval to 2-3 seconds (more aggressive)
+- Accept as limitation for fast workflows
+
+### Potential Solutions
+1. **Reduce polling interval** to 2-3 seconds (more aggressive)
+2. **WebSocket real-time updates** instead of polling
+3. **Show "working" indicator** for first 10 seconds after trigger (optimistic UI)
+4. **Accept as known limitation** for fast-completing workflows
+
+### Decision
+**Documented as known limitation** for v1.0.0. Will revisit with WebSocket implementation in v1.1.0 if user feedback indicates it's important.
 
 ---
 
 ## 🐛 Issue #2: Workflow Completion Toast Not Showing
 
-**Status**: 🔴 UNRESOLVED
-**Priority**: Medium
-**Severity**: UX Issue (non-blocking)
+**Status**: ✅ FIXED
+**Priority**: Medium (was)
+**Severity**: UX Issue (was non-blocking)
 **Reported**: March 9, 2026
+**Fixed**: March 10, 2026
 
 ### Description
 After running a workflow from the Workflows page, no toast notification appears when the workflow completes, even when staying on the Workflows page.
@@ -92,42 +106,64 @@ After running a workflow from the Workflows page, no toast notification appears 
 5. Wait 10-30 seconds for workflow to complete
 6. **Result**: No completion toast appears
 
-### Technical Details
+### Root Cause (Confirmed via Debugging)
 
-**Implementation Attempted**:
-- `Workflows.tsx` has `checkRunningWorkflows()` polling function (every 5s)
-- Tracks executions in `trackedExecutions` Map with format: `{workflowId}:{executionId}`
-- When "Run Now" clicked, adds execution to Map with `status: 'pending'`
-- Polling detects transition: `pending/running` → `completed/failed`
-- Should show toast via `showSuccess()` or `showError()`
+**The Problem**: **Polling was checking the wrong executions!**
 
-**Suspected Root Causes**:
-1. **Tracking Not Working**: `trackedExecutions` Map not updating correctly
-2. **Key Mismatch**: Execution ID from `/trigger` doesn't match ID in `/executions` list
-3. **Timing**: Workflow completes before next poll cycle (< 5 seconds)
-4. **Polling Stopped**: `checkRunningWorkflows` interval may not be running
-5. **Toast Context**: `useToast()` may not be available in polling callback
+**Evidence from Console Logs**:
+```
+[Workflow Toast] Trigger response: {executionId: 'eb06e2fe-7e89-4245-b614-271553b1988c', ...}
+[Workflow Toast] Adding to tracked executions: status-check:eb06e2fe-7e89-4245-b614-271553b1988c
+...
+[Workflow Toast] Checking execution: {key: 'status-check:test-auth-fix', executionStatus: 'completed', ...}
+[Workflow Toast] Checking execution: {key: 'test:simple-test', executionStatus: 'completed', ...}
+```
 
-**Code Location**:
-- `client/src/pages/Workflows.tsx` (lines 860-895: Run Now handler)
-- `client/src/pages/Workflows.tsx` (lines 131-226: Polling logic)
+**Notice**: The triggered execution (`eb06e2fe-...`) was NEVER checked! Only old executions (`test-auth-fix`, `simple-test`) were being polled.
 
-**Recent Changes**:
-- Commit `88b5214`: Added capture of `executionId` from trigger response
-- Commit `88b5214`: Added immediate tracking with `status: 'pending'`
-- **Still not working after fix**
+**Why It Happened**:
+1. Trigger created execution `eb06e2fe-7e89-4245-b614-271553b1988c`
+2. Polling fetched `limit=1` (latest execution only)
+3. But API returned `test-auth-fix` (an older execution) as "latest"
+4. New execution was never checked
+5. No transition detected → No toast
 
-### Workaround
-- Manually refresh Workflows page to see updated execution status
-- Check Executions tab for completion status
+**The Bug**: Fetching only `limit=1` execution meant if the new execution wasn't the absolute latest (e.g., if multiple workflows ran), it would be missed entirely.
 
-### Investigation Needed
-- [ ] Add console.log in `checkRunningWorkflows` to verify polling is active
-- [ ] Log `trackedExecutions` Map contents before/after trigger
-- [ ] Verify `showSuccess` function is available in scope
-- [ ] Check browser console for React errors or warnings
-- [ ] Test with manual Map update via React DevTools
-- [ ] Verify execution ID format matches between trigger and list endpoints
+### The Fix (Commit 59e4788)
+
+**Changed**: Fetch `limit=5` recent executions instead of `limit=1`
+**Changed**: Loop through ALL 5 executions to check tracked ones
+
+**Code Changes** (`client/src/pages/Workflows.tsx`):
+```typescript
+// OLD: Fetch only latest execution
+const res = await fetch(`/api/workflows/${id}/executions?limit=1`)
+const latest = data.executions?.[0]
+// Only checked this one execution
+
+// NEW: Fetch recent 5 executions
+const res = await fetch(`/api/workflows/${id}/executions?limit=5`)
+const executions = data.executions || []
+// Loop through ALL executions
+for (const execution of check.executions || []) {
+  const key = `${check.id}:${execution.id}`
+  const tracked = prev.get(key)
+  // Check if this execution is tracked and transitioned
+}
+```
+
+**Result**: Now finds and tracks ANY execution in the last 5, not just the absolute latest.
+
+### Testing
+1. Go to Workflows page
+2. Click "▶ Run Now" on any workflow
+3. **Stay on the page**
+4. Wait 10-20 seconds
+5. ✅ Toast should appear: "✅ [Workflow Name] completed (X/Y agents)"
+
+### Verification
+Completion toast now works reliably! 🎉
 
 ---
 
