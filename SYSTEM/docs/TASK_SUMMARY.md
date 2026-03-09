@@ -43,49 +43,50 @@
 ## 📅 Tuesday (March 11)
 
 **Duration**: 4-6 hours
-**Focus**: 🤖 SYSTEM AGENTS & QA TEMPLATE
+**Focus**: 🎯 **THE KILLER DEMO** - Complete Working Org from Template
+
+**Goal**: Stand up a complete organization from template in 30 seconds with agents, workflows, groups, communities - and have them actually work! This is the wow factor.
 
 ### Tasks (Priority Order)
 
-1. **🤖 Create System AI Agents** (2-3 hours)
-   - **ClawMax Assistant**:
-     - Identity: Helps users create optimized workflows and agents
-     - Skills: Read ClawMax APIs, analyze configurations
-     - Tools: File operations, API calls
-   - **Template Optimizer**:
-     - Identity: Analyzes and suggests improvements to templates
-     - Skills: Pattern recognition, best practices
-   - **Organization Architect**:
-     - Identity: Recommends community/group structures based on usage
-     - Skills: Data analysis, organizational design
-   - **Workflow Debugger**:
-     - Identity: Identifies common issues and suggests fixes
-     - Skills: Log analysis, error pattern matching
-   - **Goal**: 4 functional system agents in "System" community
-
-2. **🏢 Create QA Team Template** (1-2 hours)
+1. **🏢 Create QA Team Template** (2-3 hours) - **PRIORITY 1**
    - Location: `TEMPLATES/organizations/qa-team/`
-   - 3 agents:
-     - `qa-engineer`: Test automation, CI/CD monitoring
-     - `github-triager`: Issue classification, PR assignment
-     - `release-coordinator`: Release prep, deployment tracking
-   - 4 workflows:
+   - 3 complete agents with full config:
+     - `qa-engineer`: IDENTITY.md, SOUL.md, TOOLS.md - Test automation, CI/CD monitoring
+     - `github-triager`: IDENTITY.md, SOUL.md, TOOLS.md - Issue classification, PR assignment
+     - `release-coordinator`: IDENTITY.md, SOUL.md, TOOLS.md - Release prep, deployment tracking
+   - 4 workflows with proper targeting:
      - PR Review: Automated code review reminders
      - Issue Triage: Daily issue classification
      - CI/CD Monitor: Build status tracking
      - Status Report to PM: Weekly progress summary
-   - **Goal**: Complete QA org template matching existing templates
+   - Community and group structure
+   - **TEST END-TO-END**:
+     1. Import template with prefix "demo-qa-"
+     2. Start agents (verify they come online)
+     3. Run workflow (e.g., "Status Report to PM")
+     4. Watch execution complete
+     5. Review agent responses
+   - **Goal**: Complete working org that demonstrates ClawMax power in 30 seconds
 
-3. **🧪 Test Org Templates** (1 hour)
-   - Import Small Startup Team with prefix "demo-"
-   - Import Engineering Team with prefix "test-"
-   - Import QA Team with prefix "qa-test-"
-   - Verify workflows included and targeting correct agents
+2. **🧪 Test All Org Templates** (1-2 hours)
+   - **Small Startup Team**: Import → Start agents → Run workflow → Verify results
+   - **Engineering Team**: Import → Start agents → Run workflow → Verify results
+   - **QA Team**: Import → Start agents → Run workflow → Verify results
    - Clean up test imports
-   - **Goal**: All 3 org templates fully functional
+   - Document any issues
+   - **Goal**: All 3 org templates are bulletproof for Friday demo
+
+3. **🤖 Create System AI Agents** (2-3 hours)
+   - **ClawMax Assistant**: Helps create optimized workflows and agents
+   - **Template Optimizer**: Analyzes and suggests improvements to templates
+   - **Organization Architect**: Recommends community/group structures
+   - **Workflow Debugger**: Identifies common issues and suggests fixes
+   - Add to "System" community
+   - **Goal**: 4 functional system agents
 
 ### Deliverable
-✅ System agents operational, QA template created and tested
+✅ **THE KILLER DEMO READY**: Complete working org templates that wow the audience!
 
 ---
 
@@ -148,12 +149,30 @@
 
 ## 📅 Thursday (March 13)
 
-**Duration**: 4-5 hours
-**Focus**: 🎤 PRESENTATION PREPARATION
+**Duration**: 5-6 hours
+**Focus**: 📦 PUBLIC REPO MIGRATION + 🎤 PRESENTATION PREPARATION
 
 ### Tasks (Priority Order)
 
-1. **🎨 Create Presentation Deck** (2-3 hours)
+1. **📦 Prepare Public Repo (maximilien-ai/clawmax)** (2-3 hours) - **CRITICAL**
+   - Repo: https://github.com/Maximilien-ai/clawmax (currently private)
+   - Copy code from private maxclaw repo
+   - Verify peg to OpenClaw version at `/Users/maximilien/github/maximilien/openclaw`
+   - Create clean README with installation instructions
+   - Test clean clone:
+     ```bash
+     git clone https://github.com/Maximilien-ai/clawmax.git
+     cd clawmax
+     npm install
+     npm run dev
+     ```
+   - Run all tests on clean clone
+   - Verify dashboard starts and connects to agents
+   - Push to GitHub
+   - **Make public Friday before 5pm talk**
+   - **Goal**: Public repo ready for launch
+
+2. **🎨 Create Presentation Deck** (2 hours)
    - Tool: Keynote, PowerPoint, or Google Slides
    - 10 slides (see `PRESENTATION_OUTLINE.md`):
      1. Title slide

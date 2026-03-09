@@ -276,17 +276,27 @@
 
 ### Tuesday (March 11)
 **Duration**: 4-6 hours
-**Focus**: 🎯 High Priority Features
+**Focus**: 🎯 **THE KILLER DEMO** - Complete Working Org from Template
 
+**Goal**: Stand up a complete organization from template in 30 seconds with agents, workflows, groups, communities - and have them actually work!
+
+- [ ] Create QA Team template (#3) - 2-3 hours
+  - 3 agents with full IDENTITY.md, SOUL.md, TOOLS.md
+  - 4 workflows with proper targeting
+  - Community and group structure
+  - **Test end-to-end**: Import → Agents online → Run workflow → See results
 - [ ] Create system AI agents (#6) - 2-3 hours
   - ClawMax Assistant
   - Template Optimizer
   - Organization Architect
   - Workflow Debugger
-- [ ] Create QA Team template (#3) - 1-2 hours
-- [ ] Test org templates (#4) - 1 hour
+  - Add to "System" community
+- [ ] Test all org templates (#4) - 1 hour
+  - Small Startup Team: Import, verify, test workflow
+  - Engineering Team: Import, verify, test workflow
+  - QA Team: Import, verify, test workflow
 
-**Deliverable**: System agents functional, QA template created, all templates tested
+**Deliverable**: Complete working org templates - the killer demo ready!
 
 ---
 
@@ -309,16 +319,24 @@
 ---
 
 ### Thursday (March 13)
-**Duration**: 4-5 hours
-**Focus**: 🎤 Presentation Preparation
+**Duration**: 5-6 hours
+**Focus**: 📦 Public Repo Migration + 🎤 Presentation Preparation
 
-- [ ] Create presentation deck (#11) - 2-3 hours
+- [ ] **Prepare public repo (maximilien-ai/clawmax)** - 2-3 hours
+  - Repo: https://github.com/Maximilien-ai/clawmax (currently private)
+  - Copy code from private maxclaw repo
+  - Verify peg to OpenClaw version at `/Users/maximilien/github/maximilien/openclaw`
+  - Test clean clone and installation
+  - Update README with installation instructions
+  - Verify all tests pass on clean clone
+  - Push to GitHub
+  - **Make public Friday before 5pm talk**
+- [ ] Create presentation deck (#11) - 2 hours
 - [ ] Practice demo run-through - 1 hour
 - [ ] Add screenshots to blog (#10) - 30 minutes
 - [ ] Proofread blog post - 30 minutes
-- [ ] Production hardening documentation (#8) - 30 minutes
 
-**Deliverable**: Presentation ready, blog polished
+**Deliverable**: Public repo ready, presentation deck complete, blog polished
 
 ---
 
