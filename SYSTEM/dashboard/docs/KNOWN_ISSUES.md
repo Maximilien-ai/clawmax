@@ -78,11 +78,11 @@ When running a workflow from the Workflows page, typing indicators do not appear
 
 ## 🐛 Issue #2: Workflow Completion Toast Not Showing
 
-**Status**: ✅ FIXED
-**Priority**: Medium (was)
-**Severity**: UX Issue (was non-blocking)
+**Status**: 🔴 STILL UNRESOLVED
+**Priority**: High
+**Severity**: UX Issue (non-blocking but important)
 **Reported**: March 9, 2026
-**Fixed**: March 10, 2026
+**Fix Attempted**: March 10, 2026 (unsuccessful)
 
 ### Description
 After running a workflow from the Workflows page, no toast notification appears when the workflow completes, even when staying on the Workflows page.
@@ -162,8 +162,79 @@ for (const execution of check.executions || []) {
 4. Wait 10-20 seconds
 5. ✅ Toast should appear: "✅ [Workflow Name] completed (X/Y agents)"
 
-### Verification
-Completion toast now works reliably! 🎉
+### Fix Attempt #1 Status
+**Result**: ❌ Still not working after user testing
+
+**Possible reasons fix didn't work**:
+1. The tracked execution is still not being found in the recent 5
+2. There may be an issue with the execution ID format/matching
+3. The polling may be checking before the execution appears in the list
+4. The state update might be getting lost in React re-renders
+5. Need more detailed logging to see what's actually being checked
+
+**Next debugging steps** (Tuesday AM):
+1. Add more granular logging to see ALL executions being checked
+2. Log the exact execution IDs being compared
+3. Add timestamp logging to understand timing
+4. Check if the API is returning the execution at all
+
+---
+
+## 🐛 Issue #3: @all Messages to Groups Not Reliably Working
+
+**Status**: 🔴 UNRESOLVED
+**Priority**: High
+**Severity**: Functional Issue (blocks group messaging feature)
+**Reported**: March 10, 2026
+
+### Description
+When sending an @all message to a group (e.g., Status group) from Communication view, the message sometimes works but is not reliable. Messages may not be delivered to all group members.
+
+### Expected Behavior
+1. User opens Communication page → Status group
+2. User types message with @all mention
+3. Message is sent to ALL members of the Status group
+4. All agents in the group receive and can respond to the message
+5. Works reliably every time
+
+### Actual Behavior
+- @all messages sometimes work
+- Sometimes messages are not delivered to all group members
+- Reliability is inconsistent
+
+### Steps to Reproduce
+1. Open Communication page
+2. Click "Status" group to open chat panel
+3. Type message: "@all what's your status?"
+4. Send message
+5. Check if all group members received the message
+6. **Result**: Sometimes works, sometimes doesn't
+
+### Technical Details
+
+**Files Involved**:
+- `client/src/components/GroupChatPanel.tsx` - Message sending
+- `server/routes/groups.ts` or `server/routes/communities.ts` - Group message endpoints
+- OpenClaw gateway message handling
+
+**Suspected Root Causes**:
+1. **Agent availability**: Some agents may be offline when message is sent
+2. **Message routing**: @all expansion may not be working correctly
+3. **Gateway issues**: Individual agent gateways may not be responding
+4. **Timing**: Race condition in sending to multiple agents
+5. **Error handling**: Failures to send to some agents may be silent
+
+### Investigation Needed
+- [ ] Add logging to message send endpoint to see what agents are targeted
+- [ ] Verify @all mention expansion logic
+- [ ] Check individual agent gateway responses
+- [ ] Test with all agents confirmed online
+- [ ] Add error reporting for failed sends
+
+### Workaround
+- Check which agents are online before sending @all messages
+- Send individual messages to agents if @all fails
+- Retry @all message if it doesn't work the first time
 
 ---
 
