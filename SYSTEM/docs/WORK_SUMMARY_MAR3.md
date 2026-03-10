@@ -2,6 +2,8 @@
 
 ## ✅ Today's Accomplishments
 
+NOTE: should this be archived?
+
 ### Release v0.8.8 - Secure Chat, Auto-completion, Slide UI
 
 **Major Features Implemented:**

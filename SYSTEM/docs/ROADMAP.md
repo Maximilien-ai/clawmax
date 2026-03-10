@@ -3,6 +3,8 @@
 **Current Version**: v0.8.8
 **Focus**: Security Hardening & Production Readiness
 
+NOTE: out of date. Please plan to update Th.
+
 ---
 
 NOTE: can we update this list? I feel like some of these items are completed. If yes, mark so and let's start dividing into completed and not and eventually move completed to docs/archive

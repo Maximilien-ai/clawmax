@@ -54,6 +54,15 @@
 - [ ] Test with React DevTools state inspection
 - [ ] Verify `showSuccess` function is available in scope
 
+**The Key Insight** (from your logs):
+The execution IS detected as `completed`, BUT `wasTracked: false`! This means:
+- We add the execution to `trackedExecutions` Map when triggering
+- But when polling checks it, the Map doesn't have it (or key doesn't match)
+- So no transition is detected (can't transition if it was never tracked)
+- **Root cause**: Map key mismatch or state loss between renders
+
+**Next step**: Log the EXACT keys being added vs checked to see the format difference.
+
 **Root Cause Options**:
 1. Tracking Not Working: `trackedExecutions` Map not updating correctly
 2. Key Mismatch: Execution ID from `/trigger` doesn't match ID in `/executions` list
@@ -454,7 +463,6 @@
 
 ### Dashboard-Specific (`SYSTEM/dashboard/docs/`)
 - `KNOWN_ISSUES.md` - Active dashboard bugs
-- `TOKEN_USAGE_LIMITATION.md` - Technical limitation details
 
 ---
 

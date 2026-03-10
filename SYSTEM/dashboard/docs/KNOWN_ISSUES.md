@@ -276,10 +276,38 @@ tail -f /tmp/dashboard.log | grep -E "workflow|execution|trigger"
 
 ## 📋 Other Known Limitations
 
-1. **Fast Workflows**: Workflows completing in < 5 seconds may miss polling window
-2. **Token Usage**: Blocked by OpenClaw Gateway RPC scope (see `TOKEN_USAGE_LIMITATION.md`)
-3. **Typing Indicators**: Only show during active execution (not retroactive)
-4. **Completion Toast**: Only shows if user stays on Workflows page
+### 1. Fast Workflows
+Workflows completing in < 5 seconds may miss polling window.
+
+### 2. Token Usage Monitoring ⏳
+**Status**: Implemented in ClawMax, blocked by OpenClaw Gateway
+
+**Issue**: Dashboard code is ready but OpenClaw Gateway doesn't expose `sessions.usage` RPC method to external clients.
+
+**Error**: `Gateway RPC error: missing scope: operator.admin`
+
+**What's Needed from OpenClaw**:
+- Expose `sessions.usage` method to external clients (currently internal only)
+- Either add new scope (e.g., `operator.usage`) OR allow `operator.admin` to access it
+- Document scope requirements for third-party integrations
+
+**ClawMax Implementation** (Ready to go):
+- Backend: `/api/agents/usage` endpoint (`server/routes/agents.ts:486-524`)
+- Frontend: Usage fetch + display (`client/src/pages/Agents.tsx`)
+- UI: Token counts with 🪙 icon on agent cards
+- Auto-refresh: Every 5 minutes
+
+**Current Behavior**: Token counts don't appear (graceful degradation, no errors shown)
+
+**Future**: Will work automatically when OpenClaw exposes the API
+
+**See**: `SYSTEM/docs/archive/TOKEN_USAGE_LIMITATION.md` for full technical details
+
+### 3. Typing Indicators
+Only show during active execution (not retroactive).
+
+### 4. Completion Toast
+Only shows if user stays on Workflows page.
 
 ---
 

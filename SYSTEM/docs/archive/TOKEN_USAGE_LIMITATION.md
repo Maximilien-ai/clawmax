@@ -10,6 +10,8 @@
 
 Token usage monitoring feature is **implemented in ClawMax** but **blocked by OpenClaw Gateway RPC permissions**. The dashboard cannot access the `sessions.usage` API endpoint due to missing scope authorization.
 
+NOTE: is this a change we need to make to OpenClaw to allow usage in dashboard?
+
 ---
 
 ## Error Details
@@ -28,6 +30,8 @@ Token usage monitoring feature is **implemented in ClawMax** but **blocked by Op
 - ClawMax Dashboard connects to OpenClaw Gateway with `role: 'operator'` and `scopes: ['operator.admin']`
 - Gateway RPC rejects `sessions.usage` method calls with "missing scope: operator.admin"
 - This suggests the `sessions.usage` endpoint requires a different scope or is not exposed to external clients
+
+NOTE: can we check what scope exactly seems like operator.admin should include all data, no?
 
 ---
 

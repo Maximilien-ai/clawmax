@@ -7,6 +7,8 @@
 
 ## 📍 Quick Navigation
 
+NOTE: this needs update since lots changed since. We need to point to the PLAN.md and BUGS.md and ROADMAP.md and docs that will not change much. Let's revise please.
+
 ### Current Work
 - **[STATUS.md](STATUS.md)** - Current system state, health metrics, roadmap
 - **[planning/DEMO_DAY_ROADMAP_FEB26.md](planning/DEMO_DAY_ROADMAP_FEB26.md)** - Tonight/Tomorrow/Friday plan
@@ -28,6 +30,8 @@
 ---
 
 ## 📊 Current State
+
+NOTE: out of date but perhaps something to update Th before release since we would likely need to change again.
 
 - **Release**: v0.7.0
 - **Tests**: 68/68 passing (100%)
@@ -92,6 +96,8 @@ SYSTEM/docs/
 
 ## 📝 Document Lifecycle
 
+NOTE: love this.
+
 ```
 New Planning Doc
     ↓
@@ -109,6 +115,8 @@ Session ends
     ↓
 archive/*.md (reference)
 ```
+
+NOTE: can we get a quick getting started section here too? For regular users and devs
 
 ---
 

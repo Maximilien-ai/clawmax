@@ -3,6 +3,8 @@
 ## 🎯 Current Focus
 **Security Hardening & Production Readiness**
 
+NOTE: is this a CHANGELOG.md instead of STATUS.md?
+
 ## ✅ Latest Release: v0.8.8 (Mar 3, 2026)
 **Secure Chat, Auto-completion, Slide UI, Security Documentation**
 

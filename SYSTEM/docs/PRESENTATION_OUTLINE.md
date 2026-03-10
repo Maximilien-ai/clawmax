@@ -7,6 +7,8 @@
 
 ---
 
+NOTE: can we generate a PDF from this or PPTX?
+
 ## 🎯 Presentation Goals
 
 1. Show the **problem** of managing many AI agents
@@ -22,14 +24,14 @@
 ### Slide 1: Title Slide
 **Content**:
 - Title: "ClawMax: OpenClaw to the Max! 🚀"
-- Subtitle: "Multi-Agent Orchestration Made Simple"
-- Date: March 14, 2026
+- Subtitle: "Multi-Agent (lobster 🦞) Orchestration Made Simple"
+- Date: March 13, 2026
 - v1.0.0 Launch
 
 **Visual**: ClawMax logo + OpenClaw logo
 
 **Speaking Notes**:
-"Good afternoon! Today I'm excited to share ClawMax v1.0.0 - an orchestration dashboard that makes managing hundreds of AI agents as easy as managing one."
+"Good afternoon! Today I'm excited to share ClawMax v1.0.0 - an orchestration dashboard that makes managing hundreds of AI agents via OpenClaw as easy as managing one."
 
 ---
 
@@ -106,7 +108,7 @@
 **Visual**: LIVE DEMO - Workflow execution
 
 **Speaking Notes**:
-"Here's where it gets powerful. I have a 'Status Check' workflow targeting my engineering team. One click, and ClawMax sends the task to all targeted agents via WebSocket."
+"Here's where it gets powerful. I have a 'Status Check' workflow targeting my engineering team. One click, and ClawMax sends the task to all targeted agents via WebSocket. Even more powerful is that workflows have cron schedule so execution is automated."
 
 **Demo Actions**:
 1. Navigate to Workflows page
@@ -115,7 +117,7 @@
 4. Navigate to Executions tab
 5. Click latest execution to show detail
 6. Show participant list with status (pending → running → completed)
-7. Show agent responses as they come in
+7. Show agent responses as they come in -- their actions could be to trigger other agents, e.g., agents tagged qa-engineer or product-manager
 
 **Duration**: 3 minutes
 
@@ -176,7 +178,7 @@
 **Visual**: Technical architecture diagram
 
 **Speaking Notes**:
-"Everything is designed to enhance OpenClaw, not replace it. Your agents keep working if the dashboard goes down. All data is file-based, so you can version control everything with git."
+"Everything is designed to enhance OpenClaw, not replace it. Your agents keep working if the dashboard goes down. Show agents' files. All data is file-based, so you can version control everything with git."
 
 **Duration**: 1 minute
 
@@ -192,7 +194,7 @@
   - ✅ Execution tracking
   - ✅ System AI agents (Beta)
 
-- v1.1.0 (April 2026):
+- v1.1.0 - ClawMax.ai (April 2026):
   - 📈 Evaluation of workflows and agents
   - ☁️ Cloud deployment (Kubernetes)
   - 🎛️ Multi-deployment management
@@ -231,9 +233,11 @@
 **Visual**: QR code to GitHub repo + contact info
 
 **Speaking Notes**:
-"ClawMax is open source and we'd love your involvement. Try it with your OpenClaw agents, share feedback, contribute code. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
+"ClawMax is open source and we'd love your involvement. Try it with your OpenClaw agents, share feedback, contribute code. Signup for ClawMax.ai to know when you can get ClawMax on Cloud or on-premise. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
 
 **Duration**: 1 minute
+
+NOTE: https://github.com/Maximilien-ai/ClawMax is the Community code always OSS. https://ClawMax.ai is the business where users can sign up and eventually pay for Cloud, on-premise deployment and support. Let's weave that in towards the end.
 
 ---
 
@@ -277,6 +281,8 @@ If live demo fails:
 
 ### Closing (30 seconds)
 "ClawMax v1.0.0 is available today. Try it with your OpenClaw agents. From managing 5 agents to 500, centralized coordination is key to unlocking multi-agent AI potential. Thank you!"
+
+NOTE: overarching goal is to build ClawMax.ai with ClawMax so that as users sign up and pay for ClawMax we will standup ClawMax orgs to help manage these. Don't need to include details but know this is the vision.
 
 ---
 

@@ -67,6 +67,8 @@ The CLI uses device-based authentication which automatically grants:
 scopes: ["operator.admin", "operator.approvals", "operator.pairing"]
 ```
 
+NOTE: is this related to the Token Usage issue? More reasons to change OpenClaw and fix this?
+
 However, simple token auth (using `gateway.auth.token` from openclaw.json) does not grant any scopes by default, causing all admin RPC calls to fail with "missing scope: operator.admin" or connection closed errors.
 
 ### Current Workaround

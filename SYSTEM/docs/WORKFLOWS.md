@@ -6,6 +6,8 @@
 
 ---
 
+NOTE: love this but please add section on Worflow optimizer system agents and pre-built templates.
+
 ## Purpose
 
 Workflows enable scheduled, recurring tasks to be executed across one or more agents in an organization. Examples include:
