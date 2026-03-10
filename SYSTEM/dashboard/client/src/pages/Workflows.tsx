@@ -164,10 +164,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               const tracked = prev.get(key)
 
               console.log('[Workflow Toast] Checking execution:', {
-                key,
+                lookingFor: key,
                 executionStatus: execution.status,
                 wasTracked: !!tracked,
-                trackedStatus: tracked?.status
+                trackedStatus: tracked?.status,
+                allKeysInMap: Array.from(prev.keys()),
+                mapSize: prev.size
               })
 
               // Detect transition from running/pending to completed/failed
