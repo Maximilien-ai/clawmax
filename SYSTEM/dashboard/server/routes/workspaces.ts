@@ -109,11 +109,15 @@ router.patch('/:id', (req, res) => {
     const { id } = req.params
     const { name, agentCount, color, tags } = req.body
 
+    console.log('PATCH /api/workspaces/:id - Received:', { id, name, color, tags })
+
     const updates: any = {}
     if (name && typeof name === 'string') updates.name = name
     if (typeof agentCount === 'number') updates.agentCount = agentCount
     if (color) updates.color = color
     if (Array.isArray(tags)) updates.tags = tags
+
+    console.log('Applying updates:', updates)
 
     workspaceManager.updateWorkspaceMetadata(id, updates)
 
