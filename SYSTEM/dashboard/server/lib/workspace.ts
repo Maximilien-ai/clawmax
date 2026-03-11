@@ -1335,7 +1335,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     communities,
     groups,
     tags,
-    skills,
+    skills: skills || [],
     validationWarnings: warnings.length > 0 ? warnings : undefined,
     archived: isArchived,
     archiveMetadata: isArchived ? archiveMetadata : undefined,
@@ -1437,19 +1437,20 @@ export function getAgentImpact(id: string, agentDir: string): AgentImpact {
 
 /** Delete an agent's workspace dir and optionally its profile state dir.
  *  Returns { steps, errors }. */
-export function deleteAgent(id: string, removeStateDir: boolean): { steps: string[]; errors: string[] } {
+export function deleteAgent(id: string, removeStateDir: boolean, archived: boolean = false): { steps: string[]; errors: string[] } {
   const steps: string[] = []
   const errors: string[] = []
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) return { steps, errors: ['Invalid agent id'] }
 
   const agentsDir = getAgentsDir()
-  const agentDir = path.join(agentsDir, id)
+  const archiveDir = getArchiveDir()
+  const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
 
-  // Remove workspace AGENTS dir
+  // Remove workspace AGENTS dir (or archive dir)
   try {
     fs.rmSync(agentDir, { recursive: true, force: true })
-    steps.push(`Removed workspace AGENTS/${id}/`)
+    steps.push(`Removed workspace ${archived ? 'AGENTS/archive/' : 'AGENTS/'}${id}/`)
   } catch (e) {
     errors.push(`Failed to remove workspace: ${e}`)
   }
@@ -1507,6 +1508,62 @@ export function deleteAgent(id: string, removeStateDir: boolean): { steps: strin
     }
   } catch (e) {
     errors.push(`Failed to remove from openclaw.json: ${e}`)
+  }
+
+  // Remove agent from COMMUNITIES.md and GROUPS.md member lists
+  const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+  const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+
+  // Remove from communities
+  if (fs.existsSync(communitiesPath)) {
+    try {
+      let communitiesContent = fs.readFileSync(communitiesPath, 'utf-8')
+      const lines = communitiesContent.split('\n')
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        // Match Members line (with or without leading dash)
+        if (line.match(/^\s*-?\s*\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-?\s*\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+            lines[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(communitiesPath, lines.join('\n'), 'utf-8')
+      steps.push(`Removed ${id} from COMMUNITIES.md member lists`)
+    } catch (e) {
+      errors.push(`Failed to remove from COMMUNITIES.md: ${e}`)
+    }
+  }
+
+  // Remove from groups
+  if (fs.existsSync(groupsPath)) {
+    try {
+      let groupsContent = fs.readFileSync(groupsPath, 'utf-8')
+      const lines = groupsContent.split('\n')
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        // Match Members line (with or without leading dash)
+        if (line.match(/^\s*-?\s*\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-?\s*\*\*Members:\*\*\s*)(.*)/)
+          if (membersMatch) {
+            const prefix = membersMatch[1]
+            const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
+            lines[i] = prefix + membersList.join(', ')
+          }
+        }
+      }
+
+      fs.writeFileSync(groupsPath, lines.join('\n'), 'utf-8')
+      steps.push(`Removed ${id} from GROUPS.md member lists`)
+    } catch (e) {
+      errors.push(`Failed to remove from GROUPS.md: ${e}`)
+    }
   }
 
   return { steps, errors }

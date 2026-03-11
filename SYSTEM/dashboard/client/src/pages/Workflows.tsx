@@ -369,8 +369,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setSelectedExecution(execution)
       setExecutionWorkflow(workflow)
       setExecutionsList(sortedExecutions)
-      setShowExecutionPanel(true)
-      setShowDetailPanel(false) // Close workflow panel when viewing execution
+      // Only open the panel if this is not a silent polling update
+      if (!silent) {
+        setShowExecutionPanel(true)
+        setShowDetailPanel(false) // Close workflow panel when viewing execution
+      }
     } catch (err) {
       if (!silent) {
         showError('Failed to load execution details')

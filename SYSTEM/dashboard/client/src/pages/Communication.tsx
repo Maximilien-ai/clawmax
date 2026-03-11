@@ -748,6 +748,14 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
       )
     }
 
+    // Remove duplicates - keep only first occurrence of each agent ID
+    const seen = new Set<string>()
+    filtered = filtered.filter(a => {
+      if (seen.has(a.id)) return false
+      seen.add(a.id)
+      return true
+    })
+
     return filtered.sort((a, b) => a.name.localeCompare(b.name))
   }, [allAgents, currentMemberIds, filter, searchQuery])
 
@@ -1300,7 +1308,13 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
           </button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {[...channel.members].sort((a, b) => a.name.localeCompare(b.name)).map(agent => {
+          {[...channel.members]
+            .filter((agent, index, self) =>
+              // Remove duplicates - keep only first occurrence of each agent ID
+              index === self.findIndex(a => a.id === agent.id)
+            )
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(agent => {
             const isSelected = selectedAgents.has(agent.id)
             return (
               <button
@@ -1472,7 +1486,12 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
               {/* @Mention Dropdown */}
               {showMentions && filteredMentionAgents.length > 0 && (
                 <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10">
-                  {filteredMentionAgents.map((agent, index) => (
+                  {filteredMentionAgents
+                    .filter((agent, index, self) =>
+                      // Remove duplicates
+                      index === self.findIndex(a => a.id === agent.id)
+                    )
+                    .map((agent, index) => (
                     <button
                       key={agent.id}
                       onClick={() => insertMention(agent.name)}

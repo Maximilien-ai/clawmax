@@ -15,7 +15,7 @@ interface BulkOperationsPanelProps {
   onAddToGroups: (agentIds: string[], groups: string[]) => Promise<void>
   onArchive: (agentIds: string[]) => Promise<void>
   onUnarchive: (agentIds: string[]) => Promise<void>
-  onDelete?: (agentIds: string[]) => Promise<void>
+  onDelete?: (agents: Array<{ id: string; archived?: boolean }>) => Promise<void>
   onChat?: (agentIds: string[]) => void
 }
 
@@ -47,14 +47,15 @@ export default function BulkOperationsPanel({
     if (operation === 'delete' && onDelete) {
       setProcessing(true)
       try {
-        const agentIds = selectedAgents.map(a => a.id)
+        const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
         const resp = await fetch('/api/agents/bulk-impact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentIds })
+          body: JSON.stringify({ agents })
         })
         const data = await resp.json()
         setDeleteImpact(data.summary)
+        setShowConfirm(true)
         setShowSecondConfirm(true)
       } catch (err) {
         console.error('Failed to fetch impact:', err)
@@ -81,7 +82,8 @@ export default function BulkOperationsPanel({
       } else if (operation === 'unarchive') {
         await onUnarchive(agentIds)
       } else if (operation === 'delete' && onDelete) {
-        await onDelete(agentIds)
+        const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
+        await onDelete(agents)
       }
 
       onClose()

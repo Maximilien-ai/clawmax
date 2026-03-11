@@ -328,6 +328,16 @@ router.post('/provision', (req, res) => {
   const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', name)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')
 
+  // Ensure workspace directory exists before registering agent
+  try {
+    fs.mkdirSync(workspaceArg, { recursive: true })
+    send('log', `Created workspace directory: ${workspaceArg}\n`)
+  } catch (err: any) {
+    send('error', `Failed to create workspace directory: ${err.message}`)
+    res.end()
+    return
+  }
+
   // Get available models based on API keys
   const availableModels: string[] = []
   if (process.env.ANTHROPIC_API_KEY) {
@@ -442,30 +452,30 @@ router.post('/provision', (req, res) => {
 
 // POST /api/agents/bulk-impact — get impact summary for bulk delete
 router.post('/bulk-impact', (req, res) => {
-  const { agentIds } = req.body as { agentIds?: string[] }
+  const { agents: agentsToDelete } = req.body as { agents?: Array<{ id: string; archived?: boolean }> }
 
-  if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
-    return res.status(400).json({ error: 'agentIds array is required' })
+  if (!agentsToDelete || !Array.isArray(agentsToDelete) || agentsToDelete.length === 0) {
+    return res.status(400).json({ error: 'agents array is required' })
   }
 
   // Validate all agent IDs
-  for (const id of agentIds) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${id}` })
+  for (const agent of agentsToDelete) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
     }
   }
 
-  const agents = listAgents()
+  const allAgents = listAgents()
   const impacts: Record<string, any> = {}
   const notFound: string[] = []
 
-  for (const id of agentIds) {
-    const agent = agents.find(a => a.id === id)
+  for (const agentToDelete of agentsToDelete) {
+    const agent = allAgents.find(a => a.id === agentToDelete.id && a.archived === (agentToDelete.archived || false))
     if (!agent) {
-      notFound.push(id)
+      notFound.push(agentToDelete.id)
       continue
     }
-    impacts[id] = getAgentImpact(id, agent.workspacePath)
+    impacts[agentToDelete.id] = getAgentImpact(agentToDelete.id, agent.workspacePath)
   }
 
   // Calculate totals
@@ -485,7 +495,7 @@ router.post('/bulk-impact', (req, res) => {
     impacts,
     notFound,
     summary: {
-      agentCount: agentIds.length - notFound.length,
+      agentCount: agentsToDelete.length - notFound.length,
       totalCommunities,
       totalGroups,
       totalTodos
@@ -495,16 +505,16 @@ router.post('/bulk-impact', (req, res) => {
 
 // DELETE /api/agents/bulk — bulk delete multiple agents
 router.delete('/bulk', (req, res) => {
-  const { agentIds, removeStateDir } = req.body as { agentIds?: string[]; removeStateDir?: boolean }
+  const { agents: agentsToDelete, removeStateDir } = req.body as { agents?: Array<{ id: string; archived?: boolean }>; removeStateDir?: boolean }
 
-  if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
-    return res.status(400).json({ error: 'agentIds array is required' })
+  if (!agentsToDelete || !Array.isArray(agentsToDelete) || agentsToDelete.length === 0) {
+    return res.status(400).json({ error: 'agents array is required' })
   }
 
   // Validate all agent IDs
-  for (const id of agentIds) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${id}` })
+  for (const agent of agentsToDelete) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
     }
   }
 
@@ -512,9 +522,9 @@ router.delete('/bulk', (req, res) => {
   let successCount = 0
   let failureCount = 0
 
-  for (const id of agentIds) {
-    const result = deleteAgent(id, removeStateDir === true)
-    results[id] = { ok: result.errors.length === 0, ...result }
+  for (const agent of agentsToDelete) {
+    const result = deleteAgent(agent.id, removeStateDir === true, agent.archived || false)
+    results[agent.id] = { ok: result.errors.length === 0, ...result }
 
     if (result.errors.length === 0) {
       successCount++
@@ -527,7 +537,7 @@ router.delete('/bulk', (req, res) => {
     ok: failureCount === 0,
     results,
     summary: {
-      total: agentIds.length,
+      total: agentsToDelete.length,
       success: successCount,
       failure: failureCount
     }
