@@ -137,6 +137,25 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     setTimeout(() => setCooling(false), 3000)
   }
 
+  const handleDeleteChannel = async (channel: Channel) => {
+    try {
+      const endpoint = channel.type === 'community'
+        ? `/api/communities/${encodeURIComponent(channel.name)}`
+        : `/api/groups/${encodeURIComponent(channel.name)}`
+
+      const response = await fetch(endpoint, { method: 'DELETE' })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete ${channel.type}`)
+      }
+
+      showSuccess(`${channel.type === 'community' ? 'Community' : 'Group'} "${channel.name}" deleted`)
+      fetchAgents() // Refresh to show updated list
+    } catch (err) {
+      console.error(`Failed to delete ${channel.type}:`, err)
+    }
+  }
+
   // Build channels list from agents
   const allChannels = useMemo(() => {
     const channelMap = new Map<string, Channel>()
@@ -512,6 +531,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     groupWorkflows={groupWorkflows}
                     setCommunityWorkflows={setCommunityWorkflows}
                     setGroupWorkflows={setGroupWorkflows}
+                    onDelete={() => handleDeleteChannel(channel)}
                   />
                 ))}
               </div>
@@ -539,6 +559,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     groupWorkflows={groupWorkflows}
                     setCommunityWorkflows={setCommunityWorkflows}
                     setGroupWorkflows={setGroupWorkflows}
+                    onDelete={() => handleDeleteChannel(channel)}
                   />
                 ))}
               </div>
@@ -979,7 +1000,7 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onNavigateToWorkflow, onOpenChat, isHighlighted, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean; communityWorkflows: Map<string, Workflow[]>; groupWorkflows: Map<string, Workflow[]>; setCommunityWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; setGroupWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>> }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onNavigateToWorkflow, onOpenChat, isHighlighted, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows, onDelete }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean; communityWorkflows: Map<string, Workflow[]>; groupWorkflows: Map<string, Workflow[]>; setCommunityWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; setGroupWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; onDelete?: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const [loadingWorkflows, setLoadingWorkflows] = useState(false)
   const [messageText, setMessageText] = useState('')
@@ -991,6 +1012,8 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
   const [typingAgents, setTypingAgents] = useState<Set<string>>(new Set())
   const textareaRef = useState<HTMLTextAreaElement | null>(null)[0]
+  const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const typeStyle = channel.type === 'community'
     ? 'bg-purple-50 text-purple-700 border-purple-200'
@@ -1187,9 +1210,37 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
             {channel.members.length} agent{channel.members.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border shrink-0 ml-2 ${typeStyle}`}>
-          {channel.type}
-        </span>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeStyle}`}>
+            {channel.type}
+          </span>
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu(!showMenu)
+              }}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              title="Actions"
+            >
+              ⋮
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowMenu(false)
+                    setShowDeleteConfirm(true)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors rounded-lg"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {channel.description && (
@@ -1540,6 +1591,47 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
           <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer hover:text-sky-500 transition-colors">+ add tags</span>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
+          <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <span className="font-semibold">{channel.name}</span>?
+              {channel.members.length > 0 && (
+                <span className="block mt-2 text-red-600">
+                  ⚠️ This {channel.type} has {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}. They will be removed from this {channel.type}.
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(false)
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(false)
+                  onDelete?.()
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

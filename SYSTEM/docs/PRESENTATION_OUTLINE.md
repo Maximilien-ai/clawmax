@@ -91,6 +91,7 @@ NOTE: can we generate a PDF from this or PPTX?
 2. Show agent cards with online status
 3. Hover over agent to show quick details
 4. Point out filter options
+5. Create an agent using AI and talk to it: "who are you?", "status?"
 
 **Duration**: 1 minute
 
@@ -98,7 +99,7 @@ NOTE: can we generate a PDF from this or PPTX?
 
 ### Slide 5: Live Demo - Running a Workflow
 **Content**:
-- Title: "Demo: Coordinate 50 Agents with One Click"
+- Title: "Demo: Coordinate 10 Agents with One Click"
 - Show:
   - Workflow list
   - "Status Check" workflow targeting Status group
@@ -161,6 +162,8 @@ NOTE: can we generate a PDF from this or PPTX?
 
 **Duration**: 1 minute
 
+NOTE: unclear if we will have this fully implemented so this can be a backup slide.
+
 ---
 
 ### Slide 8: Technical Highlights
@@ -174,13 +177,17 @@ NOTE: can we generate a PDF from this or PPTX?
   - ✅ Real-time WebSocket communication
   - ✅ 106 tests passing (full test coverage)
 - Tech stack: React + TypeScript + Node.js + OpenClaw CLI
+- **Current Limitations** (v1.0.0):
+  - ⏳ Security hardening in progress (TLS, RBAC, secrets management)
+  - ⏳ Dependency currency (npm audit, security patches)
+  - 🎯 Both addressed in late March/early April releases
 
 **Visual**: Technical architecture diagram
 
 **Speaking Notes**:
-"Everything is designed to enhance OpenClaw, not replace it. Your agents keep working if the dashboard goes down. Show agents' files. All data is file-based, so you can version control everything with git."
+"Everything is designed to enhance OpenClaw, not replace it. Your agents keep working if the dashboard goes down. All data is file-based, so you can version control everything with git. This v1.0.0 release is designed for development and testing environments. We're actively working on production hardening - security features, dependency updates, and compliance requirements - shipping end of March."
 
-**Duration**: 1 minute
+**Duration**: 1.5 minutes
 
 ---
 
@@ -194,22 +201,29 @@ NOTE: can we generate a PDF from this or PPTX?
   - ✅ Execution tracking
   - ✅ System AI agents (Beta)
 
-- v1.1.0 - ClawMax.ai (April 2026):
+- v1.0.1 - Security & Currency (late March 2026):
+  - 🔐 Security hardening (TLS, RBAC, secrets management)
+  - 📦 Dependency currency (npm audit, security patches)
+  - 🛡️ Production deployment readiness
+  - 📋 Compliance documentation
+
+- v1.1.0 - ClawMax.ai (early April 2026):
   - 📈 Evaluation of workflows and agents
   - ☁️ Cloud deployment (Kubernetes)
   - 🎛️ Multi-deployment management
   - 🔗 Workflow dependencies and chaining
   - 🤖 AI-assisted workflow creation
 
-- Future:
+- Future (late April 2026):
   - 🖥️ On-premise deployment (Mac mini)
-  - 🔐 Production hardening (RBAC, TLS)
-  - 📊 Analytics and insights
+  - 📊 Advanced analytics and insights
+  - 🤝 Remote support via ClawMax agents
+  - 🌐 Multi-workspace federation
 
 **Visual**: Roadmap timeline
 
 **Speaking Notes**:
-"We're just getting started. v1.0.0 is the foundation. Next month, we're adding evaluation, cloud deployment, and even more AI assistance. The vision? Make multi-agent coordination as natural as single-agent use."
+"We're just getting started. v1.0.0 is the foundation for development and testing. In late March, we're shipping v1.0.1 with full security hardening and production readiness. Then in April, ClawMax.ai launches with cloud deployment, evaluation features, and advanced AI assistance. The vision? Make multi-agent coordination as natural as single-agent use."
 
 **Duration**: 2 minutes
 
@@ -223,13 +237,21 @@ NOTE: can we generate a PDF from this or PPTX?
   - 📚 Documentation: Feature guides, API reference
   - 💬 Discussions: GitHub community
   - 🐛 Issues: Report bugs, request features
-  - ✉️ Contact: max@maximilien.ai
+  - ✉️ Contact: clawmax@gmail.com
+
+NOTE: will setup clawmax.ai mail but not there yet so above gmail for now.
+
 - Call to action:
+
+  OSS users:
   - Try ClawMax today
   - Contribute (open source!)
   - Share your use cases
   - Star on GitHub ⭐
 
+  Enterprise users:
+  - Signup on ClawMax.ai for your interest we can are first to know
+  
 **Visual**: QR code to GitHub repo + contact info
 
 **Speaking Notes**:
@@ -264,6 +286,8 @@ If live demo fails:
 - Have screenshots ready in slides
 - Walk through pre-recorded video
 - Show execution history from previous runs
+
+NOTE: this will be key items to do on Friday as we prep and get ready for demo at 5p. We also need to have a ClawMax.ai page preview and signup sheet that sumamrizes the value of ClawMax, include presentaitons, blog, etc. Also three modes: OSS (free), Cloud (one time fee + optional monthly support + cloud fees), On-premise (one time fee + optional monthly support)
 
 ---
 
@@ -341,7 +365,7 @@ NOTE: overarching goal is to build ClawMax.ai with ClawMax so that as users sign
 ## 📸 Visual Assets Needed
 
 ### For Slides
-- [ ] ClawMax logo (if exists)
+- [ ] ClawMax logo (if exists, if not let's create)
 - [ ] Architecture diagram (text → SVG conversion)
 - [ ] Dashboard screenshot (home page)
 - [ ] Workflow execution screenshot

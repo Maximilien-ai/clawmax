@@ -440,6 +440,100 @@ router.post('/provision', (req, res) => {
   req.on('close', () => { cleanup() })
 })
 
+// POST /api/agents/bulk-impact — get impact summary for bulk delete
+router.post('/bulk-impact', (req, res) => {
+  const { agentIds } = req.body as { agentIds?: string[] }
+
+  if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
+    return res.status(400).json({ error: 'agentIds array is required' })
+  }
+
+  // Validate all agent IDs
+  for (const id of agentIds) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${id}` })
+    }
+  }
+
+  const agents = listAgents()
+  const impacts: Record<string, any> = {}
+  const notFound: string[] = []
+
+  for (const id of agentIds) {
+    const agent = agents.find(a => a.id === id)
+    if (!agent) {
+      notFound.push(id)
+      continue
+    }
+    impacts[id] = getAgentImpact(id, agent.workspacePath)
+  }
+
+  // Calculate totals
+  let totalCommunities = 0
+  let totalGroups = 0
+  let totalTodos = 0
+  const allCommunities = new Set<string>()
+  const allGroups = new Set<string>()
+
+  for (const impact of Object.values(impacts)) {
+    totalTodos += impact.todoCount || 0
+    totalCommunities += impact.communityCount || 0
+    totalGroups += impact.groupCount || 0
+  }
+
+  res.json({
+    impacts,
+    notFound,
+    summary: {
+      agentCount: agentIds.length - notFound.length,
+      totalCommunities,
+      totalGroups,
+      totalTodos
+    }
+  })
+})
+
+// DELETE /api/agents/bulk — bulk delete multiple agents
+router.delete('/bulk', (req, res) => {
+  const { agentIds, removeStateDir } = req.body as { agentIds?: string[]; removeStateDir?: boolean }
+
+  if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
+    return res.status(400).json({ error: 'agentIds array is required' })
+  }
+
+  // Validate all agent IDs
+  for (const id of agentIds) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${id}` })
+    }
+  }
+
+  const results: Record<string, { ok: boolean; steps: string[]; errors: string[] }> = {}
+  let successCount = 0
+  let failureCount = 0
+
+  for (const id of agentIds) {
+    const result = deleteAgent(id, removeStateDir === true)
+    results[id] = { ok: result.errors.length === 0, ...result }
+
+    if (result.errors.length === 0) {
+      successCount++
+    } else {
+      failureCount++
+    }
+  }
+
+  res.json({
+    ok: failureCount === 0,
+    results,
+    summary: {
+      total: agentIds.length,
+      success: successCount,
+      failure: failureCount
+    }
+  })
+})
+
 // DELETE /api/agents/:id
 router.delete('/:id', (req, res) => {
   const { id } = req.params
@@ -1701,8 +1795,9 @@ router.post('/:id/archive', async (req, res) => {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
-        if (line.trim().match(/^-\s+\*\*Members:\*\*/i)) {
-          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+        // Match Members line (with or without leading dash)
+        if (line.match(/^\s*-?\s*\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-?\s*\*\*Members:\*\*\s*)(.*)/)
           if (membersMatch) {
             const prefix = membersMatch[1]
             const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)
@@ -1721,8 +1816,9 @@ router.post('/:id/archive', async (req, res) => {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
-        if (line.trim().match(/^-\s+\*\*Members:\*\*/i)) {
-          const membersMatch = line.match(/^(\s*-\s+\*\*Members:\*\*\s*)(.*)/)
+        // Match Members line (with or without leading dash)
+        if (line.match(/^\s*-?\s*\*\*Members:\*\*/i)) {
+          const membersMatch = line.match(/^(\s*-?\s*\*\*Members:\*\*\s*)(.*)/)
           if (membersMatch) {
             const prefix = membersMatch[1]
             const membersList = membersMatch[2].split(',').map(m => m.trim()).filter(m => m && m !== id)

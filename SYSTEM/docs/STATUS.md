@@ -113,6 +113,8 @@ NOTE: I think some of this is completed. Let's mark off and also let's consolida
 - [ ] Security testing
 - [ ] **Release v0.9.0 with Workflows + Import/Export**
 
+NOTE: this is out of date. Can we update? also let's just keep a CHANGELOG.md with work done and not this STATUS.md file. WDYT?
+
 ---
 
 ## 📚 Active Planning Documents

@@ -18,6 +18,8 @@ NOTE: this needs update since lots changed since. We need to point to the PLAN.m
 - **[NEXT_WORK.md](NEXT_WORK.md)** - Feature backlog
 - **[planning/DASHBOARD.md](planning/DASHBOARD.md)** - Dashboard feature planning
 
+NOTE: we should include ROADMAP.md here and FAQs.md
+
 ### Future Work
 - **[features/](features/)** - Planned features (Chat, CLI)
 - **[architecture/](architecture/)** - Architecture docs (Chat memory)
@@ -121,6 +123,8 @@ NOTE: can we get a quick getting started section here too? For regular users and
 ---
 
 ## 🚀 Quick Commands
+
+NOTE: unsure how useful the lines 130-134 are? instead I would tell them to view current opened issues and take one and start working. For devs. Non devs I would only tell them to get ClawMax up and running in new directory and create workspace an agents. So maybe two sections: devs, users. WDYT?
 
 ```bash
 # View current status

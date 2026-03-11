@@ -177,6 +177,9 @@ None currently identified.
 - **Status:** Consider for future remote access
 - **Tracking:** [Issue #5](https://github.com/OpenClaw/clawmax-dashboard/issues/5) (to be created)
 
+
+NOTE: make sure to update this if / when we update SECURITY_ISSUES.md
+
 ---
 
 ## OpenClaw Protocol Security
@@ -252,6 +255,8 @@ ClawMax Dashboard implements OpenClaw Gateway Protocol Version 3:
 - Message type validation
 - Protocol version negotiation
 
+NOTE: love this can we include a sentence summarizing this in blog in the security section since we will include limitations but we want to make sure reader knows that we want to and are practicing good security higiene.
+
 ---
 
 ## Upgrading OpenClaw for Security
@@ -320,6 +325,8 @@ Dashboard currently requires Protocol v3. If OpenClaw upgrades to v4:
 - [ ] Log all security-relevant events
 - [ ] Regular security audits
 - [ ] Keep OpenClaw updated
+
+NOTE: is this part of our plan to address. Should we have a FAQ.md to include these and other FAQ?
 
 ---
 

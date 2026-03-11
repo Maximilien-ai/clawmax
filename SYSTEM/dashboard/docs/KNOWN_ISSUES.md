@@ -187,6 +187,248 @@ When sending an @all message to a group (e.g., Status group) from Communication 
 
 ---
 
+## 🐛 Issue #4: Agents Created from Org Templates Not Tagged
+
+**Status**: ✅ FIXED
+**Priority**: High
+**Severity**: Functional Issue (missing metadata)
+**Reported**: March 10, 2026
+**Fixed**: March 11, 2026
+
+### Description
+When applying a startup org template, agents are created successfully but are not tagged with the expected tags defined in the template.
+
+### Root Cause
+The org template import logic was copying agent files but not writing tags from template.json to the agent's IDENTITY.md file.
+
+### The Fix
+**File**: `server/lib/templates.ts` (lines 879-937)
+
+Modified `importOrganizationTemplate` to write tags to IDENTITY.md after copying files:
+1. Check if template agent has tags defined
+2. Read existing IDENTITY.md file
+3. Replace existing Tags field, Tags section, or add new Tags field
+4. Write updated content back to IDENTITY.md
+
+```typescript
+// Add tags to IDENTITY.md if specified in template
+if (templateAgent.tags && templateAgent.tags.length > 0) {
+  const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+  if (fs.existsSync(identityPath)) {
+    let identityContent = fs.readFileSync(identityPath, 'utf-8')
+    const tagsLine = `- **Tags:** ${templateAgent.tags.join(', ')}`
+    // ... replacement logic for different IDENTITY.md formats
+  }
+}
+```
+
+### Testing
+1. Import org template with tagged agents
+2. Check agent IDENTITY.md files - tags are present
+3. View agents in dashboard - tags display correctly
+
+---
+
+## 🐛 Issue #5: Archived Agents Still in Groups and Responding
+
+**Status**: ✅ FIXED
+**Priority**: High
+**Severity**: Functional Issue (data integrity problem)
+**Reported**: March 10, 2026
+**Fixed**: March 11, 2026
+
+### Description
+After archiving agents, they remain members of communication groups and communities, and continue to respond to messages sent to those groups.
+
+### Root Cause
+The archive operation was moving the agent directory but not removing the agent from COMMUNITIES.md and GROUPS.md member lists. Additionally, there was a regex bug that failed to match Members lines without a leading dash.
+
+### The Fix
+**File**: `server/routes/agents.ts` (line 1705, 1726)
+
+1. Fixed regex pattern to handle Members lines with or without leading dash:
+   - Old: `/^-\s+\*\*Members:\*\*/i`
+   - New: `/^\s*-?\s*\*\*Members:\*\*/i`
+
+2. Added cleanup logic to remove archived agent from all member lists in COMMUNITIES.md and GROUPS.md
+
+3. Created cleanup script to fix old data:
+   - **File**: `server/scripts/cleanup-archived-agents.ts`
+   - Removes archived agents from existing member lists
+   - Can be run to clean up historical data
+
+### Testing
+1. Archive an agent that's in groups/communities
+2. Check COMMUNITIES.md and GROUPS.md - agent removed from member lists
+3. Send @all message to group - archived agent doesn't respond
+4. Run cleanup script to fix old data
+
+---
+
+## 🐛 Issue #6: No Bulk Delete for Agents
+
+**Status**: ✅ FIXED
+**Priority**: Medium
+**Severity**: UX Issue (workflow inefficiency)
+**Reported**: March 10, 2026
+**Fixed**: March 11, 2026
+
+### Description
+When selecting multiple agents in the Agents view, there is no bulk delete action available. Users must delete agents one at a time.
+
+### The Fix
+**Files Modified**:
+- `server/routes/agents.ts` - Added bulk delete endpoints
+- `client/src/components/BulkOperationsPanel.tsx` - Added delete UI
+- `client/src/pages/Agents.tsx` - Wired up bulk delete handler
+
+**Features Implemented**:
+1. **Bulk impact calculation endpoint** (`POST /api/agents/bulk-impact`):
+   - Returns impact summary: communities, groups, TODOs affected
+   - Calculates for all selected agents
+
+2. **Bulk delete endpoint** (`DELETE /api/agents/bulk`):
+   - Deletes multiple agents in one operation
+   - Option to remove state directories
+   - Returns summary of deleted agents
+
+3. **Double confirmation UI**:
+   - First: Shows impact summary with agent count, groups, communities, TODOs
+   - Second: Red warning with 🚨 icon - "This action is permanent"
+   - Both confirmations required to proceed
+
+4. **Impact display**:
+   - X agents will be deleted
+   - Will be removed from Y communities
+   - Will be removed from Z groups
+   - Will affect N TODOs
+
+### Testing
+1. Select multiple agents with checkboxes
+2. Click "Delete" in bulk operations panel
+3. See impact summary in first confirmation
+4. Confirm → See second warning confirmation
+5. Confirm → All agents deleted, toasts shown
+
+---
+
+## 🐛 Issue #7: No Way to Delete Orgs, Groups, and Communities
+
+**Status**: ✅ FIXED
+**Priority**: Medium
+**Severity**: UX Issue (missing CRUD operations)
+**Reported**: March 10, 2026
+**Fixed**: March 11, 2026
+
+### Description
+There is no UI mechanism to delete organizations, communication groups, or communities. Only agents can be deleted.
+
+### The Fix
+**File Modified**: `client/src/pages/Communication.tsx`
+
+**Features Implemented**:
+1. **⋮ (vertical menu) button** on each community and group card
+   - Positioned next to the type badge in card header
+   - Opens dropdown menu with actions
+
+2. **Delete action in menu**:
+   - Red "Delete" button in dropdown
+   - Closes menu and opens confirmation dialog
+
+3. **Delete confirmation dialog**:
+   - Shows entity type (Community or Group) and name
+   - Displays member count warning if > 0 agents
+   - "⚠️ This [type] has X members. They will be removed from this [type]."
+   - "This action cannot be undone" warning
+   - Cancel and Delete buttons
+
+4. **Delete handler**:
+   - Calls appropriate DELETE endpoint:
+     - Communities: `DELETE /api/communities/:name`
+     - Groups: `DELETE /api/groups/:name`
+   - Shows success toast after deletion
+   - Refreshes agent list to update UI
+
+**Backend**: Delete endpoints already existed in:
+- `server/routes/channels.ts` (lines 104, 116)
+- `server/lib/workspace.ts` - `deleteGroup()` function
+
+### Testing
+1. Go to Communication page
+2. Hover over community/group card
+3. Click ⋮ menu button
+4. Click "Delete"
+5. See confirmation with member count
+6. Confirm → Entity deleted, success toast shown
+
+---
+
+## 🐛 Issue #8: Community/Group Navigation Highlight Not Working
+
+**Status**: 🟡 KNOWN LIMITATION (Low Priority)
+**Priority**: Low
+**Severity**: UX Issue (minor)
+**Reported**: February 23, 2026
+
+### Description
+When clicking a community or group from an agent card, navigation to the Communication page works, but the channel card doesn't scroll into view or highlight.
+
+### Root Cause
+React doesn't render the channel cards when the Communication page div has the `hidden` class. The DOM elements aren't available when the scroll/highlight logic runs.
+
+**Technical Details**:
+- App.tsx uses `className={page === 'communication' ? '' : 'hidden'}` for page switching
+- The `hidden` class prevents React from rendering child components
+- By the time the useEffect runs, elements aren't in DOM
+
+### Workaround
+Users can:
+1. Click the community/group from agent card (navigation works)
+2. Manually find the channel in the list
+
+### Potential Solutions
+1. Remove hidden class approach - use `display: none` or `visibility: hidden` instead
+2. Use React Router for proper page routing
+3. Store scroll intent and let Communication page handle it on mount
+
+### Files Affected
+- `client/src/App.tsx:164`
+- `client/src/pages/Communication.tsx:87-106`
+
+**Decision**: Deferred to v1.1.0 - Minor UX issue, navigation works
+
+---
+
+## 🐛 Issue #9: Gateway RPC Authentication Scope Limitation
+
+**Status**: 🟡 DOCUMENTED LIMITATION
+**Priority**: Medium
+**Severity**: Architecture Issue (workaround in place)
+**Reported**: February 26, 2026
+
+### Description
+Dashboard cannot perform admin operations via Gateway RPC (config.patch, skills updates) because token authentication doesn't grant `operator.admin` scope.
+
+### Root Cause
+OpenClaw Gateway requires `operator.admin` scope for config modifications. CLI uses device-based auth which auto-grants scopes. Token auth doesn't grant any scopes by default.
+
+### Current Workaround
+Dashboard uses direct file writes to `~/.openclaw/openclaw.json` with metadata stamping:
+- ✅ Fast, reliable, OpenClaw CLI compatible
+- ❌ No Zod schema validation
+- ❌ No Gateway audit trail
+
+### Proper Solution (Future)
+Implement device-based authentication for Dashboard → Gateway communication using OpenClaw's `loadOrCreateDeviceIdentity()` function.
+
+### Related
+- Token Usage Monitoring (Issue from KNOWN_ISSUES.md) - also blocked by Gateway RPC scope limitations
+- See `SYSTEM/docs/archive/TOKEN_USAGE_LIMITATION.md` for details
+
+**Decision**: Documented limitation - workaround is production-ready, proper auth can be implemented in v1.1.0
+
+---
+
 ## 🧪 Testing Notes
 
 ### Test Count Display
@@ -204,11 +446,18 @@ When sending an @all message to a group (e.g., Status group) from Communication 
 
 ## 🔄 Status Updates
 
-**Last Updated**: March 9, 2026
-**Next Actions**:
-1. Debug typing indicators with proper logging
-2. Debug completion toast with state inspection
-3. Consider simpler implementation without complex state tracking
+**Last Updated**: March 11, 2026
+**Recent Fixes** (March 11, 2026):
+1. ✅ Issue #4: Agents now get tags from org template import
+2. ✅ Issue #5: Archived agents removed from groups and communities
+3. ✅ Issue #6: Bulk delete for agents with double confirmation implemented
+4. ✅ Issue #7: Delete actions for groups/communities with ⋮ menu implemented
+
+**Active Issues**:
+1. Issue #1: Typing indicators (timing limitation - documented)
+2. Issue #3: @all messages not reliable (needs investigation)
+3. Issue #8: Navigation highlight not working (low priority)
+4. Issue #9: Gateway RPC scope limitation (documented)
 
 **Logs to Check**:
 ```bash
@@ -275,6 +524,18 @@ Only shows if user stays on Workflows page.
 - Template listing merges both locations automatically
 
 **Usage**: No action needed - existing templates were copied to global location automatically.
+
+---
+
+## Issues #4-7: See Above for Details
+
+**Issues #4, #5, #6, and #7 have been FIXED on March 11, 2026.**
+
+See the detailed entries above for:
+- ✅ Issue #4: Agents Created from Org Templates Not Tagged
+- ✅ Issue #5: Archived Agents Still in Groups and Responding
+- ✅ Issue #6: No Bulk Delete for Agents
+- ✅ Issue #7: No Way to Delete Orgs, Groups, and Communities
 
 ---
 

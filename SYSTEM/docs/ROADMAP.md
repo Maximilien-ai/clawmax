@@ -80,6 +80,8 @@ NOTE2: what is not completed let's make sure we are planning to address especial
 - [ ] Update security documentation
 - [ ] **Release v0.9.0 with Workflows + Import/Export**
 
+NOTE: love this but is it out of date since creation. Can we make sure we update this by EOD and check off things done and add anything new.
+
 ---
 
 ## 🚀 Next Week: Multi-Workspace + Advanced Features (Mar 10-14)
@@ -96,6 +98,8 @@ NOTE2: what is not completed let's make sure we are planning to address especial
 - [ ] Workflow history/logs
 - [ ] Workflow failure handling and retries
 
+NOTE: I think some of this is done. Can we update?
+
 ### Advanced Security (Deferred from This Week)
 - [ ] Device pairing implementation (remove allowInsecureAuth)
 - [ ] TLS/WSS support for remote access
@@ -110,6 +114,7 @@ NOTE2: what is not completed let's make sure we are planning to address especial
 - [ ] Multi-organization architecture
 - [ ] User authentication & sessions
 - [ ] Production deployment guide
+- [ ] Currency and security updates
 
 ### P1 (High Priority)
 - [ ] WebSocket-based real-time updates (replace polling)
@@ -119,6 +124,9 @@ NOTE2: what is not completed let's make sure we are planning to address especial
 
 ### P2 (Nice to Have)
 - [ ] Agent cloning/templates
+
+NOTE: I thought we had that done?
+
 - [ ] Advanced template management
 - [ ] Activity analytics dashboard
 - [ ] Mobile-responsive improvements
@@ -159,6 +167,8 @@ NOTE2: what is not completed let's make sure we are planning to address especial
 - **v1.1.0** - Multi-workspace support
 - **v1.2.0** - Organization templates
 - **v1.3.0** - Advanced monitoring & analytics
+
+NOTE: can we move this to end of March since we will have two weeks after Friday's release
 
 ---
 

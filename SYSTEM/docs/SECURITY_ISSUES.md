@@ -281,6 +281,8 @@ Before closing security issues:
 5. Update this tracking document
 6. Verify no new vulnerabilities introduced
 
+NOTE: very important we keep this file up to date and linked to issues. For release on Friday we will have a section in blog and presentation to discuss. We also need to make sure that README.md has info on this limitations prominently shown at top. These and OpenClaw currency (which might change some of these) will be key for us to address in after inial release so in the follow up release by end of month. This is CRITICAL!
+
 ---
 
 Last Updated: 2026-03-03

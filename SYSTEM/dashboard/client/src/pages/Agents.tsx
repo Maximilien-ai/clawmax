@@ -557,6 +557,30 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     })
   }
 
+  const handleBulkDelete = async (agentIds: string[]) => {
+    try {
+      const resp = await fetch('/api/agents/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentIds, removeStateDir: false })
+      })
+
+      const result = await resp.json()
+
+      if (result.ok) {
+        showSuccess(`Successfully deleted ${result.summary.success} agent${result.summary.success !== 1 ? 's' : ''}`)
+        fetchAgents()
+        setSelectedAgentIds(new Set())
+      } else {
+        const failedCount = result.summary.failure
+        showError(`Failed to delete ${failedCount} agent${failedCount !== 1 ? 's' : ''}`)
+      }
+    } catch (err) {
+      console.error('Bulk delete failed:', err)
+      showError('Bulk delete operation failed')
+    }
+  }
+
   const toggleAgentSelection = (agentId: string) => {
     const next = new Set(selectedAgentIds)
     if (next.has(agentId)) next.delete(agentId)
@@ -1711,6 +1735,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onAddToGroups={handleBulkAddToGroups}
           onArchive={handleBulkArchive}
           onUnarchive={handleBulkUnarchive}
+          onDelete={handleBulkDelete}
           onChat={handleBulkChat}
         />
       )}

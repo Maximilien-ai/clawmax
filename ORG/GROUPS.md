@@ -62,7 +62,7 @@
 - **Community:** Maximilien.ai
 - **Channels:** whatsapp
 
-- **Members:** product-manager, product-owner, qa-engineer, release-engineer, engineer, dave, alexy, max0, agent-manager
+- **Members:** product-manager, product-owner, qa-engineer, release-engineer, engineer, dave, max0, agent-manager
 ### Test - ClawMax.ai
 - **Description:** Testing and QA discussions
 - **Tags:** testing, qa

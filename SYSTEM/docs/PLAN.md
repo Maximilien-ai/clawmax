@@ -1,10 +1,20 @@
 # ClawMax v1.0.0 Release Plan
 
-**Target Release**: Friday, March 14, 2026
-**Target Presentation**: Friday afternoon
-**Status**: In Progress
+⚠️ **THIS PLAN IS OUTDATED AS OF MARCH 11** ⚠️
+**Current Plan**: See `TASKS_MAR11.md` for today's (Wednesday) detailed plan
+**Current Status**: See `WORK_SUMMARY_MAR10.md` for yesterday's work and `KNOWN_ISSUES.md` for bug status
+
+**Target Release**: Friday, March 13, 2026 at 5 PM Pacific
+**Status**: On Track - 2 days to demo
+
+**Key Updates**:
+- Issue #2 (completion toast) is FIXED ✅
+- Issues #4 & #5 are the new critical blockers (agent tagging, archived cleanup)
+- See KNOWN_ISSUES.md for all 9 tracked issues
 
 ---
+
+NOTE: let's take some time to update this EOD today
 
 ## 📋 Release Overview
 

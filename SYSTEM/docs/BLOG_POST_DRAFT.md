@@ -1,23 +1,23 @@
 # ClawMax: OpenClaw to the Max! 🚀
 
-*Building the orchestration layer OpenClaw needed—and what I learned managing 100 AI agents*
+*Building the orchestration layer OpenClaw needed—and what I learned managing 100s AI agents*
 
-**Status**: DRAFT - March 9, 2026
+**Status**: DRAFT - March 11, 2026
 **Target Publication**: AI Musings Substack: https://maximilien.substack.com/publish/posts/published
 **Target Length**: 1800-2200 words
 **Target Audience**: OpenClaw users, AI/ML engineers, DevOps teams
 
 ---
 
-**TL;DR:** OpenClaw is a powerful framework for building autonomous AI agents. But managing 10, 50, or 100 agents? That's where things get messy. I built ClawMax to solve this—adding visual management, organizational structure, workflow automation, and templates on top of OpenClaw's foundation. This post explains what it is, why I built it, and what I learned.
+**TL;DR:** OpenClaw is a powerful framework for building autonomous AI agents. But managing 10, 50, or 100s agents? That's where things get messy. I built ClawMax to solve this—adding visual management, organizational structure, workflow automation, and templates on top of OpenClaw's foundation. This post explains what it is, why I built it, how I am using it, and what I learned.
 
 ---
 
-Managing 100 AI agents isn't like managing a team of 10 people. It's worse.
+Managing 100s AI agents isn't like managing a team of 10 people. It's worse.
 
-Individual agents are easy. You give them an identity, some skills, a workspace. They do their job. But when you scale to dozens or hundreds? Chaos. Which agents are online? Who's working on what? How do you coordinate them? Where's the execution history?
+Individual agents are easy. You give them an identity, some skills, a workspace. They do their job. But when you scale to dozens or hundreds? Chaos. Which agents are online? Who's working on what? Who's performing well? Who needs up (additional prompts, context, etc)? How do you coordinate them? Where's the execution history? 
 
-I've been using OpenClaw for weeks now—managing agent teams for research, development workflows, and community coordination. OpenClaw is an incredible foundation: file-based workspaces, extensible skills, WebSocket communication, persistent memory. But it's built for individual agents, not teams.
+I've been using OpenClaw for weeks now—managing agent teams for research, development workflows, and community coordination. OpenClaw is an incredible foundation: file-based workspaces, extensible skills, WebSocket communication, persistent memory. But it's mainly built for individual agents, not teams.
 
 So I built ClawMax. The orchestration layer OpenClaw needed.
 
@@ -29,7 +29,7 @@ So I built ClawMax. The orchestration layer OpenClaw needed.
 
 OpenClaw is an open-source framework for building autonomous AI agents. It's become one of the fastest-growing OSS AI agent projects, with a powerful foundation:
 
-- **Identity**: Each agent has a unique identity, role, and persistent workspace
+- **Identity**: Each agent has a unique identity, "soul", role, and persistent workspace
 - **Skills**: Extensible skill system (GitHub, Slack, WhatsApp, 1Password, and more)
 - **Memory**: File-based agent memory using markdown documents
 - **Communication**: Real-time WebSocket gateway for agent interaction
@@ -39,13 +39,13 @@ OpenClaw is an open-source framework for building autonomous AI agents. It's bec
 
 After a few days running 15+ agents, the cracks showed:
 
-**Visibility crisis**: Opening 15 terminal windows to check agent status? Ridiculous.
+**Visibility crisis**: Opening 15 terminal windows to check agent status?
 **Organization chaos**: Agents scattered across directories. No sense of team structure.
 **Coordination nightmare**: Manually messaging each agent when I wanted a team response? Tedious.
-**No execution history**: "Did that workflow run yesterday?" *checks 47 log files*
+**No execution history**: "Did that agent execute its tasks yesterday?" *checks various log files*
 **Template hell**: Cloning a successful agent meant copying files and fixing paths manually.
 
-The CLI is great for one agent. Terrible for one hundred.
+The CLI is great for one agent. Terrible for 100.
 
 ### What I Built
 
@@ -127,10 +127,11 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Visual overview of your entire agent ecosystem**
 
-**[SCREENSHOT PLACEHOLDER: Dashboard with agent cards]**
+![ClawMax - dashboard with agent cards](images/image1-dashboard.jpg)
 
 **Features**:
 - Real-time online/offline status via gateway detection
+- Auto-restart (wake up) agents by simply chatting with them
 - Agent cards showing identity, skills, communities, tags
 - Activity timeline across all agents
 - Filter by status, communities, groups, or tags
@@ -139,7 +140,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 **Agent Actions**:
 - **Add Skills**: Assign GitHub, Slack, WhatsApp, or custom skills with one click
 - **Chat Directly**: Message agents via their group channels
-- **Clone & Template**: Save successful agents as reusable templates
+- **Clone & Template**: Copy and save successful agents as reusable templates
 - **Edit Files**: Modify IDENTITY.md, SOUL.md, TOOLS.md directly in dashboard
 - **AI-Assisted Creation**: Create new agents from simple descriptions:
   ```
@@ -152,7 +153,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 - Agent health metrics and uptime tracking
 - Hover tooltip with full details
 
-**Implementation Status**: Dashboard code is ready but blocked by OpenClaw Gateway RPC permissions. The `sessions.usage` API requires the `operator.admin` scope which is not currently exposed to external clients. See `docs/TOKEN_USAGE_LIMITATION.md` for details.
+**Implementation Status**: Dashboard code is ready but has security limitations blocked by OpenClaw Gateway RPC permissions. For instance, the `sessions.usage` API requires the `operator.admin` scope which is not currently exposed to external clients. See `docs/TOKEN_USAGE_LIMITATION.md` and `docs/SECURITY_ISSUES.md` for details.
 
 **Value**: Replace terminal chaos with a mission control center. Know at a glance which agents are active and what they're working on.
 
@@ -162,12 +163,12 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Logical grouping of agents for coordination**
 
-**[SCREENSHOT PLACEHOLDER: Organizations page with hierarchy]**
+![ClawMax - organizations page with hierarchy](images/image2-organizations.jpg)
 
 **Concepts**:
 - **Communities**: Departments or large groups (Engineering, Product, Customer Success)
 - **Groups**: Cross-functional teams (Daily Standup, Security Team, Onboarding)
-- **Tags**: Flexible labels for targeting (engineer, manager, security, qa)
+- **Tags**: Flexible labels for organizing and targeting (engineer, manager, security, qa)
   - First tag becomes the **primary tag** for quick filtering and organization
 
 **Navigation Features**:
@@ -190,7 +191,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Scheduled or manual multi-agent coordination**
 
-**[SCREENSHOT PLACEHOLDER: Workflow execution in progress]**
+![ClawMax - workflow execution in progress](images/image3-workflow.jpg)
 
 **Anatomy of a Workflow**:
 ```yaml
@@ -215,9 +216,9 @@ Please provide your daily standup update:
 ```
 
 **Workflow Design Philosophy**:
-Workflows follow OpenClaw's file-based approach—written in plain English like prompts. They can reference tags, communities, and roles, letting agents independently interpret their responsibilities based on their identity. No rigid code structures. Just natural language instructions.
+Workflows follow OpenClaw's file-based approach—written in plain English like prompts. They can reference tags, communities, and roles, letting agents independently interpret their responsibilities based on their identity. No rigid code structures. Just natural language instructions. Just as you would do with a team of humans.
 
-**Execution Flow**:
+**Execution Flow (simplified)**:
 1. Schedule triggers (cron) OR manual button click
 2. Dashboard resolves target agents by community/group/tag
 3. Creates execution record with participant list
@@ -231,6 +232,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 - **Completion Toasts**: Get notified when workflows finish with success/failure counts
 - **Smart Sorting**: Running executions always appear first in the list
 - **Auto-refresh**: Selected workflow details refresh when execution completes
+- **Archive**: archive and access old execution
 
 **Value**: Coordinate 50 agents with a single click. No manual message sending required.
 
@@ -238,11 +240,11 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ### 4. Template Library 📚
 
-**Pre-built workflows and agent templates for common scenarios**
+**Pre-built workflows, agent, and orgs templates for common scenarios**
 
-**[SCREENSHOT PLACEHOLDER: Template library with cards]**
+![ClawMax - template library with cards](images/image4-template-library.jpg)
 
-**Workflow Templates** (8 included):
+**Workflow Templates** (8 pre-built included):
 1. Daily Standup - Morning team sync
 2. Weekly Status Report - Leadership visibility
 3. Code Review Reminder - PR queue management
@@ -252,10 +254,19 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 7. Onboarding Checklist - New hire workflow
 8. Release Preparation - Production deploy checklist
 
-**Agent Templates**:
+**Agent Templates** (8 pre-built included):
 - Save any agent as a template for replication
 - Include identity, skills, tools, and community memberships
 - One-click cloning with customization
+- Pre-built templates:
+  - **engineer**: Golang, TypeScript engineer that can implement features and fix code. Knows how to use github to access work and submit code.
+  - **qa-engineer**: quality assurance engineers who knows how to review code, write tests, tests submitted code, create release. Uses github for all work.
+  - **product-manager**: product manager who knows how to translate business requirements into github feature requests and communicates to engineering team. Also responsible for accepting PRs and help triage issues.
+  - **ceo**: the final decision maker. Communicates with clients to understand business opportunities and send these as requirements to management team.
+  - **github-triager**: specialized in issue triage, labeling, prioritization, and routing to appropriate team members.
+  - **release-coordinator**: manages release processes, coordinates between teams, tracks release blockers, and ensures deployment readiness.
+  - **security-engineer**: focuses on security audits, vulnerability scanning, dependency updates, and compliance verification.
+  - **researcher**: conducts market research, competitive analysis, feature feasibility studies, and strategic planning support.
 
 **Organization Templates** (3 pre-built included):
 - Export entire organizational structures
@@ -291,9 +302,9 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ### 5. Execution Tracking 📊
 
-**Real-time visibility into workflow execution**
+**Real-time visibility into agents activities and workflows execution**
 
-**[VIDEO PLACEHOLDER: Execution progress animation]**
+![ClawMax - workflow execution progress animation](videos/video1-workflow-execution.mp4)
 
 **Features**:
 - Live participant status (pending → running → completed/failed)
@@ -326,7 +337,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 **Centralized knowledge base for your agent ecosystem**
 
-**[SCREENSHOT PLACEHOLDER: Document editor with YAML validation]**
+![ClawMax - document editor with YAML validation](images/image5-document-editor.jpg)
 
 **Structure**:
 ```
@@ -353,8 +364,8 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 - Inline markdown editor with syntax highlighting
 - YAML frontmatter validation
 - Real-time file system sync
-- Search and filter across all documents
 - Preview mode with rendering
+- Search and filter across all documents
 
 **Value**: Single source of truth for agent context. All information in version-controllable files.
 
@@ -374,10 +385,10 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 - Automated daily workflow at 9 AM
 - All responses collected in one place
 - Searchable execution history
-- **Toast notification when complete**
 - Export to PDF or markdown
+- **Toast notification when complete**
 
-**Impact**: 30 minutes/day saved, better team visibility
+**Impact**: ~30 minutes/day saved, better team visibility
 
 ---
 
@@ -396,7 +407,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 - Complete audit trail in execution history
 - Searchable execution logs
 
-**Impact**: 4 hours/month saved, improved security posture
+**Impact**: ~4 hours/month saved, improved security posture
 
 ---
 
@@ -417,6 +428,49 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ---
 
+### Use Case 4: QA and Release Management
+
+**Before ClawMax**:
+- Manual PR review assignment
+- Inconsistent issue triage
+- Release notes compiled manually
+- Security and dependency updates tracked in spreadsheets
+
+**With ClawMax**:
+- Automated PR review workflow targeting `qa-engineer` agents
+- Daily issue triage workflow for `github-triager` agents
+- Pre-release checklist workflow:
+  - Currency updates (npm audit, dependency checks)
+  - Security patch verification
+  - Release notes generation
+- **Execution history** provides audit trail for compliance
+
+**Impact**: Faster release cycles, improved code quality, better security posture
+
+---
+
+### Use Case 5: Strategic Business Research
+
+**Before ClawMax**:
+- Business requirements from CEO sit in email
+- Manual research across multiple sources
+- Inconsistent analysis depth
+- No structured synthesis of findings
+
+**With ClawMax**:
+- CEO sends requirement to `research-team` community
+- Automated research workflow:
+  - Market analysis (TAM, competition, trends)
+  - Feature gap analysis vs. competitors
+  - Implementation feasibility assessment
+  - Timeline and resource estimation
+- Product managers receive synthesized report
+- Iterative refinement through follow-up workflows
+
+**Impact**: Data-driven product decisions, faster time-to-insight, comprehensive market understanding
+
+---
+
 ## What's New in v1.0.0 (March 14, 2026)
 
 ### Latest Release Features
@@ -425,7 +479,6 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 - **Workflow integration**: Org templates now include all workflows
 - **Pre-built templates**: 2 production-ready org templates (Small Startup, Engineering Team)
 - **Smart import**: Automatic agent ID prefix/suffix for conflict-free imports
-- **Bug fixes**: Archived agents no longer break template export
 
 **Workflow Management Improvements**:
 - Template details panel with full configuration view
@@ -465,10 +518,10 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ### Performance
 
-- **5-second polling**: Real-time execution updates without WebSocket overhead
-- **Pagination**: Handles 1000+ executions gracefully
-- **Lazy loading**: Agent cards render efficiently with virtualization (planned)
-- **Caching**: Token usage cached for 5 minutes to reduce API calls
+- **Pagination**: Handles 1000+ executions gracefully with limit/offset controls
+- **Efficient rendering**: Agent and workflow cards render quickly even with 100+ entities
+- **Smart polling**: 5-second intervals for real-time execution updates without WebSocket overhead
+- **Optimistic UI**: Immediate feedback on actions with background synchronization
 
 ### Reliability
 
@@ -491,7 +544,8 @@ We're moving ClawMax to production this month. Key hardening in progress:
 - 🔄 Role-based access control (RBAC)
 - 🔄 Secrets management hardening
 - 🔄 Rate limiting for workflow execution
-- 🔄 OpenClaw compatibility updates (tracking latest releases)
+- 🔄 OpenClaw compatibility / currency updates (tracking latest releases)
+- 🔄 Fix token usage tracking issue (here or submit to OpenClaw)
 
 ---
 
@@ -506,6 +560,8 @@ We're moving ClawMax to production this month. Key hardening in progress:
 - ✅ Smart execution sorting
 - ✅ Template export/import bug fixes
 
+### v1.1.0 (end of March 2026)
+
 **Planned Features**:
 - 📅 Workflow scheduler daemon (fully automated cron)
 - 📊 Analytics dashboard (execution trends, success rates)
@@ -514,10 +570,11 @@ We're moving ClawMax to production this month. Key hardening in progress:
 - 🏥 Agent health monitoring dashboard
 - 🔀 Multi-workspace management
 - 🧮 Workflow result parsing and aggregation
+- 🤖 AI-assisted workflow creation
 - 🔐 Enhanced authentication and RBAC
 - 🔄 Currency to latest OpenClaw
 
-### v1.1.0 (April 2026)
+### v1.2.0 (April 2026)
 
 **Advanced Features**:
 - 🔗 Workflow dependencies and chaining
@@ -526,7 +583,6 @@ We're moving ClawMax to production this month. Key hardening in progress:
 - ⏪ Execution rollback and retry
 - ⚡ Performance metrics and optimization
 - 🧩 Custom skill integration UI
-- 🤖 AI-assisted workflow creation
 - 📈 Evaluation of workflows and agents
 - ☁️ Deploying and managing ClawMax as a cloud service in Kubernetes
 - 🎛️ Single pane dashboard for multiple ClawMax deployments
@@ -575,8 +631,6 @@ npm run dev
 6. **Run It**: Click "Run Workflow" button
 7. **Watch Progress**: See real-time execution with toast notification when complete
 
-**[VIDEO PLACEHOLDER: 60-second getting started demo]**
-
 ---
 
 ## The Vision: From Solo Agent to AI Organization
@@ -594,12 +648,12 @@ ClawMax is our answer to the coordination challenge.
 
 Imagine a future where:
 
-- **Hundreds of specialized agents** work together seamlessly
+- **Hundreds of specialized curated agents** work together seamlessly
 - **Self-organizing teams** adapt to changing workloads
 - **Automated coordination** eliminates human bottlenecks
 - **24/7 operation** with intelligent scheduling
-- **Emergent intelligence** from agent collaboration
 - **System agents** that optimize and maintain the system itself
+- **Emergent intelligence** from agent collaboration
 
 ### Beyond Software Teams
 
@@ -618,7 +672,7 @@ While our initial use cases focus on software development, the architecture is d
 
 ### Get Involved
 
-🚀 **GitHub**: [Maximilien-ai/clawmax](https://github.com/Maximilien-ai/clawmax)
+🚀 **GitHub OSS**: [Maximilien-ai/clawmax](https://github.com/Maximilien-ai/clawmax)
 
 📚 **Documentation**: Feature guides, API reference, architecture deep-dives
 
@@ -626,7 +680,7 @@ While our initial use cases focus on software development, the architecture is d
 
 🐛 **Issues**: Report bugs or request features on GitHub
 
-✉️ **Contact**: max@maximilien.ai
+✉️ **Contact**: max@clawmax.ai
 
 ### Contributing
 
@@ -638,6 +692,7 @@ ClawMax is open source and welcomes contributions:
 - 🧪 Test coverage
 - 🌐 Internationalization
 - 🔌 New integrations
+- 🪪 MIT License for core
 
 ---
 
@@ -669,22 +724,26 @@ TODOs
 - [ ] ⏳ Organization navigation demo
 - [ ] ⏳ Workflow completion toast demo
 
+NOTE: can we match these with placeholders I included which have files names to make it easy to create and load.
+
 ### Diagrams
 
 - [ ] ⏳ Improve architecture overview (in outline) to a SVG
 - [ ] ⏳ Workflow execution sequence diagram
 
+NOTE: let's add these in next update. I beleive you have enough to create. If not then LMK.
+
 ---
 
 **Draft Status**: Ready for review
 **Next Steps**:
-1. Capture missing screenshots/videos
-2. Review with team
-3. Copyedit for clarity
-4. Add real usage statistics
-5. Publish to blog and Medium
+1. Fix 4 critical issues (tagging, archived agents, bulk delete, entity deletion) - **Target: Wed PM**
+2. Complete testing of all org templates and workflows - **Target: Thu AM**
+3. Capture missing screenshots/videos - **Target: Thu AM**
+4. Final review and copyedit - **Target: Thu PM**
+5. Publish to blog and Medium - **Target: Thu PM**
 
-**Target Publish**: March 11-12, 2026 (before demos)
+**Target Publish**: March 13, 2026 (Thu PM, before Friday demo)
 
 ---
 

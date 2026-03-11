@@ -876,6 +876,66 @@ export function importOrganizationTemplate(
           throw new Error(`Failed to copy agent files: ${copyResult.error}`)
         }
 
+        // Add tags to IDENTITY.md if specified in template
+        if (templateAgent.tags && templateAgent.tags.length > 0) {
+          const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+          if (fs.existsSync(identityPath)) {
+            let identityContent = fs.readFileSync(identityPath, 'utf-8')
+
+            // Check if IDENTITY.md already has a Tags field
+            const tagsPattern = /^-\s+\*\*Tags:\*\*\s+.+$/m
+            const tagsSectionPattern = /^##\s+Tags\s*\n[\s\S]*?(?=\n##|\n---|$)/m
+
+            const tagsLine = `- **Tags:** ${templateAgent.tags.join(', ')}`
+
+            if (tagsPattern.test(identityContent)) {
+              // Replace existing Tags field
+              identityContent = identityContent.replace(tagsPattern, tagsLine)
+            } else if (tagsSectionPattern.test(identityContent)) {
+              // Replace Tags section with Tags field
+              identityContent = identityContent.replace(tagsSectionPattern, tagsLine)
+            } else {
+              // Add Tags field after Name/Creature/etc fields
+              // Find the first occurrence of WhatsApp field or the first blank line
+              const whatsappMatch = identityContent.match(/^-\s+\*\*WhatsApp:\*\*.*$/m)
+              if (whatsappMatch) {
+                // Insert Tags before WhatsApp
+                identityContent = identityContent.replace(
+                  /^(-\s+\*\*WhatsApp:\*\*.*$)/m,
+                  `${tagsLine}\n$1`
+                )
+              } else {
+                // Find the end of the metadata section (first blank line after Name/Creature)
+                const lines = identityContent.split('\n')
+                let insertIndex = -1
+                let foundMetadata = false
+
+                for (let i = 0; i < lines.length; i++) {
+                  if (lines[i].match(/^-\s+\*\*(Name|Creature|Vibe|Emoji):/)) {
+                    foundMetadata = true
+                  } else if (foundMetadata && lines[i].trim() === '') {
+                    insertIndex = i
+                    break
+                  }
+                }
+
+                if (insertIndex > 0) {
+                  lines.splice(insertIndex, 0, tagsLine)
+                  identityContent = lines.join('\n')
+                } else {
+                  // Fallback: append after first heading
+                  identityContent = identityContent.replace(
+                    /^(#[^\n]+\n)/,
+                    `$1\n${tagsLine}\n`
+                  )
+                }
+              }
+            }
+
+            fs.writeFileSync(identityPath, identityContent, 'utf-8')
+          }
+        }
+
         createdAgents.push(targetAgentId)
       }
 

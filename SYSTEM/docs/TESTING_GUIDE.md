@@ -15,6 +15,8 @@
 
 **Why**: The test.sh script counts each unit test *suite* as 1 test for the overall count, but each suite runs multiple internal tests.
 
+NOTE: what about showing this more explicitely at the end instead of 92? break down the details. It's a good thing IMO.
+
 **Verify**:
 ```bash
 # Run individual test suites
@@ -50,6 +52,8 @@ cd ..
 1. Open Workflows page in split screen or another tab
 2. Find "Status Check" workflow
 3. Click "▶ Run Now"
+
+NOTE: OK will try this and let you know outcome.
 
 #### Step 3: Watch Communication view
 - Within 5 seconds, you should see typing indicators appear
@@ -117,6 +121,8 @@ curl -s 'http://localhost:3001/api/workflows/status-check/executions?limit=1' | 
 # Create a workflow that targets many agents (10+)
 # Gives you more time to see the transition
 ```
+
+NOTE: I believe this is now fixed.
 
 ---
 

@@ -15,6 +15,7 @@ interface BulkOperationsPanelProps {
   onAddToGroups: (agentIds: string[], groups: string[]) => Promise<void>
   onArchive: (agentIds: string[]) => Promise<void>
   onUnarchive: (agentIds: string[]) => Promise<void>
+  onDelete?: (agentIds: string[]) => Promise<void>
   onChat?: (agentIds: string[]) => void
 }
 
@@ -27,16 +28,44 @@ export default function BulkOperationsPanel({
   onAddToGroups,
   onArchive,
   onUnarchive,
+  onDelete,
   onChat,
 }: BulkOperationsPanelProps) {
-  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | null>(null)
+  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'delete' | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [deleteImpact, setDeleteImpact] = useState<any>(null)
+  const [showSecondConfirm, setShowSecondConfirm] = useState(false)
 
   const archivedCount = selectedAgents.filter(a => a.archived).length
   const activeCount = selectedAgents.length - archivedCount
+
+  async function handleFirstConfirm() {
+    // For delete, fetch impact and show second confirmation
+    if (operation === 'delete' && onDelete) {
+      setProcessing(true)
+      try {
+        const agentIds = selectedAgents.map(a => a.id)
+        const resp = await fetch('/api/agents/bulk-impact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentIds })
+        })
+        const data = await resp.json()
+        setDeleteImpact(data.summary)
+        setShowSecondConfirm(true)
+      } catch (err) {
+        console.error('Failed to fetch impact:', err)
+      } finally {
+        setProcessing(false)
+      }
+    } else {
+      // For other operations, just set showConfirm
+      setShowConfirm(true)
+    }
+  }
 
   async function handleExecute() {
     setProcessing(true)
@@ -51,6 +80,8 @@ export default function BulkOperationsPanel({
         await onArchive(agentIds)
       } else if (operation === 'unarchive') {
         await onUnarchive(agentIds)
+      } else if (operation === 'delete' && onDelete) {
+        await onDelete(agentIds)
       }
 
       onClose()
@@ -59,6 +90,7 @@ export default function BulkOperationsPanel({
     } finally {
       setProcessing(false)
       setShowConfirm(false)
+      setShowSecondConfirm(false)
     }
   }
 
@@ -180,6 +212,20 @@ export default function BulkOperationsPanel({
                     <div className="text-sm text-gray-500">Unarchive {archivedCount} archived agent{archivedCount !== 1 ? 's' : ''}</div>
                   </button>
                 )}
+
+                {onDelete && (
+                  <button
+                    onClick={() => setOperation('delete')}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'delete'
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 bg-white'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900 text-red-700">⚠️ Delete Agents Permanently</div>
+                    <div className="text-sm text-red-600">Permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} (cannot be undone)</div>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -239,7 +285,7 @@ export default function BulkOperationsPanel({
                 Cancel
               </button>
               <button
-                onClick={() => setShowConfirm(true)}
+                onClick={handleFirstConfirm}
                 disabled={
                   processing ||
                   !operation ||
@@ -248,13 +294,13 @@ export default function BulkOperationsPanel({
                 }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                Next →
+                {processing ? 'Loading...' : 'Next →'}
               </button>
             </div>
           </>
-        ) : (
+        ) : !showSecondConfirm ? (
           <>
-            {/* Confirmation screen */}
+            {/* First Confirmation screen */}
             <div className="px-6 py-6">
               <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -322,6 +368,80 @@ export default function BulkOperationsPanel({
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {processing ? 'Processing...' : 'Confirm & Execute'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Second Confirmation screen (for delete only) */}
+            <div className="px-6 py-6">
+              <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="text-red-600 text-2xl">🚨</div>
+                  <div>
+                    <div className="font-bold text-red-900 mb-2 text-lg">FINAL WARNING: Permanent Deletion</div>
+                    <div className="text-sm text-red-800 space-y-1">
+                      <p>You are about to <strong>permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</strong>.</p>
+                      <p className="font-semibold">This action CANNOT be undone!</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {deleteImpact && (
+                <div className="space-y-3 mb-4">
+                  <div className="text-sm font-medium text-gray-700">Impact Summary:</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                      <div className="text-xs text-gray-500">Agents to delete</div>
+                      <div className="text-2xl font-bold text-gray-900">{deleteImpact.agentCount}</div>
+                    </div>
+                    <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                      <div className="text-xs text-purple-600">Community memberships</div>
+                      <div className="text-2xl font-bold text-purple-900">{deleteImpact.totalCommunities}</div>
+                    </div>
+                    <div className="p-3 bg-indigo-50 rounded border border-indigo-200">
+                      <div className="text-xs text-indigo-600">Group memberships</div>
+                      <div className="text-2xl font-bold text-indigo-900">{deleteImpact.totalGroups}</div>
+                    </div>
+                    <div className="p-3 bg-orange-50 rounded border border-orange-200">
+                      <div className="text-xs text-orange-600">TODOs/notes</div>
+                      <div className="text-2xl font-bold text-orange-900">{deleteImpact.totalTodos}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 bg-gray-50 rounded border border-gray-200">
+                <div className="text-sm font-medium text-gray-700 mb-2">Agents to be deleted:</div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedAgents.map(a => (
+                    <span
+                      key={a.id}
+                      className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800"
+                    >
+                      {a.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Second confirmation footer */}
+            <div className="sticky bottom-0 bg-white border-t-2 border-red-200 px-6 py-4 flex gap-3 justify-end bg-red-50">
+              <button
+                onClick={() => setShowSecondConfirm(false)}
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                disabled={processing}
+              >
+                ← Cancel
+              </button>
+              <button
+                onClick={handleExecute}
+                disabled={processing}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
+              >
+                {processing ? 'Deleting...' : '🗑️ Delete Permanently'}
               </button>
             </div>
           </>
