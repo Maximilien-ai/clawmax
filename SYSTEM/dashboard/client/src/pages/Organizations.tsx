@@ -129,10 +129,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     fetchData()
   }, [fetchData])
 
-  // Build communities and groups from workspace + agents
+  // Build communities and groups from workspace + agents (exclude archived agents)
   const { communities, groups } = useMemo(() => {
     const communityMap = new Map<string, Community>()
     const groupMap = new Map<string, Group>()
+    const activeAgents = agents.filter((a: any) => !a.archived)
 
     // First, add workspace-level communities (from ORG/COMMUNITIES.md)
     for (const c of workspaceCommunities) {
@@ -162,7 +163,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     }
 
     // Extract communities
-    for (const agent of agents) {
+    for (const agent of activeAgents) {
       for (const c of agent.communities) {
         if (!communityMap.has(c.name)) {
           communityMap.set(c.name, {
@@ -178,7 +179,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     }
 
     // Extract groups
-    for (const agent of agents) {
+    for (const agent of activeAgents) {
       for (const g of agent.groups) {
         if (!groupMap.has(g.name)) {
           groupMap.set(g.name, {
@@ -224,11 +225,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     )
   }, [groups, searchQuery])
 
-  // Filter agents based on search query
+  // Filter agents based on search query (exclude archived)
   const filteredAgents = useMemo(() => {
-    if (!searchQuery.trim()) return agents
+    const activeAgents = agents.filter((a: any) => !a.archived)
+    if (!searchQuery.trim()) return activeAgents
     const query = searchQuery.toLowerCase()
-    return agents.filter(a =>
+    return activeAgents.filter(a =>
       a.name.toLowerCase().includes(query) ||
       a.id.toLowerCase().includes(query)
     )
