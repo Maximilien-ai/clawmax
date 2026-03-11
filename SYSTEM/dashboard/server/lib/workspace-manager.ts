@@ -245,8 +245,11 @@ export class WorkspaceManager {
       throw new Error(`Workspace not found: ${id}`)
     }
 
+    console.log('updateWorkspaceMetadata - Before update:', { id, currentName: workspace.name, updates })
     Object.assign(workspace, updates)
+    console.log('updateWorkspaceMetadata - After update:', { id, newName: workspace.name })
     this.saveRegistry()
+    console.log('updateWorkspaceMetadata - Registry saved')
   }
 }
 
