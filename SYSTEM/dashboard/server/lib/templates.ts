@@ -449,8 +449,15 @@ export function importAgentFromTemplate(
   }
 ): { ok: boolean; agentId?: string; error?: string } {
   try {
-    const templateDir = path.join(getAgentTemplatesDir(), templateSlug)
-    const templateJsonPath = path.join(templateDir, 'template.json')
+    // Check workspace templates first (user-created, higher priority)
+    let templateDir = path.join(getAgentTemplatesDir(), templateSlug)
+    let templateJsonPath = path.join(templateDir, 'template.json')
+
+    // If not found in workspace, check global system templates
+    if (!fs.existsSync(templateJsonPath)) {
+      templateDir = path.join(getGlobalAgentTemplatesDir(), templateSlug)
+      templateJsonPath = path.join(templateDir, 'template.json')
+    }
 
     if (!fs.existsSync(templateJsonPath)) {
       return { ok: false, error: `Template not found: ${templateSlug}` }
@@ -1011,44 +1018,111 @@ export function importOrganizationTemplate(
 
         // Read existing communities if file exists
         let existingContent = ''
+        const existingCommunityNames = new Set<string>()
         if (fs.existsSync(communitiesPath)) {
           existingContent = fs.readFileSync(communitiesPath, 'utf-8')
+          // Parse existing community names
+          const communityHeaderRegex = /^###\s+(.+)$/gm
+          let match
+          while ((match = communityHeaderRegex.exec(existingContent)) !== null) {
+            existingCommunityNames.add(match[1].trim())
+          }
         }
 
-        // Build content for new communities
-        const newCommunitiesContent = template.communities.map(comm => {
-          let content = `### ${comm.name}\n`
-          if (comm.description) content += `- **Description:** ${comm.description}\n`
-          if (comm.tags && comm.tags.length > 0) {
-            content += `- **Tags:** ${comm.tags.join(', ')}\n`
+        // Build content for new communities (skip existing ones)
+        const newCommunitiesContent = template.communities
+          .filter(comm => !existingCommunityNames.has(comm.name))
+          .map(comm => {
+            let content = `### ${comm.name}\n`
+            if (comm.description) content += `- **Description:** ${comm.description}\n`
+            if (comm.tags && comm.tags.length > 0) {
+              content += `- **Tags:** ${comm.tags.join(', ')}\n`
+            }
+            if (comm.channels && comm.channels.length > 0) {
+              content += `- **Channels:** ${comm.channels.join(', ')}\n`
+            }
+
+            // List agent members
+            const members = agentsToCreate
+              .filter(a => (a.communities || []).includes(comm.name))
+              .map(a => `${prefix}${a.id}${suffix}`)
+
+            if (members.length > 0) {
+              content += `- **Members:** ${members.join(', ')}\n`
+            }
+
+            return content
+          }).join('\n')
+
+        // Only write if there's new content
+        if (newCommunitiesContent.trim()) {
+          // Append to existing content or create new
+          const trimmed = existingContent.trim().replace(/\s+/g, ' ')
+          if (trimmed === '# Communities ## Communities' || trimmed === '# Communities') {
+            // Empty template, replace entirely
+            fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
+          } else if (existingContent.trim() === '') {
+            // Completely empty file
+            fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
+          } else {
+            // Append new communities
+            fs.writeFileSync(communitiesPath, `${existingContent}\n${newCommunitiesContent}`, 'utf-8')
           }
-          if (comm.channels && comm.channels.length > 0) {
-            content += `- **Channels:** ${comm.channels.join(', ')}\n`
-          }
-
-          // List agent members
-          const members = agentsToCreate
-            .filter(a => (a.communities || []).includes(comm.name))
-            .map(a => `${prefix}${a.id}${suffix}`)
-
-          if (members.length > 0) {
-            content += `- **Members:** ${members.join(', ')}\n`
-          }
-
-          return content
-        }).join('\n')
-
-        // Append to existing content or create new
-        const trimmed = existingContent.trim().replace(/\s+/g, ' ')
-        if (trimmed === '# Communities ## Communities' || trimmed === '# Communities') {
-          // Empty template, replace entirely
-          fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
-        } else if (existingContent.trim() === '') {
-          // Completely empty file
-          fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
         } else {
-          // Append new communities
-          fs.writeFileSync(communitiesPath, `${existingContent}\n${newCommunitiesContent}`, 'utf-8')
+          // Communities exist, but need to add new agent members to existing communities
+          console.log('All communities already exist, updating member lists')
+          let updatedContent = existingContent
+
+          for (const comm of template.communities) {
+            // Find agents that belong to this community
+            const newMembers = agentsToCreate
+              .filter(a => (a.communities || []).includes(comm.name))
+              .map(a => `${prefix}${a.id}${suffix}`)
+
+            if (newMembers.length > 0) {
+              // Find the community section and update members
+              const communityRegex = new RegExp(`^###\\s+${comm.name}\\s*$`, 'm')
+              const match = communityRegex.exec(updatedContent)
+
+              if (match) {
+                const sectionStart = match.index
+                // Find the next ### or end of file
+                const nextSectionMatch = updatedContent.slice(sectionStart + match[0].length).match(/^###\s+/m)
+                const sectionEnd = nextSectionMatch && nextSectionMatch.index !== undefined
+                  ? sectionStart + match[0].length + nextSectionMatch.index
+                  : updatedContent.length
+
+                const section = updatedContent.slice(sectionStart, sectionEnd)
+
+                // Check if Members line exists
+                const membersMatch = section.match(/^-\s+\*\*Members:\*\*\s*(.*)$/m)
+
+                if (membersMatch) {
+                  // Parse existing members
+                  const existingMembers = membersMatch[1]
+                    .split(',')
+                    .map(m => m.trim())
+                    .filter(m => m.length > 0)
+
+                  // Add new members (avoid duplicates)
+                  const allMembers = [...new Set([...existingMembers, ...newMembers])]
+
+                  // Replace the members line
+                  const newMembersLine = `- **Members:** ${allMembers.join(', ')}`
+                  const updatedSection = section.replace(/^-\s+\*\*Members:\*\*.*$/m, newMembersLine)
+
+                  updatedContent = updatedContent.slice(0, sectionStart) + updatedSection + updatedContent.slice(sectionEnd)
+                } else {
+                  // Add Members line before the end of the section
+                  const newMembersLine = `- **Members:** ${newMembers.join(', ')}\n`
+                  const insertPos = sectionEnd
+                  updatedContent = updatedContent.slice(0, insertPos) + newMembersLine + updatedContent.slice(insertPos)
+                }
+              }
+            }
+          }
+
+          fs.writeFileSync(communitiesPath, updatedContent, 'utf-8')
         }
       }
 
@@ -1060,72 +1134,215 @@ export function importOrganizationTemplate(
 
         // Read existing groups if file exists
         let existingContent = ''
+        const existingGroupNames = new Set<string>()
         if (fs.existsSync(groupsPath)) {
           existingContent = fs.readFileSync(groupsPath, 'utf-8')
+          // Parse existing group names
+          const groupHeaderRegex = /^###\s+(.+)$/gm
+          let match
+          while ((match = groupHeaderRegex.exec(existingContent)) !== null) {
+            existingGroupNames.add(match[1].trim())
+          }
         }
 
-        // Build content for new groups
-        const newGroupsContent = template.groups.map(grp => {
-          let content = `### ${grp.name}\n`
-          if (grp.description) content += `- **Description:** ${grp.description}\n`
-          if (grp.community) content += `- **Community:** ${grp.community}\n`
-          if (grp.tags && grp.tags.length > 0) {
-            content += `- **Tags:** ${grp.tags.join(', ')}\n`
+        // Build content for new groups (skip existing ones)
+        const newGroupsContent = template.groups
+          .filter(grp => !existingGroupNames.has(grp.name))
+          .map(grp => {
+            let content = `### ${grp.name}\n`
+            if (grp.description) content += `- **Description:** ${grp.description}\n`
+            if (grp.community) content += `- **Community:** ${grp.community}\n`
+            if (grp.tags && grp.tags.length > 0) {
+              content += `- **Tags:** ${grp.tags.join(', ')}\n`
+            }
+            if (grp.channels && grp.channels.length > 0) {
+              content += `- **Channels:** ${grp.channels.join(', ')}\n`
+            }
+
+            // List agent members
+            const members = agentsToCreate
+              .filter(a => (a.groups || []).includes(grp.name))
+              .map(a => `${prefix}${a.id}${suffix}`)
+
+            if (members.length > 0) {
+              content += `- **Members:** ${members.join(', ')}\n`
+            }
+
+            return content
+          }).join('\n')
+
+        // Only write if there's new content
+        if (newGroupsContent.trim()) {
+          // Append to existing content or create new
+          const trimmed = existingContent.trim().replace(/\s+/g, ' ')
+          if (trimmed === '# Groups ## Groups' || trimmed === '# Groups') {
+            // Empty template, replace entirely
+            fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
+          } else if (existingContent.trim() === '') {
+            // Completely empty file
+            fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
+          } else {
+            // Append new groups
+            fs.writeFileSync(groupsPath, `${existingContent}\n${newGroupsContent}`, 'utf-8')
           }
-          if (grp.channels && grp.channels.length > 0) {
-            content += `- **Channels:** ${grp.channels.join(', ')}\n`
-          }
-
-          // List agent members
-          const members = agentsToCreate
-            .filter(a => (a.groups || []).includes(grp.name))
-            .map(a => `${prefix}${a.id}${suffix}`)
-
-          if (members.length > 0) {
-            content += `\n- **Members:** ${members.join(', ')}\n`
-          }
-
-          return content
-        }).join('\n')
-
-        // Append to existing content or create new
-        const trimmed = existingContent.trim().replace(/\s+/g, ' ')
-        if (trimmed === '# Groups ## Groups' || trimmed === '# Groups') {
-          // Empty template, replace entirely
-          fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
-        } else if (existingContent.trim() === '') {
-          // Completely empty file
-          fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
         } else {
-          // Append new groups
-          fs.writeFileSync(groupsPath, `${existingContent}\n${newGroupsContent}`, 'utf-8')
+          // Groups exist, but need to add new agent members to existing groups
+          console.log('All groups already exist, updating member lists')
+          let updatedContent = existingContent
+
+          for (const grp of template.groups) {
+            // Find agents that belong to this group
+            const newMembers = agentsToCreate
+              .filter(a => (a.groups || []).includes(grp.name))
+              .map(a => `${prefix}${a.id}${suffix}`)
+
+            if (newMembers.length > 0) {
+              // Find the group section and update members
+              const groupRegex = new RegExp(`^###\\s+${grp.name}\\s*$`, 'm')
+              const match = groupRegex.exec(updatedContent)
+
+              if (match) {
+                const sectionStart = match.index
+                // Find the next ### or end of file
+                const nextSectionMatch = updatedContent.slice(sectionStart + match[0].length).match(/^###\s+/m)
+                const sectionEnd = nextSectionMatch && nextSectionMatch.index !== undefined
+                  ? sectionStart + match[0].length + nextSectionMatch.index
+                  : updatedContent.length
+
+                const section = updatedContent.slice(sectionStart, sectionEnd)
+
+                // Check if Members line exists
+                const membersMatch = section.match(/^-\s+\*\*Members:\*\*\s*(.*)$/m)
+
+                if (membersMatch) {
+                  // Parse existing members
+                  const existingMembers = membersMatch[1]
+                    .split(',')
+                    .map(m => m.trim())
+                    .filter(m => m.length > 0)
+
+                  // Add new members (avoid duplicates)
+                  const allMembers = [...new Set([...existingMembers, ...newMembers])]
+
+                  // Replace the members line
+                  const newMembersLine = `- **Members:** ${allMembers.join(', ')}`
+                  const updatedSection = section.replace(/^-\s+\*\*Members:\*\*.*$/m, newMembersLine)
+
+                  updatedContent = updatedContent.slice(0, sectionStart) + updatedSection + updatedContent.slice(sectionEnd)
+                } else {
+                  // Add Members line before the end of the section
+                  const newMembersLine = `- **Members:** ${newMembers.join(', ')}\n`
+                  const insertPos = sectionEnd
+                  updatedContent = updatedContent.slice(0, insertPos) + newMembersLine + updatedContent.slice(insertPos)
+                }
+              }
+            }
+          }
+
+          fs.writeFileSync(groupsPath, updatedContent, 'utf-8')
         }
       }
 
-      // Step 5: Create workflows from template
+      // Step 5: Create/update workflows from template
       if (template.workflows && template.workflows.length > 0) {
+        const existingWorkflows = listWorkflows()
+        const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.name, w]))
+
         for (const wf of template.workflows) {
           // Update targeting to use new agent IDs if prefix/suffix was applied
-          const updatedTargeting = {
-            ...wf.targeting,
-            agents: wf.targeting.agents.map(agentId => `${prefix}${agentId}${suffix}`)
-          }
+          const newAgents = wf.targeting.agents.map(agentId => `${prefix}${agentId}${suffix}`)
 
-          const result = createWorkflow({
-            name: wf.name,
-            description: wf.description,
-            schedule: wf.schedule,
-            enabled: wf.enabled,
-            executionMode: wf.executionMode,
-            targeting: updatedTargeting,
-            content: wf.content,
-            author: template.author || 'imported'
+          const existing = existingWorkflowMap.get(wf.name)
+          if (existing) {
+            // Workflow exists - merge new targeting with existing
+            const existingAgents = existing.targeting.agents || []
+            const existingGroups = existing.targeting.groups || []
+            const existingCommunities = existing.targeting.communities || []
+            const existingTags = existing.targeting.tags || []
+
+            const newGroups = wf.targeting.groups || []
+            const newCommunities = wf.targeting.communities || []
+            const newTags = wf.targeting.tags || []
+
+            const mergedAgents = [...new Set([...existingAgents, ...newAgents])]
+            const mergedGroups = [...new Set([...existingGroups, ...newGroups])]
+            const mergedCommunities = [...new Set([...existingCommunities, ...newCommunities])]
+            const mergedTags = [...new Set([...existingTags, ...newTags])]
+
+            // Check if there are any new targets to add
+            const hasNewTargets =
+              mergedAgents.length > existingAgents.length ||
+              mergedGroups.length > existingGroups.length ||
+              mergedCommunities.length > existingCommunities.length ||
+              mergedTags.length > existingTags.length
+
+            if (hasNewTargets) {
+              const { updateWorkflow } = require('./workflows')
+              const result = updateWorkflow(existing.id, {
+                targeting: {
+                  agents: mergedAgents,
+                  groups: mergedGroups,
+                  communities: mergedCommunities,
+                  tags: mergedTags
+                }
+              })
+
+              if (result.success) {
+                const changes = []
+                if (mergedAgents.length > existingAgents.length) changes.push(`${mergedAgents.length - existingAgents.length} agent(s)`)
+                if (mergedGroups.length > existingGroups.length) changes.push(`${mergedGroups.length - existingGroups.length} group(s)`)
+                if (mergedCommunities.length > existingCommunities.length) changes.push(`${mergedCommunities.length - existingCommunities.length} communit${mergedCommunities.length - existingCommunities.length > 1 ? 'ies' : 'y'}`)
+                if (mergedTags.length > existingTags.length) changes.push(`${mergedTags.length - existingTags.length} tag(s)`)
+                console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
+              } else {
+                console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
+              }
+            } else {
+              console.log(`Workflow "${wf.name}" already has all targets, no update needed`)
+            }
+          } else {
+            // Workflow doesn't exist - create it
+            const updatedTargeting = {
+              ...wf.targeting,
+              agents: newAgents
+            }
+
+            const result = createWorkflow({
+              name: wf.name,
+              description: wf.description,
+              schedule: wf.schedule,
+              enabled: wf.enabled,
+              executionMode: wf.executionMode,
+              targeting: updatedTargeting,
+              content: wf.content,
+              author: template.author || 'imported'
+            })
+
+            if (!result.success) {
+              console.warn(`Failed to create workflow ${wf.name}: ${result.error}`)
+              // Don't fail the whole import for workflow creation failures
+            }
+          }
+        }
+      }
+
+      // Step 6: Register all created agents in openclaw.json
+      // This is critical - agents must be registered to receive messages via gateway
+      const { execSync } = require('child_process')
+      for (const agentId of createdAgents) {
+        try {
+          const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
+          const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+
+          // Use openclaw agents add to register the agent
+          execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+            encoding: 'utf-8',
+            stdio: 'pipe'
           })
-
-          if (!result.success) {
-            console.warn(`Failed to create workflow ${wf.name}: ${result.error}`)
-            // Don't fail the whole import for workflow creation failures
-          }
+          console.log(`Registered agent ${agentId} in openclaw.json`)
+        } catch (err) {
+          console.warn(`Failed to register agent ${agentId}: ${err}`)
+          // Don't fail the import if registration fails - agent files are still created
         }
       }
 

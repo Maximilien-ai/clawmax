@@ -426,6 +426,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
 
       fetchAgents()
+
+      // Exit selection mode after operation
+      setSelectionMode(false)
+      setSelectedAgentIds(new Set())
     } catch (err) {
       showError('Failed to add agents to communities')
       console.error(err)
@@ -465,6 +469,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
 
       fetchAgents()
+
+      // Exit selection mode after operation
+      setSelectionMode(false)
+      setSelectedAgentIds(new Set())
     } catch (err) {
       showError('Failed to add agents to groups')
       console.error(err)
@@ -498,6 +506,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
 
       setSelectedAgentIds(new Set())
+      setSelectionMode(false)
       fetchAgents()
     } catch (err) {
       showError('Failed to archive agents')
@@ -528,6 +537,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
 
       setSelectedAgentIds(new Set())
+      setSelectionMode(false)
       fetchAgents()
     } catch (err) {
       showError('Failed to unarchive agents')
@@ -555,14 +565,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         status: a.status
       }))
     })
+
+    // Exit selection mode after opening chat
+    setSelectionMode(false)
+    setSelectedAgentIds(new Set())
   }
 
-  const handleBulkDelete = async (agentIds: string[]) => {
+  const handleBulkDelete = async (agentsList: Array<{ id: string; archived?: boolean }>) => {
     try {
       const resp = await fetch('/api/agents/bulk', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentIds, removeStateDir: false })
+        body: JSON.stringify({ agents: agentsList, removeStateDir: false })
       })
 
       const result = await resp.json()
@@ -571,6 +585,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         showSuccess(`Successfully deleted ${result.summary.success} agent${result.summary.success !== 1 ? 's' : ''}`)
         fetchAgents()
         setSelectedAgentIds(new Set())
+        setSelectionMode(false)
       } else {
         const failedCount = result.summary.failure
         showError(`Failed to delete ${failedCount} agent${failedCount !== 1 ? 's' : ''}`)
@@ -2367,6 +2382,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           type="checkbox"
           checked={isSelected || false}
           onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          onClick={(e) => e.stopPropagation()}
           className="absolute top-2 left-2 w-4 h-4 cursor-pointer z-10"
         />
       )}

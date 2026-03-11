@@ -390,7 +390,9 @@ export default function Templates() {
           onClose={() => setApplyingTemplate(null)}
           onSuccess={() => {
             setApplyingTemplate(null)
-            showSuccess('Organization template applied successfully!')
+            showSuccess('Organization template applied successfully! Refreshing...')
+            // Refresh to show new agents, groups, communities, and workflows
+            setTimeout(() => window.location.reload(), 500)
           }}
         />
       )}
