@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 
@@ -126,17 +126,41 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     fetchWorkflows()
   }, [])
 
+  // Use refs to access latest values without re-creating interval
+  const workflowsRef = useRef(workflows)
+  const selectedWorkflowRef = useRef(selectedWorkflow)
+  const showSuccessRef = useRef(showSuccess)
+  const showErrorRef = useRef(showError)
+  const trackedExecutionsRef = useRef(trackedExecutions)
+
+  useEffect(() => {
+    workflowsRef.current = workflows
+  }, [workflows])
+
+  useEffect(() => {
+    selectedWorkflowRef.current = selectedWorkflow
+  }, [selectedWorkflow])
+
+  useEffect(() => {
+    showSuccessRef.current = showSuccess
+    showErrorRef.current = showError
+  }, [showSuccess, showError])
+
+  useEffect(() => {
+    trackedExecutionsRef.current = trackedExecutions
+  }, [trackedExecutions])
+
   // Poll for running workflows and detect completions
   useEffect(() => {
     const checkRunningWorkflows = async () => {
       try {
-        console.log('[Workflow Toast] Polling workflows...', workflows.length, 'workflows')
-        const workflowIds = workflows.map(w => w.id)
+        const currentWorkflows = workflowsRef.current
+        const workflowIds = currentWorkflows.map(w => w.id)
         const checks = await Promise.all(
           workflowIds.map(async id => {
-            const workflow = workflows.find(w => w.id === id)
-            // Fetch recent executions (limit=5) to catch newly triggered ones
-            const res = await fetch(`/api/workflows/${id}/executions?limit=5`)
+            const workflow = currentWorkflows.find(w => w.id === id)
+            // Fetch recent executions (limit=10) to catch fast-completing ones
+            const res = await fetch(`/api/workflows/${id}/executions?limit=10`)
             const data = await res.json()
             const executions = data.executions || []
             const latest = executions[0]
@@ -153,105 +177,135 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         const running = new Set(checks.filter(c => c.isRunning).map(c => c.id))
 
         // Check for completion transitions and show toasts
-        setTrackedExecutions(prev => {
-          console.log('[Workflow Toast] Current trackedExecutions:', prev.size, Array.from(prev.keys()))
-          const next = new Map(prev)
+        // IMPORTANT: Do this BEFORE setState so toastQueue is populated synchronously
+        const toastQueue: Array<{ workflowName: string; status: string; successRate: string }> = []
+        const toCheckAsync: Array<{ workflowId: string; executionId: string; workflowName: string }> = []
 
-          for (const check of checks) {
-            // Check ALL recent executions for this workflow, not just the latest
-            for (const execution of check.executions || []) {
-              const key = `${check.id}:${execution.id}`
-              const tracked = prev.get(key)
+        const prev = trackedExecutionsRef.current
+        const next = new Map(prev)
+        const seenKeys = new Set<string>()
+        const handledKeys = new Set<string>()
 
-              console.log('[Workflow Toast] Checking execution:', {
-                lookingFor: key,
-                executionStatus: execution.status,
-                wasTracked: !!tracked,
-                trackedStatus: tracked?.status,
-                allKeysInMap: Array.from(prev.keys()),
-                mapSize: prev.size
+        for (const check of checks) {
+          // Check ALL recent executions for this workflow, not just the latest
+          for (const execution of check.executions || []) {
+            const key = `${check.id}:${execution.id}`
+            seenKeys.add(key)
+            const tracked = prev.get(key)
+
+            // Detect transition from running/pending to completed/failed
+            const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
+            const isComplete = execution.status === 'completed' || execution.status === 'failed'
+
+            if (wasInProgress && isComplete) {
+              const status = execution.status
+              const successRate = execution.participantCount > 0
+                ? `${execution.successCount}/${execution.participantCount}`
+                : '0/0'
+
+              // Queue for toast
+              toastQueue.push({
+                workflowName: check.workflowName,
+                status,
+                successRate
               })
 
-              // Detect transition from running/pending to completed/failed
-              const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
-              const isComplete = execution.status === 'completed' || execution.status === 'failed'
+              // Mark as handled
+              handledKeys.add(key)
 
-              if (wasInProgress && isComplete) {
-                const status = execution.status
-                const isSuccess = status === 'completed'
+              // Delete from Map IMMEDIATELY to prevent duplicate toasts
+              next.delete(key)
+
+              // Refresh the workflow details if it's currently selected
+              if (selectedWorkflowRef.current?.id === check.id) {
+                // Inline refresh to avoid circular dependency
+                fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
+                  setSelectedWorkflow(workflow)
+                }).catch(() => {})
+                fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
+                  const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+                    if (a.status === 'running' && b.status !== 'running') return -1
+                    if (a.status !== 'running' && b.status === 'running') return 1
+                    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+                  })
+                  setExecutions(sortedExecutions)
+                }).catch(() => {})
+              }
+            }
+            // Track all non-complete execution states
+            else if (execution.status === 'running' || execution.status === 'pending') {
+              next.set(key, {
+                status: execution.status,
+                executionId: execution.id,
+                workflowName: check.workflowName
+              })
+            }
+            // Remove completed executions that were tracked but completed
+            else if (isComplete && tracked) {
+              next.delete(key)
+            }
+          }
+        }
+
+        // Clean up tracked executions that are no longer in recent list (likely completed)
+        // Only check if they weren't already handled in the loop above
+        for (const [key, tracked] of prev.entries()) {
+          if (!seenKeys.has(key) && !handledKeys.has(key)) {
+            const [workflowId, executionId] = key.split(':')
+            // Queue for async check
+            toCheckAsync.push({ workflowId, executionId, workflowName: tracked.workflowName })
+            // Remove from tracking
+            next.delete(key)
+          }
+        }
+
+        // Update tracked executions with the new Map
+        setTrackedExecutions(next)
+
+        // Show toasts for completed executions
+        for (const toast of toastQueue) {
+          const isSuccess = toast.status === 'completed'
+          const icon = isSuccess ? '✅' : '❌'
+          if (isSuccess) {
+            showSuccessRef.current(`${icon} ${toast.workflowName} completed (${toast.successRate} agents)`)
+          } else {
+            showErrorRef.current(`${icon} ${toast.workflowName} ${toast.status} (${toast.successRate} agents)`)
+          }
+        }
+
+        // Check missing executions asynchronously
+        for (const missing of toCheckAsync) {
+          fetch(`/api/workflows/${missing.workflowId}/executions/${missing.executionId}`)
+            .then(r => r.json())
+            .then(execution => {
+              if (execution.status === 'completed' || execution.status === 'failed') {
+                const isSuccess = execution.status === 'completed'
                 const icon = isSuccess ? '✅' : '❌'
                 const successRate = execution.participantCount > 0
                   ? `${execution.successCount}/${execution.participantCount}`
                   : '0/0'
 
-                console.log(`[Workflow Toast] TRANSITION DETECTED! ${check.workflowName} ${tracked.status} → ${status}`)
-                console.log('[Workflow Toast] Showing toast with showSuccess:', typeof showSuccess)
-
                 if (isSuccess) {
-                  showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
+                  showSuccessRef.current(`${icon} ${missing.workflowName} completed (${successRate} agents)`)
                 } else {
-                  showError(`${icon} ${check.workflowName} ${status} (${successRate} agents)`)
-                }
-
-                // Refresh the workflow details if it's currently selected
-                if (selectedWorkflow?.id === check.id) {
-                  // Inline refresh to avoid circular dependency
-                  fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
-                    setSelectedWorkflow(workflow)
-                  }).catch(() => {})
-                  fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
-                    const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
-                      if (a.status === 'running' && b.status !== 'running') return -1
-                      if (a.status !== 'running' && b.status === 'running') return 1
-                      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-                    })
-                    setExecutions(sortedExecutions)
-                  }).catch(() => {})
+                  showErrorRef.current(`${icon} ${missing.workflowName} ${execution.status} (${successRate} agents)`)
                 }
               }
-
-              // Track all non-complete execution states
-              const isInProgress = execution.status === 'running' || execution.status === 'pending'
-              if (isInProgress || wasInProgress) {
-                console.log('[Workflow Toast] Tracking execution:', key, execution.status)
-                next.set(key, {
-                  status: execution.status,
-                  executionId: execution.id,
-                  workflowName: check.workflowName
-                })
-              } else {
-                // Clean up completed executions after notification
-                if (tracked) {
-                  console.log('[Workflow Toast] Cleaning up tracked execution:', key)
-                  next.delete(key)
-                }
-              }
-            }
-          }
-
-          console.log('[Workflow Toast] Updated trackedExecutions:', next.size, Array.from(next.keys()))
-          return next
-        })
+            })
+            .catch(() => {})
+        }
 
         setRunningWorkflows(running)
       } catch (err) {
-        console.error('[Workflow Toast] Error checking running workflows:', err)
+        console.error('Error checking running workflows:', err)
       }
     }
 
-    if (workflows.length > 0) {
-      console.log('[Workflow Toast] Setting up polling for', workflows.length, 'workflows')
-      checkRunningWorkflows()
-      const interval = setInterval(checkRunningWorkflows, 5000)
-      console.log('[Workflow Toast] Polling interval set up (every 5s)')
-      return () => {
-        console.log('[Workflow Toast] Cleaning up polling interval')
-        clearInterval(interval)
-      }
-    } else {
-      console.log('[Workflow Toast] No workflows, skipping polling setup')
-    }
-  }, [workflows, selectedWorkflow, showSuccess, showError])
+    checkRunningWorkflows()
+    const interval = setInterval(checkRunningWorkflows, 5000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Handle initialWorkflowId
   useEffect(() => {
