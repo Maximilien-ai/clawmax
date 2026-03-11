@@ -258,22 +258,23 @@ Only show during active execution (not retroactive).
 ### 4. Completion Toast
 Only shows if user stays on Workflows page.
 
-### 5. Templates Not Shared Across Workspaces
-**Status**: ⏳ FUTURE ENHANCEMENT
+### 5. Templates Now Global Across Workspaces ✅
+**Status**: ✅ IMPLEMENTED
 **Priority**: Medium
 **Reported**: March 11, 2026
+**Fixed**: March 11, 2026
 
-**Issue**: Templates (agent templates and org templates) are stored per-workspace at `WORKSPACE/TEMPLATES/` instead of globally at `~/.openclaw/TEMPLATES/`. When switching workspaces, templates are not visible.
+**Implementation**: Templates are now stored in two locations:
+1. **Global templates** at `~/.openclaw/TEMPLATES/` - System templates shared across all workspaces
+2. **Workspace templates** at `WORKSPACE/TEMPLATES/` - Private templates for each workspace
 
-**Expected Behavior**: System/built-in templates should be shared across all workspaces. Private templates can remain workspace-specific when RBAC is implemented.
+**Behavior**:
+- All workspaces can see global templates (agent + org templates)
+- Users can create workspace-specific templates for privacy
+- Workspace templates override global templates with the same name
+- Template listing merges both locations automatically
 
-**Proposed Solution**:
-1. Create global template directory at `~/.openclaw/TEMPLATES/`
-2. Modify template listing to merge global + workspace templates
-3. Add "Save as Global Template" vs "Save as Private Template" options
-4. Implement when RBAC/login is added for private templates
-
-**Workaround**: Manually copy templates between workspace TEMPLATES directories.
+**Usage**: No action needed - existing templates were copied to global location automatically.
 
 ---
 

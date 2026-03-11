@@ -5,6 +5,22 @@ import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups,
 import { listWorkflows, createWorkflow } from './workflows'
 
 // Template storage paths (dynamic functions)
+
+// Global templates (shared across all workspaces - system templates)
+export function getGlobalTemplatesDir(): string {
+  const HOME = process.env.HOME || ''
+  return path.join(HOME, '.openclaw', 'TEMPLATES')
+}
+
+export function getGlobalAgentTemplatesDir(): string {
+  return path.join(getGlobalTemplatesDir(), 'agents')
+}
+
+export function getGlobalOrgTemplatesDir(): string {
+  return path.join(getGlobalTemplatesDir(), 'organizations')
+}
+
+// Workspace templates (private to current workspace - user-created)
 export function getTemplatesDir(): string {
   return path.join(getWorkspacePath(), 'TEMPLATES')
 }
@@ -19,6 +35,11 @@ export function getOrgTemplatesDir(): string {
 
 // Ensure template directories exist
 export function ensureTemplateDirs(): void {
+  // Global directories
+  fs.mkdirSync(getGlobalAgentTemplatesDir(), { recursive: true })
+  fs.mkdirSync(getGlobalOrgTemplatesDir(), { recursive: true })
+
+  // Workspace directories
   fs.mkdirSync(getAgentTemplatesDir(), { recursive: true })
   fs.mkdirSync(getOrgTemplatesDir(), { recursive: true })
 }
@@ -197,9 +218,21 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
 export function listTemplates(type?: 'agent' | 'organization'): Template[] {
   ensureTemplateDirs()
   const templates: Template[] = []
+  const seen = new Set<string>() // Track by name to avoid duplicates
 
   const dirs = []
+
+  // Collect templates from both global and workspace directories
   if (!type || type === 'agent') {
+    // Global agent templates (system)
+    try {
+      const globalAgentDirs = fs.readdirSync(getGlobalAgentTemplatesDir(), { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => path.join(getGlobalAgentTemplatesDir(), d.name))
+      dirs.push(...globalAgentDirs)
+    } catch {}
+
+    // Workspace agent templates (user-created)
     try {
       const agentDirs = fs.readdirSync(getAgentTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
@@ -209,6 +242,15 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
   }
 
   if (!type || type === 'organization') {
+    // Global org templates (system)
+    try {
+      const globalOrgDirs = fs.readdirSync(getGlobalOrgTemplatesDir(), { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => path.join(getGlobalOrgTemplatesDir(), d.name))
+      dirs.push(...globalOrgDirs)
+    } catch {}
+
+    // Workspace org templates (user-created)
     try {
       const orgDirs = fs.readdirSync(getOrgTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
@@ -222,7 +264,11 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
       const templateJsonPath = path.join(dir, 'template.json')
       if (fs.existsSync(templateJsonPath)) {
         const template = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-        templates.push(template)
+        // Avoid duplicates (workspace templates override global)
+        if (!seen.has(template.name)) {
+          seen.add(template.name)
+          templates.push(template)
+        }
       }
     } catch (err) {
       console.error(`Failed to read template at ${dir}:`, err)
@@ -234,23 +280,36 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
 
 /**
  * Get a specific template by type and name slug
+ * Checks workspace first (user templates), then global (system templates)
  */
 export function getTemplate(type: 'agent' | 'organization', slug: string): Template | null {
   ensureTemplateDirs()
-  const templateDir = type === 'agent'
+
+  // Check workspace templates first (user-created, higher priority)
+  const workspaceTemplateDir = type === 'agent'
     ? path.join(getAgentTemplatesDir(), slug)
     : path.join(getOrgTemplatesDir(), slug)
 
-  const templateJsonPath = path.join(templateDir, 'template.json')
-  if (!fs.existsSync(templateJsonPath)) {
-    return null
+  const workspaceTemplatePath = path.join(workspaceTemplateDir, 'template.json')
+  if (fs.existsSync(workspaceTemplatePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(workspaceTemplatePath, 'utf-8'))
+    } catch {}
   }
 
-  try {
-    return JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-  } catch {
-    return null
+  // Check global templates second (system templates)
+  const globalTemplateDir = type === 'agent'
+    ? path.join(getGlobalAgentTemplatesDir(), slug)
+    : path.join(getGlobalOrgTemplatesDir(), slug)
+
+  const globalTemplatePath = path.join(globalTemplateDir, 'template.json')
+  if (fs.existsSync(globalTemplatePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(globalTemplatePath, 'utf-8'))
+    } catch {}
   }
+
+  return null
 }
 
 /**
