@@ -812,8 +812,15 @@ export function importOrganizationTemplate(
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
-    const templateDir = path.join(getOrgTemplatesDir(), templateSlug)
-    const templateJsonPath = path.join(templateDir, 'template.json')
+    // Check workspace templates first (user templates)
+    let templateDir = path.join(getOrgTemplatesDir(), templateSlug)
+    let templateJsonPath = path.join(templateDir, 'template.json')
+
+    // If not found in workspace, check global templates (system templates)
+    if (!fs.existsSync(templateJsonPath)) {
+      templateDir = path.join(getGlobalOrgTemplatesDir(), templateSlug)
+      templateJsonPath = path.join(templateDir, 'template.json')
+    }
 
     if (!fs.existsSync(templateJsonPath)) {
       return { ok: false, error: `Template not found: ${templateSlug}` }
