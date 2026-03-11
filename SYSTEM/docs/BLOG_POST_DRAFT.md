@@ -724,14 +724,14 @@ TODOs
 - [ ] ⏳ Organization navigation demo
 - [ ] ⏳ Workflow completion toast demo
 
-NOTE: can we match these with placeholders I included which have files names to make it easy to create and load.
+NOTE: can we match these with placeholders I included which have files names to make it easy to create and load. Was this done? Just include the file name above and I when I create files we can just check off TODO
 
 ### Diagrams
 
 - [ ] ⏳ Improve architecture overview (in outline) to a SVG
 - [ ] ⏳ Workflow execution sequence diagram
 
-NOTE: let's add these in next update. I beleive you have enough to create. If not then LMK.
+NOTE: let's add these in next update. I beleive you have enough to create. If not then LMK. Yeah let's do that tonight.
 
 ---
 

@@ -156,12 +156,13 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     }
   }
 
-  // Build channels list from agents
+  // Build channels list from agents (exclude archived agents from channels)
   const allChannels = useMemo(() => {
     const channelMap = new Map<string, Channel>()
+    const activeAgents = agents.filter(a => !a.archived)
 
     // Add communities
-    for (const agent of agents) {
+    for (const agent of activeAgents) {
       for (const c of agent.communities) {
         const key = `community:${c.name}`
         if (!channelMap.has(key)) {
@@ -180,7 +181,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     }
 
     // Add groups
-    for (const agent of agents) {
+    for (const agent of activeAgents) {
       for (const g of agent.groups) {
         const key = `group:${g.name}`
         if (!channelMap.has(key)) {

@@ -1727,7 +1727,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {/* Bulk Operations Panel */}
       {showBulkOperations && (
         <BulkOperationsPanel
-          selectedAgents={agents.filter(a => selectedAgentIds.has(a.id))}
+          selectedAgents={agents.filter(a => selectedAgentIds.has(a.id) && a.archived === (archiveTab === 'archived'))}
           allCommunities={allCommunities}
           allGroups={allGroups}
           onClose={() => setShowBulkOperations(false)}
