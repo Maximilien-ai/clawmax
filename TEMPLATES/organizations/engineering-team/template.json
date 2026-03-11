@@ -4,58 +4,97 @@
   "version": "1.0.0",
   "description": "A complete engineering team with QA, release engineering, and code review workflows. Perfect for software development teams.",
   "author": "ClawMax Team",
-  "tags": ["engineering", "software", "development"],
+  "tags": [
+    "engineering",
+    "software",
+    "development"
+  ],
   "agents": [
     {
       "id": "engineer",
       "name": "Engineer",
       "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
+      "tags": [
+        "engineer",
+        "developer"
+      ],
       "skills": [],
-      "communities": ["Engineering Team"],
-      "groups": ["Code Review"]
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Code Review"
+      ]
     },
     {
       "id": "qa-engineer",
       "name": "QA Engineer",
       "role": "Quality Assurance Engineer",
-      "tags": ["qa", "testing"],
+      "tags": [
+        "qa",
+        "testing"
+      ],
       "skills": [],
-      "communities": ["Engineering Team"],
-      "groups": ["Code Review"]
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Code Review"
+      ]
     },
     {
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release Engineer",
-      "tags": ["release", "devops"],
+      "tags": [
+        "release",
+        "devops"
+      ],
       "skills": [],
-      "communities": ["Engineering Team"],
-      "groups": ["Release Team"]
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Release Team"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Engineering Team",
       "description": "Software development and engineering",
-      "tags": ["engineering", "development"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "engineering",
+        "development"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Code Review",
       "description": "Engineers reviewing code",
-      "tags": ["code-review"],
+      "tags": [
+        "code-review"
+      ],
       "community": "Engineering Team",
-      "channels": ["whatsapp"]
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Release Team",
       "description": "Production release coordination",
-      "tags": ["release", "production"],
+      "tags": [
+        "release",
+        "production"
+      ],
       "community": "Engineering Team",
-      "channels": ["whatsapp"]
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "workflows": [
@@ -67,12 +106,14 @@
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
-        "communities": ["Engineering Team"],
+        "communities": [
+          "Engineering Team"
+        ],
         "groups": [],
         "tags": [],
         "agents": []
       },
-      "content": "---\nid: daily-standup\nname: Daily Standup\ndescription: Engineering team daily sync\nschedule: \"0 9 * * 1-5\"\nenabled: false\ntargeting:\n  communities:\n    - Engineering Team\n  groups: []\n  tags: []\n  agents: []\nexecutionMode: automated\nauthor: system\n---\n\n# Engineering Daily Standup\n\nProvide your update:\n\n### Yesterday\n- Code completed or PRs merged\n\n### Today\n- Tasks in progress\n\n### Blockers\n- Anything blocking your work?\n"
+      "content": "# Engineering Daily Standup\n\nProvide your update:\n\n### Yesterday\n- Code completed or PRs merged\n\n### Today\n- Tasks in progress\n\n### Blockers\n- Anything blocking your work?"
     },
     {
       "id": "code-review-reminder",
@@ -83,11 +124,13 @@
       "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["Code Review"],
+        "groups": [
+          "Code Review"
+        ],
         "tags": [],
         "agents": []
       },
-      "content": "---\nid: code-review-reminder\nname: Code Review Reminder\ndescription: Reminder to review pending PRs\nschedule: \"0 10,14 * * 1-5\"\nenabled: false\ntargeting:\n  communities: []\n  groups:\n    - Code Review\n  tags: []\n  agents: []\nexecutionMode: automated\nauthor: system\n---\n\n# Code Review Reminder\n\nPlease review pending pull requests:\n\n1. Check your assigned PRs\n2. Prioritize PRs blocking others\n3. Provide constructive feedback\n4. Approve or request changes\n"
+      "content": "# Code Review Reminder\n\nPlease review pending pull requests:\n\n1. Check your assigned PRs\n2. Prioritize PRs blocking others\n3. Provide constructive feedback\n4. Approve or request changes"
     },
     {
       "id": "release-preparation",
@@ -98,11 +141,13 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Release Team"],
+        "groups": [
+          "Release Team"
+        ],
         "tags": [],
         "agents": []
       },
-      "content": "---\nid: release-preparation\nname: Release Preparation\ndescription: Pre-release checklist\nschedule: \"0 9 * * 3\"\nenabled: false\ntargeting:\n  communities: []\n  groups:\n    - Release Team\n  tags: []\n  agents: []\nexecutionMode: managed\nauthor: system\n---\n\n# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item.\n"
+      "content": "# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item."
     }
   ]
 }

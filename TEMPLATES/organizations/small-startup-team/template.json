@@ -76,7 +76,7 @@
         "tags": [],
         "agents": []
       },
-      "content": "---\nid: daily-standup\nname: Daily Standup\ndescription: Morning sync for team coordination\nschedule: \"0 9 * * 1-5\"\nenabled: false\ntargeting:\n  communities: []\n  groups:\n    - All Hands\n  tags: []\n  agents: []\nexecutionMode: automated\nauthor: system\n---\n\n# Daily Standup Workflow\n\nPlease provide your standup update covering:\n\n### 1. Yesterday's Accomplishments\n- What did you complete yesterday?\n\n### 2. Today's Plans  \n- What are your top priorities for today?\n\n### 3. Blockers\n- Are you blocked on anything?\n"
+      "content": "# Daily Standup Workflow\n\nPlease provide your standup update covering:\n\n### 1. Yesterday's Accomplishments\n- What did you complete yesterday?\n\n### 2. Today's Plans  \n- What are your top priorities for today?\n\n### 3. Blockers\n- Are you blocked on anything?\n"
     },
     {
       "id": "weekly-status-report",
@@ -91,7 +91,7 @@
         "tags": [],
         "agents": []
       },
-      "content": "---\nid: weekly-status-report\nname: Weekly Status Report\ndescription: Weekly progress summary\nschedule: \"0 17 * * 5\"\nenabled: false\ntargeting:\n  communities: []\n  groups:\n    - All Hands\n  tags: []\n  agents: []\nexecutionMode: automated\nauthor: system\n---\n\n# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
+      "content": "# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
     }
   ]
 }
