@@ -4,11 +4,20 @@ import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
+import { getWorkspacePath } from './workspace'
 
-const WORKSPACE_DIR = path.join(process.env.HOME || '', '.openclaw', 'workspace')
-const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
-const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
-const TEMPLATES_DIR = path.join(WORKFLOWS_DIR, 'templates')
+// Use dynamic workspace path to support multi-workspace
+function getWorkflowsDir(): string {
+  return path.join(getWorkspacePath(), 'WORKFLOWS')
+}
+
+function getExecutionsDir(): string {
+  return path.join(getWorkflowsDir(), 'executions')
+}
+
+function getTemplatesDir(): string {
+  return path.join(getWorkflowsDir(), 'templates')
+}
 
 // Interfaces
 export interface AgentTargeting {
@@ -76,7 +85,7 @@ function ensureUniqueId(baseId: string): string {
   let id = baseId
   let counter = 2
 
-  while (fs.existsSync(path.join(WORKFLOWS_DIR, `${id}.md`))) {
+  while (fs.existsSync(path.join(getWorkflowsDir(), `${id}.md`))) {
     id = `${baseId}-${counter}`
     counter++
   }
@@ -96,11 +105,12 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
 
 // List all workflows
 export function listWorkflows(): Workflow[] {
-  if (!fs.existsSync(WORKFLOWS_DIR)) {
-    fs.mkdirSync(WORKFLOWS_DIR, { recursive: true })
+  const workflowsDir = getWorkflowsDir()
+  if (!fs.existsSync(workflowsDir)) {
+    fs.mkdirSync(workflowsDir, { recursive: true })
   }
 
-  const files = fs.readdirSync(WORKFLOWS_DIR).filter(f => f.endsWith('.md') && f !== 'README.md')
+  const files = fs.readdirSync(workflowsDir).filter(f => f.endsWith('.md') && f !== 'README.md')
   const workflows: Workflow[] = []
 
   for (const file of files) {
@@ -119,15 +129,16 @@ export function listWorkflows(): Workflow[] {
 
 // List workflow templates from templates directory
 export function listWorkflowTemplates(): Workflow[] {
-  if (!fs.existsSync(TEMPLATES_DIR)) {
+  const templatesDir = getTemplatesDir()
+  if (!fs.existsSync(templatesDir)) {
     return []
   }
 
-  const files = fs.readdirSync(TEMPLATES_DIR).filter(f => f.endsWith('.md') && f !== 'README.md')
+  const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.md') && f !== 'README.md')
   const templates: Workflow[] = []
 
   for (const file of files) {
-    const filePath = path.join(TEMPLATES_DIR, file)
+    const filePath = path.join(templatesDir, file)
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
       const { data, content: markdownContent } = matter(content)
@@ -158,7 +169,7 @@ export function listWorkflowTemplates(): Workflow[] {
 
 // Get single workflow
 export function getWorkflow(id: string): Workflow | null {
-  const filePath = path.join(WORKFLOWS_DIR, `${id}.md`)
+  const filePath = path.join(getWorkflowsDir(), `${id}.md`)
 
   if (!fs.existsSync(filePath)) {
     return null
@@ -251,7 +262,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       executionMode: workflow.executionMode
     })
 
-    const filePath = path.join(WORKFLOWS_DIR, `${id}.md`)
+    const filePath = path.join(getWorkflowsDir(), `${id}.md`)
     fs.writeFileSync(filePath, fileContent, 'utf-8')
 
     return { success: true, id }
@@ -305,7 +316,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       executionMode: updated.executionMode
     })
 
-    const filePath = path.join(WORKFLOWS_DIR, `${id}.md`)
+    const filePath = path.join(getWorkflowsDir(), `${id}.md`)
     fs.writeFileSync(filePath, fileContent, 'utf-8')
 
     return { success: true }
@@ -318,7 +329,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
 // Delete workflow
 export function deleteWorkflow(id: string): { success: boolean; error?: string } {
   try {
-    const filePath = path.join(WORKFLOWS_DIR, `${id}.md`)
+    const filePath = path.join(getWorkflowsDir(), `${id}.md`)
 
     if (!fs.existsSync(filePath)) {
       return { success: false, error: 'Workflow not found' }
@@ -327,7 +338,7 @@ export function deleteWorkflow(id: string): { success: boolean; error?: string }
     fs.unlinkSync(filePath)
 
     // Also delete execution history
-    const executionDir = path.join(EXECUTIONS_DIR, id)
+    const executionDir = path.join(getExecutionsDir(), id)
     if (fs.existsSync(executionDir)) {
       fs.rmSync(executionDir, { recursive: true })
     }
@@ -395,7 +406,7 @@ export function resolveParticipants(workflow: Workflow, agents: any[]): Workflow
 
 // List executions for a workflow
 export function listExecutions(workflowId: string, limit: number = 10): WorkflowExecution[] {
-  const executionDir = path.join(EXECUTIONS_DIR, workflowId)
+  const executionDir = path.join(getExecutionsDir(), workflowId)
 
   if (!fs.existsSync(executionDir)) {
     return []
@@ -424,7 +435,7 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
 
 // Get single execution
 export function getExecution(workflowId: string, executionId: string): WorkflowExecution | null {
-  const filePath = path.join(EXECUTIONS_DIR, workflowId, `${executionId}.json`)
+  const filePath = path.join(getExecutionsDir(), workflowId, `${executionId}.json`)
 
   if (!fs.existsSync(filePath)) {
     return null
@@ -452,7 +463,7 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
     const executionId = randomUUID()
 
     // Create executions directory for workflow if it doesn't exist
-    const workflowExecutionDir = path.join(EXECUTIONS_DIR, workflowId)
+    const workflowExecutionDir = path.join(getExecutionsDir(), workflowId)
     if (!fs.existsSync(workflowExecutionDir)) {
       fs.mkdirSync(workflowExecutionDir, { recursive: true })
     }
