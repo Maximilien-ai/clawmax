@@ -15,6 +15,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
   const [name, setName] = useState('')
   const [path, setPath] = useState('')
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0].value)
+  const [tags, setTags] = useState('')
   const [creating, setCreating] = useState(false)
 
   if (!isOpen) return null
@@ -31,14 +32,21 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
     setCreating(true)
     try {
+      // Parse tags from comma-separated string
+      const parsedTags = tags
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0)
+
       await createWorkspace(name.trim(), finalPath, {
         color: selectedColor,
-        tags: []
+        tags: parsedTags
       })
 
       // Reset form and close
       setName('')
       setPath('')
+      setTags('')
       setSelectedColor(PRESET_COLORS[0].value)
       onClose()
     } catch (err) {
@@ -89,6 +97,24 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
             </p>
           </div>
 
+          {/* Tags input */}
+          <div>
+            <label htmlFor="workspace-tags" className="block text-sm font-medium text-gray-700 mb-1">
+              Tags (optional)
+            </label>
+            <input
+              id="workspace-tags"
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g., personal, work, sandbox"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Comma-separated tags for organizing workspaces
+            </p>
+          </div>
+
           {/* Color picker */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -119,6 +145,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
               onClick={() => {
                 setName('')
                 setPath('')
+                setTags('')
                 setSelectedColor(PRESET_COLORS[0].value)
                 onClose()
               }}
