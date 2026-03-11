@@ -360,8 +360,9 @@ export function resolveParticipants(workflow: Workflow, agents: any[]): Workflow
     // Check communities
     if (workflow.targeting.communities.length > 0 && agent.communities) {
       for (const community of agent.communities) {
-        if (workflow.targeting.communities.includes(community)) {
-          reasons.push(`community:${community}`)
+        const communityName = typeof community === 'string' ? community : community.name
+        if (workflow.targeting.communities.includes(communityName)) {
+          reasons.push(`community:${communityName}`)
         }
       }
     }
@@ -369,8 +370,9 @@ export function resolveParticipants(workflow: Workflow, agents: any[]): Workflow
     // Check groups
     if (workflow.targeting.groups.length > 0 && agent.groups) {
       for (const group of agent.groups) {
-        if (workflow.targeting.groups.includes(group)) {
-          reasons.push(`group:${group}`)
+        const groupName = typeof group === 'string' ? group : group.name
+        if (workflow.targeting.groups.includes(groupName)) {
+          reasons.push(`group:${groupName}`)
         }
       }
     }
@@ -496,7 +498,9 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
     fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
 
     // Spawn openclaw workflow run process (fire and forget)
-    const child = spawn('openclaw', ['workflow', 'run', workflowId], {
+    // IMPORTANT: Pass --workspace flag to ensure execution runs in correct workspace
+    const workspacePath = getWorkspacePath()
+    const child = spawn('openclaw', ['workflow', 'run', workflowId, '--workspace', workspacePath], {
       detached: true,
       stdio: 'ignore'
     })
