@@ -20,6 +20,7 @@ interface WorkspaceContextValue {
   // Actions
   switchWorkspace: (id: string) => Promise<void>
   createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[] }) => Promise<Workspace>
+  updateWorkspace: (id: string, updates: { name?: string; color?: string; tags?: string[] }) => Promise<void>
   deleteWorkspace: (id: string) => Promise<void>
   refreshWorkspaces: () => Promise<void>
 }
@@ -107,6 +108,31 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshWorkspaces, showSuccess, showError])
 
+  const updateWorkspace = useCallback(async (
+    id: string,
+    updates: { name?: string; color?: string; tags?: string[] }
+  ) => {
+    try {
+      const res = await fetch(`/api/workspaces/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to update workspace')
+      }
+
+      await refreshWorkspaces()
+      showSuccess('Workspace updated successfully')
+    } catch (err: any) {
+      console.error('Failed to update workspace:', err)
+      showError(err.message || 'Failed to update workspace')
+      throw err
+    }
+  }, [refreshWorkspaces, showSuccess, showError])
+
   const deleteWorkspace = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/workspaces/${id}`, {
@@ -133,6 +159,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     loading,
     switchWorkspace,
     createWorkspace,
+    updateWorkspace,
     deleteWorkspace,
     refreshWorkspaces
   }

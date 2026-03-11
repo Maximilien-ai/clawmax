@@ -107,9 +107,10 @@ router.get('/:id', (req, res) => {
 router.patch('/:id', (req, res) => {
   try {
     const { id } = req.params
-    const { agentCount, color, tags } = req.body
+    const { name, agentCount, color, tags } = req.body
 
     const updates: any = {}
+    if (name && typeof name === 'string') updates.name = name
     if (typeof agentCount === 'number') updates.agentCount = agentCount
     if (color) updates.color = color
     if (Array.isArray(tags)) updates.tags = tags

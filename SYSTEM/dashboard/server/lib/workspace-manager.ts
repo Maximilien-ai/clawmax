@@ -236,8 +236,8 @@ export class WorkspaceManager {
     }
   }
 
-  /** Update workspace metadata (agent count, last accessed, etc.) */
-  updateWorkspaceMetadata(id: string, updates: Partial<Pick<Workspace, 'agentCount' | 'lastAccessedAt' | 'color' | 'tags'>>): void {
+  /** Update workspace metadata (name, agent count, last accessed, color, tags, etc.) */
+  updateWorkspaceMetadata(id: string, updates: Partial<Pick<Workspace, 'name' | 'agentCount' | 'lastAccessedAt' | 'color' | 'tags'>>): void {
     const registry = this.loadRegistry()
     const workspace = registry.workspaces.find(w => w.id === id)
 
