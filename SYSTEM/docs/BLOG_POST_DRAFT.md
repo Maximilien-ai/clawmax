@@ -712,19 +712,15 @@ TODOs
 
 ### Images
 
-- [ ] ⏳ Execution history with running executions first
-- [ ] ⏳ Template library browser
-- [ ] ⏳ Document workspace editor
-- [ ] ⏳ Dashboard overview with agent cards
+- [ ] ⏳ image1-dashboard.jpg - Dashboard overview with agent cards (line 130)
+- [ ] ⏳ image2-organizations.jpg - Organizations page with hierarchy (line 166)
+- [ ] ⏳ image3-workflow.jpg - Workflow execution in progress (line 194)
+- [ ] ⏳ image4-template-library.jpg - Template library with cards (line 245)
+- [ ] ⏳ image5-document-editor.jpg - Document editor with YAML validation (line 340)
 
 ### Videos
 
-- [ ] ⏳ 90-second feature overview (YouTube)
-- [ ] ⏳ 5-minute workflow demo walkthrough
-- [ ] ⏳ Organization navigation demo
-- [ ] ⏳ Workflow completion toast demo
-
-NOTE: can we match these with placeholders I included which have files names to make it easy to create and load. Was this done? Just include the file name above and I when I create files we can just check off TODO
+- [ ] ⏳ video1-workflow-execution.mp4 - Workflow execution progress animation (line 307)
 
 ### Diagrams
 

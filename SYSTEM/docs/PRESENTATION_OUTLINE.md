@@ -243,23 +243,25 @@ NOTE: will setup clawmax.ai mail but not there yet so above gmail for now.
 
 - Call to action:
 
-  OSS users:
-  - Try ClawMax today
-  - Contribute (open source!)
-  - Share your use cases
+  **Open Source (Free Forever)**:
+  - 🚀 GitHub: Maximilien-ai/ClawMax - Community edition, always free
+  - Try ClawMax today with your OpenClaw agents
+  - Contribute code, docs, templates
+  - Share your use cases and feedback
   - Star on GitHub ⭐
 
-  Enterprise users:
-  - Signup on ClawMax.ai for your interest we can are first to know
-  
-**Visual**: QR code to GitHub repo + contact info
+  **ClawMax.ai (Coming April 2026)**:
+  - ☁️ Cloud deployment - One-time setup + monthly support + cloud fees
+  - 🖥️ On-premise deployment - One-time setup + optional monthly support
+  - 🎯 Enterprise features, dedicated support, SLA guarantees
+  - 📝 Signup at ClawMax.ai to be first to know when available
+
+**Visual**: QR code to GitHub repo + ClawMax.ai signup link
 
 **Speaking Notes**:
-"ClawMax is open source and we'd love your involvement. Try it with your OpenClaw agents, share feedback, contribute code. Signup for ClawMax.ai to know when you can get ClawMax on Cloud or on-premise. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
+"ClawMax comes in two flavors. First, the Community edition on GitHub - completely open source, free forever. Perfect for individual developers and teams getting started. Second, ClawMax.ai launching in April - for teams that want cloud deployment or on-premise installation with enterprise support. One-time setup fee plus optional monthly support. Both use the same core codebase. Try the OSS version today, upgrade when you're ready for production. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
 
 **Duration**: 1 minute
-
-NOTE: https://github.com/Maximilien-ai/ClawMax is the Community code always OSS. https://ClawMax.ai is the business where users can sign up and eventually pay for Cloud, on-premise deployment and support. Let's weave that in towards the end.
 
 ---
 
