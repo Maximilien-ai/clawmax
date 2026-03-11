@@ -304,7 +304,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 **Real-time visibility into agents activities and workflows execution**
 
-![ClawMax - workflow execution progress animation](videos/video1-workflow-execution.mp4)
+![ClawMax - workflow execution progress animation](videos/video1-workflow-execution.mov)
 
 **Features**:
 - Live participant status (pending → running → completed/failed)
@@ -720,7 +720,7 @@ TODOs
 
 ### Videos
 
-- [ ] ⏳ video1-workflow-execution.mp4 - Workflow execution progress animation (line 307)
+- [ ] ⏳ video1-workflow-execution.mov - Workflow execution progress animation (line 307)
 
 ### Diagrams
 
