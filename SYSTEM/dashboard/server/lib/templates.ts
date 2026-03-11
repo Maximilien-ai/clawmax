@@ -942,7 +942,107 @@ export function importOrganizationTemplate(
         }
       }
 
-      // Step 4: Create workflows from template
+      // Step 4: Update workspace-level ORG/COMMUNITIES.md and ORG/GROUPS.md
+      if (template.communities && template.communities.length > 0) {
+        const orgDir = path.join(getWorkspacePath(), 'ORG')
+        fs.mkdirSync(orgDir, { recursive: true })
+
+        const communitiesPath = path.join(orgDir, 'COMMUNITIES.md')
+
+        // Read existing communities if file exists
+        let existingContent = ''
+        if (fs.existsSync(communitiesPath)) {
+          existingContent = fs.readFileSync(communitiesPath, 'utf-8')
+        }
+
+        // Build content for new communities
+        const newCommunitiesContent = template.communities.map(comm => {
+          let content = `### ${comm.name}\n`
+          if (comm.description) content += `- **Description:** ${comm.description}\n`
+          if (comm.tags && comm.tags.length > 0) {
+            content += `- **Tags:** ${comm.tags.join(', ')}\n`
+          }
+          if (comm.channels && comm.channels.length > 0) {
+            content += `- **Channels:** ${comm.channels.join(', ')}\n`
+          }
+
+          // List agent members
+          const members = agentsToCreate
+            .filter(a => (a.communities || []).includes(comm.name))
+            .map(a => `${prefix}${a.id}${suffix}`)
+
+          if (members.length > 0) {
+            content += `- **Members:** ${members.join(', ')}\n`
+          }
+
+          return content
+        }).join('\n')
+
+        // Append to existing content or create new
+        const trimmed = existingContent.trim().replace(/\s+/g, ' ')
+        if (trimmed === '# Communities ## Communities' || trimmed === '# Communities') {
+          // Empty template, replace entirely
+          fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
+        } else if (existingContent.trim() === '') {
+          // Completely empty file
+          fs.writeFileSync(communitiesPath, `# COMMUNITIES.md - Organization Communities\n\n## Communities\n\n${newCommunitiesContent}`, 'utf-8')
+        } else {
+          // Append new communities
+          fs.writeFileSync(communitiesPath, `${existingContent}\n${newCommunitiesContent}`, 'utf-8')
+        }
+      }
+
+      if (template.groups && template.groups.length > 0) {
+        const orgDir = path.join(getWorkspacePath(), 'ORG')
+        fs.mkdirSync(orgDir, { recursive: true })
+
+        const groupsPath = path.join(orgDir, 'GROUPS.md')
+
+        // Read existing groups if file exists
+        let existingContent = ''
+        if (fs.existsSync(groupsPath)) {
+          existingContent = fs.readFileSync(groupsPath, 'utf-8')
+        }
+
+        // Build content for new groups
+        const newGroupsContent = template.groups.map(grp => {
+          let content = `### ${grp.name}\n`
+          if (grp.description) content += `- **Description:** ${grp.description}\n`
+          if (grp.community) content += `- **Community:** ${grp.community}\n`
+          if (grp.tags && grp.tags.length > 0) {
+            content += `- **Tags:** ${grp.tags.join(', ')}\n`
+          }
+          if (grp.channels && grp.channels.length > 0) {
+            content += `- **Channels:** ${grp.channels.join(', ')}\n`
+          }
+
+          // List agent members
+          const members = agentsToCreate
+            .filter(a => (a.groups || []).includes(grp.name))
+            .map(a => `${prefix}${a.id}${suffix}`)
+
+          if (members.length > 0) {
+            content += `\n- **Members:** ${members.join(', ')}\n`
+          }
+
+          return content
+        }).join('\n')
+
+        // Append to existing content or create new
+        const trimmed = existingContent.trim().replace(/\s+/g, ' ')
+        if (trimmed === '# Groups ## Groups' || trimmed === '# Groups') {
+          // Empty template, replace entirely
+          fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
+        } else if (existingContent.trim() === '') {
+          // Completely empty file
+          fs.writeFileSync(groupsPath, `# GROUPS.md - Organization Groups\n\n## Groups\n\n${newGroupsContent}`, 'utf-8')
+        } else {
+          // Append new groups
+          fs.writeFileSync(groupsPath, `${existingContent}\n${newGroupsContent}`, 'utf-8')
+        }
+      }
+
+      // Step 5: Create workflows from template
       if (template.workflows && template.workflows.length > 0) {
         for (const wf of template.workflows) {
           // Update targeting to use new agent IDs if prefix/suffix was applied
