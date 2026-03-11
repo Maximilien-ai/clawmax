@@ -23,3 +23,20 @@ npm-debug.log*
 
 # OS files
 .DS_Store
+
+# Agent workspace directories (generated at runtime)
+AGENTS/*/
+!AGENTS/max0/
+!AGENTS/engineer/
+!AGENTS/qa-engineer/
+!AGENTS/ceo/
+
+# Workflow executions (runtime data)
+WORKFLOWS/executions/
+
+# Template agent instances (keep template definitions only)
+TEMPLATES/organizations/*/agents/
+TEMPLATES/organizations/qa-team/
+
+# Generated scripts
+SYSTEM/scripts/

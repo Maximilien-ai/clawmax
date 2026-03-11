@@ -78,105 +78,54 @@ When running a workflow from the Workflows page, typing indicators do not appear
 
 ## 🐛 Issue #2: Workflow Completion Toast Not Showing
 
-**Status**: 🔴 STILL UNRESOLVED
-**Priority**: High
+**Status**: ✅ FIXED
+**Priority**: High (was critical for v1.0.0 demo)
 **Severity**: UX Issue (non-blocking but important)
 **Reported**: March 9, 2026
-**Fix Attempted**: March 10, 2026 (unsuccessful)
+**Fixed**: March 11, 2026
 
 ### Description
-After running a workflow from the Workflows page, no toast notification appears when the workflow completes, even when staying on the Workflows page.
+After running a workflow from the Workflows page, no toast notification appeared when the workflow completed, even when staying on the Workflows page.
 
-### Expected Behavior
-- User clicks "▶ Run Now" on a workflow
-- Workflow executes (10-30 seconds)
-- User stays on Workflows page
-- Toast appears: "✅ Status Check completed (3/3 agents)"
-- Toast auto-dismisses after a few seconds
+### Root Cause
+Two bugs were found and fixed:
 
-### Actual Behavior
-- No toast notification appears
-- User must manually check execution status or refresh page
+**Bug #1 (March 10)**: Polling was fetching only `limit=1` execution, missing newly triggered executions if they weren't the absolute latest.
+- **Fix**: Fetch `limit=5` recent executions and loop through ALL of them to find tracked ones
 
-### Steps to Reproduce
-1. Go to Workflows page
-2. Find "Status Check" workflow
-3. Click "▶ Run Now" and confirm
-4. **Stay on Workflows page** - do not navigate away
-5. Wait 10-30 seconds for workflow to complete
-6. **Result**: No completion toast appears
+**Bug #2 (March 11)**: After showing toast, execution was re-added to tracking Map, causing duplicate notifications.
+- **Fix**: Delete execution from Map IMMEDIATELY after showing toast to prevent re-checking
 
-### Root Cause (Confirmed via Debugging)
+### The Final Fix
 
-**The Problem**: **Polling was checking the wrong executions!**
+**File**: `client/src/pages/Workflows.tsx` (lines 166-212)
 
-**Evidence from Console Logs**:
-```
-[Workflow Toast] Trigger response: {executionId: 'eb06e2fe-7e89-4245-b614-271553b1988c', ...}
-[Workflow Toast] Adding to tracked executions: status-check:eb06e2fe-7e89-4245-b614-271553b1988c
-...
-[Workflow Toast] Checking execution: {key: 'status-check:test-auth-fix', executionStatus: 'completed', ...}
-[Workflow Toast] Checking execution: {key: 'test:simple-test', executionStatus: 'completed', ...}
-```
+**Key changes**:
+1. Fetch 5 recent executions instead of just latest
+2. Loop through all executions to check for transitions
+3. Delete from Map immediately after showing toast (not in cleanup phase)
+4. Use `else if` to prevent re-tracking completed executions
 
-**Notice**: The triggered execution (`eb06e2fe-...`) was NEVER checked! Only old executions (`test-auth-fix`, `simple-test`) were being polled.
-
-**Why It Happened**:
-1. Trigger created execution `eb06e2fe-7e89-4245-b614-271553b1988c`
-2. Polling fetched `limit=1` (latest execution only)
-3. But API returned `test-auth-fix` (an older execution) as "latest"
-4. New execution was never checked
-5. No transition detected → No toast
-
-**The Bug**: Fetching only `limit=1` execution meant if the new execution wasn't the absolute latest (e.g., if multiple workflows ran), it would be missed entirely.
-
-### The Fix (Commit 59e4788)
-
-**Changed**: Fetch `limit=5` recent executions instead of `limit=1`
-**Changed**: Loop through ALL 5 executions to check tracked ones
-
-**Code Changes** (`client/src/pages/Workflows.tsx`):
 ```typescript
-// OLD: Fetch only latest execution
-const res = await fetch(`/api/workflows/${id}/executions?limit=1`)
-const latest = data.executions?.[0]
-// Only checked this one execution
+if (wasInProgress && isComplete) {
+  // Show toast...
+  showSuccess(`${icon} ${check.workflowName} completed (${successRate} agents)`)
 
-// NEW: Fetch recent 5 executions
-const res = await fetch(`/api/workflows/${id}/executions?limit=5`)
-const executions = data.executions || []
-// Loop through ALL executions
-for (const execution of check.executions || []) {
-  const key = `${check.id}:${execution.id}`
-  const tracked = prev.get(key)
-  // Check if this execution is tracked and transitioned
+  // Delete from Map IMMEDIATELY to prevent duplicate toasts
+  next.delete(key)
+}
+// Track all non-complete execution states
+else if (execution.status === 'running' || execution.status === 'pending') {
+  next.set(key, { ... })
 }
 ```
-
-**Result**: Now finds and tracks ANY execution in the last 5, not just the absolute latest.
 
 ### Testing
 1. Go to Workflows page
 2. Click "▶ Run Now" on any workflow
 3. **Stay on the page**
 4. Wait 10-20 seconds
-5. ✅ Toast should appear: "✅ [Workflow Name] completed (X/Y agents)"
-
-### Fix Attempt #1 Status
-**Result**: ❌ Still not working after user testing
-
-**Possible reasons fix didn't work**:
-1. The tracked execution is still not being found in the recent 5
-2. There may be an issue with the execution ID format/matching
-3. The polling may be checking before the execution appears in the list
-4. The state update might be getting lost in React re-renders
-5. Need more detailed logging to see what's actually being checked
-
-**Next debugging steps** (Tuesday AM):
-1. Add more granular logging to see ALL executions being checked
-2. Log the exact execution IDs being compared
-3. Add timestamp logging to understand timing
-4. Check if the API is returning the execution at all
+5. ✅ Toast appears ONCE: "✅ [Workflow Name] completed (X/Y agents)"
 
 ---
 
@@ -308,6 +257,23 @@ Only show during active execution (not retroactive).
 
 ### 4. Completion Toast
 Only shows if user stays on Workflows page.
+
+### 5. Templates Not Shared Across Workspaces
+**Status**: ⏳ FUTURE ENHANCEMENT
+**Priority**: Medium
+**Reported**: March 11, 2026
+
+**Issue**: Templates (agent templates and org templates) are stored per-workspace at `WORKSPACE/TEMPLATES/` instead of globally at `~/.openclaw/TEMPLATES/`. When switching workspaces, templates are not visible.
+
+**Expected Behavior**: System/built-in templates should be shared across all workspaces. Private templates can remain workspace-specific when RBAC is implemented.
+
+**Proposed Solution**:
+1. Create global template directory at `~/.openclaw/TEMPLATES/`
+2. Modify template listing to merge global + workspace templates
+3. Add "Save as Global Template" vs "Save as Private Template" options
+4. Implement when RBAC/login is added for private templates
+
+**Workaround**: Manually copy templates between workspace TEMPLATES directories.
 
 ---
 
