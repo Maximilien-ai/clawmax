@@ -29,7 +29,7 @@ interface OrganizationTemplate {
   description?: string
   author?: string
   tags?: string[]
-  agents: Array<{ id: string; role: string }>
+  agents: Array<{ id: string; role: string; tags?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
   workflows?: Array<{ id: string; name: string }>

@@ -10,10 +10,12 @@ interface Message {
 interface Props {
   agentId: string
   agentName: string
+  agentStatus?: 'online' | 'offline' | 'unknown'
   onClose: () => void
+  onSuccess?: () => void
 }
 
-export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
+export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -30,7 +32,12 @@ export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
     checkGateway()
     // Delay focus slightly to ensure component is fully mounted
     setTimeout(() => inputRef.current?.focus(), 100)
-  }, [agentId])
+
+    // Show info if agent is offline
+    if (agentStatus === 'offline') {
+      console.log(`Starting chat with offline agent: ${agentName}. Agent will be activated.`)
+    }
+  }, [agentId, agentStatus, agentName])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -121,6 +128,8 @@ export default function AgentChatPanel({ agentId, agentName, onClose }: Props) {
               ))
             } else if (data.type === 'complete') {
               setStreaming(false)
+              // Notify parent of successful completion
+              onSuccess?.()
             } else if (data.type === 'error') {
               setError(data.data || 'Chat error')
               setStreaming(false)

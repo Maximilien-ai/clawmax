@@ -15,6 +15,7 @@ interface BulkOperationsPanelProps {
   onAddToGroups: (agentIds: string[], groups: string[]) => Promise<void>
   onArchive: (agentIds: string[]) => Promise<void>
   onUnarchive: (agentIds: string[]) => Promise<void>
+  onChat?: (agentIds: string[]) => void
 }
 
 export default function BulkOperationsPanel({
@@ -26,6 +27,7 @@ export default function BulkOperationsPanel({
   onAddToGroups,
   onArchive,
   onUnarchive,
+  onChat,
 }: BulkOperationsPanelProps) {
   const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
@@ -114,6 +116,19 @@ export default function BulkOperationsPanel({
             <div className="px-6 py-4">
               <div className="text-sm font-medium text-gray-700 mb-3">Choose an operation:</div>
               <div className="space-y-2">
+                {onChat && (
+                  <button
+                    onClick={() => {
+                      onChat(selectedAgents.map(a => a.id))
+                      onClose()
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 bg-white transition-colors"
+                  >
+                    <div className="font-medium text-gray-900">Chat with Selected</div>
+                    <div className="text-sm text-gray-500">Open a chat with the selected agents</div>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setOperation('communities')}
                   className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${

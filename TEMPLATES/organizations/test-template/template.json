@@ -34,6 +34,19 @@
       "skills": []
     },
     {
+      "id": "clawmax-assistant",
+      "name": "clawmax-assistant",
+      "role": "AI orchestration expert",
+      "tags": [
+        "built-in",
+        "clawmax",
+        "assistant",
+        "workflows",
+        "agents"
+      ],
+      "skills": []
+    },
+    {
       "id": "dave",
       "name": "dave",
       "role": "Executive Advisor",
@@ -103,6 +116,19 @@
       ]
     },
     {
+      "id": "organization-architect",
+      "name": "organization-architect",
+      "role": "Organizational design expert",
+      "tags": [
+        "built-in",
+        "organization",
+        "communities",
+        "groups",
+        "structure"
+      ],
+      "skills": []
+    },
+    {
       "id": "product-manager",
       "name": "product-manager",
       "role": "Product Manager",
@@ -155,12 +181,36 @@
       "skills": []
     },
     {
+      "id": "template-optimizer",
+      "name": "template-optimizer",
+      "role": "Template analyst and optimizer",
+      "tags": [
+        "built-in",
+        "templates",
+        "optimization",
+        "analysis"
+      ],
+      "skills": []
+    },
+    {
       "id": "todd",
       "name": "todd",
       "role": "Executive Advisor",
       "tags": [
         "advisor",
         "board"
+      ],
+      "skills": []
+    },
+    {
+      "id": "workflow-debugger",
+      "name": "workflow-debugger",
+      "role": "Workflow troubleshooting expert",
+      "tags": [
+        "built-in",
+        "workflows",
+        "debugging",
+        "troubleshooting"
       ],
       "skills": []
     }

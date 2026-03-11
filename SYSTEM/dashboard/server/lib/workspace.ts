@@ -41,6 +41,11 @@ interface StatusCache {
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
 
+/** Invalidate status cache for a specific agent (e.g., after sending a message) */
+export function invalidateAgentStatusCache(agentId: string) {
+  statusCache.delete(agentId)
+}
+
 export type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
 export interface DocEntry {
@@ -1110,7 +1115,26 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     if (nameMatch) name = nameMatch[1].trim()
   } catch {}
 
-  // Check if agent gateway is actually running by checking if port is listening
+  /**
+   * Agent Status Detection
+   *
+   * Architecture: All agents share a single gateway (typically port 18889).
+   * We cannot use port-based detection alone since all agents would appear "online"
+   * whenever the gateway is running.
+   *
+   * Strategy:
+   * 1. Check if shared gateway is running (lsof port check)
+   * 2. Check agent's file modification time (workspace activity)
+   * 3. Combine both signals to determine status:
+   *    - online: Gateway running + recent activity (< 24h)
+   *    - offline: Gateway running but stale, OR no gateway but recent activity
+   *    - unknown: No gateway and very stale (> 1 week)
+   *
+   * This heuristic works because:
+   * - Agents write files when processing messages
+   * - Recent file activity = agent has been used recently
+   * - No recent activity = agent is registered but inactive
+   */
   let status: AgentInfo['status'] = 'unknown'
   let lastHeartbeat: string | null = null
 
@@ -1123,38 +1147,26 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   } else {
     // Cache miss or expired, check actual status
     const gatewayConfig = getAgentGatewayConfig(id)
+    let gatewayRunning = false
+
     if (gatewayConfig && gatewayConfig.port) {
       try {
         const { execSync } = require('child_process')
-        // Check if port is listening
+        // Check if gateway port is listening
         execSync(`lsof -ti:${gatewayConfig.port}`, { encoding: 'utf-8', stdio: 'pipe' })
-        status = 'online' // Port is listening, gateway is running
-        lastHeartbeat = new Date().toISOString()
+        gatewayRunning = true
       } catch {
-      // Port not listening, check file activity as fallback
-      try {
-        const entries = fs.readdirSync(agentDir, { withFileTypes: true })
-        let latestMtime = 0
-        for (const e of entries) {
-          if (!e.isFile()) continue
-          try {
-            const s = fs.statSync(path.join(agentDir, e.name))
-            if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
-          } catch {}
-        }
-        if (latestMtime > 0) {
-          lastHeartbeat = new Date(latestMtime).toISOString()
-          const ageMins = (Date.now() - latestMtime) / 60000
-          // offline = recent activity but no running process
-          status = ageMins < 10080 ? 'offline' : 'unknown'
-        }
-      } catch {}
+        gatewayRunning = false
+      }
     }
-  } else {
-    // No gateway config, fall back to file-based detection
+
+    // Check file activity to determine if agent is active
+    // Check BOTH workspace directory AND agent state directory
+    let latestMtime = 0
+
+    // Check workspace files (IDENTITY.md, SOUL.md, etc.)
     try {
       const entries = fs.readdirSync(agentDir, { withFileTypes: true })
-      let latestMtime = 0
       for (const e of entries) {
         if (!e.isFile()) continue
         try {
@@ -1162,12 +1174,57 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
           if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
         } catch {}
       }
-      if (latestMtime > 0) {
-        lastHeartbeat = new Date(latestMtime).toISOString()
-        const ageMins = (Date.now() - latestMtime) / 60000
-        status = ageMins < 1440 ? 'online' : ageMins < 10080 ? 'offline' : 'unknown'
+    } catch {}
+
+    // Check agent state directory (sessions, logs, etc.)
+    // This is where agent runtime files are stored
+    try {
+      const HOME = process.env.HOME || ''
+      const stateDir = path.join(HOME, '.openclaw', 'agents', id)
+      if (fs.existsSync(stateDir)) {
+        // Check sessions directory specifically (most frequently updated)
+        const sessionsDir = path.join(stateDir, 'sessions')
+        if (fs.existsSync(sessionsDir)) {
+          try {
+            const s = fs.statSync(sessionsDir)
+            if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+          } catch {}
+        }
+        // Also check root state directory
+        try {
+          const entries = fs.readdirSync(stateDir, { withFileTypes: true })
+          for (const e of entries) {
+            if (!e.isFile()) continue
+            try {
+              const s = fs.statSync(path.join(stateDir, e.name))
+              if (s.mtime.getTime() > latestMtime) latestMtime = s.mtime.getTime()
+            } catch {}
+          }
+        } catch {}
       }
     } catch {}
+
+    if (latestMtime > 0) {
+      lastHeartbeat = new Date(latestMtime).toISOString()
+      const ageMins = (Date.now() - latestMtime) / 60000
+
+      // Determine status based on gateway + file activity
+      if (gatewayRunning && ageMins < 1440) {
+        // Gateway running + activity in last 24h = online
+        status = 'online'
+      } else if (gatewayRunning) {
+        // Gateway running but no recent activity = offline
+        status = 'offline'
+      } else if (ageMins < 10080) {
+        // No gateway but recent activity = offline (was active in last week)
+        status = 'offline'
+      } else {
+        // No gateway and stale = unknown
+        status = 'unknown'
+      }
+    } else {
+      // No file activity at all
+      status = gatewayRunning ? 'offline' : 'unknown'
     }
 
     // Update cache with fresh status
@@ -1348,6 +1405,7 @@ export interface AgentImpact {
   groupCount: number
   whatsapp: string | null
   hasStateDir: boolean
+  tags: string[]
 }
 
 /** Summarise what deleting an agent would affect (for the confirmation UI) */
@@ -1362,17 +1420,19 @@ export function getAgentImpact(id: string, agentDir: string): AgentImpact {
   let communityCount = 0
   let groupCount = 0
   let whatsapp: string | null = null
+  let tags: string[] = []
   try {
     const info = readAgentInfo(id, agentDir)
     communityCount = info.communities.length
     groupCount = info.groups.length
     whatsapp = info.whatsapp
+    tags = info.tags || []
   } catch {}
 
   // profile-mode state dir: ~/.openclaw-<id>
   const hasStateDir = fs.existsSync(path.join(process.env.HOME || '', `.openclaw-${id}`))
 
-  return { todoCount, communityCount, groupCount, whatsapp, hasStateDir }
+  return { todoCount, communityCount, groupCount, whatsapp, hasStateDir, tags }
 }
 
 /** Delete an agent's workspace dir and optionally its profile state dir.

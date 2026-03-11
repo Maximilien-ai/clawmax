@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
+import { useToast } from '../components/Toast'
 
 interface GroupEntry {
   name: string
@@ -64,6 +65,7 @@ function secAgo(ts: number): string {
 }
 
 export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
+  const { showSuccess } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -589,6 +591,23 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             channel={chatPanelChannel}
             onClose={() => setChatPanelChannel(null)}
             mode="pane"
+            onMessageSent={(mentionedIds, hasAll) => {
+              // Check which mentioned agents were offline
+              const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
+              // Wait for agents to process message, then refresh and show toast
+              setTimeout(() => {
+                fetch('/api/agents')
+                  .then(r => r.json())
+                  .then(data => {
+                    setAgents(data.agents || [])
+                    // Notify other components (like Agents page) to refresh
+                    window.dispatchEvent(new CustomEvent('agents-updated'))
+                  })
+                  .catch(() => {})
+                // Show toast for offline agents that were mentioned
+                offlineAgents.forEach(a => showSuccess(`${a.name} is now active`))
+              }, 2000)
+            }}
           />
         </div>
       )}
@@ -600,6 +619,23 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         channel={chatPanelChannel}
         onClose={() => setChatPanelChannel(null)}
         mode="overlay"
+        onMessageSent={(mentionedIds, hasAll) => {
+          // Check which mentioned agents were offline
+          const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
+          // Wait for agents to process message, then refresh and show toast
+          setTimeout(() => {
+            fetch('/api/agents')
+              .then(r => r.json())
+              .then(data => {
+                setAgents(data.agents || [])
+                // Notify other components (like Agents page) to refresh
+                window.dispatchEvent(new CustomEvent('agents-updated'))
+              })
+              .catch(() => {})
+            // Show toast for offline agents that were mentioned
+            offlineAgents.forEach(a => showSuccess(`${a.name} is now active`))
+          }, 2000)
+        }}
       />
     )}
 

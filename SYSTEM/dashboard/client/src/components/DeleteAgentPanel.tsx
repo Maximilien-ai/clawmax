@@ -6,6 +6,7 @@ interface AgentImpact {
   groupCount: number
   whatsapp: string | null
   hasStateDir: boolean
+  tags?: string[]
 }
 
 interface DeleteAgentPanelProps {
@@ -79,6 +80,21 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
               <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
             </div>
           </div>
+
+          {/* Built-in warning */}
+          {impact?.tags?.includes('built-in') && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-2">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider flex items-center gap-2">
+                <span>⚠️</span> Built-in System Agent
+              </p>
+              <p className="text-sm text-purple-800">
+                This is a ClawMax built-in agent that provides system functionality. You can delete it, but you may want to archive it instead to preserve the template.
+              </p>
+              <p className="text-xs text-purple-600 mt-2">
+                💡 <strong>Tip:</strong> Use Archive instead to keep the agent configuration without running it.
+              </p>
+            </div>
+          )}
 
           {/* Impact summary */}
           {loadError && (

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
-import { getAgentGatewayConfig } from '../lib/workspace'
+import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 
 const router = Router()
 
@@ -189,18 +189,36 @@ router.post('/:id/chat', (req, res) => {
       if (message.type === 'res' && !authenticated) {
         if (message.ok) {
           authenticated = true
-          // Send chat.send request
-          const chatRequest = {
+          /**
+           * Agent Routing in Shared Gateway Architecture
+           *
+           * All agents share a single gateway (port 18889). To route a message to a
+           * specific agent, we use the 'agent' RPC method (not 'chat.send').
+           *
+           * The 'agent' method accepts:
+           * - agentId: Which agent to run (e.g., "clawmax-assistant", "max0")
+           * - message: The user's message
+           * - sessionKey: Session key for conversation continuity (NOT sessionId)
+           * - idempotencyKey: Prevents duplicate request processing
+           *
+           * This matches the behavior of `openclaw agent --agent <id>` CLI command.
+           * Response is streamed via 'agent' events with stream='assistant'.
+           */
+          const agentRequest = {
             type: 'req',
             id: requestId,
-            method: 'chat.send',
+            method: 'agent',
             params: {
+              agentId: id,  // Specify which agent to run
               message: req.body.message,
-              sessionKey: sessionId || `dashboard-chat-${id}`,
+              // Session key MUST match format: agent:AGENTID:suffix
+              // The agentId in the key must match the agentId param
+              sessionKey: `agent:${id}:dashboard-chat`,
               idempotencyKey: `${Date.now()}-${Math.random().toString(36).slice(2)}`
             }
           }
-          ws.send(JSON.stringify(chatRequest))
+          console.log(`[Chat Route] Sending agent request for ${id}`)
+          ws.send(JSON.stringify(agentRequest))
         } else {
           clearTimeout(timeout)
           cleanup()
@@ -213,7 +231,7 @@ router.post('/:id/chat', (req, res) => {
         return
       }
 
-      // Handle chat.send response
+      // Handle agent response
       if (message.type === 'res' && message.id === requestId) {
         if (message.error) {
           clearTimeout(timeout)
@@ -224,7 +242,8 @@ router.post('/:id/chat', (req, res) => {
             res.end()
           }
         } else if (message.payload) {
-          // Chat request accepted
+          // Agent request accepted - invalidate status cache so next refresh shows online
+          invalidateAgentStatusCache(id)
           send('start', { sessionId: message.payload.sessionId })
         }
         return

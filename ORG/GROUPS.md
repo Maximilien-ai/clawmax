@@ -55,7 +55,7 @@
 - **Community:** Engineering Team
 - **Channels:** slack
 
-- **Members:** agent0, engineer, max0
+- **Members:** engineer, max0
 ### Onboarding
 - **Description:** New team member onboarding
 - **Tags:** onboarding, hr

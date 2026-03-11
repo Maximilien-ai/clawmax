@@ -16,6 +16,7 @@ interface Agent {
   workspacePath: string
   communities: GroupEntry[]
   groups: GroupEntry[]
+  tags: string[]
 }
 
 interface AgentActivity {
@@ -145,7 +146,10 @@ export default function AgentDetailPanel({
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-bold text-gray-900 text-base">{agent.name}</h2>
+              <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5">
+                {agent.tags.includes('built-in') && <span>🤖</span>}
+                {agent.name}
+              </h2>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_TEXT[agent.status]}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[agent.status]}`} />
                 {agent.status}

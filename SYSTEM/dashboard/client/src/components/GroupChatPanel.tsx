@@ -29,6 +29,7 @@ interface Props {
   onClose: () => void
   mode?: 'overlay' | 'pane'
   onExpand?: () => void
+  onMessageSent?: (mentionedAgentIds: string[], hasAll: boolean) => void
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -37,7 +38,7 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand }: Props) {
+export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -58,7 +59,6 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    console.log('[Typing Indicators] Setting up polling for channel:', channel.name)
     fetchMessages()
     fetchArchivesList()
     fetchActiveWorkflows()
@@ -66,9 +66,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     const interval = setInterval(fetchMessages, 2000)
     // Check for active workflows every 5 seconds
     const workflowInterval = setInterval(fetchActiveWorkflows, 5000)
-    console.log('[Typing Indicators] Polling intervals set up (messages: 2s, workflows: 5s)')
     return () => {
-      console.log('[Typing Indicators] Cleaning up polling for channel:', channel.name)
       clearInterval(interval)
       clearInterval(workflowInterval)
     }
@@ -79,26 +77,12 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  useEffect(() => {
-    console.log('[Typing Indicators] typingAgents state changed:', {
-      count: typingAgents.size,
-      agents: Array.from(typingAgents)
-    })
-  }, [typingAgents])
-
   async function fetchActiveWorkflows() {
     try {
-      console.log('[Typing Indicators] Checking for active workflows...', {
-        channelName: channel.name,
-        channelType: channel.type,
-        memberCount: channel.members.length
-      })
-
       // Get all workflows
       const workflowsRes = await fetch('/api/workflows')
       const workflowsData = await workflowsRes.json()
       const workflows = workflowsData.workflows || []
-      console.log('[Typing Indicators] Found workflows:', workflows.length)
 
       // Find workflows targeting this channel
       const relevantWorkflows = workflows.filter((w: any) => {
@@ -108,51 +92,35 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
           return w.targeting.groups.includes(channel.name)
         }
       })
-      console.log('[Typing Indicators] Relevant workflows for this channel:', relevantWorkflows.length, relevantWorkflows.map(w => w.id))
 
       // Check if any have running executions
       for (const workflow of relevantWorkflows) {
         const execRes = await fetch(`/api/workflows/${workflow.id}/executions?limit=1`)
         const execData = await execRes.json()
         const executions = execData.executions || []
-        console.log(`[Typing Indicators] Workflow ${workflow.id} executions:`, executions.length, executions[0]?.status)
 
         if (executions.length > 0) {
           const latestExec = executions[0]
           if (latestExec.status === 'running' || latestExec.status === 'pending') {
-            console.log(`[Typing Indicators] Found ${latestExec.status} execution:`, latestExec.id)
-
             // Fetch full execution details to get participants
             const detailsRes = await fetch(`/api/workflows/${workflow.id}/executions/${latestExec.id}`)
             const fullExec = await detailsRes.json()
-            console.log('[Typing Indicators] Full execution details:', {
-              participants: fullExec.participants?.length,
-              participantData: fullExec.participants
-            })
 
             if (fullExec.participants) {
               // Find participants that are still pending or running
               const workingAgents = new Set<string>()
               for (const participant of fullExec.participants) {
-                console.log('[Typing Indicators] Checking participant:', {
-                  agentId: participant.agentId,
-                  status: participant.status,
-                  isInChannel: channel.members.some(m => m.id === participant.agentId)
-                })
                 if (participant.status === 'pending' || participant.status === 'running') {
                   // Check if this agent is in the current channel
                   const agentInChannel = channel.members.some(m => m.id === participant.agentId)
                   if (agentInChannel) {
                     workingAgents.add(participant.agentId)
-                    console.log('[Typing Indicators] Added typing agent:', participant.agentId)
                   }
                 }
               }
 
-              console.log('[Typing Indicators] Working agents found:', workingAgents.size, Array.from(workingAgents))
               if (workingAgents.size > 0) {
                 setTypingAgents(workingAgents)
-                console.log('[Typing Indicators] Set typing agents!')
                 return // Found active workflow, stop checking others
               }
             }
@@ -161,7 +129,6 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       }
 
       // No active workflows, clear typing indicators
-      console.log('[Typing Indicators] No active workflows, clearing indicators')
       setTypingAgents(new Set())
     } catch (err) {
       console.error('[Typing Indicators] Failed to fetch active workflows:', err)
@@ -215,6 +182,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   async function sendMessage() {
     if (!input.trim() || sending) return
 
+    // For bulk chat (temporary ad-hoc groups), auto-mention all members
+    const isBulkChat = channel.tags?.includes('bulk-chat')
+
     // Extract @mentions
     const mentionRegex = /@(\w+)/g
     const matches = Array.from(input.matchAll(mentionRegex))
@@ -223,8 +193,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     // Check for @all
     const hasAll = mentionedNames.some(name => name.toLowerCase() === 'all')
 
-    // Find agents that match the mentions (or all if @all is used)
-    const mentionedAgents = hasAll
+    // Find agents that match the mentions (or all if @all is used or bulk chat)
+    const mentionedAgents = (hasAll || isBulkChat)
       ? channel.members
       : channel.members.filter(agent =>
           mentionedNames.some(name =>
@@ -263,6 +233,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         fetchMessages()
         // Focus back on input after sending
         setTimeout(() => inputRef.current?.focus(), 0)
+        // Notify parent about message sent (for status refresh and toasts)
+        onMessageSent?.(mentionedAgents.map(a => a.id), hasAll)
       } else {
         const data = await r.json()
         setError(data.error || 'Failed to send message')
@@ -444,10 +416,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gray-800">
-              {channel.type === 'community' ? '🏘' : '👥'} {channel.name}
+              {channel.type === 'community' ? '🏘' : '👥'} {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}
+              {channel.members.length} group member{channel.members.length !== 1 ? 's' : ''}
+              {channel.tags?.includes('bulk-chat') && <span className="ml-2 text-blue-500">• Auto-mentions all members</span>}
             </p>
           </div>
           <div className="flex items-center gap-2">

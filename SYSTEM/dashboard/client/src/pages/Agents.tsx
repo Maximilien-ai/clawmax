@@ -8,6 +8,7 @@ import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import AgentChatPanel from '../components/AgentChatPanel'
+import GroupChatPanel from '../components/GroupChatPanel'
 import AgentStatusPanel from '../components/AgentStatusPanel'
 import CommunitiesManager from '../components/CommunitiesManager'
 import BulkOperationsPanel from '../components/BulkOperationsPanel'
@@ -109,6 +110,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
+  const [bulkChatChannel, setBulkChatChannel] = useState<{ name: string; description: string | null; tags: string[]; type: 'group'; community: string | null; channels: string[]; members: { id: string; name: string; status: 'online' | 'offline' | 'unknown' }[] } | null>(null)
   const [statusTarget, setStatusTarget] = useState<Agent | null>(null)
   const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
   const [saveAsTemplateTarget, setSaveAsTemplateTarget] = useState<Agent | null>(null)
@@ -175,7 +177,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         fetchAgents(true, true) // resetPagination=true, silent=true
       }
     }, 30000) // 30 seconds
-    return () => clearInterval(interval)
+
+    // Listen for agent updates from other components (e.g., Communication page)
+    const handleAgentsUpdated = () => {
+      fetchAgents(true, true) // silent refresh
+    }
+    window.addEventListener('agents-updated', handleAgentsUpdated)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('agents-updated', handleAgentsUpdated)
+    }
   }, [fetchAgents])
 
   // Refetch when page becomes active (e.g., navigating back from Skills page)
@@ -521,6 +533,28 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       showError('Failed to unarchive agents')
       console.error(err)
     }
+  }
+
+  const handleBulkChat = (agentIds: string[]) => {
+    // Get the selected agents
+    const selectedAgents = agents.filter(a => agentIds.includes(a.id))
+
+    // Create a temporary channel for bulk chat
+    // Use a unique name that won't conflict with real groups
+    const timestamp = Date.now()
+    setBulkChatChannel({
+      name: `bulk-chat-${timestamp}`,
+      description: `Temporary chat with ${selectedAgents.map(a => a.name).join(', ')}`,
+      tags: ['bulk-chat'],
+      type: 'group',
+      community: null,
+      channels: [],
+      members: selectedAgents.map(a => ({
+        id: a.id,
+        name: a.name,
+        status: a.status
+      }))
+    })
   }
 
   const toggleAgentSelection = (agentId: string) => {
@@ -1027,49 +1061,121 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       )}
 
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'list' && (
-        <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-          {filteredAgents.map(agent => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              selected={selectedAgent?.id === agent.id}
-              collapsed={collapsedIds.has(agent.id)}
-              onToggle={() => toggleCollapse(agent.id)}
-              onClick={() => setSelectedAgent(agent)}
-              onDelete={() => setDeleteTarget(agent.id)}
-              onLinkWa={() => setLinkWaTarget(agent)}
-              onSyncGroups={() => setSyncGroupsTarget(agent)}
-              onChat={() => setChatTarget(agent)}
-              onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
-              onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
-              onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
-              onManageTags={() => setTagManageTarget(agent)}
-              onManageCommunities={() => setCommunitiesTarget(agent)}
-              onNavigateToGroup={onNavigateToGroup}
-              onNavigateToSkills={onNavigateToSkills}
-              onNavigateToWorkflow={onNavigateToWorkflows}
-              onRestart={() => handleRestart(agent.id)}
-              onArchive={() => setArchiveTarget(agent)}
-              onUnarchive={() => setUnarchiveTarget(agent)}
-              onRename={() => setRenameTarget(agent)}
-              onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
-              onExport={() => handleExportAgent(agent.id)}
-              workflows={agentWorkflows.get(agent.id)}
-              onUnlinkWa={() => {
-                fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
-                  .then(() => fetchAgents())
-                  .catch(() => {})
-              }}
-            />
-          ))}
+        <div className="space-y-8">
+          {(() => {
+            // Separate user agents from built-in agents
+            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+
+            const renderAgentCards = (agents: Agent[], title?: string) => (
+              <>
+                {title && (
+                  <div className="mb-4">
+                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                      {title.includes('Built-in') && <span>🤖</span>}
+                      {title}
+                    </h2>
+                  </div>
+                )}
+                <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                  {agents.map(agent => (
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      selected={selectedAgent?.id === agent.id}
+                      collapsed={collapsedIds.has(agent.id)}
+                      onToggle={() => toggleCollapse(agent.id)}
+                      onClick={() => setSelectedAgent(agent)}
+                      onDelete={() => setDeleteTarget(agent.id)}
+                      onLinkWa={() => setLinkWaTarget(agent)}
+                      onSyncGroups={() => setSyncGroupsTarget(agent)}
+                      onChat={() => setChatTarget(agent)}
+                      onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
+                      onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
+                      onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
+                      onManageTags={() => setTagManageTarget(agent)}
+                      onManageCommunities={() => setCommunitiesTarget(agent)}
+                      onNavigateToGroup={onNavigateToGroup}
+                      onNavigateToSkills={onNavigateToSkills}
+                      onNavigateToWorkflow={onNavigateToWorkflows}
+                      onRestart={() => handleRestart(agent.id)}
+                      onArchive={() => setArchiveTarget(agent)}
+                      onUnarchive={() => setUnarchiveTarget(agent)}
+                      onRename={() => setRenameTarget(agent)}
+                      onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+                      onExport={() => handleExportAgent(agent.id)}
+                      workflows={agentWorkflows.get(agent.id)}
+                      isSelected={selectedAgentIds.has(agent.id)}
+                      onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+                      onUnlinkWa={() => {
+                        fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
+                          .then(() => fetchAgents())
+                          .catch(() => {})
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )
+
+            return (
+              <>
+                {/* User Agents Section */}
+                {userAgents.length > 0 && (
+                  <div>
+                    {renderAgentCards(userAgents, builtInAgents.length > 0 ? 'Your Agents' : undefined)}
+                  </div>
+                )}
+
+                {/* Built-in System Agents Section */}
+                {builtInAgents.length > 0 && (
+                  <div className={userAgents.length > 0 ? "mt-10 pt-8 border-t-2 border-gray-300" : ""}>
+                    {renderAgentCards(builtInAgents, 'Built-in System Agents')}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
 
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size === 0 && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {(() => {
-            const shownAgentIds = new Set<string>()
-            return Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => {
+            // Separate user agents from built-in agents
+            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+
+            // Group each separately
+            const userGrouped = new Map<string, Agent[]>()
+            const builtInGrouped = new Map<string, Agent[]>()
+
+            userAgents.forEach(agent => {
+              const tag = agent.tags.length > 0 ? agent.tags[0] : '__untagged__'
+              if (!userGrouped.has(tag)) userGrouped.set(tag, [])
+              userGrouped.get(tag)!.push(agent)
+            })
+
+            builtInAgents.forEach(agent => {
+              const tag = agent.tags.length > 0 ? agent.tags[0] : '__untagged__'
+              if (!builtInGrouped.has(tag)) builtInGrouped.set(tag, [])
+              builtInGrouped.get(tag)!.push(agent)
+            })
+
+            const renderAgentSection = (groupedAgents: Map<string, Agent[]>, sectionTitle: string | null, shownAgentIds: Set<string>) => (
+              <>
+                {sectionTitle && groupedAgents.size > 0 && (
+                  <div className="mb-4">
+                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                      {sectionTitle === 'Built-in System Agents' && <span>🤖</span>}
+                      {sectionTitle}
+                      <span className="text-sm font-normal text-gray-400">
+                        ({Array.from(groupedAgents.values()).reduce((sum, agents) => sum + agents.length, 0)})
+                      </span>
+                    </h2>
+                  </div>
+                )}
+                {Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => {
               // Split agents by primary (first tag matches) vs secondary
               const primaryAgents = tagAgents.filter(a => a.tags[0] === tag && !shownAgentIds.has(a.id))
               const secondaryAgentsNotShown = tagAgents.filter(a => a.tags[0] !== tag && !shownAgentIds.has(a.id))
@@ -1185,14 +1291,47 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   )}
                 </div>
               )
-            })
+            })}
+              </>
+            )
+
+            const shownAgentIds = new Set<string>()
+
+            return (
+              <>
+                {/* User Agents Section */}
+                {userGrouped.size > 0 && renderAgentSection(userGrouped, userGrouped.size > 0 && builtInGrouped.size > 0 ? 'Your Agents' : null, shownAgentIds)}
+
+                {/* Built-in System Agents Section */}
+                {builtInGrouped.size > 0 && (
+                  <div className="mt-8 pt-8 border-t border-gray-200">
+                    {renderAgentSection(builtInGrouped, 'Built-in System Agents', shownAgentIds)}
+                  </div>
+                )}
+              </>
+            )
           })()}
         </div>
       )}
 
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size > 0 && (
-        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {filteredAgents.map(agent => (
+        <div className="space-y-8">
+          {(() => {
+            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+
+            return (
+              <>
+                {/* User Agents */}
+                {userAgents.length > 0 && (
+                  <>
+                    {userAgents.length > 0 && builtInAgents.length > 0 && (
+                      <div className="mb-4">
+                        <h2 className="text-base font-bold text-gray-800">Your Agents ({userAgents.length})</h2>
+                      </div>
+                    )}
+                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                      {userAgents.map(agent => (
             <AgentGridCard
               key={agent.id}
               agent={agent}
@@ -1214,7 +1353,49 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
               usage={agentUsage[agent.id]}
             />
-          ))}
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Built-in System Agents */}
+                {builtInAgents.length > 0 && (
+                  <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200" : ""}>
+                    <div className="mb-4">
+                      <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                        <span>🤖</span> Built-in System Agents ({builtInAgents.length})
+                      </h2>
+                    </div>
+                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                      {builtInAgents.map(agent => (
+                        <AgentGridCard
+                          key={agent.id}
+                          agent={agent}
+                          selected={selectedAgent?.id === agent.id}
+                          onClick={() => setSelectedAgent(agent)}
+                          onChat={() => setChatTarget(agent)}
+                          onStatus={() => setStatusTarget(agent)}
+                          onDelete={() => setDeleteTarget(agent.id)}
+                          onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                          onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+                          onExport={() => handleExportAgent(agent.id)}
+                          onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
+                          onManageTags={() => setTagManageTarget(agent)}
+                          onRestart={() => handleRestart(agent.id)}
+                          onArchive={() => setArchiveTarget(agent)}
+                          onUnarchive={() => setUnarchiveTarget(agent)}
+                          onRename={() => setRenameTarget(agent)}
+                          isSelected={selectedAgentIds.has(agent.id)}
+                          onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+                          usage={agentUsage[agent.id]}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -1238,6 +1419,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onSelectAgent={setSelectedAgent}
           onToggleSelect={toggleAgentSelection}
           onChat={setChatTarget}
+          onStatus={setStatusTarget}
           onDelete={(id) => setDeleteTarget(id)}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
@@ -1386,7 +1568,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <AgentChatPanel
             agentId={chatTarget.id}
             agentName={chatTarget.name}
+            agentStatus={chatTarget.status}
             onClose={() => setChatTarget(null)}
+            onSuccess={() => {
+              // Show toast if agent was offline when chat started
+              if (chatTarget.status === 'offline') {
+                showSuccess(`${chatTarget.name} is now active`)
+              }
+              // Wait for agent to finish writing files before refreshing status
+              // This ensures file activity timestamp is updated
+              setTimeout(() => fetchAgents(), 2000)
+            }}
           />
         </ErrorBoundary>
       )}
@@ -1519,6 +1711,16 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onAddToGroups={handleBulkAddToGroups}
           onArchive={handleBulkArchive}
           onUnarchive={handleBulkUnarchive}
+          onChat={handleBulkChat}
+        />
+      )}
+
+      {/* Bulk Chat Panel */}
+      {bulkChatChannel && (
+        <GroupChatPanel
+          channel={bulkChatChannel}
+          onClose={() => setBulkChatChannel(null)}
+          mode="overlay"
         />
       )}
     </div>
@@ -1706,7 +1908,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect,
 }: {
   agent: Agent
   selected: boolean
@@ -1733,19 +1935,33 @@ const AgentCard = React.memo(function AgentCard({
   onSaveAsTemplate: () => void
   onExport: () => void
   workflows?: Workflow[]
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   return (
     <div
       id={`agent-card-${agent.id}`}
-      className={`bg-white rounded-xl border shadow-sm transition-all ${
-        selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 hover:shadow-md'
+      className={`bg-white rounded-xl border shadow-sm transition-all relative ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:shadow-md'
       }`}
     >
+      {/* Selection checkbox overlay */}
+      {onToggleSelect && (
+        <div className="absolute top-2 left-2 z-10">
+          <input
+            type="checkbox"
+            checked={isSelected || false}
+            onChange={e => { e.stopPropagation(); onToggleSelect() }}
+            onClick={e => e.stopPropagation()}
+            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </div>
+      )}
       {/* Card header — always visible */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0" style={onToggleSelect ? { paddingLeft: '1.5rem' } : {}}>
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
           {agent.archived ? (
@@ -1758,7 +1974,7 @@ const AgentCard = React.memo(function AgentCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 ml-2 shrink-0">
+        <div className="flex items-center gap-1 ml-2 shrink-0 relative z-20" onClick={e => e.stopPropagation()}>
           {/* Frequent actions (always visible) */}
           {onViewDocs && (
             <button
@@ -2132,6 +2348,11 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
+        {agent.tags.includes('built-in') && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300 shrink-0" title="Built-in system agent">
+            🤖
+          </span>
+        )}
         {agent.archived && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300 shrink-0">
             📦
@@ -2299,6 +2520,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onSelectAgent,
   onToggleSelect,
   onChat,
+  onStatus,
   onDelete,
   onArchive,
   onUnarchive,
@@ -2313,6 +2535,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onSelectAgent: (agent: Agent) => void
   onToggleSelect: (id: string) => void
   onChat: (agent: Agent) => void
+  onStatus: (agent: Agent) => void
   onDelete: (id: string) => void
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
@@ -2445,6 +2668,11 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                  {agent.tags.includes('built-in') && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300" title="Built-in system agent">
+                      🤖
+                    </span>
+                  )}
                   <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
                 </div>
               </td>
@@ -2506,7 +2734,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      setChatTarget(agent)
+                      onChat(agent)
                     }}
                     className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
                     title="Chat"
@@ -2562,7 +2790,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         onClick={(e) => {
                           e.stopPropagation()
                           setOpenDropdown(null)
-                          setStatusTarget(agent)
+                          onStatus(agent)
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
                       >

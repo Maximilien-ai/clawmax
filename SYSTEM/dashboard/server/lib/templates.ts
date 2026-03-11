@@ -749,6 +749,7 @@ export function importOrganizationTemplate(
   options?: {
     prefix?: string
     suffix?: string
+    includeBuiltIn?: boolean
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -773,11 +774,17 @@ export function importOrganizationTemplate(
 
     const prefix = options?.prefix || ''
     const suffix = options?.suffix || ''
+    const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
     const createdAgents: string[] = []
+
+    // Filter out built-in agents if includeBuiltIn is false
+    const agentsToCreate = includeBuiltIn
+      ? template.agents
+      : template.agents.filter(a => !a.tags?.includes('built-in'))
 
     try {
       // Step 1: Create all agents with their files
-      for (const templateAgent of template.agents) {
+      for (const templateAgent of agentsToCreate) {
         const sourceAgentId = templateAgent.id
         const targetAgentId = `${prefix}${sourceAgentId}${suffix}`
 
@@ -808,7 +815,7 @@ export function importOrganizationTemplate(
 
       // Step 2: Create COMMUNITIES.md for agents with community memberships
       if (template.communities && template.communities.length > 0) {
-        for (const templateAgent of template.agents) {
+        for (const templateAgent of agentsToCreate) {
           const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
           const agentCommunities = templateAgent.communities || []
 
@@ -839,7 +846,7 @@ export function importOrganizationTemplate(
 
       // Step 3: Create GROUPS.md for agents with group memberships
       if (template.groups && template.groups.length > 0) {
-        for (const templateAgent of template.agents) {
+        for (const templateAgent of agentsToCreate) {
           const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
           const agentGroups = templateAgent.groups || []
 

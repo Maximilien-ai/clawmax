@@ -27,6 +27,8 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [activeAgentsBuffer, setActiveAgentsBuffer] = useState<string[]>([])
+  const activeAgentsTimerRef = React.useRef<NodeJS.Timeout | null>(null)
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id))
@@ -44,7 +46,37 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [removeToast])
 
   const showSuccess = useCallback((message: string, duration?: number) => {
-    showToast(message, 'success', duration)
+    // Detect "X is now active" messages and batch them
+    const activeMatch = message.match(/^(.+?) is now active$/)
+    if (activeMatch) {
+      const agentName = activeMatch[1]
+
+      // Add to buffer
+      setActiveAgentsBuffer(prev => [...prev, agentName])
+
+      // Clear existing timer
+      if (activeAgentsTimerRef.current) {
+        clearTimeout(activeAgentsTimerRef.current)
+      }
+
+      // Set new timer to flush after 1 second of inactivity
+      activeAgentsTimerRef.current = setTimeout(() => {
+        setActiveAgentsBuffer(current => {
+          if (current.length === 0) return current
+
+          // Create combined toast
+          const combinedMessage = current.length === 1
+            ? `${current[0]} is now active`
+            : `${current.length} agents are now active: ${current.join(', ')}`
+
+          showToast(combinedMessage, 'success', duration || 5000)
+
+          return [] // Clear buffer
+        })
+      }, 1000)
+    } else {
+      showToast(message, 'success', duration)
+    }
   }, [showToast])
 
   const showError = useCallback((message: string, duration?: number) => {
