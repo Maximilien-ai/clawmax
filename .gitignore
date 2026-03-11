@@ -37,6 +37,7 @@ WORKFLOWS/executions/
 # Template agent instances (keep template definitions only)
 TEMPLATES/organizations/*/agents/
 TEMPLATES/organizations/qa-team/
+# Note: User-created templates in workspace. Global system templates at ~/.openclaw/TEMPLATES/
 
 # Generated scripts
 SYSTEM/scripts/
