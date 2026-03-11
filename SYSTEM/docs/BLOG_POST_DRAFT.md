@@ -127,7 +127,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Visual overview of your entire agent ecosystem**
 
-![ClawMax - dashboard with agent cards](images/image1-dashboard.jpg)
+![ClawMax - dashboard with agent cards](images/image1-dashboard.png)
 
 **Features**:
 - Real-time online/offline status via gateway detection
@@ -163,7 +163,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Logical grouping of agents for coordination**
 
-![ClawMax - organizations page with hierarchy](images/image2-organizations.jpg)
+![ClawMax - organizations page with hierarchy](images/image2-organizations.png)
 
 **Concepts**:
 - **Communities**: Departments or large groups (Engineering, Product, Customer Success)
@@ -191,7 +191,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 **Scheduled or manual multi-agent coordination**
 
-![ClawMax - workflow execution in progress](images/image3-workflow.jpg)
+![ClawMax - workflow execution in progress](images/image3-workflow.png)
 
 **Anatomy of a Workflow**:
 ```yaml
@@ -242,7 +242,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 **Pre-built workflows, agent, and orgs templates for common scenarios**
 
-![ClawMax - template library with cards](images/image4-template-library.jpg)
+![ClawMax - template library with cards](images/image4-template-library.png)
 
 **Workflow Templates** (8 pre-built included):
 1. Daily Standup - Morning team sync
@@ -337,7 +337,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 **Centralized knowledge base for your agent ecosystem**
 
-![ClawMax - document editor with YAML validation](images/image5-document-editor.jpg)
+![ClawMax - document editor with YAML validation](images/image5-document-editor.png)
 
 **Structure**:
 ```
@@ -712,11 +712,11 @@ TODOs
 
 ### Images
 
-- [ ] ⏳ image1-dashboard.jpg - Dashboard overview with agent cards (line 130)
-- [ ] ⏳ image2-organizations.jpg - Organizations page with hierarchy (line 166)
-- [ ] ⏳ image3-workflow.jpg - Workflow execution in progress (line 194)
-- [ ] ⏳ image4-template-library.jpg - Template library with cards (line 245)
-- [ ] ⏳ image5-document-editor.jpg - Document editor with YAML validation (line 340)
+- [x] ✅ image1-dashboard.png - Dashboard overview with agent cards (line 130)
+- [x] ✅ image2-organizations.png - Organizations page with hierarchy (line 166)
+- [x] ✅ image3-workflow.png - Workflow execution in progress (line 194)
+- [x] ✅ image4-template-library.png - Template library with cards (line 245)
+- [x] ✅ image5-document-editor.png - Document editor with YAML validation (line 340)
 
 ### Videos
 
