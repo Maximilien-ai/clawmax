@@ -1545,6 +1545,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
 }
 
 function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community' ? 'border-purple-300 bg-purple-50' : 'border-indigo-300 bg-indigo-50'
   const onlineCount = channel.members.filter(m => m.status === 'online').length
 

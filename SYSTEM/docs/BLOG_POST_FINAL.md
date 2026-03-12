@@ -116,6 +116,11 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
   and ensures all tests pass before merge"
   ```
 
+<video width="800" controls>
+  <source src="videos/video2-add-agent.mov" type="video/quicktime">
+  Your browser does not support the video tag.
+</video>
+
 **Planned Features** ⏳:
 - Token usage monitoring (requires OpenClaw Gateway RPC updates)
 - Agent health metrics and uptime tracking
@@ -434,6 +439,8 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 ### Get Involved
 
 🌐 **Website**: [ClawMax.ai](https://clawmax.ai)
+
+![ClawMax.ai website](images/image6-clawmax_ai.png)
 
 🚀 **GitHub OSS**: [Maximilien-ai/clawmax](https://github.com/Maximilien-ai/clawmax)
 
