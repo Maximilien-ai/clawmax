@@ -14,7 +14,8 @@
 - 🎬 Demo ready → **Friday PM**
 
 **Key URLs**:
-- GitHub: `Maximilien-ai/maxclaw` (PRIVATE)
+- GitHub (code): `Maximilien-ai/maxclaw` (PRIVATE)
+- GitHub (website): `Maximilien-ai/clawmax-ai-web`
 - Website: https://ClawMax.ai (GoDaddy → Vercel)
 - Blog: https://maximilien.substack.com
 
@@ -229,9 +230,10 @@ git push -u github main
 
 **Website**: https://ClawMax.ai (GoDaddy domain)
 **Hosting**: Vercel
+**Repo**: https://github.com/Maximilien-ai/clawmax-ai-web
 
 **Tasks**:
-1. [ ] Push website code to GitHub repo (if separate from main repo)
+1. [ ] Verify website code is pushed to GitHub repo (Maximilien-ai/clawmax-ai-web)
 2. [ ] Connect repo to Vercel:
    - [ ] Sign in to Vercel with GitHub
    - [ ] Import project
