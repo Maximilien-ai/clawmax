@@ -32,12 +32,12 @@
 **Test Plan**:
 
 1. **Small Startup Team** (CEO, Engineer, PM + 2 workflows)
-   - [ ] Import to fresh test workspace
-   - [ ] Verify 3 agents created with correct identities
-   - [ ] Check communities/groups populated
-   - [ ] Run "Daily Standup" workflow → verify all 3 agents respond
-   - [ ] Run "Weekly Status Report" workflow → check execution tracking
-   - [ ] Document any issues
+   - [x] Import to fresh test workspace
+   - [x] Verify 3 agents created with correct identities
+   - [x] Check communities/groups populated
+   - [x] Run "Daily Standup" workflow → verify all 3 agents respond
+   - [x] Run "Weekly Status Report" workflow → check execution tracking
+   - [x] Document any issues
 
 2. **Engineering Team** (Engineer, QA, Release + 3 workflows)
    - [ ] Import to fresh workspace
@@ -69,11 +69,11 @@
 #### Priority 2: Quick UI Check ✨
 **Time budget**: 30 minutes
 
-- [ ] Dashboard loads all agent cards
-- [ ] Workflow execution page updates in real-time
-- [ ] Template library displays correctly
-- [ ] Communication page shows groups
-- [ ] Multi-workspace switcher works
+- [x] Dashboard loads all agent cards
+- [x] Workflow execution page updates in real-time
+- [x] Template library displays correctly
+- [x] Communication page shows groups
+- [x] Multi-workspace switcher works
 
 ### Afternoon (1 PM - 5 PM) - 4 hours
 
@@ -81,12 +81,12 @@
 **Time budget**: 1.5 hours
 
 **Tasks**:
-1. [ ] Create dedicated workspace: `demo-workspace`
-2. [ ] Import "Small Startup Team" template
-3. [ ] Verify all 3 agents (CEO, Engineer, PM) are online
-4. [ ] Pre-run "Daily Standup" workflow (for execution history)
-5. [ ] Clear any test/old data from logs
-6. [ ] Take screenshot of clean dashboard for backup
+1. [x] Create dedicated workspace: `demo-workspace`
+2. [x] Import "Small Startup Team" template
+3. [x] Verify all 3 agents (CEO, Engineer, PM) are online
+4. [x] Pre-run "Daily Standup" workflow (for execution history)
+5. [x] Clear any test/old data from logs
+6. [x] Take screenshot of clean dashboard for backup
 
 **Demo workspace checklist**:
 - [ ] ORG/IDENTITY.md has clean mission statement
@@ -257,7 +257,7 @@ mv SYSTEM/docs/TASKS_MAR11.md SYSTEM/docs/archive/
 **Time budget**: 1 hour
 
 **11:00 AM - Full Dress Rehearsal**:
-- [ ] Set up screen sharing (test it)
+- [x] Set up screen sharing (test it)
 - [ ] Close all unnecessary applications
 - [ ] Clear browser history/cache
 - [ ] Load dashboard in fresh browser

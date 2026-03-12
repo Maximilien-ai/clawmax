@@ -1,6 +1,6 @@
 # ClawMax v1.0.0 Launch Presentation
 
-**Date**: Friday, March 14, 2026
+**Date**: Friday, March 13, 2026
 **Duration**: 10-15 minutes
 **Audience**: Technical stakeholders, potential users, team members
 **Format**: Live demo + slides
@@ -30,6 +30,8 @@ NOTE: can we generate a PDF from this or PPTX?
 
 **Visual**: ClawMax logo + OpenClaw logo
 
+NOTE: use /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images/image6-clawmax_ai.png
+
 **Speaking Notes**:
 "Good afternoon! Today I'm excited to share ClawMax v1.0.0 - an orchestration dashboard that makes managing hundreds of AI agents via OpenClaw as easy as managing one."
 
@@ -37,15 +39,13 @@ NOTE: can we generate a PDF from this or PPTX?
 
 ### Slide 2: The Problem
 **Content**:
-- Title: "The Challenge: Scaling from 1 to 100 Agents"
+- Title: "The Challenge: Scaling from 1 to 100s of Agents"
 - Problem bullets:
   - 🖥️ Opening 15 terminal windows to check status
   - 📁 Agents scattered across directories
   - 💬 Manually messaging each agent for team tasks
   - 📜 Checking 47 log files for execution history
   - 📋 Copying files and fixing paths to clone agents
-
-**Visual**: Screenshot of cluttered terminal windows (optional)
 
 **Speaking Notes**:
 "I've been using OpenClaw for weeks now. Individual agents? Easy. But when you scale to dozens or hundreds, things fall apart. Visibility crisis, organization chaos, coordination nightmare."
@@ -66,6 +66,8 @@ NOTE: can we generate a PDF from this or PPTX?
 
 **Visual**: Architecture diagram from blog post
 
+NOTE: see images in /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images/
+
 **Speaking Notes**:
 "ClawMax adds five layers on top of OpenClaw's foundation. It enhances, doesn't replace. Works with existing workspaces, no agent modifications required."
 
@@ -82,6 +84,8 @@ NOTE: can we generate a PDF from this or PPTX?
   - Quick stats (15 agents, 8 workflows, 3 communities)
 
 **Visual**: LIVE DEMO - Dashboard home page
+
+NOTE: use video2: /Users/maximilien/.openclaw/workspace/SYSTEM/docs/videos but will do live
 
 **Speaking Notes**:
 "Let me show you. Here's my dashboard with 15 active agents across 3 communities. Each card shows status, skills, and recent activity. One page, everything I need."
@@ -107,6 +111,8 @@ NOTE: can we generate a PDF from this or PPTX?
   - Watch execution detail page
 
 **Visual**: LIVE DEMO - Workflow execution
+
+NOTE: use video1: /Users/maximilien/.openclaw/workspace/SYSTEM/docs/videos but will do live
 
 **Speaking Notes**:
 "Here's where it gets powerful. I have a 'Status Check' workflow targeting my engineering team. One click, and ClawMax sends the task to all targeted agents via WebSocket. Even more powerful is that workflows have cron schedule so execution is automated."
@@ -138,6 +144,8 @@ NOTE: can we generate a PDF from this or PPTX?
 
 **Visual**: Screenshot of template library
 
+NOTE: see images in /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images/
+
 **Speaking Notes**:
 "Don't want to start from scratch? We have templates. Apply 'Small Startup Team' and get 3 agents with 2 workflows in 30 seconds. Complete packages, zero configuration."
 
@@ -156,6 +164,8 @@ NOTE: can we generate a PDF from this or PPTX?
 - Example: "Create a QA workflow targeting engineers" → Complete workflow generated
 
 **Visual**: Screenshot of system agents in dashboard
+
+NOTE: I can do this live but due to time move to backup
 
 **Speaking Notes**:
 "Here's something unique - we have system agents that help you use ClawMax better. Ask the ClawMax Assistant to create a QA workflow, and it generates the complete workflow with proper targeting, schedule, and instructions."
@@ -183,6 +193,8 @@ NOTE: unclear if we will have this fully implemented so this can be a backup sli
   - 🎯 Both addressed in late March/early April releases
 
 **Visual**: Technical architecture diagram
+
+NOTE: see SVG images in /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images/
 
 **Speaking Notes**:
 "Everything is designed to enhance OpenClaw, not replace it. Your agents keep working if the dashboard goes down. All data is file-based, so you can version control everything with git. This v1.0.0 release is designed for development and testing environments. We're actively working on production hardening - security features, dependency updates, and compliance requirements - shipping end of March."
@@ -222,6 +234,8 @@ NOTE: unclear if we will have this fully implemented so this can be a backup sli
 
 **Visual**: Roadmap timeline
 
+NOTE: generate timeline SVG if possible
+
 **Speaking Notes**:
 "We're just getting started. v1.0.0 is the foundation for development and testing. In late March, we're shipping v1.0.1 with full security hardening and production readiness. Then in April, ClawMax.ai launches with cloud deployment, evaluation features, and advanced AI assistance. The vision? Make multi-agent coordination as natural as single-agent use."
 
@@ -258,6 +272,8 @@ NOTE: will setup clawmax.ai mail but not there yet so above gmail for now.
 
 **Visual**: QR code to GitHub repo + ClawMax.ai signup link
 
+NOTE: generate QR code for https://www.ClawMax.ai
+
 **Speaking Notes**:
 "ClawMax comes in two flavors. First, the Community edition on GitHub - completely open source, free forever. Perfect for individual developers and teams getting started. Second, ClawMax.ai launching in April - for teams that want cloud deployment or on-premise installation with enterprise support. One-time setup fee plus optional monthly support. Both use the same core codebase. Try the OSS version today, upgrade when you're ready for production. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
 
@@ -268,15 +284,15 @@ NOTE: will setup clawmax.ai mail but not there yet so above gmail for now.
 ## 🎬 Demo Environment Setup
 
 ### Pre-Demo Checklist
-- [ ] Dashboard running on `http://localhost:5173`
-- [ ] At least 10 agents online (for realistic demo)
-- [ ] Status Check workflow exists and is functional
-- [ ] Template library populated with pre-built templates
-- [ ] System agents created and visible
-- [ ] Browser window maximized, no distracting tabs
-- [ ] Clear browser cache if needed
-- [ ] Test workflow run to ensure it works
-- [ ] Have backup screenshots in case live demo fails
+- [x] Dashboard running on `http://localhost:5173`
+- [x] At least 10 agents online (for realistic demo)
+- [x] Status Check workflow exists and is functional
+- [x] Template library populated with pre-built templates
+- [x] System agents created and visible
+- [x] Browser window maximized, no distracting tabs
+- [x] Clear browser cache if needed
+- [x] Test workflow run to ensure it works
+- [x] Have backup screenshots in case live demo fails
 
 ### Demo Flow Timing
 1. Dashboard overview - 1 min
@@ -315,13 +331,13 @@ NOTE: overarching goal is to build ClawMax.ai with ClawMax so that as users sign
 ## 📋 Preparation Checklist
 
 ### Before Presentation Day
-- [ ] Create slide deck (Keynote/PowerPoint/Google Slides)
-- [ ] Add screenshots to slides
-- [ ] Test demo environment thoroughly
-- [ ] Practice full run-through (timing: 10-15 min)
-- [ ] Prepare backup screenshots/video
-- [ ] Test screen sharing if remote
-- [ ] Export slides to PDF for sharing
+- [x] Create slide deck (HTML with reveal.js - can export to PDF)
+- [x] Add screenshots to slides (linked from images directory)
+- [ ] Test demo environment thoroughly (Friday AM)
+- [ ] Practice full run-through (timing: 10-15 min) (Thursday PM)
+- [x] Prepare backup screenshots/video (available in docs)
+- [ ] Test screen sharing if remote (Friday AM)
+- [ ] Export slides to PDF for sharing (Friday AM)
 
 ### Day Of Presentation
 - [ ] Restart dashboard to ensure clean state
@@ -367,13 +383,13 @@ NOTE: overarching goal is to build ClawMax.ai with ClawMax so that as users sign
 ## 📸 Visual Assets Needed
 
 ### For Slides
-- [ ] ClawMax logo (if exists, if not let's create)
-- [ ] Architecture diagram (text → SVG conversion)
-- [ ] Dashboard screenshot (home page)
-- [ ] Workflow execution screenshot
-- [ ] Template library screenshot
-- [ ] Execution detail screenshot
-- [ ] QR code to GitHub repo
+- [x] ClawMax logo (using image6-clawmax_ai.png from website)
+- [x] Architecture diagram (architecture-diagram.svg)
+- [x] Dashboard screenshot (image1-dashboard.png, image1.2-dashboard.png)
+- [x] Workflow execution screenshot (image3-workflow.png)
+- [x] Template library screenshot (image4-template-library.png)
+- [x] Execution flow diagram (workflow-execution-flow.svg)
+- [ ] QR code to ClawMax.ai (generate Friday AM if needed)
 
 ### For Demo
 - [ ] Clean dashboard with 10+ agents
