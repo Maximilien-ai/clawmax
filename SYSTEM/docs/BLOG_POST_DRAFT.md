@@ -720,7 +720,7 @@ TODOs
 
 ### Videos
 
-- [ ] ⏳ video1-workflow-execution.mov - Workflow execution progress animation (line 307)
+- [x] ✅ video1-workflow-execution.mov - Workflow execution progress animation (line 307)
 
 ### Diagrams
 
