@@ -33,7 +33,13 @@
 - ✅ Demo practice checklist (`DEMO_PRACTICE_CHECKLIST.md`)
 - ✅ Demo prep plan (`DEMO_PREP_MAR12-13.md`)
 
-### 4. **Bug Fixes** 🐛
+### 4. **Public Repo Prep** 🔒
+- ✅ Public repo prep guide created (`PUBLIC_REPO_PREP.md`)
+- ✅ GitHub links verified (all point to `Maximilien-ai/clawmax`)
+- ✅ Security checklist for sensitive data
+- ✅ Ready to push to public repo Friday noon
+
+### 5. **Bug Fixes** 🐛
 - ✅ Communication page crash fixed
 - ✅ Dashboard loads without errors
 
@@ -209,12 +215,55 @@ cd /Users/maximilien/.openclaw/workspace/SYSTEM/docs/presentations
 
 **Optional**: Schedule for 12 PM publish (before demo)
 
-#### 11:15 AM - Docs Cleanup (30 min)
-**Archive old docs** (optional):
+#### 11:15 AM - Push to Public Repo (30 min) 🚀
+**IMPORTANT**: Push code from maxclaw (private) → clawmax (public)
+
+**Use**: `PUBLIC_REPO_PREP.md` as guide
+
+```bash
+# Open prep guide
+open /Users/maximilien/.openclaw/workspace/SYSTEM/docs/PUBLIC_REPO_PREP.md
+
+# Quick steps:
+cd /Users/maximilien/.openclaw/workspace
+
+# 1. Move private docs to PRIVATE_DOCS/
+mkdir -p SYSTEM/docs/PRIVATE_DOCS
+git mv SYSTEM/docs/{TONIGHT_SUMMARY_MAR12.md,THURSDAY_FRIDAY_FINAL_PREP.md,WORK_PLAN_MAR12-13.md,DEMO_PREP_MAR12-13.md,DEMO_PRACTICE_CHECKLIST.md,TEMPLATE_TESTING_CHECKLIST.md,PRESENTATION_OUTLINE.md} SYSTEM/docs/PRIVATE_DOCS/
+
+# 2. Update .gitignore
+echo "SYSTEM/docs/PRIVATE_DOCS/" >> .gitignore
+
+# 3. Commit and push to private repo
+git add .
+git commit -m "docs: Prepare for public repo - move private docs"
+git push origin main
+
+# 4. Add public remote (if needed)
+git remote add clawmax https://github.com/Maximilien-ai/clawmax.git || true
+
+# 5. Push to public repo
+git push clawmax main
+
+# 6. Verify on GitHub
+# Visit: https://github.com/Maximilien-ai/clawmax
+```
+
+**Checklist**:
+- [ ] Private docs moved to PRIVATE_DOCS/
+- [ ] .gitignore updated
+- [ ] No sensitive data in public repo
+- [ ] GitHub links point to clawmax
+- [ ] Pushed successfully to public repo
+- [ ] Verified on GitHub web
+
+**Note**: Repo stays PRIVATE until 4:50 PM (make public before demo)
+
+#### 11:45 AM - Docs Cleanup (15 min)
+**Quick cleanup** (optional):
 ```bash
 cd /Users/maximilien/.openclaw/workspace/SYSTEM/docs
-mkdir -p archive
-# Move completed work summaries to archive/
+# Any final organization needed
 ```
 
 ---
@@ -263,6 +312,11 @@ mkdir -p archive
 - [ ] Videos in `SYSTEM/docs/videos/`
 - [ ] Blog post link (if published)
 
+**Public Repo**:
+- [ ] Code pushed to `Maximilien-ai/clawmax` (done at noon)
+- [ ] Verified no sensitive data in public repo
+- [ ] Ready to make public at 4:50 PM
+
 #### 3:00 PM - DONE! 🎉
 **Walk to demo location**
 - Relax on the way
@@ -275,6 +329,23 @@ mkdir -p archive
 ## 🎬 Demo Time - 5:00 PM
 
 ### Pre-Demo (4:45 PM - 5:00 PM)
+
+#### 4:45 PM - Make Repo Public 🌍
+**IMPORTANT**: Make `Maximilien-ai/clawmax` public before demo!
+
+**Steps**:
+1. Visit https://github.com/Maximilien-ai/clawmax/settings
+2. Scroll to "Danger Zone"
+3. Click "Change visibility" → "Make public"
+4. Type "Maximilien-ai/clawmax" to confirm
+5. Click "I understand, make this repository public"
+
+**Checklist**:
+- [ ] Repo is now public
+- [ ] GitHub link works: https://github.com/Maximilien-ai/clawmax
+- [ ] No sensitive data visible
+
+#### 4:50 PM - Arrive & Setup
 - [ ] Arrive at location
 - [ ] Connect laptop to screen/projector
 - [ ] Test screen sharing
