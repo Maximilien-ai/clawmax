@@ -697,8 +697,6 @@ TODOs
 - [x] ✅ architecture-diagram.svg - Architecture stack overview (line 80)
 - [x] ✅ workflow-execution-flow.svg - Workflow execution sequence (line 190)
 
-NOTE: let's add these in next update. I beleive you have enough to create. If not then LMK. Yeah let's do that tonight.
-
 ---
 
 **Draft Status**: Ready for review
