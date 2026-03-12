@@ -14,6 +14,7 @@
         .reveal .center-text { text-align: center; }
         .reveal .emoji { font-size: 1.2em; }
         .reveal img { border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3); margin-bottom: 20px; }
+        .reveal .diagram-svg { background: white; padding: 20px; border-radius: 10px; margin-top: -20px; }
         .reveal .small-text { font-size: 0.8em; }
         .reveal .highlight { color: #42affa; font-weight: bold; }
         .reveal .qr-code { width: 250px; margin: 20px auto; display: block; background: white; padding: 20px; border-radius: 10px; }
@@ -24,9 +25,32 @@
         .pricing-card { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; text-align: center; }
         .pricing-card h4 { color: #42affa; margin-bottom: 15px; }
         .pricing-card .price { font-size: 1.5em; font-weight: bold; margin: 15px 0; }
+
+        /* Theme toggle button */
+        #theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(66, 175, 250, 0.9);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        #theme-toggle:hover {
+            background: rgba(66, 175, 250, 1);
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
+    <button id="theme-toggle">☀️ Light Mode</button>
     <div class="reveal">
         <div class="slides">
 
@@ -75,7 +99,7 @@
                         </ul>
                     </div>
                     <div>
-                        <img src="architecture-diagram.svg" alt="ClawMax Architecture" style="width: 100%; max-width: 500px;">
+                        <img src="images/architecture-diagram.svg" alt="ClawMax Architecture" class="diagram-svg" style="width: 100%; max-width: 500px;">
                     </div>
                 </div>
                 <aside class="notes">
@@ -198,7 +222,7 @@
                         <p style="font-size: 0.75em;">React + TypeScript + Node.js + OpenClaw CLI</p>
                     </div>
                     <div>
-                        <img src="workflow-execution-flow.svg" alt="Execution Flow" style="width: 100%; max-width: 450px;">
+                        <img src="images/workflow-execution-flow.svg" alt="Execution Flow" class="diagram-svg" style="width: 100%; max-width: 450px;">
                     </div>
                 </div>
 
@@ -347,7 +371,7 @@
                             </p>
                         </div>
                         <div>
-                            <img src="clawmax-qr.svg" alt="ClawMax.ai QR Code" class="qr-code"/>
+                            <img src="images/clawmax-qr-better.svg" alt="ClawMax.ai QR Code" class="qr-code"/>
                             <p style="font-size: 0.7em; margin-top: 10px; color: #aaa;">Scan to visit ClawMax.ai</p>
                         </div>
                     </div>
@@ -371,6 +395,32 @@
             height: 720,
             margin: 0.1,
             plugins: [ RevealNotes ]
+        });
+
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('theme-toggle');
+        const revealElement = document.querySelector('.reveal');
+        let isLightMode = false;
+
+        // Available themes
+        const themes = {
+            dark: 'https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css',
+            light: 'https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/white.css'
+        };
+
+        themeToggle.addEventListener('click', () => {
+            isLightMode = !isLightMode;
+            const themeLink = document.querySelector('link[href*="theme"]');
+
+            if (isLightMode) {
+                themeLink.href = themes.light;
+                themeToggle.innerHTML = '🌙 Dark Mode';
+                themeToggle.style.background = 'rgba(0, 0, 0, 0.7)';
+            } else {
+                themeLink.href = themes.dark;
+                themeToggle.innerHTML = '☀️ Light Mode';
+                themeToggle.style.background = 'rgba(66, 175, 250, 0.9)';
+            }
         });
     </script>
 </body>
