@@ -62,6 +62,8 @@
 
 **Total savings**: ~1,350 words (gets you to ~2,255 words) ✅
 
+NOTE: OK on these and happy if we are at 2,500 words too BTW
+
 ---
 
 ## 📝 Minor Issues to Fix
@@ -72,6 +74,8 @@
 + ## What's New in v1.0.0 (March 14, 2026)
 ```
 Demo is Friday March 14, not 13
+
+NOTE: Friday is 13th not 14th
 
 ### Lines 688-697: Remove TODO checklist
 The image/video checklist at bottom should be removed before publishing - it's internal notes
@@ -144,6 +148,8 @@ Before moving to Substack:
 
 **Target**: ~2,000 words, 8-10 min read
 
+NOTE: LOVE this. Make sure use-cases varied
+
 ---
 
 ## 💡 Final Thoughts
@@ -163,6 +169,8 @@ Before moving to Substack:
 - Too much future/roadmap content dilutes impact
 - Focus on what exists TODAY
 - Readers want to know "Can I use this now?"
+
+NOTE: agree on reducing future/roadmap let's focus on todau
 
 ---
 

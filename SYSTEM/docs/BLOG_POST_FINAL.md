@@ -2,10 +2,9 @@
 
 *Building the orchestration layer OpenClaw needed—and what I learned managing 100s AI agents*
 
-**Status**: DRAFT - March 11, 2026
-**Target Publication**: AI Musings Substack: https://maximilien.substack.com/publish/posts/published
-**Target Length**: 1800-2200 words
-**Target Audience**: OpenClaw users, AI/ML engineers, DevOps teams
+**Published**: March 13, 2026
+**Author**: Maximilien (max@clawmax.ai)
+**Read Time**: ~8 minutes
 
 ---
 
@@ -362,43 +361,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ---
 
-### Use Case 2: Security Compliance Audits
-
-**Before ClawMax**:
-- Manual monthly security checks
-- Inconsistent coverage
-- Error-prone manual process
-- No audit trail
-
-**With ClawMax**:
-- Automated monthly security audit workflow
-- Targets all agents with `security` tag
-- Aggregated results with prioritization
-- Complete audit trail in execution history
-- Searchable execution logs
-
-**Impact**: ~4 hours/month saved, improved security posture
-
----
-
-### Use Case 3: Sprint Planning Preparation
-
-**Before ClawMax**:
-- Scattered prep work across tools
-- Last-minute scrambles before planning
-- Missing context and dependencies
-
-**With ClawMax**:
-- Pre-planning workflow 48 hours before sprint
-- Collects capacity, blockers, and priorities
-- Generates planning document automatically
-- **Template-based** for consistent structure
-
-**Impact**: Better-prepared planning meetings, data-driven capacity planning
-
----
-
-### Use Case 4: QA and Release Management
+### Use Case 2: QA and Release Management
 
 **Before ClawMax**:
 - Manual PR review assignment
@@ -419,7 +382,7 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ---
 
-### Use Case 5: Strategic Business Research
+### Use Case 3: Strategic Business Research
 
 **Before ClawMax**:
 - Business requirements from CEO sit in email
@@ -441,200 +404,22 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ---
 
-## What's New in v1.0.0 (March 13, 2026)
-
-### Latest Release Features
-
-**Organization Template System**:
-- **Workflow integration**: Org templates now include all workflows
-- **Pre-built templates**: 2 production-ready org templates (Small Startup, Engineering Team)
-- **Smart import**: Automatic agent ID prefix/suffix for conflict-free imports
-
-**Workflow Management Improvements**:
-- Template details panel with full configuration view
-- Edit, delete, and instantiate actions
-- Completion toast notifications
-- Smart execution sorting (running first)
-
-**Navigation Enhancements**:
-- Direct links from Organizations → Communication
-- Clickable community/group names
-- Chat icons for quick access
-- Breadcrumb navigation improvements
-
-**User Experience**:
-- Persistent view preferences (grid/list/table)
-- Real-time status updates
-- Loading states and error handling
-- Keyboard shortcuts (coming soon)
-
-**System AI Agents** (Beta):
-- **ClawMax Assistant**: Helps create optimized workflows and agents
-- **Template Optimizer**: Analyzes and suggests improvements to your templates
-- **Organization Architect**: Recommends community/group structures based on usage
-- **Workflow Debugger**: Identifies common issues and suggests fixes
-- These meta-agents use ClawMax APIs to help you get more value from your agent ecosystem
-- Example: "Create a QA workflow targeting engineers" → Assistant generates complete workflow with proper targeting, schedule, and instructions
-
-**Token Usage Monitoring** (Planned):
-- Dashboard code implemented and ready
-- ⏳ Blocked by OpenClaw Gateway RPC scope requirements
-- Will be available when OpenClaw exposes `sessions.usage` API to external clients
-- See `docs/TOKEN_USAGE_LIMITATION.md` for technical details
-
----
-
-## Technical Achievement Highlights
-
-### Performance
-
-- **Pagination**: Handles 1000+ executions gracefully with limit/offset controls
-- **Efficient rendering**: Agent and workflow cards render quickly even with 100+ entities
-- **Smart polling**: 5-second intervals for real-time execution updates without WebSocket overhead
-- **Optimistic UI**: Immediate feedback on actions with background synchronization
-
-### Reliability
-
-- **Fail-safe design**: Agents work independently if dashboard unavailable
-- **Execution recovery**: Resume interrupted workflows
-- **Conflict resolution**: Handles concurrent workflow runs
-- **Error handling**: Graceful degradation with user feedback
-
 ### Security Considerations
 
-**Current Status** (Development & Testing):
-- ✅ Token-based WebSocket authentication
-- ✅ Local-only by default (127.0.0.1)
-- ✅ File-based permissions
-- ✅ Execution audit logs
-
-**Production Deployment** (Coming late March 2026):
-We're moving ClawMax to production this month. Key hardening in progress:
-- 🔄 TLS/encryption for remote deployments
-- 🔄 Role-based access control (RBAC)
-- 🔄 Secrets management hardening
-- 🔄 Rate limiting for workflow execution
-- 🔄 OpenClaw compatibility / currency updates (tracking latest releases)
-- 🔄 Fix token usage tracking issue (here or submit to OpenClaw)
-
----
-
-## Roadmap
-
-### v1.0.0 (mid March 2026)
-
-**Recently Completed**:
-- ✅ Organization templates with workflow support
-- ✅ Pre-built org templates (Small Startup Team, Engineering Team)
-- ✅ Workflow completion toast notifications
-- ✅ Smart execution sorting
-- ✅ Template export/import bug fixes
-
-### v1.1.0 (end of March 2026)
-
-**Planned Features**:
-- 📅 Workflow scheduler daemon (fully automated cron)
-- 📊 Analytics dashboard (execution trends, success rates)
-- 🪙 Token usage monitoring (pending OpenClaw Gateway RPC support)
-- 🎨 Improved template browsing UI
-- 🏥 Agent health monitoring dashboard
-- 🔀 Multi-workspace management
-- 🧮 Workflow result parsing and aggregation
-- 🤖 AI-assisted workflow creation
-- 🔐 Enhanced authentication and RBAC
-- 🔄 Currency to latest OpenClaw
-
-### v1.2.0 (April 2026)
-
-**Advanced Features**:
-- 🔗 Workflow dependencies and chaining
-- 🎯 Conditional execution rules (if-then logic)
-- 🔄 Agent rotation and failover
-- ⏪ Execution rollback and retry
-- ⚡ Performance metrics and optimization
-- 🧩 Custom skill integration UI
-- 📈 Evaluation of workflows and agents
-- ☁️ Deploying and managing ClawMax as a cloud service in Kubernetes
-- 🎛️ Single pane dashboard for multiple ClawMax deployments
-- 🖥️ Deploying ClawMax on premise (Mac mini or other)
-- 🔧 Templates to remote management of ClawMax itself!
+**Current Status**:
+- Token-based WebSocket authentication and local-only deployment (127.0.0.1)
+- File-based permissions with execution audit logs
+- Production hardening in progress: TLS/encryption, RBAC, rate limiting
 
 ---
 
 ## Getting Started
 
-### Prerequisites
-
-```bash
-# 1. Install OpenClaw
-npm install -g openclaw
-
-# 2. Create at least one agent
-openclaw agent create my-first-agent
-
-# 3. Start the agent's gateway
-openclaw gateway start --agent my-first-agent
-```
-
-### Install ClawMax
-
-```bash
-# Clone repository
-git clone https://github.com/Maximilien-ai/clawmax.git
-cd clawmax
-
-# Install dependencies
-cd SYSTEM/dashboard
-npm install
-
-# Start dashboard (server + client)
-npm run dev
-```
-
-### First Workflow in 5 Minutes
-
-1. **Open Dashboard**: Navigate to `http://localhost:5173`
-2. **Check Agents**: Verify your agent shows as "online" 🟢
-3. **Browse Templates**: Go to Templates → Workflows
-4. **Select Template**: Click "Daily Standup" to view details
-5. **Customize**: Adjust targeting to your agent(s)
-6. **Run It**: Click "Run Workflow" button
-7. **Watch Progress**: See real-time execution with toast notification when complete
-
----
-
-## The Vision: From Solo Agent to AI Organization
-
-### The Shift in Multi-Agent AI
-
-As AI agents become more capable, the challenge is shifting:
-
-**Old Challenge**: "How do I build one good agent?"
-**New Challenge**: "How do I coordinate many agents effectively?"
-
-ClawMax is our answer to the coordination challenge.
-
-### Future of Agent Teams
-
-Imagine a future where:
-
-- **Hundreds of specialized curated agents** work together seamlessly
-- **Self-organizing teams** adapt to changing workloads
-- **Automated coordination** eliminates human bottlenecks
-- **24/7 operation** with intelligent scheduling
-- **System agents** that optimize and maintain the system itself
-- **Emergent intelligence** from agent collaboration
-
-### Beyond Software Teams
-
-While our initial use cases focus on software development, the architecture is domain-agnostic:
-
-- **Customer Support**: Automated ticket triage and routing
-- **Research**: Coordinated literature review and synthesis
-- **Operations**: Monitoring and incident response
-- **Creative**: Content generation and review workflows
-- **Finance**: Compliance checking and report generation
-- **Legal**: Document review and contract analysis
+1. **Install OpenClaw**: `npm install -g openclaw`
+2. **Create an agent**: `openclaw agent create my-first-agent`
+3. **Clone ClawMax**: `git clone https://github.com/Maximilien-ai/clawmax.git`
+4. **Install & run**: `cd SYSTEM/dashboard && npm install && npm run dev`
+5. **Open dashboard**: Navigate to `http://localhost:5173` and run your first workflow
 
 ---
 
@@ -675,41 +460,6 @@ From workflow completion notifications to template-based replication, every feat
 We're excited to see what you build with ClawMax. Whether you're managing 5 agents or 500, centralized coordination is key to unlocking the full potential of multi-agent AI systems.
 
 **Try ClawMax today. Take your OpenClaw agents to the max.** 🚀
-
----
-
-TODOs 
-
-### Images
-
-- [x] ✅ image1-dashboard.png - Dashboard overview with agent cards (line 130)
-- [x] ✅ image2-organizations.png - Organizations page with hierarchy (line 166)
-- [x] ✅ image3-workflow.png - Workflow execution in progress (line 194)
-- [x] ✅ image4-template-library.png - Template library with cards (line 245)
-- [x] ✅ image5-document-editor.png - Document editor with YAML validation (line 340)
-
-### Videos
-
-- [x] ✅ video1-workflow-execution.mov - Workflow execution progress animation (line 277)
-  - **Note**: For Substack, manually upload video through editor (doesn't support direct .mov embedding)
-  - HTML5 video tag used for GitHub markdown preview
-
-### Diagrams
-
-- [x] ✅ architecture-diagram.svg - Architecture stack overview (line 80)
-- [x] ✅ workflow-execution-flow.svg - Workflow execution sequence (line 190)
-
----
-
-**Draft Status**: Ready for review
-**Next Steps**:
-1. Fix 4 critical issues (tagging, archived agents, bulk delete, entity deletion) - **Target: Wed PM**
-2. Complete testing of all org templates and workflows - **Target: Thu AM**
-3. Capture missing screenshots/videos - **Target: Thu AM**
-4. Final review and copyedit - **Target: Thu PM**
-5. Publish to blog and Medium - **Target: Thu PM**
-
-**Target Publish**: March 13, 2026 (Thu PM, before Friday demo)
 
 ---
 
