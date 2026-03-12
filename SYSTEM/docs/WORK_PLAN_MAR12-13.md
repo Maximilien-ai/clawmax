@@ -4,6 +4,22 @@
 **Created**: March 11, 2026 (Evening)
 **Target**: Demo-ready by Friday March 14, 2026
 
+## 🚀 Quick Reference
+
+**Critical Deliverables**:
+- 📝 Blog post review & publish → **Tonight (train)**
+- 🧪 Test all org templates → **Thursday AM**
+- 🔧 Push code to GitHub (private) → **Thursday PM**
+- 🌐 Deploy ClawMax.ai website → **Friday AM**
+- 🎬 Demo ready → **Friday PM**
+
+**Key URLs**:
+- GitHub: `Maximilien-ai/maxclaw` (PRIVATE)
+- Website: https://ClawMax.ai (GoDaddy → Vercel)
+- Blog: https://maximilien.substack.com
+
+**Time Budget**: ~12-17 hours over 2.5 days
+
 ---
 
 ## 🎯 Current Status (End of Day - March 11)
@@ -144,7 +160,41 @@
 
 **Time estimate**: 2-3 hours
 
-#### Priority 2: Polish & Bug Fixes 🐛
+#### Priority 2: GitHub Repository Setup 🔧
+**Goal**: Move code to private GitHub repo
+
+**Repository**: `Maximilien-ai/maxclaw` (PRIVATE)
+
+**Tasks**:
+1. [ ] Create new **PRIVATE** repo on GitHub (Maximilien-ai/maxclaw)
+2. [ ] Add comprehensive README.md with:
+   - Project description and goals
+   - Installation instructions
+   - Quick start guide
+   - Link to blog post
+   - Link to ClawMax.ai website
+3. [ ] Create .gitignore (exclude node_modules, .env, workspace data)
+4. [ ] Add LICENSE (MIT or appropriate for private repo)
+5. [ ] Push all dashboard code to repo
+6. [ ] Push OpenClaw enhancements (CLI changes)
+7. [ ] Set repo description and website URL (ClawMax.ai)
+
+**Files to prepare**:
+- [ ] Root README.md (project overview)
+- [ ] SYSTEM/dashboard/README.md (dashboard setup)
+- [ ] CONTRIBUTING.md (if accepting contributions)
+- [ ] CHANGELOG.md (version history)
+
+**Commands**:
+```bash
+cd /Users/maximilien/.openclaw/workspace
+git remote add github git@github.com:Maximilien-ai/maxclaw.git
+git push -u github main
+```
+
+**Time estimate**: 1-2 hours
+
+#### Priority 3: Polish & Bug Fixes 🐛
 **Goal**: Fix any critical issues found during testing
 
 **Potential tasks** (based on testing results):
@@ -174,7 +224,52 @@
 
 **Time estimate**: 1-2 hours
 
-#### Priority 2: Demo Environment Setup 🎬
+#### Priority 2: Website Deployment 🌐
+**Goal**: Deploy ClawMax.ai website to Vercel with GoDaddy DNS
+
+**Website**: https://ClawMax.ai (GoDaddy domain)
+**Hosting**: Vercel
+
+**Tasks**:
+1. [ ] Push website code to GitHub repo (if separate from main repo)
+2. [ ] Connect repo to Vercel:
+   - [ ] Sign in to Vercel with GitHub
+   - [ ] Import project
+   - [ ] Configure build settings
+   - [ ] Deploy to production
+3. [ ] Get Vercel deployment URL and DNS settings
+4. [ ] Configure GoDaddy DNS:
+   - [ ] Log in to GoDaddy.com
+   - [ ] Navigate to ClawMax.ai DNS settings
+   - [ ] Add Vercel DNS records:
+     - A record: `@` → Vercel IP
+     - CNAME: `www` → Vercel domain
+   - [ ] Save DNS changes
+5. [ ] Verify domain in Vercel:
+   - [ ] Add custom domain: ClawMax.ai
+   - [ ] Add www.ClawMax.ai
+   - [ ] Wait for DNS propagation (5-10 min)
+6. [ ] Enable HTTPS/SSL in Vercel (auto)
+7. [ ] Test website loads at ClawMax.ai
+
+**Resources**:
+- Vercel docs: https://vercel.com/docs/concepts/projects/custom-domains
+- GoDaddy DNS: https://dcc.godaddy.com/domains
+
+**DNS Records to add** (from Vercel):
+```
+Type: A
+Name: @
+Value: 76.76.21.21
+
+Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
+```
+
+**Time estimate**: 45-60 minutes (including DNS propagation wait)
+
+#### Priority 3: Demo Environment Setup 🎬
 **Goal**: Prepare perfect demo state
 
 **Tasks**:
@@ -273,11 +368,13 @@
 - [ ] @all message issue investigated (fixed or documented)
 - [ ] Demo flow practiced and timed (8-10 minutes)
 - [ ] All critical bugs fixed
+- [ ] **Code pushed to GitHub (Maximilien-ai/maxclaw)**
 - [ ] Blog post published to Substack (or ready to publish Friday AM)
 
 ### For Friday Pre-Demo
 - [ ] Fresh demo environment set up
 - [ ] All agents online and responding
+- [ ] **ClawMax.ai website live on Vercel**
 - [ ] Demo flow rehearsed at least once
 - [ ] Backup plans prepared
 - [ ] Screen sharing tested
@@ -340,14 +437,16 @@
 - Blog review: 45-60 min
 - Demo planning: 30-45 min
 
-### Thursday: 6-8 hours
+### Thursday: 7-10 hours
 - Template testing: 2-3 hours
 - @all investigation: 1-2 hours
 - Demo practice: 2-3 hours
+- **GitHub repo setup: 1-2 hours**
 - Bug fixes: 1-2 hours
 
-### Friday AM: 2-4 hours
+### Friday AM: 3-5 hours
 - Final testing: 1-2 hours
+- **Website deployment: 45-60 min**
 - Demo setup: 30-60 min
 - Docs cleanup: 30-60 min
 
@@ -356,7 +455,13 @@
 - Feedback: 15-30 min
 - Documentation: 30-60 min
 
-**Total**: ~10-15 hours over 2.5 days
+**Total**: ~12-17 hours over 2.5 days
+
+**Critical deliverables before demo**:
+- ✅ Dashboard code on GitHub (Maximilien-ai/maxclaw)
+- ✅ ClawMax.ai website live (Vercel + GoDaddy)
+- ✅ Blog post published (Substack)
+- ✅ Demo environment ready
 
 ---
 
