@@ -77,40 +77,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 ### Technical Stack
 
-```
-┌─────────────────────────────────┐
-│  ClawMax Dashboard (React)      │
-│  - Multi-agent management UI    │
-│  - Visual workflow editor       │
-│  - Template library             │
-│  - Real-time status tracking    │
-└──────────────┬──────────────────┘
-               │
-               ▼
-┌─────────────────────────────────┐
-│  ClawMax Server (Node.js)       │
-│  - Workspace API                │
-│  - Workflow scheduling          │
-│  - Execution tracking           │
-│  - Organization management      │
-└──────────────┬──────────────────┘
-               │
-               ▼
-┌─────────────────────────────────┐
-│  OpenClaw CLI (enhancements)    │
-│  - openclaw workflow run        │
-│  - WebSocket communication      │
-│  - Execution orchestration      │
-└──────────────┬──────────────────┘
-               │
-               ▼
-┌─────────────────────────────────┐
-│  OpenClaw Gateway (per agent)   │
-│  - WebSocket RPC server         │
-│  - chat.send handler            │
-│  - Agent runtime                │
-└─────────────────────────────────┘
-```
+![ClawMax Architecture Stack](images/architecture-diagram.svg)
 
 ### Key Integration Points
 
@@ -219,6 +186,9 @@ Please provide your daily standup update:
 Workflows follow OpenClaw's file-based approach—written in plain English like prompts. They can reference tags, communities, and roles, letting agents independently interpret their responsibilities based on their identity. No rigid code structures. Just natural language instructions. Just as you would do with a team of humans.
 
 **Execution Flow (simplified)**:
+
+![Workflow Execution Flow](images/workflow-execution-flow.svg)
+
 1. Schedule triggers (cron) OR manual button click
 2. Dashboard resolves target agents by community/group/tag
 3. Creates execution record with participant list
@@ -724,8 +694,8 @@ TODOs
 
 ### Diagrams
 
-- [ ] ⏳ Improve architecture overview (in outline) to a SVG
-- [ ] ⏳ Workflow execution sequence diagram
+- [x] ✅ architecture-diagram.svg - Architecture stack overview (line 80)
+- [x] ✅ workflow-execution-flow.svg - Workflow execution sequence (line 190)
 
 NOTE: let's add these in next update. I beleive you have enough to create. If not then LMK. Yeah let's do that tonight.
 
