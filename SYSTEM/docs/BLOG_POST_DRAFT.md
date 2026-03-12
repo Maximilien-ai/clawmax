@@ -274,7 +274,10 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 **Real-time visibility into agents activities and workflows execution**
 
-![ClawMax - workflow execution progress animation](videos/video1-workflow-execution.mov)
+<video width="800" controls>
+  <source src="videos/video1-workflow-execution.mov" type="video/quicktime">
+  Your browser does not support the video tag.
+</video>
 
 **Features**:
 - Live participant status (pending → running → completed/failed)
@@ -690,7 +693,9 @@ TODOs
 
 ### Videos
 
-- [x] ✅ video1-workflow-execution.mov - Workflow execution progress animation (line 307)
+- [x] ✅ video1-workflow-execution.mov - Workflow execution progress animation (line 277)
+  - **Note**: For Substack, manually upload video through editor (doesn't support direct .mov embedding)
+  - HTML5 video tag used for GitHub markdown preview
 
 ### Diagrams
 

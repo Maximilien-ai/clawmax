@@ -107,7 +107,7 @@
     <rect class="result-box" x="150" y="720" width="400" height="80" />
     <circle style="fill: #10b981;" cx="180" cy="750" r="18" />
     <text class="step-number" x="180" y="756" text-anchor="middle">7</text>
-    <text class="step-text" x="210" y="745" font-weight="bold">Dashboard Polls & Updates</text>
+    <text class="step-text" x="210" y="745" font-weight="bold">Dashboard Polls &amp; Updates</text>
     <text class="step-text" x="210" y="765" style="font-size: 12px;">Dashboard refreshes every 5 seconds</text>
     <text class="step-text" x="210" y="780" style="font-size: 12px;">Shows live status until completion</text>
     <text class="step-text" x="210" y="795" style="font-size: 12px; font-weight: bold; fill: #059669;">✓ Toast notification on completion</text>
