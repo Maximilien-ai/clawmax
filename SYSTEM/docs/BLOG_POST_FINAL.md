@@ -8,7 +8,7 @@
 
 ---
 
-**TL;DR:** OpenClaw is a powerful framework for building autonomous AI agents. But managing 10, 50, or 100s agents? That's where things get messy. I built ClawMax to solve this—adding visual management, organizational structure, workflow automation, and templates on top of OpenClaw's foundation. This post explains what it is, why I built it, how I am using it, and what I learned.
+**TL;DR:** OpenClaw is a powerful framework for building autonomous AI agents. But managing 10, 50, or 100s agents? That's where things get messy. I built [ClawMax](https://clawmax.ai) to solve this—adding visual management, organizational structure, workflow automation, and templates on top of OpenClaw's foundation. This post explains what it is, why I built it, how I am using it, and what I learned.
 
 ---
 
@@ -95,6 +95,8 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 ![ClawMax - dashboard with agent cards](images/image1-dashboard.png)
 
+![ClawMax - dashboard with agent details](images/image1.2-dashboard.png)
+
 **Features**:
 - Real-time online/offline status via gateway detection
 - Auto-restart (wake up) agents by simply chatting with them
@@ -128,6 +130,10 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 **Logical grouping of agents for coordination**
 
 ![ClawMax - organizations page with hierarchy](images/image2-organizations.png)
+
+![ClawMax - organizations with agent details](images/image2.2-organizations.png)
+
+![ClawMax - communication groups](images/image2.3-communication.png)
 
 **Concepts**:
 - **Communities**: Departments or large groups (Engineering, Product, Customer Success)
@@ -427,6 +433,8 @@ Workflows follow OpenClaw's file-based approach—written in plain English like 
 
 ### Get Involved
 
+🌐 **Website**: [ClawMax.ai](https://clawmax.ai)
+
 🚀 **GitHub OSS**: [Maximilien-ai/clawmax](https://github.com/Maximilien-ai/clawmax)
 
 📚 **Documentation**: Feature guides, API reference, architecture deep-dives
@@ -459,7 +467,7 @@ From workflow completion notifications to template-based replication, every feat
 
 We're excited to see what you build with ClawMax. Whether you're managing 5 agents or 500, centralized coordination is key to unlocking the full potential of multi-agent AI systems.
 
-**Try ClawMax today. Take your OpenClaw agents to the max.** 🚀
+**Try ClawMax today at [ClawMax.ai](https://clawmax.ai). Take your OpenClaw agents to the max.** 🚀
 
 ---
 
