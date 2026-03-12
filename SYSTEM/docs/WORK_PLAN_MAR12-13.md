@@ -233,26 +233,26 @@ git push -u github main
 **Repo**: https://github.com/Maximilien-ai/clawmax-ai-web
 
 **Tasks**:
-1. [ ] Verify website code is pushed to GitHub repo (Maximilien-ai/clawmax-ai-web)
-2. [ ] Connect repo to Vercel:
-   - [ ] Sign in to Vercel with GitHub
-   - [ ] Import project
-   - [ ] Configure build settings
-   - [ ] Deploy to production
-3. [ ] Get Vercel deployment URL and DNS settings
-4. [ ] Configure GoDaddy DNS:
-   - [ ] Log in to GoDaddy.com
-   - [ ] Navigate to ClawMax.ai DNS settings
-   - [ ] Add Vercel DNS records:
+1. [x] Verify website code is pushed to GitHub repo (Maximilien-ai/clawmax-ai-web)
+2. [x] Connect repo to Vercel:
+   - [x] Sign in to Vercel with GitHub
+   - [x] Import project
+   - [x] Configure build settings
+   - [x] Deploy to production
+3. [x] Get Vercel deployment URL and DNS settings
+4. [x] Configure GoDaddy DNS:
+   - [x] Log in to GoDaddy.com
+   - [x] Navigate to ClawMax.ai DNS settings
+   - [x] Add Vercel DNS records:
      - A record: `@` → Vercel IP
      - CNAME: `www` → Vercel domain
-   - [ ] Save DNS changes
-5. [ ] Verify domain in Vercel:
-   - [ ] Add custom domain: ClawMax.ai
-   - [ ] Add www.ClawMax.ai
-   - [ ] Wait for DNS propagation (5-10 min)
-6. [ ] Enable HTTPS/SSL in Vercel (auto)
-7. [ ] Test website loads at ClawMax.ai
+   - [x] Save DNS changes
+5. [x] Verify domain in Vercel:
+   - [x] Add custom domain: ClawMax.ai
+   - [x] Add www.ClawMax.ai
+   - [x] Wait for DNS propagation (5-10 min)
+6. [x] Enable HTTPS/SSL in Vercel (auto)
+7. [x] Test website loads at ClawMax.ai
 
 **Resources**:
 - Vercel docs: https://vercel.com/docs/concepts/projects/custom-domains
@@ -376,7 +376,7 @@ Value: cname.vercel-dns.com
 ### For Friday Pre-Demo
 - [ ] Fresh demo environment set up
 - [ ] All agents online and responding
-- [ ] **ClawMax.ai website live on Vercel**
+- [x] ✅ **ClawMax.ai website live on Vercel** (DONE - March 11 evening)
 - [ ] Demo flow rehearsed at least once
 - [ ] Backup plans prepared
 - [ ] Screen sharing tested
