@@ -8,6 +8,11 @@
 
 cd "$(dirname "$0")/dashboard"
 
+# Set workspace to current directory if not already set
+if [ -z "$OPENCLAW_WORKSPACE" ]; then
+  export OPENCLAW_WORKSPACE="$(pwd | sed 's|/SYSTEM/dashboard||')"
+fi
+
 # Parse arguments
 FOLLOW_LOGS=false
 if [[ "$1" == "--follow" ]] || [[ "$1" == "-f" ]]; then
@@ -15,6 +20,7 @@ if [[ "$1" == "--follow" ]] || [[ "$1" == "-f" ]]; then
 fi
 
 echo "Starting ClawMax Dashboard..."
+echo "Workspace: $OPENCLAW_WORKSPACE"
 echo ""
 
 # Check if already running
