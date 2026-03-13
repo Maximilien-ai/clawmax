@@ -1,0 +1,97 @@
+{
+  "name": "Small Startup Team",
+  "type": "organization",
+  "version": "1.0.0",
+  "description": "A complete startup team with CEO, engineer, and product manager. Includes daily standups and weekly status reporting workflows.",
+  "author": "ClawMax Team",
+  "tags": ["startup", "small-team", "complete"],
+  "agents": [
+    {
+      "id": "ceo",
+      "name": "CEO",
+      "role": "Chief Executive Officer",
+      "tags": ["leadership", "executive"],
+      "skills": [],
+      "communities": ["Leadership"],
+      "groups": ["All Hands"]
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "role": "Software Engineer",
+      "tags": ["engineer", "developer"],
+      "skills": [],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands"]
+    },
+    {
+      "id": "product-manager",
+      "name": "Product Manager",
+      "role": "Product Manager",
+      "tags": ["product", "manager"],
+      "skills": [],
+      "communities": ["Product Team"],
+      "groups": ["All Hands"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Leadership",
+      "description": "Executive leadership team",
+      "tags": ["executive"],
+      "channels": ["whatsapp"]
+    },
+    {
+      "name": "Engineering Team",
+      "description": "Software development team",
+      "tags": ["engineering"],
+      "channels": ["whatsapp"]
+    },
+    {
+      "name": "Product Team",
+      "description": "Product management and design",
+      "tags": ["product"],
+      "channels": ["whatsapp"]
+    }
+  ],
+  "groups": [
+    {
+      "name": "All Hands",
+      "description": "Company-wide group for announcements",
+      "tags": ["company-wide"],
+      "channels": ["whatsapp"]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "daily-standup",
+      "name": "Daily Standup",
+      "description": "Morning sync for team coordination",
+      "schedule": "0 9 * * 1-5",
+      "enabled": false,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": ["All Hands"],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# Daily Standup Workflow\n\nPlease provide your standup update covering:\n\n### 1. Yesterday's Accomplishments\n- What did you complete yesterday?\n\n### 2. Today's Plans  \n- What are your top priorities for today?\n\n### 3. Blockers\n- Are you blocked on anything?\n"
+    },
+    {
+      "id": "weekly-status-report",
+      "name": "Weekly Status Report",
+      "description": "Weekly progress summary for leadership",
+      "schedule": "0 17 * * 5",
+      "enabled": false,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": ["All Hands"],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
+    }
+  ]
+}

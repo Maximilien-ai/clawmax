@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 900" width="700" height="900">
+  <defs>
+    <style>
+      .step-box { fill: #f8fafc; stroke: #3b82f6; stroke-width: 2; rx: 8; }
+      .step-header { fill: #3b82f6; }
+      .step-number { fill: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; }
+      .step-text { fill: #1e293b; font-family: Arial, sans-serif; font-size: 14px; }
+      .arrow { stroke: #64748b; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+      .trigger-box { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; rx: 8; }
+      .result-box { fill: #d1fae5; stroke: #10b981; stroke-width: 2; rx: 8; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text style="fill: #1e293b; font-family: Arial, sans-serif; font-size: 22px; font-weight: bold;" x="350" y="30" text-anchor="middle">Workflow Execution Flow</text>
+
+  <!-- Trigger (Step 0) -->
+  <g id="trigger">
+    <rect class="trigger-box" x="150" y="60" width="400" height="60" />
+    <text class="step-text" x="350" y="85" text-anchor="middle" font-weight="bold">Trigger: Schedule (cron) OR Manual Click</text>
+    <text class="step-text" x="350" y="105" text-anchor="middle" style="fill: #92400e; font-size: 12px;">User clicks "Run Workflow" or cron job fires</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 120 L 350 150" />
+
+  <!-- Step 1 -->
+  <g id="step1">
+    <rect class="step-box" x="150" y="150" width="400" height="70" />
+    <circle class="step-header" cx="180" cy="175" r="18" />
+    <text class="step-number" x="180" y="181" text-anchor="middle">1</text>
+    <text class="step-text" x="210" y="175" font-weight="bold">Resolve Target Agents</text>
+    <text class="step-text" x="210" y="195" style="font-size: 12px;">Dashboard resolves agents by</text>
+    <text class="step-text" x="210" y="210" style="font-size: 12px;">community/group/tag targeting</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 220 L 350 250" />
+
+  <!-- Step 2 -->
+  <g id="step2">
+    <rect class="step-box" x="150" y="250" width="400" height="60" />
+    <circle class="step-header" cx="180" cy="275" r="18" />
+    <text class="step-number" x="180" y="281" text-anchor="middle">2</text>
+    <text class="step-text" x="210" y="275" font-weight="bold">Create Execution Record</text>
+    <text class="step-text" x="210" y="295" style="font-size: 12px;">Generate execution JSON with participant list</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 310 L 350 340" />
+
+  <!-- Step 3 -->
+  <g id="step3">
+    <rect class="step-box" x="150" y="340" width="400" height="60" />
+    <circle class="step-header" cx="180" cy="365" r="18" />
+    <text class="step-number" x="180" y="371" text-anchor="middle">3</text>
+    <text class="step-text" x="210" y="365" font-weight="bold">Spawn CLI Process</text>
+    <text class="step-text" x="210" y="385" style="font-size: 12px; font-family: 'Courier New', monospace;">openclaw workflow run &lt;id&gt; --workspace &lt;path&gt;</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 400 L 350 430" />
+
+  <!-- Step 4 -->
+  <g id="step4">
+    <rect class="step-box" x="150" y="430" width="400" height="70" />
+    <circle class="step-header" cx="180" cy="455" r="18" />
+    <text class="step-number" x="180" y="461" text-anchor="middle">4</text>
+    <text class="step-text" x="210" y="455" font-weight="bold">Connect to Agent Gateways</text>
+    <text class="step-text" x="210" y="475" style="font-size: 12px;">CLI establishes WebSocket connections</text>
+    <text class="step-text" x="210" y="490" style="font-size: 12px;">to each agent's gateway</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 500 L 350 530" />
+
+  <!-- Step 5 -->
+  <g id="step5">
+    <rect class="step-box" x="150" y="530" width="400" height="70" />
+    <circle class="step-header" cx="180" cy="555" r="18" />
+    <text class="step-number" x="180" y="561" text-anchor="middle">5</text>
+    <text class="step-text" x="210" y="555" font-weight="bold">Send Workflow Content</text>
+    <text class="step-text" x="210" y="575" style="font-size: 12px;">CLI sends instructions via chat.send RPC</text>
+    <text class="step-text" x="210" y="590" style="font-size: 12px;">to each agent's gateway</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 600 L 350 630" />
+
+  <!-- Step 6 -->
+  <g id="step6">
+    <rect class="step-box" x="150" y="630" width="400" height="60" />
+    <circle class="step-header" cx="180" cy="655" r="18" />
+    <text class="step-number" x="180" y="661" text-anchor="middle">6</text>
+    <text class="step-text" x="210" y="655" font-weight="bold">Capture Agent Responses</text>
+    <text class="step-text" x="210" y="675" style="font-size: 12px;">Collect responses and save to execution JSON</text>
+  </g>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M 350 690 L 350 720" />
+
+  <!-- Step 7 (Result) -->
+  <g id="result">
+    <rect class="result-box" x="150" y="720" width="400" height="80" />
+    <circle style="fill: #10b981;" cx="180" cy="750" r="18" />
+    <text class="step-number" x="180" y="756" text-anchor="middle">7</text>
+    <text class="step-text" x="210" y="745" font-weight="bold">Dashboard Polls &amp; Updates</text>
+    <text class="step-text" x="210" y="765" style="font-size: 12px;">Dashboard refreshes every 5 seconds</text>
+    <text class="step-text" x="210" y="780" style="font-size: 12px;">Shows live status until completion</text>
+    <text class="step-text" x="210" y="795" style="font-size: 12px; font-weight: bold; fill: #059669;">✓ Toast notification on completion</text>
+  </g>
+
+  <!-- Footer -->
+  <text style="fill: #64748b; font-family: Arial, sans-serif; font-size: 11px; font-style: italic;" x="350" y="850" text-anchor="middle">Execution completes when all agents respond or timeout (30s default)</text>
+</svg>

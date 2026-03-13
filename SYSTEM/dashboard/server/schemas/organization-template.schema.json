@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "type", "version", "agents"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name of the template"
+    },
+    "type": {
+      "const": "organization",
+      "description": "Template type - must be 'organization' for multi-agent templates"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version"
+    },
+    "description": {
+      "type": "string",
+      "description": "What this organization template is for"
+    },
+    "author": {
+      "type": "string",
+      "description": "Template creator"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Searchable tags"
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/agent" },
+      "description": "Agent definitions"
+    },
+    "communities": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/community" },
+      "description": "Community definitions"
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/group" },
+      "description": "Group definitions"
+    }
+  },
+  "definitions": {
+    "agent": {
+      "type": "object",
+      "required": ["id", "role"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "communities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Community names this agent belongs to"
+        },
+        "groups": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Group names this agent belongs to"
+        }
+      }
+    },
+    "community": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "channels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Communication channels: whatsapp, slack, etc."
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "community": {
+          "type": "string",
+          "description": "Parent community name"
+        },
+        "channels": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

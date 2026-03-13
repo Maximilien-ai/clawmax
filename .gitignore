@@ -1,0 +1,43 @@
+# Runtime message archives
+SYSTEM/messages/
+
+# Workspace state (runtime)
+**/.openclaw/workspace-state.json
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files
+.env
+.env.local
+
+# Dashboard auth token
+SYSTEM/dashboard/server/.dashboard-token
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+
+# Agent workspace directories (generated at runtime)
+AGENTS/*/
+!AGENTS/max0/
+!AGENTS/engineer/
+!AGENTS/qa-engineer/
+!AGENTS/ceo/
+
+# Workflow executions (runtime data)
+WORKFLOWS/executions/
+
+# Template agent instances (keep template definitions only)
+TEMPLATES/organizations/*/agents/
+TEMPLATES/organizations/qa-team/
+# Note: User-created templates in workspace. Global system templates at ~/.openclaw/TEMPLATES/
+
+# Generated scripts
+SYSTEM/scripts/
