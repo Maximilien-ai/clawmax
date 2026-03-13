@@ -74,12 +74,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       const skillsRes = await fetch(`${API_BASE}/api/skills`)
       const skillsData: SkillsResponse = await skillsRes.json()
 
-      // Fetch agent's assigned skills
-      const agentSkillsRes = await fetch(`${API_BASE}/api/skills/agent/${agentId}`)
-      const agentSkillsData: AgentSkillsResponse = await agentSkillsRes.json()
+      // Fetch agent's assigned skills (only if agentId is set)
+      if (agentId) {
+        const agentSkillsRes = await fetch(`${API_BASE}/api/skills/agent/${agentId}`)
+        const agentSkillsData: AgentSkillsResponse = await agentSkillsRes.json()
+        setAssignedSkills(new Set(agentSkillsData.skillIds))
+      } else {
+        setAssignedSkills(new Set())
+      }
 
       setAllSkills(skillsData.skills)
-      setAssignedSkills(new Set(agentSkillsData.skillIds))
     } catch (error) {
       console.error('Failed to load skills:', error)
       alert('Failed to load skills. Make sure the server is running.')
@@ -242,11 +246,27 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               </div>
             )}
           </div>
-          <p className="text-gray-600">
-            Assign skills to <span className="font-semibold text-gray-900">{agentId}</span> agent
-          </p>
+          {availableAgents.length > 0 ? (
+            <p className="text-gray-600">
+              Assign skills to <span className="font-semibold text-gray-900">{agentId}</span> agent
+            </p>
+          ) : (
+            <p className="text-gray-600">
+              No agents found in workspace. Create an agent to manage skills.
+            </p>
+          )}
         </div>
 
+        {availableAgents.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+            <span className="text-6xl mb-4">🤖</span>
+            <p className="text-lg font-medium mb-2">No Agents in Workspace</p>
+            <p className="text-sm text-gray-500">Create an agent to start assigning skills</p>
+          </div>
+        )}
+
+        {availableAgents.length > 0 && (
+          <>
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <button
@@ -411,6 +431,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               )
             })}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
