@@ -92,7 +92,7 @@ function parseSkillFile(
     const { data } = matter(content)
 
     if (!data.name) {
-      console.warn(`Skill file missing name: ${filePath}`)
+      // Silently skip skills without names (common in OpenClaw dev skills)
       return null
     }
 
