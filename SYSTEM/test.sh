@@ -36,6 +36,9 @@ echo "Dashboard | API | Integration Tests"
 echo "========================================="
 echo ""
 
+# Ensure tests run on the correct workspace (default workspace for this repo)
+curl -s -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
+
 # Helper functions
 pass() {
   echo -e "${GREEN}✓${NC} $1"
