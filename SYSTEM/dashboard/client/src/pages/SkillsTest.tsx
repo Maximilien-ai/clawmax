@@ -41,7 +41,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     try {
       const res = await fetch(`${API_BASE}/api/agents`)
       const data = await res.json()
-      const agentIds = data.agents.map((a: any) => a.id)
+      const agents = Array.isArray(data.agents) ? data.agents : []
+      const agentIds = agents.map((a: any) => a.id)
       setAvailableAgents(agentIds)
 
       // Set default agent to first available if not already set
@@ -51,7 +52,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
       // Compute skill usage across all agents
       const usage = new Map<string, string[]>()
-      for (const agent of data.agents) {
+      for (const agent of agents) {
         if (agent.skills && Array.isArray(agent.skills)) {
           for (const skill of agent.skills) {
             const users = usage.get(skill) || []

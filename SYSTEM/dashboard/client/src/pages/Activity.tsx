@@ -74,7 +74,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
     fetch('/api/activity')
       .then(r => r.json())
       .then(d => {
-        setFeed(d.feed)
+        setFeed(Array.isArray(d.feed) ? d.feed : [])
         setLoading(false)
         setLastRefreshed(Date.now())
       })
