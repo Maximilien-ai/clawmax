@@ -329,6 +329,6 @@ Special thanks to:
 
 ---
 
-**Built with ❤️ by the ClawMax team**
+**Built with ❤️ by the Maximilien.ai ClawMax team**
 
-🦞 **Powered by OpenClaw** | 🚀 **Ready for Production** | 📖 **Well Documented**
+🦞 **Powered by OpenClaw** | 🚀 **Ready for take for a spin** | 📖 **Well Documented**
