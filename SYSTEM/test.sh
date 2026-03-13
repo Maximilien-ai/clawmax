@@ -656,19 +656,24 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 TEST_AGENT="engineer"
 TEST_SKILLS_PAYLOAD='["github","slack"]'
 
-# Save current config
-cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.rpc-test-backup
+# Check if agent exists in global config
+if ! openclaw agents list 2>&1 | grep -q "$TEST_AGENT"; then
+  warn "Agent '$TEST_AGENT' not found in global config - skipping Gateway RPC tests"
+  warn "Gateway RPC tests require agent registered in ~/.openclaw/openclaw.json"
+else
+  # Save current config
+  cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.rpc-test-backup
 
-# Get current metadata timestamp before update
-META_BEFORE=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
+  # Get current metadata timestamp before update
+  META_BEFORE=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
 
-# Update skills via dashboard API (should use Gateway RPC)
-response=$(curl -s -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
-  -H 'Content-Type: application/json' \
-  -d "{\"skills\":$TEST_SKILLS_PAYLOAD}")
+  # Update skills via dashboard API (should use Gateway RPC)
+  response=$(curl -s -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
+    -H 'Content-Type: application/json' \
+    -d "{\"skills\":$TEST_SKILLS_PAYLOAD}")
 
-if echo "$response" | jq -e '.ok' > /dev/null 2>&1; then
-  pass "Gateway RPC skills update succeeded"
+  if echo "$response" | jq -e '.ok' > /dev/null 2>&1; then
+    pass "Gateway RPC skills update succeeded"
 
   # Wait for write to complete
   sleep 0.5
@@ -682,18 +687,19 @@ if echo "$response" | jq -e '.ok' > /dev/null 2>&1; then
     fail "Config metadata NOT stamped (direct write detected!)"
   fi
 
-  # Verify OpenClaw CLI can still read config
-  if openclaw agents list 2>&1 | grep -q "$TEST_AGENT"; then
-    pass "OpenClaw CLI can read Gateway-modified config"
+    # Verify OpenClaw CLI can still read config
+    if openclaw agents list 2>&1 | grep -q "$TEST_AGENT"; then
+      pass "OpenClaw CLI can read Gateway-modified config"
+    else
+      fail "OpenClaw CLI cannot read config (validation may have failed)"
+    fi
   else
-    fail "OpenClaw CLI cannot read config (validation may have failed)"
+    fail "Gateway RPC skills update failed"
   fi
-else
-  fail "Gateway RPC skills update failed"
-fi
 
-# Restore backup
-mv ~/.openclaw/openclaw.json.rpc-test-backup ~/.openclaw/openclaw.json
+  # Restore backup
+  mv ~/.openclaw/openclaw.json.rpc-test-backup ~/.openclaw/openclaw.json
+fi
 
 echo ""
 
