@@ -2,55 +2,196 @@
   "name": "Test Template",
   "type": "organization",
   "version": "1.0.0",
-  "description": "Minimal testing fixture with 2 agents, 1 group, 1 community, and 1 workflow",
-  "tags": ["test", "minimal", "fixture"],
+  "tags": [],
   "agents": [
     {
-      "id": "test1",
-      "name": "test1",
-      "role": "Test Assistant",
-      "tags": ["test", "assistant"],
+      "id": "jarvis",
+      "name": "jarvis",
+      "role": "super AI assistant",
+      "tags": [
+        "assistant"
+      ],
       "skills": []
     },
     {
-      "id": "test2",
-      "name": "test2",
-      "role": "Test Engineer",
-      "tags": ["test", "engineer"],
-      "skills": []
+      "id": "max0",
+      "name": "max0",
+      "role": "plain assistant",
+      "tags": [
+        "assistant"
+      ],
+      "skills": [],
+      "groups": [
+        "Daily check-ins",
+        "General",
+        "Legal",
+        "Max assist",
+        "Maximilien.ai - OpenClaw",
+        "News etc",
+        "Onboarding",
+        "Test - ClawMax.ai"
+      ]
     }
   ],
   "groups": [
     {
-      "name": "test-group",
-      "description": "Test group for agent communication",
-      "tags": ["test"],
-      "channels": [],
-      "community": "test-community"
-    }
-  ],
-  "communities": [
+      "name": "Daily check-ins",
+      "description": "Morning standup and daily sync",
+      "tags": [
+        "standup",
+        "daily"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Maximilien.ai"
+    },
     {
-      "name": "test-community",
-      "description": "Test community for multi-agent coordination",
-      "tags": ["test"]
+      "name": "General",
+      "description": "General discussion and announcements",
+      "tags": [
+        "general"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Maximilien.ai"
+    },
+    {
+      "name": "Legal",
+      "description": "Legal discussions and compliance",
+      "tags": [
+        "legal",
+        "compliance"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Maximilien.ai"
+    },
+    {
+      "name": "Max assist",
+      "description": "Direct assistance requests",
+      "tags": [
+        "support",
+        "urgent"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Customer Success"
+    },
+    {
+      "name": "Maximilien.ai - OpenClaw",
+      "description": "OpenClaw project development",
+      "tags": [
+        "dev",
+        "openclaw"
+      ],
+      "channels": [
+        "whatsapp",
+        "slack"
+      ],
+      "community": "Engineering Team"
+    },
+    {
+      "name": "News etc",
+      "description": "Industry news and updates",
+      "tags": [
+        "news",
+        "external"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Maximilien.ai"
+    },
+    {
+      "name": "Onboarding",
+      "description": "New team member onboarding",
+      "tags": [
+        "onboarding",
+        "hr"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Maximilien.ai"
+    },
+    {
+      "name": "Test - ClawMax.ai",
+      "description": "Testing and QA discussions",
+      "tags": [
+        "testing",
+        "qa"
+      ],
+      "channels": [
+        "whatsapp"
+      ],
+      "community": "Engineering Team"
     }
   ],
   "workflows": [
     {
-      "id": "test-workflow",
-      "name": "Test Workflow",
-      "description": "Simple test workflow for validation",
-      "schedule": "0 9 * * *",
-      "enabled": false,
-      "executionMode": "manual",
+      "id": "daily-standup",
+      "name": "Daily Standup",
+      "description": "Morning standup report from all engineering agents",
+      "schedule": "0 9 * * 1-5",
+      "enabled": true,
+      "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["test-group"],
+        "groups": [
+          "engineering"
+        ],
         "tags": [],
         "agents": []
       },
-      "content": "# Test Workflow\n\nThis is a simple test workflow. Please respond with your status."
+      "content": "# Daily Standup Report\n\nGenerate a brief standup report."
+    },
+    {
+      "id": "status-check",
+      "name": "Status Check",
+      "description": "Quick status check for agents in Status group",
+      "schedule": "0 * * * *",
+      "enabled": true,
+      "executionMode": "manual",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "ceo",
+          "engineer",
+          "max0"
+        ]
+      },
+      "content": "# Status Check\n\nCheck your session status and report if you're online and ready.\n\nUse the session_status tool to check your current session."
+    },
+    {
+      "id": "test",
+      "name": "test",
+      "description": "test",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [
+          "Maximilien.ai"
+        ],
+        "groups": [
+          "General"
+        ],
+        "tags": [
+          "test"
+        ],
+        "agents": [
+          "ceo"
+        ]
+      },
+      "content": "# Test\n\nThis is a test workflow"
     }
   ]
 }
