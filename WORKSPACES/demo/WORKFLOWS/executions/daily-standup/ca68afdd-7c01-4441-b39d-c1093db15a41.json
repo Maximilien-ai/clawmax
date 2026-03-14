@@ -1,0 +1,52 @@
+{
+  "id": "ca68afdd-7c01-4441-b39d-c1093db15a41",
+  "workflowId": "daily-standup",
+  "startedAt": "2026-03-13T02:05:36.117Z",
+  "status": "completed",
+  "triggerType": "manual",
+  "participants": [
+    {
+      "agentId": "ceo",
+      "agentName": "CEO",
+      "status": "completed",
+      "startedAt": "2026-03-13T02:05:37.085Z",
+      "completedAt": "2026-03-13T02:05:42.967Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    },
+    {
+      "agentId": "engineer",
+      "agentName": "Engineer",
+      "status": "completed",
+      "startedAt": "2026-03-13T02:05:42.969Z",
+      "completedAt": "2026-03-13T02:05:54.799Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    },
+    {
+      "agentId": "product-manager",
+      "agentName": "Product Manager",
+      "status": "completed",
+      "startedAt": "2026-03-13T02:05:54.801Z",
+      "completedAt": "2026-03-13T02:06:02.351Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    }
+  ],
+  "logs": [
+    "Workflow triggered at 2026-03-13T02:05:36.117Z",
+    "Targeting 3 agent(s)",
+    "Workflow execution started by CLI at 2026-03-13T02:05:37.084Z",
+    "Started execution for CEO",
+    "CEO completed successfully",
+    "Started execution for Engineer",
+    "Engineer completed successfully",
+    "Started execution for Product Manager",
+    "Product Manager completed successfully",
+    "Workflow execution completed at 2026-03-13T02:06:02.351Z"
+  ],
+  "completedAt": "2026-03-13T02:06:02.351Z"
+}

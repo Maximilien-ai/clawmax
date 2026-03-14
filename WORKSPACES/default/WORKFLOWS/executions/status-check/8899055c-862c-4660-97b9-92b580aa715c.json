@@ -1,0 +1,52 @@
+{
+  "id": "8899055c-862c-4660-97b9-92b580aa715c",
+  "workflowId": "status-check",
+  "startedAt": "2026-03-09T15:59:23.448Z",
+  "status": "completed",
+  "triggerType": "manual",
+  "participants": [
+    {
+      "agentId": "ceo",
+      "agentName": "ceo",
+      "status": "completed",
+      "startedAt": "2026-03-09T15:59:24.409Z",
+      "completedAt": "2026-03-09T15:59:33.176Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    },
+    {
+      "agentId": "engineer",
+      "agentName": "engineer",
+      "status": "completed",
+      "startedAt": "2026-03-09T15:59:33.178Z",
+      "completedAt": "2026-03-09T15:59:57.595Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    },
+    {
+      "agentId": "max0",
+      "agentName": "max0",
+      "status": "completed",
+      "startedAt": "2026-03-09T15:59:57.596Z",
+      "completedAt": "2026-03-09T16:00:12.679Z",
+      "result": {
+        "response": "(completed - tool-only execution)"
+      }
+    }
+  ],
+  "logs": [
+    "Workflow triggered at 2026-03-09T15:59:23.448Z",
+    "Targeting 3 agent(s)",
+    "Workflow execution started by CLI at 2026-03-09T15:59:24.408Z",
+    "Started execution for ceo",
+    "ceo completed successfully",
+    "Started execution for engineer",
+    "engineer completed successfully",
+    "Started execution for max0",
+    "max0 completed successfully",
+    "Workflow execution completed at 2026-03-09T16:00:12.679Z"
+  ],
+  "completedAt": "2026-03-09T16:00:12.679Z"
+}

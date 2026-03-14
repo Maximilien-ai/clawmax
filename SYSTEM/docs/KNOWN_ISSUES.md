@@ -90,47 +90,41 @@ git rev-parse --short HEAD
 
 ### 4. Workspace Directory Structure
 **Severity**: Medium
-**Status**: Documented (Implementation in v1.1.0)
-**Target**: End of March
+**Status**: Fixed in v1.0.2
+**Fixed**: Mar 14, 2026
 
 **Description**:
-Current workspace location is flexible but can be unclear. Users may place workspaces anywhere on the filesystem.
+Workspace location was unclear. Users could place workspaces anywhere on the filesystem, making it hard to manage multiple environments.
 
-**Current Behavior** (v1.0.1):
-- Workspace defaults to ClawMax root directory
-- Can be overridden with `OPENCLAW_WORKSPACE` env var
-- Each workspace contains: AGENTS/, WORKFLOWS/, GROUPS/, COMMUNITIES/, TEMPLATES/
-
-**Proposed Enhancement for v1.1.0**:
-Standardized `workspaces/` directory structure:
+**Solution** (v1.0.2):
+Implemented standardized `WORKSPACES/` directory structure:
 ```
 clawmax/
-├── workspaces/
-│   ├── README.md           # Explains structure
+├── WORKSPACES/             # All workspaces in one place
 │   ├── default/            # Created by setup.sh
 │   │   ├── AGENTS/
 │   │   ├── WORKFLOWS/
-│   │   ├── GROUPS/
-│   │   └── COMMUNITIES/
-│   ├── demo/               # User-created workspace
-│   └── production/         # User-created workspace
+│   │   ├── ORG/
+│   │   └── TEMPLATES/
+│   ├── demo/               # Demo workspace
+│   └── test/               # Test workspace
 ├── SYSTEM/
 ├── TEMPLATES/
 └── README.md
 ```
 
 **Benefits**:
-- All workspaces in one place
-- Clear separation from system files
-- Easy to find, backup, and share
-- Backward compatible via `OPENCLAW_WORKSPACE` override
+- ✅ All workspaces in one place
+- ✅ Clear separation from system files
+- ✅ Easy to find, backup, and share
+- ✅ Backward compatible via `OPENCLAW_WORKSPACE` override
 
-**Current Workaround**:
-- Note workspace path from `./SYSTEM/start.sh` output
-- Check dashboard logs: `tail -f /tmp/dashboard.log | grep "Workspace:"`
-- Set explicit path: `export OPENCLAW_WORKSPACE=/path/to/workspace`
+**Migration**:
+- `setup.sh` now creates `WORKSPACES/default` by default
+- `start.sh` defaults to `WORKSPACES/default`
+- Can override with: `export OPENCLAW_WORKSPACE=/custom/path`
 
-**Status**: Documented for v1.1.0 implementation. Current setup.sh creates workspace in root directory.
+**Status**: ✅ Implemented in v1.0.2
 
 ---
 

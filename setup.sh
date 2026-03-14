@@ -158,15 +158,20 @@ else
 fi
 
 # Determine workspace path
-# Note: v1.1.0 will introduce workspaces/ directory structure
-# For now, we use the ClawMax root directory as workspace
+# v1.0.2+ uses WORKSPACES/ directory structure
 if [ -n "$OPENCLAW_WORKSPACE" ]; then
     WORKSPACE="$OPENCLAW_WORKSPACE"
     print_info "Using existing workspace: $WORKSPACE"
 else
-    WORKSPACE="$CLAWMAX_DIR"
+    # Default to WORKSPACES/default
+    WORKSPACE="$CLAWMAX_DIR/WORKSPACES/default"
     print_info "Setting workspace to: $WORKSPACE"
-    print_info "(v1.1.0 will introduce workspaces/ directory)"
+fi
+
+# Create WORKSPACES directory if it doesn't exist
+if [ ! -d "$CLAWMAX_DIR/WORKSPACES" ]; then
+    mkdir -p "$CLAWMAX_DIR/WORKSPACES/default"
+    print_success "Created WORKSPACES/ directory structure"
 fi
 
 # Verify workspace structure
@@ -180,16 +185,14 @@ if [ ! -d "$WORKSPACE/WORKFLOWS" ]; then
     print_success "Created WORKFLOWS/ directory"
 fi
 
-if [ ! -d "$WORKSPACE/GROUPS" ]; then
-    mkdir -p "$WORKSPACE/GROUPS"
-    touch "$WORKSPACE/GROUPS/GROUPS.md"
-    print_success "Created GROUPS/ directory"
+if [ ! -d "$WORKSPACE/ORG" ]; then
+    mkdir -p "$WORKSPACE/ORG"
+    print_success "Created ORG/ directory"
 fi
 
-if [ ! -d "$WORKSPACE/COMMUNITIES" ]; then
-    mkdir -p "$WORKSPACE/COMMUNITIES"
-    touch "$WORKSPACE/COMMUNITIES/COMMUNITIES.md"
-    print_success "Created COMMUNITIES/ directory"
+if [ ! -d "$WORKSPACE/TEMPLATES" ]; then
+    mkdir -p "$WORKSPACE/TEMPLATES"
+    print_success "Created TEMPLATES/ directory"
 fi
 
 echo ""

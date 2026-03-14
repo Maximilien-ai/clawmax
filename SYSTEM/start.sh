@@ -8,9 +8,10 @@
 
 cd "$(dirname "$0")/dashboard"
 
-# Set workspace to current directory if not already set
+# Set workspace to WORKSPACES/default if not already set
 if [ -z "$OPENCLAW_WORKSPACE" ]; then
-  export OPENCLAW_WORKSPACE="$(pwd | sed 's|/SYSTEM/dashboard||')"
+  REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
+  export OPENCLAW_WORKSPACE="$REPO_ROOT/WORKSPACES/default"
 fi
 
 # Parse arguments

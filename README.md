@@ -174,6 +174,14 @@ tail -f /tmp/dashboard.log
 
 ```
 clawmax/
+├── WORKSPACES/                 # Multi-workspace support (v1.0.2+)
+│   ├── default/                # Default workspace
+│   │   ├── AGENTS/             # Agent configurations
+│   │   ├── WORKFLOWS/          # Workflow definitions
+│   │   ├── ORG/                # Organization files
+│   │   └── TEMPLATES/          # Workspace-specific templates
+│   ├── demo/                   # Demo workspace
+│   └── test/                   # Test workspace
 ├── SYSTEM/
 │   ├── dashboard/              # Main dashboard application
 │   │   ├── server/             # Express API server
@@ -189,9 +197,11 @@ clawmax/
 │   ├── stop.sh                 # Stop dashboard
 │   ├── status.sh               # Check status
 │   └── test.sh                 # Run tests
-├── TEMPLATES/                  # Agent & org templates
+├── TEMPLATES/                  # Global agent & org templates
 │   ├── agents/                 # Individual agent templates
 │   └── organizations/          # Team templates
+├── setup.sh                    # Automated installation script
+├── LICENSE                     # MIT License
 └── README.md                   # This file
 ```
 
