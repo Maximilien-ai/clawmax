@@ -98,29 +98,26 @@ export OPENAI_API_KEY='your-key-here'
 
 ### First Steps
 
-After running `./setup.sh` or `./SYSTEM/start.sh`, the dashboard opens at http://localhost:5173 with an empty default workspace. Here's how to get started:
-
-1. **Import a Team Template** (Recommended)
+1. **Create Your First Agent**
+   - Open http://localhost:5173
    - Navigate to **Templates** → **Organizations**
-   - Click on "Small Startup Team" (CEO, Engineer, Product Manager)
-   - Click "⚡ Apply Template" to populate your workspace
-   - This creates 3 agents, 2 workflows, and organization structure
+   - Import "Small Startup Team" to get CEO, Engineer, and Product Manager agents
 
-2. **Assign Skills to Agents**
+2. **Assign Skills**
    - Go to **Skills** tab
    - Select an agent
-   - Click skills to assign (github, web-search, email, file-operations, etc.)
+   - Click skills to assign (github, web-search, email, etc.)
 
 3. **Start a Conversation**
    - Go to **Agents** tab
    - Click on an agent
-   - Click the 💬 Chat icon to start a real-time conversation
+   - Click the 💬 Chat icon to start a conversation
 
-4. **Run or Create Workflows**
+4. **Create a Workflow**
    - Go to **Workflows** tab
-   - Run existing workflows (imported from template)
-   - Or click "New Workflow" to create custom automation
-   - Set schedule, target agents by tags/groups, and content
+   - Click "New Workflow"
+   - Set schedule, target agents, and content
+   - Save and enable
 
 ---
 
@@ -178,12 +175,13 @@ tail -f /tmp/dashboard.log
 ```
 clawmax/                        # ClawMax repo root
 ├── WORKSPACES/                 # All ClawMax-managed workspaces (v1.0.2+)
-│   ├── default/                # Default workspace (starts empty)
-│   │   ├── AGENTS/             # Agent configurations (empty on clone)
-│   │   ├── WORKFLOWS/          # Workflow definitions (empty on clone)
-│   │   ├── ORG/                # Organization files (empty on clone)
-│   │   ├── SYSTEM/             # System messages and logs
+│   ├── default/                # Default workspace
+│   │   ├── AGENTS/             # Agent configurations
+│   │   ├── WORKFLOWS/          # Workflow definitions
+│   │   ├── ORG/                # Organization files
 │   │   └── TEMPLATES/          # Workspace-local templates (optional)
+│   ├── demo/                   # Demo workspace
+│   ├── test/                   # Test workspace
 │   └── TEMPLATES/              # Shared workspace templates
 ├── TEMPLATES/                  # Global system templates (shared across all workspaces)
 │   ├── agents/                 # System agent templates

@@ -1038,9 +1038,10 @@ export function listAgents(): AgentInfo[] {
     return agents
   }
 
-  // Build a map from workspace path → registered agent ID from openclaw.json
+  // Build maps from workspace path → agent metadata from openclaw.json
   // Also validate the agents list structure
   const workspaceToIdMap = new Map<string, string>()
+  const idToMetadataMap = new Map<string, any>()
   const agentValidationWarnings = new Map<string, string[]>()
 
   try {
@@ -1073,6 +1074,9 @@ export function listAgents(): AgentInfo[] {
       if (agent.workspace) {
         workspaceToIdMap.set(agent.workspace, agent.id)
       }
+      if (agent.id) {
+        idToMetadataMap.set(agent.id, agent)
+      }
     }
   } catch {}
 
@@ -1083,8 +1087,9 @@ export function listAgents(): AgentInfo[] {
 
     const agentDir = path.join(agentsDir, entry.name)
     // Look up the registered ID from openclaw.json, fall back to directory name
+    // Priority: workspace path match > agent ID match > directory name
     const registeredId = workspaceToIdMap.get(agentDir) || entry.name
-    const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), false)
+    const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), false, idToMetadataMap.get(entry.name))
     agents.push(agent)
   }
 
@@ -1097,7 +1102,7 @@ export function listAgents(): AgentInfo[] {
 
       const agentDir = path.join(archiveDir, entry.name)
       const registeredId = workspaceToIdMap.get(agentDir) || entry.name
-      const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), true)
+      const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), true, idToMetadataMap.get(entry.name))
       agents.push(agent)
     }
   } catch {}
@@ -1105,7 +1110,7 @@ export function listAgents(): AgentInfo[] {
   return agents.sort((a, b) => a.id.localeCompare(b.id))
 }
 
-function readAgentInfo(id: string, agentDir: string, validationWarnings?: string[], isArchived: boolean = false): AgentInfo {
+function readAgentInfo(id: string, agentDir: string, validationWarnings?: string[], isArchived: boolean = false, metadata?: any): AgentInfo {
   // Read name from IDENTITY.md
   let name = id
   const identityPath = path.join(agentDir, 'IDENTITY.md')
