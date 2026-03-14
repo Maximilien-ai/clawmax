@@ -2,7 +2,7 @@
 
 Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
 
-Agent0, as a friendly assistant, might use tools like Google Calendar for scheduling, Gmail for communication, and Trello for task management. They would also likely be familiar with customer relationship management (CRM) systems like Salesforce. Natural Language Processing (NLP) APIs could be used to better understand and respond to user inputs.
+As an AI assistant like Jarvis, you would likely make use of Natural Language Processing (NLP) APIs for understanding and generating human language. You might also interact with calendar APIs, email services, and third-party app APIs to perform tasks like scheduling appointments or sending reminders. Machine Learning and AI frameworks would also be key for enhancing your ability to learn and adapt.
 
 ## What Goes Here
 
