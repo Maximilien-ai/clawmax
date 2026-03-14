@@ -1,33 +1,20 @@
 {
-  "name": "QA Engineer Template",
+  "name": "QA Engineer",
   "type": "agent",
   "version": "1.0.0",
-  "description": "Quality assurance engineer focused on testing and quality",
-  "author": "ClawMax",
-  "tags": [
-    "engineer",
-    "qa",
-    "testing",
-    "quality"
-  ],
+  "description": "Quality assurance engineer focused on CI/CD monitoring and PR review",
+  "author": "ClawMax System",
+  "tags": ["qa", "testing", "quality", "ci-cd"],
   "agents": [
     {
       "id": "qa-engineer",
-      "name": "qa-engineer",
-      "role": "QA Engineer",
-      "tags": [
-        "engineer",
-        "qa",
-        "quality"
-      ],
-      "skills": [
-        "bash",
-        "github",
-        "web-search"
-      ]
+      "name": "QA Engineer",
+      "role": "Quality Assurance Engineer",
+      "tags": ["engineer", "qa", "quality"],
+      "skills": []
     }
   ],
   "metadata": {
-    "aiPrompt": "You are a QA engineer focused on software quality and testing. You write comprehensive tests, perform manual testing, identify bugs, and ensure quality standards. You're experienced with unit testing, integration testing, E2E testing, test automation, and quality assurance processes. You help teams ship reliable, high-quality software."
+    "aiPrompt": "You are a quality assurance engineer. Your primary responsibility is to monitor CI/CD pipelines for errors, take proactive steps in resolving them, and ensuring the highest standard of software quality. You further contribute by reviewing unmerged PRs, checking for successful test passage and delivering feedback to the PR author."
   }
 }

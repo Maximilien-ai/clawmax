@@ -1,0 +1,56 @@
+{
+  "name": "Test Template",
+  "type": "organization",
+  "version": "1.0.0",
+  "description": "Minimal testing fixture with 2 agents, 1 group, 1 community, and 1 workflow",
+  "tags": ["test", "minimal", "fixture"],
+  "agents": [
+    {
+      "id": "test1",
+      "name": "test1",
+      "role": "Test Assistant",
+      "tags": ["test", "assistant"],
+      "skills": []
+    },
+    {
+      "id": "test2",
+      "name": "test2",
+      "role": "Test Engineer",
+      "tags": ["test", "engineer"],
+      "skills": []
+    }
+  ],
+  "groups": [
+    {
+      "name": "test-group",
+      "description": "Test group for agent communication",
+      "tags": ["test"],
+      "channels": [],
+      "community": "test-community"
+    }
+  ],
+  "communities": [
+    {
+      "name": "test-community",
+      "description": "Test community for multi-agent coordination",
+      "tags": ["test"]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "test-workflow",
+      "name": "Test Workflow",
+      "description": "Simple test workflow for validation",
+      "schedule": "0 9 * * *",
+      "enabled": false,
+      "executionMode": "manual",
+      "targeting": {
+        "communities": [],
+        "groups": ["test-group"],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# Test Workflow\n\nThis is a simple test workflow. Please respond with your status."
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "name": "Small Startup Team",
   "type": "organization",
-  "version": "2.0.0",
-  "description": "A complete startup team with CEO, Product Manager, 2 Engineers, QA Engineer, and Project Manager. Includes daily standups, weekly status reporting, and GitHub triage workflows.",
+  "version": "1.0.0",
+  "description": "A complete startup team with CEO, engineer, and product manager. Includes daily standups and weekly status reporting workflows.",
   "author": "ClawMax Team",
   "tags": ["startup", "small-team", "complete"],
   "agents": [
@@ -11,63 +11,30 @@
       "name": "CEO",
       "role": "Chief Executive Officer",
       "tags": ["leadership", "executive"],
-      "skills": ["email", "web-search"],
-      "communities": ["Leadership", "All Company"],
-      "groups": ["All Hands", "Leadership Team"]
+      "skills": [],
+      "communities": ["Leadership"],
+      "groups": ["All Hands"]
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "role": "Software Engineer",
+      "tags": ["engineer", "developer"],
+      "skills": [],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands"]
     },
     {
       "id": "product-manager",
       "name": "Product Manager",
       "role": "Product Manager",
       "tags": ["product", "manager"],
-      "skills": ["github", "web-search", "email"],
-      "communities": ["Product Team", "All Company"],
-      "groups": ["All Hands", "Product & Engineering"]
-    },
-    {
-      "id": "engineer1",
-      "name": "Engineer 1",
-      "role": "Senior Software Engineer",
-      "tags": ["engineer", "developer", "senior"],
-      "skills": ["bash", "github", "web-search"],
-      "communities": ["Engineering Team", "All Company"],
-      "groups": ["All Hands", "Product & Engineering", "Engineering"]
-    },
-    {
-      "id": "engineer2",
-      "name": "Engineer 2",
-      "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": ["bash", "github", "web-search"],
-      "communities": ["Engineering Team", "All Company"],
-      "groups": ["All Hands", "Product & Engineering", "Engineering"]
-    },
-    {
-      "id": "qa-engineer",
-      "name": "QA Engineer",
-      "role": "Quality Assurance Engineer",
-      "tags": ["engineer", "qa", "quality"],
-      "skills": ["bash", "github", "web-search"],
-      "communities": ["Engineering Team", "All Company"],
-      "groups": ["All Hands", "Product & Engineering", "Engineering"]
-    },
-    {
-      "id": "project-manager",
-      "name": "Project Manager",
-      "role": "Project Manager",
-      "tags": ["manager", "project-management"],
-      "skills": ["github", "web-search", "email"],
-      "communities": ["All Company"],
-      "groups": ["All Hands", "Leadership Team", "Product & Engineering"]
+      "skills": [],
+      "communities": ["Product Team"],
+      "groups": ["All Hands"]
     }
   ],
   "communities": [
-    {
-      "name": "All Company",
-      "description": "Everyone in the company",
-      "tags": ["company-wide"],
-      "channels": ["whatsapp"]
-    },
     {
       "name": "Leadership",
       "description": "Executive leadership team",
@@ -76,7 +43,7 @@
     },
     {
       "name": "Engineering Team",
-      "description": "Software development and QA team",
+      "description": "Software development team",
       "tags": ["engineering"],
       "channels": ["whatsapp"]
     },
@@ -92,29 +59,7 @@
       "name": "All Hands",
       "description": "Company-wide group for announcements",
       "tags": ["company-wide"],
-      "channels": ["whatsapp"],
-      "community": "All Company"
-    },
-    {
-      "name": "Leadership Team",
-      "description": "CEO, PM, and Project Manager coordination",
-      "tags": ["leadership"],
-      "channels": ["whatsapp"],
-      "community": "Leadership"
-    },
-    {
-      "name": "Engineering",
-      "description": "Engineering team daily coordination",
-      "tags": ["engineering"],
-      "channels": ["whatsapp"],
-      "community": "Engineering Team"
-    },
-    {
-      "name": "Product & Engineering",
-      "description": "Cross-functional product and engineering sync",
-      "tags": ["cross-functional"],
-      "channels": ["whatsapp"],
-      "community": "All Company"
+      "channels": ["whatsapp"]
     }
   ],
   "workflows": [
@@ -147,21 +92,6 @@
         "agents": []
       },
       "content": "# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
-    },
-    {
-      "id": "github-triage",
-      "name": "GitHub Issue Triage",
-      "description": "Product Manager reviews and prioritizes GitHub issues for the day",
-      "schedule": "0 10 * * 1-5",
-      "enabled": false,
-      "executionMode": "automated",
-      "targeting": {
-        "communities": [],
-        "groups": [],
-        "tags": [],
-        "agents": ["product-manager"]
-      },
-      "content": "# GitHub Issue Triage\n\n**Your Task**: Review the GitHub repository and triage new or unassigned issues.\n\n## Steps:\n1. **Review New Issues**: Check for any new issues filed in the last 24 hours\n2. **Prioritize**: Label issues as P0 (critical), P1 (high), P2 (medium), or P3 (low)\n3. **Assign**: Assign high-priority issues to appropriate engineers\n4. **Report**: Post a summary to the Product & Engineering group with:\n   - Number of new issues reviewed\n   - Critical issues (P0/P1) requiring immediate attention\n   - Recommended daily priorities for the engineering team\n\n## Output\nPost your triage summary to the **Product & Engineering** group so the team knows today's priorities.\n"
     }
   ]
 }

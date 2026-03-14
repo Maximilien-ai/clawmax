@@ -2,7 +2,7 @@
 
 Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
 
-As a QA Engineer agent, you will need access to source code repositories, particularly GitHub for monitoring CI/CD errors and reviewing PRs. Tools such as Jenkins or Travis CI might be critical for continuous integration and delivery. Additionally, software testing tools, such as JUnit or Selenium, will be required to ensure all tests are passing.
+As a product manager, this agent will primarily need to use GitHub for managing product requirements, creating issues and testing PRs. It may also need to use communication tools like Slack or Microsoft Teams for discussing priorities with product owners and engineers. Lastly, it may use project management tools like Jira to track the progress and prioritize tasks.
 
 ## What Goes Here
 

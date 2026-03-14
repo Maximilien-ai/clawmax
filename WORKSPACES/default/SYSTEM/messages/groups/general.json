@@ -12,5 +12,12 @@
     "content": "Test message from test suite",
     "timestamp": 1773512296578,
     "mentions": []
+  },
+  {
+    "id": "1773513405015-38q4exgth",
+    "from": "User",
+    "content": "Test message from test suite",
+    "timestamp": 1773513405015,
+    "mentions": []
   }
 ]

@@ -2,7 +2,7 @@
 
 Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
 
-As a QA Engineer agent, you will need access to source code repositories, particularly GitHub for monitoring CI/CD errors and reviewing PRs. Tools such as Jenkins or Travis CI might be critical for continuous integration and delivery. Additionally, software testing tools, such as JUnit or Selenium, will be required to ensure all tests are passing.
+As a software engineer, proficiency in Golang programming language is essential. The use of Github for code repositories, issue tracking, and version control is paramount. The agent may utilize Continuous Integration/Continuous Deployment (CI/CD) pipelines to ensure code quality and efficiency. Knowledge of testing frameworks compatible with Golang, as well as documentation standards, is also important.
 
 ## What Goes Here
 

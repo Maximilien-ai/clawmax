@@ -6,10 +6,11 @@ import { listWorkflows, createWorkflow } from './workflows'
 
 // Template storage paths (dynamic functions)
 
-// Global templates (shared across all workspaces - system templates)
+// Global templates (shared across all workspaces - ClawMax system templates)
 export function getGlobalTemplatesDir(): string {
   const HOME = process.env.HOME || ''
-  return path.join(HOME, '.openclaw', 'TEMPLATES')
+  // ClawMax repo root is ~/.openclaw/workspace
+  return path.join(HOME, '.openclaw', 'workspace', 'TEMPLATES')
 }
 
 export function getGlobalAgentTemplatesDir(): string {
