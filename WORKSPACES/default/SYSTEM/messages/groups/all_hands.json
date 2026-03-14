@@ -1,0 +1,23 @@
+[
+  {
+    "id": "1773512507438-7e8q2dn6l",
+    "from": "CEO",
+    "content": "I'm online and ready (workflow: Daily Standup)",
+    "timestamp": 1773512507438,
+    "mentions": []
+  },
+  {
+    "id": "1773512511892-l1nzbfvkc",
+    "from": "Engineer",
+    "content": "I'm online and ready (workflow: Daily Standup)",
+    "timestamp": 1773512511892,
+    "mentions": []
+  },
+  {
+    "id": "1773512515135-4k4qm7jna",
+    "from": "Product Manager",
+    "content": "I'm online and ready (workflow: Daily Standup)",
+    "timestamp": 1773512515135,
+    "mentions": []
+  }
+]

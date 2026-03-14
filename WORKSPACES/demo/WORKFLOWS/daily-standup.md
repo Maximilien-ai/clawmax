@@ -3,7 +3,7 @@ id: daily-standup
 name: Daily Standup
 description: Morning sync for team coordination
 schedule: 0 9 * * 1-5
-enabled: false
+enabled: true
 targeting:
   communities: []
   groups:
@@ -11,7 +11,7 @@ targeting:
   tags: []
   agents: []
 created: '2026-03-11T23:30:48.985Z'
-modified: '2026-03-11T23:30:48.985Z'
+modified: '2026-03-14T18:21:33.809Z'
 author: ClawMax Team
 executionMode: automated
 ---
