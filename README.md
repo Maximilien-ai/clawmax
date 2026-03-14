@@ -295,7 +295,10 @@ copies or substantial portions of the Software.
 
 - **Documentation**: [SYSTEM/docs/](SYSTEM/docs/)
 - **Issues**: [GitHub Issues](https://github.com/Maximilien-ai/clawmax/issues)
-- **Blog**: [ClawMax Launch Post](https://open.substack.com/pub/maximilien/p/clawmax-openclaw-to-the-max)
+- **Blog**: [ClawMax Launch Post](https://maximilien.substack.com/p/clawmax-openclaw-to-the-max)
+- **Launch Talk**: [AI Agents 1:1 Event](https://luma.com/hovkz2i1)
+- **Talk Recording**: [Google Drive](https://drive.google.com/file/d/1OZAC0d-qMAHsLP-GLp48QQyde_ECJxVy/view?usp=drive_link)
+- **LinkedIn Stream**: [Event Page](https://www.linkedin.com/events/aiagents-11-aiassistants-opencl7438349612089851904/theater/)
 - **OpenClaw Docs**: [https://docs.openclaw.ai](https://docs.openclaw.ai)
 
 ### Commercial Support
