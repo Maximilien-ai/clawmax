@@ -162,11 +162,11 @@ unset OPENCLAW_WORKSPACE
 # Name it: "backup-2026-03-09"
 
 # 2. Verify export
-ls -la ~/.openclaw/workspace/TEMPLATES/organizations/backup-2026-03-09/
+ls -la ~/.openclaw/workspace/WORKSPACES/TEMPLATES/organizations/backup-2026-03-09/
 # Should see: template.json + agents/
 
 # 3. Inspect template
-cat ~/.openclaw/workspace/TEMPLATES/organizations/backup-2026-03-09/template.json | jq '.agents | length'
+cat ~/.openclaw/workspace/WORKSPACES/TEMPLATES/organizations/backup-2026-03-09/template.json | jq '.agents | length'
 # Shows agent count
 
 # 4. DON'T CLICK IMPORT
@@ -338,8 +338,14 @@ curl -s http://localhost:3001/api/workflows/status-check/executions?limit=1 | jq
 
 ### List templates
 ```bash
+# Global system templates (v1.0.2+)
 ls -la ~/.openclaw/workspace/TEMPLATES/organizations/
-ls -la ~/.openclaw/workspace/WORKFLOWS/templates/
+
+# Shared workspace templates
+ls -la ~/.openclaw/workspace/WORKSPACES/TEMPLATES/organizations/
+
+# Workflow templates (in default workspace)
+ls -la ~/.openclaw/workspace/WORKSPACES/default/WORKFLOWS/templates/
 ```
 
 ---
