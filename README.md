@@ -43,18 +43,51 @@ ClawMax provides a powerful web-based interface to manage, monitor, and orchestr
 ### Prerequisites
 
 - **OpenClaw** installed and running ([Installation Guide](https://docs.openclaw.ai))
+  - **Tested Version**: commit `55c2aaf` (March 2026)
+  - **Version Note**: ClawMax v1.0.1 is tested with OpenClaw v0.3.0
 - **Node.js** 18+ and npm
 - **Git** for cloning the repository
+- **API Keys** (required for agents):
+  - Anthropic API key (`ANTHROPIC_API_KEY`) for Claude models
+  - OpenAI API key (`OPENAI_API_KEY`) for GPT models
 
-### Installation
+### Automated Installation (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/Maximilien-ai/clawmax.git
 cd clawmax
 
-# Install dependencies (this will install dashboard dependencies)
+# Run automated setup
+./setup.sh
+```
+
+The setup script will:
+- ✅ Check prerequisites (Node.js, Git, OpenClaw)
+- ✅ Verify OpenClaw version compatibility
+- ✅ Install dashboard dependencies
+- ✅ Configure workspace structure
+- ✅ Generate authentication token
+- ✅ Set up environment variables
+- ✅ Verify API keys (with instructions if missing)
+- ✅ Optionally install OpenClaw Gateway for chat
+
+### Manual Installation (Alternative)
+
+```bash
+# Clone the repository
+git clone https://github.com/Maximilien-ai/clawmax.git
+cd clawmax
+
+# Install dependencies
 cd SYSTEM/dashboard && npm install && cd ../..
+
+# Set up workspace directories
+mkdir -p AGENTS WORKFLOWS GROUPS COMMUNITIES
+
+# Configure API keys (add to ~/.openclaw/openclaw.json or export)
+export ANTHROPIC_API_KEY='your-key-here'
+export OPENAI_API_KEY='your-key-here'
 
 # Start the dashboard
 ./SYSTEM/start.sh

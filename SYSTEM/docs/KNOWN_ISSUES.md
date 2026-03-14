@@ -62,59 +62,75 @@ Create `setup.sh` that automates:
 
 ### 3. OpenClaw Version Compatibility
 **Severity**: High
-**Status**: Planned fix in v1.0.1
-**Target**: Mar 17, 2026
+**Status**: Fixed in v1.0.1
+**Fixed**: Mar 15, 2026
 
 **Description**:
-ClawMax v1.0.0 is only tested with a specific version of OpenClaw. Newer OpenClaw versions may introduce breaking changes.
+ClawMax v1.0.1 is tested with a specific version of OpenClaw. Newer OpenClaw versions may introduce breaking changes.
 
-**Problems**:
-- Users install latest OpenClaw, which may be incompatible
-- No version check on dashboard startup
-- Unclear which OpenClaw version is compatible
+**Solution**:
+- ✅ Documented tested OpenClaw version in README.md
+- ✅ `setup.sh` checks OpenClaw version and warns if mismatch
+- ✅ Version compatibility documented
 
-**Planned Solution**:
-- Document tested OpenClaw version in README.md
-- `setup.sh` installs pinned OpenClaw version
-- Dashboard startup checks OpenClaw version, warns if mismatch
-- Version compatibility matrix in documentation
+**Tested Version**:
+- OpenClaw commit: `55c2aaf` (March 13, 2026)
+- OpenClaw version: v0.3.0
 
-**Current Tested Version**: OpenClaw commit `55c2aaf` (Mar 13, 2026)
+**Setup Check**: Run `./setup.sh` to verify your OpenClaw version is compatible.
 
-**Workaround**: Use OpenClaw version from early March 2026.
+**Manual Check**:
+```bash
+cd ~/github/maximilien/openclaw
+git rev-parse --short HEAD
+# Should show: 55c2aaf
+```
 
 ---
 
 ### 4. Workspace Directory Structure
 **Severity**: Medium
-**Status**: Design phase (v1.1.0)
+**Status**: Documented (Implementation in v1.1.0)
 **Target**: End of March
 
 **Description**:
-Current workspace location is unclear and varies:
-- Could be anywhere on filesystem
-- Default workspace path not obvious
-- Hard to find workspaces after creation
-- Mixing workspace files with ClawMax system files
+Current workspace location is flexible but can be unclear. Users may place workspaces anywhere on the filesystem.
 
-**Proposed Solution**:
-Create `workspaces/` directory structure:
+**Current Behavior** (v1.0.1):
+- Workspace defaults to ClawMax root directory
+- Can be overridden with `OPENCLAW_WORKSPACE` env var
+- Each workspace contains: AGENTS/, WORKFLOWS/, GROUPS/, COMMUNITIES/, TEMPLATES/
+
+**Proposed Enhancement for v1.1.0**:
+Standardized `workspaces/` directory structure:
 ```
 clawmax/
 ├── workspaces/
-│   ├── README.md
-│   ├── default/       # Created by setup.sh
-│   ├── demo/
-│   └── production/
+│   ├── README.md           # Explains structure
+│   ├── default/            # Created by setup.sh
+│   │   ├── AGENTS/
+│   │   ├── WORKFLOWS/
+│   │   ├── GROUPS/
+│   │   └── COMMUNITIES/
+│   ├── demo/               # User-created workspace
+│   └── production/         # User-created workspace
+├── SYSTEM/
+├── TEMPLATES/
+└── README.md
 ```
 
 **Benefits**:
 - All workspaces in one place
 - Clear separation from system files
-- Easy to find and backup
-- Optional override via OPENCLAW_WORKSPACE env var
+- Easy to find, backup, and share
+- Backward compatible via `OPENCLAW_WORKSPACE` override
 
-**Workaround**: Note workspace path when creating, or check dashboard logs for `Workspace: /path/to/workspace`.
+**Current Workaround**:
+- Note workspace path from `./SYSTEM/start.sh` output
+- Check dashboard logs: `tail -f /tmp/dashboard.log | grep "Workspace:"`
+- Set explicit path: `export OPENCLAW_WORKSPACE=/path/to/workspace`
+
+**Status**: Documented for v1.1.0 implementation. Current setup.sh creates workspace in root directory.
 
 ---
 
