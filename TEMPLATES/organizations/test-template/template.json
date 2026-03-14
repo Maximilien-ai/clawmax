@@ -2,378 +2,55 @@
   "name": "Test Template",
   "type": "organization",
   "version": "1.0.0",
-  "tags": [],
+  "description": "Minimal testing fixture with 2 agents, 1 group, 1 community, and 1 workflow",
+  "tags": ["test", "minimal", "fixture"],
   "agents": [
     {
-      "id": "agent-manager",
-      "name": "agent-manager",
-      "role": "executive manager",
-      "tags": [
-        "manager",
-        "executive"
-      ],
+      "id": "test1",
+      "name": "test1",
+      "role": "Test Assistant",
+      "tags": ["test", "assistant"],
       "skills": []
     },
     {
-      "id": "agent0",
-      "name": "agent0",
-      "role": "friendly assistant",
-      "tags": [
-        "assistant"
-      ],
-      "skills": []
-    },
-    {
-      "id": "ceo",
-      "name": "ceo",
-      "role": "Chief Executive Officer",
-      "tags": [
-        "ceo",
-        "executive"
-      ],
-      "skills": []
-    },
-    {
-      "id": "clawmax-assistant",
-      "name": "clawmax-assistant",
-      "role": "AI orchestration expert",
-      "tags": [
-        "built-in",
-        "clawmax",
-        "assistant",
-        "workflows",
-        "agents"
-      ],
-      "skills": []
-    },
-    {
-      "id": "dave",
-      "name": "dave",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "engineer",
-      "name": "engineer",
-      "role": "Software Engineer",
-      "tags": [
-        "engineer",
-        "golang"
-      ],
-      "skills": []
-    },
-    {
-      "id": "hernan",
-      "name": "hernan",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "jim",
-      "name": "jim",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "jim0",
-      "name": "jim0",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "max0",
-      "name": "max0",
-      "role": "plain assistant",
-      "tags": [
-        "assistant"
-      ],
-      "skills": [],
-      "groups": [
-        "Daily check-ins",
-        "General",
-        "Legal",
-        "Max assist",
-        "Maximilien.ai - OpenClaw",
-        "News etc",
-        "Onboarding",
-        "Test - ClawMax.ai"
-      ]
-    },
-    {
-      "id": "organization-architect",
-      "name": "organization-architect",
-      "role": "Organizational design expert",
-      "tags": [
-        "built-in",
-        "organization",
-        "communities",
-        "groups",
-        "structure"
-      ],
-      "skills": []
-    },
-    {
-      "id": "product-manager",
-      "name": "product-manager",
-      "role": "Product Manager",
-      "tags": [
-        "project-manager",
-        "manager"
-      ],
-      "skills": []
-    },
-    {
-      "id": "product-owner",
-      "name": "product-owner",
-      "role": "Product Owner",
-      "tags": [
-        "manager",
-        "executive"
-      ],
-      "skills": []
-    },
-    {
-      "id": "qa-engineer",
-      "name": "qa-engineer",
-      "role": "Quality Assurance Engineer",
-      "tags": [
-        "engineer",
-        "qa",
-        "quality"
-      ],
-      "skills": []
-    },
-    {
-      "id": "release-engineer",
-      "name": "release-engineer",
-      "role": "Release Engineer",
-      "tags": [
-        "engineer",
-        "release-manager",
-        "github"
-      ],
-      "skills": []
-    },
-    {
-      "id": "saroop",
-      "name": "saroop",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "template-optimizer",
-      "name": "template-optimizer",
-      "role": "Template analyst and optimizer",
-      "tags": [
-        "built-in",
-        "templates",
-        "optimization",
-        "analysis"
-      ],
-      "skills": []
-    },
-    {
-      "id": "todd",
-      "name": "todd",
-      "role": "Executive Advisor",
-      "tags": [
-        "advisor",
-        "board"
-      ],
-      "skills": []
-    },
-    {
-      "id": "workflow-debugger",
-      "name": "workflow-debugger",
-      "role": "Workflow troubleshooting expert",
-      "tags": [
-        "built-in",
-        "workflows",
-        "debugging",
-        "troubleshooting"
-      ],
+      "id": "test2",
+      "name": "test2",
+      "role": "Test Engineer",
+      "tags": ["test", "engineer"],
       "skills": []
     }
   ],
   "groups": [
     {
-      "name": "Daily check-ins",
-      "description": "Morning standup and daily sync",
-      "tags": [
-        "standup",
-        "daily"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Maximilien.ai"
-    },
+      "name": "test-group",
+      "description": "Test group for agent communication",
+      "tags": ["test"],
+      "channels": [],
+      "community": "test-community"
+    }
+  ],
+  "communities": [
     {
-      "name": "General",
-      "description": "General discussion and announcements",
-      "tags": [
-        "general"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Maximilien.ai"
-    },
-    {
-      "name": "Legal",
-      "description": "Legal discussions and compliance",
-      "tags": [
-        "legal",
-        "compliance"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Maximilien.ai"
-    },
-    {
-      "name": "Max assist",
-      "description": "Direct assistance requests",
-      "tags": [
-        "support",
-        "urgent"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Customer Success"
-    },
-    {
-      "name": "Maximilien.ai - OpenClaw",
-      "description": "OpenClaw project development",
-      "tags": [
-        "dev",
-        "openclaw"
-      ],
-      "channels": [
-        "whatsapp",
-        "slack"
-      ],
-      "community": "Engineering Team"
-    },
-    {
-      "name": "News etc",
-      "description": "Industry news and updates",
-      "tags": [
-        "news",
-        "external"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Maximilien.ai"
-    },
-    {
-      "name": "Onboarding",
-      "description": "New team member onboarding",
-      "tags": [
-        "onboarding",
-        "hr"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Maximilien.ai"
-    },
-    {
-      "name": "Test - ClawMax.ai",
-      "description": "Testing and QA discussions",
-      "tags": [
-        "testing",
-        "qa"
-      ],
-      "channels": [
-        "whatsapp"
-      ],
-      "community": "Engineering Team"
+      "name": "test-community",
+      "description": "Test community for multi-agent coordination",
+      "tags": ["test"]
     }
   ],
   "workflows": [
     {
-      "id": "daily-standup",
-      "name": "Daily Standup",
-      "description": "Morning standup report from all engineering agents",
-      "schedule": "0 9 * * 1-5",
-      "enabled": true,
-      "executionMode": "automated",
-      "targeting": {
-        "communities": [],
-        "groups": [
-          "engineering"
-        ],
-        "tags": [],
-        "agents": []
-      },
-      "content": "# Daily Standup Report\n\nGenerate a brief standup report."
-    },
-    {
-      "id": "status-check",
-      "name": "Status Check",
-      "description": "Quick status check for agents in Status group",
-      "schedule": "0 * * * *",
-      "enabled": true,
+      "id": "test-workflow",
+      "name": "Test Workflow",
+      "description": "Simple test workflow for validation",
+      "schedule": "0 9 * * *",
+      "enabled": false,
       "executionMode": "manual",
       "targeting": {
         "communities": [],
-        "groups": [
-          "Status"
-        ],
+        "groups": ["test-group"],
         "tags": [],
-        "agents": [
-          "ceo",
-          "engineer",
-          "max0"
-        ]
+        "agents": []
       },
-      "content": "# Status Check\n\nCheck your session status and report if you're online and ready.\n\nUse the session_status tool to check your current session."
-    },
-    {
-      "id": "test",
-      "name": "test",
-      "description": "test",
-      "schedule": "0 9 * * *",
-      "enabled": true,
-      "executionMode": "automated",
-      "targeting": {
-        "communities": [
-          "Maximilien.ai"
-        ],
-        "groups": [
-          "General"
-        ],
-        "tags": [
-          "test"
-        ],
-        "agents": [
-          "ceo"
-        ]
-      },
-      "content": "# Test\n\nThis is a test workflow"
+      "content": "# Test Workflow\n\nThis is a simple test workflow. Please respond with your status."
     }
   ]
 }

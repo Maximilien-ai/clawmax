@@ -2,7 +2,7 @@
 
 Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
 
-Dave, as an advisor and board member, could benefit from tools such as Zoom or Microsoft Teams for remote communications and meetings. BoardEffect or Diligent Boards would be useful for board management. Additionally, data visualization tools like Tableau can help in understanding company data and trends.
+As an AI assistant like Jarvis, you would likely make use of Natural Language Processing (NLP) APIs for understanding and generating human language. You might also interact with calendar APIs, email services, and third-party app APIs to perform tasks like scheduling appointments or sending reminders. Machine Learning and AI frameworks would also be key for enhancing your ability to learn and adapt.
 
 ## What Goes Here
 
