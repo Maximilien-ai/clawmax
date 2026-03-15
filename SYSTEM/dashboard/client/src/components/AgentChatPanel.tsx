@@ -24,9 +24,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [sessionId] = useState<string>(`dashboard-${agentId}-${Date.now()}`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
   const [isSlideMode, setIsSlideMode] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sendButtonRef = useRef<HTMLButtonElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
     checkGateway()
@@ -36,6 +39,40 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     // Show info if agent is offline
     if (agentStatus === 'offline') {
       console.log(`Starting chat with offline agent: ${agentName}. Agent will be activated.`)
+    }
+
+    // Initialize speech recognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = false
+      recognitionRef.current.interimResults = false
+      recognitionRef.current.lang = 'en-US'
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        setInput(transcript)
+        setIsListening(false)
+        // Focus send button after transcription
+        setTimeout(() => sendButtonRef.current?.focus(), 100)
+      }
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsListening(false)
+        setError(`Voice input error: ${event.error}`)
+        setTimeout(() => setError(null), 3000)
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false)
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
     }
   }, [agentId, agentStatus, agentName])
 
@@ -54,6 +91,29 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     } catch (e) {
       setGatewayAvailable(false)
       setError('Failed to check gateway status')
+    }
+  }
+
+  function toggleVoiceInput() {
+    if (!recognitionRef.current) {
+      setError('Voice input not supported in this browser')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+        setError(null)
+      } catch (err) {
+        console.error('Failed to start recognition:', err)
+        setError('Failed to start voice input')
+        setTimeout(() => setError(null), 3000)
+      }
     }
   }
 
@@ -303,6 +363,26 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Input */}
         <div className="px-6 py-4 border-t border-gray-200 shrink-0">
           <div className="flex gap-2">
+            <button
+              onClick={toggleVoiceInput}
+              disabled={sending || !gatewayAvailable}
+              className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
+                isListening
+                  ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              } disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed`}
+              title={isListening ? 'Stop listening' : 'Start voice input'}
+            >
+              {isListening ? (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              )}
+            </button>
             <input
               ref={inputRef}
               type="text"
@@ -320,8 +400,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   }
                 }
               }}
-              placeholder="Type your message... (Enter to send, Esc to cancel)"
-              disabled={sending || !gatewayAvailable}
+              placeholder={isListening ? "Listening..." : "Type or speak your message... (Enter to send)"}
+              disabled={sending || !gatewayAvailable || isListening}
               className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
             {streaming ? (
@@ -333,6 +413,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               </button>
             ) : (
               <button
+                ref={sendButtonRef}
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || sending || !gatewayAvailable}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"

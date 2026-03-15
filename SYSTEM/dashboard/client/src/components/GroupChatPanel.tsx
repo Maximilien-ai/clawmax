@@ -55,8 +55,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sendButtonRef = useRef<HTMLButtonElement>(null)
+  const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -66,9 +69,41 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     const interval = setInterval(fetchMessages, 2000)
     // Check for active workflows every 5 seconds
     const workflowInterval = setInterval(fetchActiveWorkflows, 5000)
+
+    // Initialize speech recognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = false
+      recognitionRef.current.interimResults = false
+      recognitionRef.current.lang = 'en-US'
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        setInput(transcript)
+        setIsListening(false)
+        // Focus send button after transcription
+        setTimeout(() => sendButtonRef.current?.focus(), 100)
+      }
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsListening(false)
+        setError(`Voice input error: ${event.error}`)
+        setTimeout(() => setError(null), 3000)
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false)
+      }
+    }
+
     return () => {
       clearInterval(interval)
       clearInterval(workflowInterval)
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
     }
   }, [channel.name])
 
@@ -298,6 +333,29 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         return [...mentions, ...agents]
       })()
     : []
+
+  function toggleVoiceInput() {
+    if (!recognitionRef.current) {
+      setError('Voice input not supported in this browser')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+        setError(null)
+      } catch (err) {
+        console.error('Failed to start recognition:', err)
+        setError('Failed to start voice input')
+        setTimeout(() => setError(null), 3000)
+      }
+    }
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (showMentions && filteredMentionAgents.length > 0) {
@@ -553,22 +611,45 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               </div>
             )}
 
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message... use @name or @all"
-              className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent"
-              disabled={sending}
-            />
+            <div className="flex gap-2">
+              <button
+                onClick={toggleVoiceInput}
+                disabled={sending}
+                className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
+                  isListening
+                    ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                } disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed`}
+                title={isListening ? 'Stop listening' : 'Start voice input'}
+              >
+                {isListening ? (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                )}
+              </button>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={isListening ? "Listening..." : "Type or speak... use @name or @all"}
+                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
+                disabled={sending || isListening}
+              />
+            </div>
           </div>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-gray-400">
               Use @name to mention agents or @all for everyone
             </span>
             <button
+              ref={sendButtonRef}
               onClick={sendMessage}
               disabled={!input.trim() || sending}
               className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
