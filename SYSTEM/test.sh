@@ -104,7 +104,7 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Skills API unit tests...${NC}"
 if (cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1 | grep -v "Skill file missing name" | grep -v "Failed to parse skill") | grep -q "All tests passed"; then
-  pass "Skills API unit tests (14 tests)"
+  pass "Skills API unit tests (17 tests)"
 else
   fail "Skills API unit tests"
 fi
@@ -474,7 +474,8 @@ echo "12. MANDATE.md Schema Validation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify mandate schema exists
-WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+# Get actual workspace path from health endpoint
+WORKSPACE=$(curl -s "$API_BASE/api/health" | jq -r '.workspace')
 if [ -f "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" ]; then
   pass "MANDATE.md schema file exists"
 
@@ -485,7 +486,7 @@ if [ -f "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" ]; then
     fail "MANDATE.md schema is not valid JSON"
   fi
 else
-  fail "MANDATE.md schema file not found"
+  fail "MANDATE.md schema file not found (workspace: $WORKSPACE)"
 fi
 
 # Note: Actual validation function will be tested when MANDATE editing is added to API
@@ -818,6 +819,130 @@ if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
 else
   fail "Missing required fields not rejected"
 fi
+
+echo ""
+
+# =========================================
+# Section 17: Custom Skills Import
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "17. Custom Skills Import"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test SKILLS directory exists
+# Get actual workspace path from health endpoint (reuse from Section 12 if available, otherwise fetch)
+if [ -z "$WORKSPACE" ]; then
+  WORKSPACE=$(curl -s "$API_BASE/api/health" | jq -r '.workspace')
+fi
+if [ -d "$WORKSPACE/SKILLS/custom" ]; then
+  pass "SKILLS/custom directory exists"
+else
+  fail "SKILLS/custom directory not found (workspace: $WORKSPACE)"
+fi
+
+# Create a test skill for import
+TEST_SKILL_DIR="/tmp/test-skill-$RANDOM"
+mkdir -p "$TEST_SKILL_DIR"
+
+# Create skill.md
+cat > "$TEST_SKILL_DIR/skill.md" <<'EOF'
+# Test Skill
+
+**Description:** A test skill for automated testing
+
+**Capabilities:**
+- Test capability 1
+- Test capability 2
+EOF
+
+# Create index.ts
+cat > "$TEST_SKILL_DIR/index.ts" <<'EOF'
+export const tools = {
+  testTool: {
+    description: 'A test tool',
+    parameters: {},
+    execute: async () => 'test result'
+  }
+}
+EOF
+
+# Test import API endpoint
+response=$(curl -s -X POST "$API_BASE/api/skills/import" \
+  -H 'Content-Type: application/json' \
+  -d "{\"sourcePath\":\"$TEST_SKILL_DIR\"}")
+
+if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+  test_skill_id=$(echo "$response" | jq -r '.skillId')
+  pass "Import custom skill (ID: $test_skill_id)"
+
+  # Verify skill appears in skills list (check by id, not name)
+  sleep 0.5
+  if curl -s "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
+    pass "Imported skill appears in skills list"
+
+    # Verify skill source is 'workspace'
+    skill_source=$(curl -s "$API_BASE/api/skills" | jq -r ".skills[] | select(.id == \"$test_skill_id\") | .source")
+    if [ "$skill_source" = "workspace" ]; then
+      pass "Imported skill has source 'workspace'"
+    else
+      fail "Imported skill source incorrect (got: $skill_source)"
+    fi
+
+    # Test delete imported skill
+    response=$(curl -s -X DELETE "$API_BASE/api/skills/$test_skill_id")
+    if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+      pass "Delete custom skill"
+
+      # Verify skill removed from list (check by id)
+      sleep 0.5
+      if ! curl -s "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
+        pass "Deleted skill removed from skills list"
+      else
+        fail "Deleted skill still appears in skills list"
+      fi
+    else
+      fail "Delete custom skill failed"
+    fi
+  else
+    fail "Imported skill not found in skills list"
+  fi
+else
+  error_msg=$(echo "$response" | jq -r '.error // "unknown error"')
+  fail "Import custom skill failed: $error_msg"
+fi
+
+# Test import validation - missing skill.md
+TEST_INVALID_DIR="/tmp/test-invalid-skill-$RANDOM"
+mkdir -p "$TEST_INVALID_DIR"
+echo "export const tools = {}" > "$TEST_INVALID_DIR/index.ts"
+
+response=$(curl -s -X POST "$API_BASE/api/skills/import" \
+  -H 'Content-Type: application/json' \
+  -d "{\"sourcePath\":\"$TEST_INVALID_DIR\"}")
+
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Import validation rejects missing skill.md"
+else
+  fail "Import validation did not reject missing skill.md"
+fi
+
+# Test import validation - missing index.ts
+TEST_INVALID_DIR2="/tmp/test-invalid-skill2-$RANDOM"
+mkdir -p "$TEST_INVALID_DIR2"
+echo "# Test" > "$TEST_INVALID_DIR2/skill.md"
+
+response=$(curl -s -X POST "$API_BASE/api/skills/import" \
+  -H 'Content-Type: application/json' \
+  -d "{\"sourcePath\":\"$TEST_INVALID_DIR2\"}")
+
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Import validation rejects missing index.ts"
+else
+  fail "Import validation did not reject missing index.ts"
+fi
+
+# Cleanup test directories
+rm -rf "$TEST_SKILL_DIR" "$TEST_INVALID_DIR" "$TEST_INVALID_DIR2"
 
 echo ""
 
