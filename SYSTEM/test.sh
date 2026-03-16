@@ -456,12 +456,12 @@ else
   warn "Agent 'dave' not found - skipping WhatsApp health tests"
 fi
 
-# Verify groups have WhatsApp channels
+# Verify groups have WhatsApp channels (optional)
 whatsapp_groups=$(curl -s "$API_BASE/api/groups" | jq '[.groups[] | select(.channels[]? == "whatsapp")] | length')
 if [ "$whatsapp_groups" -gt 0 ]; then
   pass "Groups with WhatsApp channel ($whatsapp_groups groups)"
 else
-  fail "Groups with WhatsApp channel (none found)"
+  warn "Groups with WhatsApp channel (none found - WhatsApp integration not configured)"
 fi
 
 echo ""

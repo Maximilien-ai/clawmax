@@ -566,24 +566,62 @@ router.get('/:id/impact', (req, res) => {
   res.json(impact)
 })
 
-// GET /api/agents/models — available models based on API keys
+// GET /api/agents/models — available models from openclaw.json and environment
 router.get('/models', (req, res) => {
+  console.log('[DEBUG] /api/agents/models endpoint hit')
   const models: string[] = []
+  const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
 
-  // Check for Anthropic API key
-  if (process.env.ANTHROPIC_API_KEY) {
-    // Note: Only Claude 3 Haiku is available on current API tier
-    // Could add tier detection in the future
-    models.push('claude-3-haiku-20240307')
+  try {
+    // Read models from openclaw.json config
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const providers = config?.models?.providers || {}
+
+      // Collect models from each provider
+      for (const [providerId, providerConfig] of Object.entries(providers) as [string, any][]) {
+        if (providerConfig.models && Array.isArray(providerConfig.models)) {
+          // Extract model IDs (handle both string IDs and model objects)
+          const providerModels = providerConfig.models.map((m: any) => {
+            if (typeof m === 'string') return m
+            if (m.id) return m.id
+            return m
+          })
+          models.push(...providerModels)
+
+          // Group by provider for frontend
+          modelsByProvider[providerId] = {
+            name: providerConfig.name || providerId,
+            models: providerModels
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load models from openclaw.json:', err)
   }
 
-  // Check for OpenAI API key
-  if (process.env.OPENAI_API_KEY) {
-    models.push('openai/gpt-4o')
-    models.push('openai/gpt-4o-mini')
+  // Fallback: Check environment variables for legacy support
+  if (models.length === 0) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      models.push('anthropic/claude-3-haiku-20240307')
+      modelsByProvider['anthropic'] = {
+        name: 'Anthropic',
+        models: ['anthropic/claude-3-haiku-20240307']
+      }
+    }
+    if (process.env.OPENAI_API_KEY) {
+      const openaiModels = ['openai/gpt-4o', 'openai/gpt-4o-mini']
+      models.push(...openaiModels)
+      modelsByProvider['openai'] = {
+        name: 'OpenAI',
+        models: openaiModels
+      }
+    }
   }
 
-  res.json({ models })
+  res.json({ models, modelsByProvider })
 })
 
 // GET /api/agents/usage — get token usage for all agents
