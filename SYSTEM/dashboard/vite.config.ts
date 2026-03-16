@@ -7,6 +7,8 @@ export default defineConfig({
   plugins: [react({ jsxRuntime: 'automatic' })],
   server: {
     port: 5173,
+    host: true, // Allow external access
+    allowedHosts: ['drmaximilien.ngrok.dev'], // Allow ngrok domain
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
