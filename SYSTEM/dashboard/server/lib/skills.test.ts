@@ -9,8 +9,14 @@ import {
   getSkillById,
   getAgentSkills,
   setAgentSkills,
-  validateSkills
+  validateSkills,
+  importWorkspaceSkill,
+  deleteWorkspaceSkill,
+  getWorkspaceSkillsDir
 } from './skills'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -202,6 +208,142 @@ test('Bundled skills have correct file path', () => {
   assert(firstBundled.filePath.endsWith('SKILL.md'), 'Path should end with SKILL.md')
 
   console.log(`  ${bundledSkills.length} bundled skills found`)
+})
+
+// Test 15: importWorkspaceSkill auto-renames skill.md → SKILL.md
+test('importWorkspaceSkill() auto-renames skill.md to SKILL.md', () => {
+  // Cleanup any existing test skill from previous runs
+  try { deleteWorkspaceSkill('test-rename-skill') } catch (e) {}
+
+  // Create temporary skill directory with lowercase skill.md
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-rename-skill')
+  fs.mkdirSync(skillDir)
+
+  // Create skill.md (lowercase)
+  const skillContent = `---
+name: Test Rename Skill
+description: Test skill for auto-rename
+---
+
+# Test Skill
+
+This is a test skill.`
+
+  fs.writeFileSync(path.join(skillDir, 'skill.md'), skillContent)
+
+  // Create index.ts (required for validation)
+  fs.writeFileSync(path.join(skillDir, 'index.ts'), 'export default function() {}')
+
+  // Import the skill
+  const result = importWorkspaceSkill(skillDir)
+
+  // Verify import succeeded
+  assert(result.success === true, `Import should succeed. Error: ${result.error}`)
+  assert(result.skillId === 'test-rename-skill', 'Should return correct skill ID')
+
+  // Verify SKILL.md exists and skill.md doesn't
+  // Note: On case-insensitive filesystems, must check actual filename list
+  const importedSkillPath = path.join(getWorkspaceSkillsDir(), 'test-rename-skill')
+  const files = fs.readdirSync(importedSkillPath)
+  assert(files.includes('SKILL.md'), 'SKILL.md should exist')
+  assert(!files.includes('skill.md'), 'skill.md should not exist')
+
+  // Cleanup
+  deleteWorkspaceSkill('test-rename-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+
+  console.log('  ✓ skill.md renamed to SKILL.md')
+})
+
+// Test 16: importWorkspaceSkill preserves existing SKILL.md
+test('importWorkspaceSkill() preserves existing SKILL.md', () => {
+  // Cleanup any existing test skill from previous runs
+  try { deleteWorkspaceSkill('test-preserve-skill') } catch (e) {}
+
+  // Create temporary skill directory with uppercase SKILL.md
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-preserve-skill')
+  fs.mkdirSync(skillDir)
+
+  // Create SKILL.md (uppercase) - but validation still needs skill.md
+  const skillContent = `---
+name: Test Preserve Skill
+description: Test skill for preserve SKILL.md
+---
+
+# Test Skill
+
+This skill already has SKILL.md.`
+
+  // Create both files (skill.md for validation, SKILL.md to test preservation)
+  fs.writeFileSync(path.join(skillDir, 'skill.md'), skillContent)
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillContent)
+  fs.writeFileSync(path.join(skillDir, 'index.ts'), 'export default function() {}')
+
+  // Import the skill
+  const result = importWorkspaceSkill(skillDir)
+
+  // Verify import succeeded
+  assert(result.success === true, 'Import should succeed')
+
+  // Verify SKILL.md still exists
+  const importedSkillPath = path.join(getWorkspaceSkillsDir(), 'test-preserve-skill')
+  assert(fs.existsSync(path.join(importedSkillPath, 'SKILL.md')), 'SKILL.md should exist')
+
+  // Verify content is preserved
+  const importedContent = fs.readFileSync(path.join(importedSkillPath, 'SKILL.md'), 'utf-8')
+  assert(importedContent.includes('already has SKILL.md'), 'Content should be preserved')
+
+  // Cleanup
+  deleteWorkspaceSkill('test-preserve-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+
+  console.log('  ✓ SKILL.md preserved')
+})
+
+// Test 17: importWorkspaceSkill with tags updates renamed file
+test('importWorkspaceSkill() adds tags to renamed SKILL.md', () => {
+  // Cleanup any existing test skill from previous runs
+  try { deleteWorkspaceSkill('test-tags-skill') } catch (e) {}
+
+  // Create temporary skill directory with lowercase skill.md
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-tags-skill')
+  fs.mkdirSync(skillDir)
+
+  // Create skill.md with frontmatter
+  const skillContent = `---
+name: Test Tags Skill
+description: Test skill for tags
+---
+
+# Test Skill
+
+This is a test skill.`
+
+  fs.writeFileSync(path.join(skillDir, 'skill.md'), skillContent)
+  fs.writeFileSync(path.join(skillDir, 'index.ts'), 'export default function() {}')
+
+  // Import the skill with tags
+  const result = importWorkspaceSkill(skillDir, ['test', 'automation'])
+
+  // Verify import succeeded
+  assert(result.success === true, 'Import should succeed')
+
+  // Verify SKILL.md has tags
+  const importedSkillPath = path.join(getWorkspaceSkillsDir(), 'test-tags-skill')
+  const importedContent = fs.readFileSync(path.join(importedSkillPath, 'SKILL.md'), 'utf-8')
+
+  assert(importedContent.includes('tags:'), 'Should have tags in frontmatter')
+  assert(importedContent.includes('- test'), 'Should have "test" tag')
+  assert(importedContent.includes('- automation'), 'Should have "automation" tag')
+
+  // Cleanup
+  deleteWorkspaceSkill('test-tags-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+
+  console.log('  ✓ Tags added to renamed SKILL.md')
 })
 
 // Summary

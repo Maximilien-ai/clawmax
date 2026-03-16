@@ -17,6 +17,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [importPath, setImportPath] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importSource, setImportSource] = useState<'local' | 'github'>('local')
 
   // Load agents list on mount
   useEffect(() => {
@@ -142,6 +146,45 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
+  async function handleImportSkill() {
+    if (!importPath.trim()) {
+      setError('Please enter a skill directory path or GitHub URL')
+      return
+    }
+
+    setImporting(true)
+    setError(null)
+
+    try {
+      const isGitHub = importSource === 'github' || importPath.includes('github.com')
+      const endpoint = isGitHub ? '/api/skills/import-github' : '/api/skills/import'
+      const payload = isGitHub
+        ? { githubUrl: importPath }
+        : { sourcePath: importPath }
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        setShowImportDialog(false)
+        setImportPath('')
+        setImportSource('local')
+        await loadSkills() // Reload skills list
+        alert(`✓ Successfully imported skill: ${data.skillId}`)
+      } else {
+        setError(data.error || 'Failed to import skill')
+      }
+    } catch (error: any) {
+      setError(error.message || 'Error importing skill')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   // Filter skills
   const filteredSkills = allSkills.filter(skill => {
     // Search filter
@@ -192,9 +235,18 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Skills Manager
-            </h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-3xl font-bold text-gray-900">
+                Skills Manager
+              </h1>
+              <button
+                onClick={() => setShowImportDialog(true)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                title="Import a custom skill from your local filesystem"
+              >
+                + Import Skill
+              </button>
+            </div>
 
             {/* Searchable Agent Selector */}
             {availableAgents.length > 0 && (
@@ -433,6 +485,170 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           </div>
         )}
         </>
+        )}
+
+        {/* Import Skill Dialog */}
+        {showImportDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Import Custom Skill</h2>
+                  <button
+                    onClick={() => {
+                      setShowImportDialog(false)
+                      setImportPath('')
+                      setError(null)
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Source Tabs */}
+                <div className="flex gap-2 mb-6 border-b">
+                  <button
+                    onClick={() => setImportSource('local')}
+                    className={`px-4 py-2 font-medium transition-colors ${
+                      importSource === 'local'
+                        ? 'text-purple-600 border-b-2 border-purple-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    📁 Local Directory
+                  </button>
+                  <button
+                    onClick={() => setImportSource('github')}
+                    className={`px-4 py-2 font-medium transition-colors ${
+                      importSource === 'github'
+                        ? 'text-purple-600 border-b-2 border-purple-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    🐙 GitHub Repository
+                  </button>
+                </div>
+
+                {/* Local Import */}
+                {importSource === 'local' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      Enter the full path to your custom skill directory. The directory must contain:
+                    </p>
+                    <ul className="text-sm text-gray-600 list-disc list-inside space-y-1 ml-2">
+                      <li><code className="bg-gray-100 px-1 rounded">skill.md</code> - Skill description</li>
+                      <li><code className="bg-gray-100 px-1 rounded">index.ts</code> - Skill implementation</li>
+                    </ul>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Directory Path
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={importPath}
+                          onChange={(e) => setImportPath(e.target.value)}
+                          placeholder="/path/to/your/custom-skill"
+                          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_BASE}/api/skills/browse-directory`)
+                              const data = await res.json()
+
+                              if (data.cancelled) {
+                                // User cancelled - do nothing
+                                return
+                              }
+
+                              if (data.path) {
+                                setImportPath(data.path)
+                                setError(null)
+                              } else if (data.error) {
+                                setError(data.error)
+                              }
+                            } catch (err: any) {
+                              setError('Failed to open directory picker: ' + err.message)
+                            }
+                          }}
+                          className="px-4 py-2 bg-gray-100 text-gray-700 border rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap"
+                        >
+                          📁 Browse...
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click Browse to select a directory, or paste the full path manually
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Example: /Users/you/projects/mechdog-skill
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* GitHub Import */}
+                {importSource === 'github' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      Clone and import a skill from a GitHub repository.
+                    </p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        GitHub Repository URL
+                      </label>
+                      <input
+                        type="text"
+                        value={importPath}
+                        onChange={(e) => setImportPath(e.target.value)}
+                        placeholder="https://github.com/username/skill-name"
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        The repository will be cloned and imported automatically
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Display */}
+                {error && (
+                  <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                    ❌ {error}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={handleImportSkill}
+                    disabled={importing || !importPath.trim()}
+                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                      importing || !importPath.trim()
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {importing ? 'Importing...' : 'Import Skill'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowImportDialog(false)
+                      setImportPath('')
+                      setError(null)
+                    }}
+                    className="px-6 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

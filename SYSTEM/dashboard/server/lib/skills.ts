@@ -3,6 +3,14 @@ import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
 import { getGatewayClient } from './gateway-rpc'
+import { getWorkspacePath } from './workspace'
+
+/**
+ * Get workspace directory (uses active workspace from workspace manager)
+ */
+export function getWorkspaceDir(): string {
+  return getWorkspacePath()
+}
 
 export interface SkillRequirements {
   bins?: string[]
@@ -19,6 +27,7 @@ export interface SkillInstallOption {
 }
 
 export interface OpenClawSkill {
+  id?: string // Directory name for workspace skills, used for deletion
   name: string
   description: string
   emoji?: string
@@ -28,12 +37,20 @@ export interface OpenClawSkill {
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string
+  tags?: string[]
 }
 
 // Paths to skill directories
 const OPENCLAW_REPO = '/Users/maximilien/github/maximilien/openclaw'
 const BUNDLED_SKILLS_DIR = path.join(OPENCLAW_REPO, 'skills')
 const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
+
+/**
+ * Get workspace custom skills directory
+ */
+export function getWorkspaceSkillsDir(): string {
+  return path.join(getWorkspaceDir(), 'SKILLS', 'custom')
+}
 
 /**
  * Load all available skills from OpenClaw installation
@@ -77,6 +94,25 @@ export function listAvailableSkills(): OpenClawSkill[] {
     }
   }
 
+  // Load workspace custom skills
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  if (fs.existsSync(workspaceSkillsDir)) {
+    try {
+      const dirs = fs.readdirSync(workspaceSkillsDir, { withFileTypes: true })
+      for (const dir of dirs) {
+        if (!dir.isDirectory() || dir.name.startsWith('.')) continue
+
+        const skillPath = path.join(workspaceSkillsDir, dir.name, 'skill.md')
+        if (fs.existsSync(skillPath)) {
+          const skill = parseWorkspaceSkillFile(skillPath, dir.name)
+          if (skill) skills.push(skill)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading workspace custom skills:', err)
+    }
+  }
+
   return skills.sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -107,10 +143,45 @@ function parseSkillFile(
       source,
       requires: openclawMeta.requires,
       install: openclawMeta.install,
-      homepage: openclawMeta.homepage
+      homepage: openclawMeta.homepage,
+      tags: openclawMeta.tags || data.tags || []
     }
   } catch (err) {
     console.error(`Failed to parse skill ${filePath}:`, err)
+    return null
+  }
+}
+
+/**
+ * Parse a workspace custom skill.md file (simpler format, no YAML frontmatter required)
+ */
+function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSkill | null {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8')
+
+    // Try parsing as YAML frontmatter first
+    const { data, content: markdownContent } = matter(content)
+
+    // Extract name and description
+    const lines = markdownContent.split('\n').filter(l => l.trim())
+    const name = data.name || lines[0]?.replace(/^#\s*/, '') || skillId
+    const description = data.description || lines.find(l => !l.startsWith('#'))?.trim() || 'Custom skill'
+
+    return {
+      id: skillId, // Store directory name for deletion
+      name,
+      description,
+      emoji: data.emoji,
+      filePath,
+      bundled: false,
+      source: 'workspace',
+      requires: data.requires,
+      install: data.install,
+      homepage: data.homepage,
+      tags: data.tags || []
+    }
+  } catch (err) {
+    console.error(`Failed to parse workspace skill ${filePath}:`, err)
     return null
   }
 }
@@ -275,7 +346,8 @@ ${content}
     source: 'managed',
     requires,
     install,
-    homepage
+    homepage,
+    tags: []
   }
 }
 
@@ -342,5 +414,172 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
   } catch (err) {
     console.error('Error saving openclaw.json:', err)
     throw new Error('Failed to save openclaw.json')
+  }
+}
+
+// ============================================================================
+// Workspace Custom Skills Management
+// ============================================================================
+
+/**
+ * Validate workspace skill structure (must have skill.md and index.ts)
+ */
+export function validateWorkspaceSkill(skillPath: string): { valid: boolean; error?: string } {
+  try {
+    const skillMdLower = path.join(skillPath, 'skill.md')
+    const skillMdUpper = path.join(skillPath, 'SKILL.md')
+    const indexTsPath = path.join(skillPath, 'index.ts')
+
+    // Accept either skill.md or SKILL.md
+    if (!fs.existsSync(skillMdLower) && !fs.existsSync(skillMdUpper)) {
+      return { valid: false, error: 'Missing skill.md or SKILL.md file' }
+    }
+
+    if (!fs.existsSync(indexTsPath)) {
+      return { valid: false, error: 'Missing index.ts file' }
+    }
+
+    return { valid: true }
+  } catch (err) {
+    return { valid: false, error: String(err) }
+  }
+}
+
+/**
+ * Import workspace custom skill from local directory
+ */
+export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { success: boolean; skillId?: string; error?: string } {
+  try {
+    // Validate source path exists
+    if (!fs.existsSync(sourcePath)) {
+      return { success: false, error: 'Source path does not exist' }
+    }
+
+    // Validate skill structure
+    const validation = validateWorkspaceSkill(sourcePath)
+    if (!validation.valid) {
+      return { success: false, error: validation.error }
+    }
+
+    // Extract skill name from path
+    const skillName = path.basename(sourcePath)
+
+    // Validate skill name (alphanumeric, dash, underscore only)
+    if (!/^[a-zA-Z0-9_-]+$/.test(skillName)) {
+      return { success: false, error: 'Invalid skill name. Use only letters, numbers, dashes, and underscores.' }
+    }
+
+    // Check if skill already exists
+    const workspaceSkillsDir = getWorkspaceSkillsDir()
+    const targetPath = path.join(workspaceSkillsDir, skillName)
+
+    if (fs.existsSync(targetPath)) {
+      return { success: false, error: `Skill '${skillName}' already exists` }
+    }
+
+    // Ensure custom skills directory exists
+    if (!fs.existsSync(workspaceSkillsDir)) {
+      fs.mkdirSync(workspaceSkillsDir, { recursive: true })
+    }
+
+    // Copy skill directory
+    copyDirectorySync(sourcePath, targetPath)
+
+    // Auto-rename skill.md → SKILL.md if lowercase version exists
+    // Note: On case-insensitive filesystems (macOS/Windows), we need to check actual filename
+    const files = fs.readdirSync(targetPath)
+    const hasLowercaseSkillMd = files.includes('skill.md')
+    const hasUppercaseSkillMd = files.includes('SKILL.md')
+
+    if (hasLowercaseSkillMd && !hasUppercaseSkillMd) {
+      const lowercaseSkillMd = path.join(targetPath, 'skill.md')
+      const uppercaseSkillMd = path.join(targetPath, 'SKILL.md')
+      fs.renameSync(lowercaseSkillMd, uppercaseSkillMd)
+    }
+
+    // Add tags to SKILL.md frontmatter if provided
+    if (tags && tags.length > 0) {
+      // After rename, file should be SKILL.md (or skill.md if it was already uppercase)
+      // Re-check actual files after rename
+      const filesAfterRename = fs.readdirSync(targetPath)
+      const skillMdFilename = filesAfterRename.includes('SKILL.md') ? 'SKILL.md' : 'skill.md'
+      const skillMdPath = path.join(targetPath, skillMdFilename)
+
+      if (fs.existsSync(skillMdPath)) {
+        const content = fs.readFileSync(skillMdPath, 'utf-8')
+        const { data, content: markdownContent} = matter(content)
+
+        // Add tags to frontmatter
+        data.tags = tags
+
+        // Rebuild file with updated frontmatter
+        const updatedContent = matter.stringify(markdownContent, data)
+        fs.writeFileSync(skillMdPath, updatedContent, 'utf-8')
+      }
+    }
+
+    console.log(`✓ Imported workspace skill: ${skillName}`)
+    return { success: true, skillId: skillName }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/**
+ * Delete workspace custom skill
+ */
+export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean; error?: string } {
+  try {
+    const workspaceSkillsDir = getWorkspaceSkillsDir()
+
+    // First try direct directory match (skillId)
+    let skillPath = path.join(workspaceSkillsDir, skillIdOrName)
+
+    // If not found, try to find by skill name
+    if (!fs.existsSync(skillPath)) {
+      const skills = listAvailableSkills().filter(s => s.source === 'workspace')
+      const skill = skills.find(s => s.name === skillIdOrName || s.id === skillIdOrName)
+
+      if (!skill || !skill.id) {
+        return { success: false, error: 'Skill not found' }
+      }
+
+      skillPath = path.join(workspaceSkillsDir, skill.id)
+    }
+
+    // Validate it exists
+    if (!fs.existsSync(skillPath)) {
+      return { success: false, error: 'Skill not found' }
+    }
+
+    // Delete directory recursively
+    fs.rmSync(skillPath, { recursive: true, force: true })
+
+    console.log(`✓ Deleted workspace skill: ${skillIdOrName}`)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/**
+ * Copy directory recursively (synchronous)
+ */
+function copyDirectorySync(src: string, dest: string): void {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true })
+  }
+
+  const entries = fs.readdirSync(src, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+
+    if (entry.isDirectory()) {
+      copyDirectorySync(srcPath, destPath)
+    } else {
+      fs.copyFileSync(srcPath, destPath)
+    }
   }
 }
