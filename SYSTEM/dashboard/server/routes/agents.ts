@@ -568,7 +568,6 @@ router.get('/:id/impact', (req, res) => {
 
 // GET /api/agents/models — available models from openclaw.json and environment
 router.get('/models', (req, res) => {
-  console.log('[DEBUG] /api/agents/models endpoint hit')
   const models: string[] = []
   const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
 
@@ -602,22 +601,31 @@ router.get('/models', (req, res) => {
     console.error('Failed to load models from openclaw.json:', err)
   }
 
-  // Fallback: Check environment variables for legacy support
-  if (models.length === 0) {
-    if (process.env.ANTHROPIC_API_KEY) {
-      models.push('anthropic/claude-3-haiku-20240307')
-      modelsByProvider['anthropic'] = {
-        name: 'Anthropic',
-        models: ['anthropic/claude-3-haiku-20240307']
-      }
+  // Always add models from environment variables (in addition to openclaw.json providers)
+  if (process.env.ANTHROPIC_API_KEY && !modelsByProvider['anthropic']) {
+    const anthropicModels = [
+      'anthropic/claude-3-haiku-20240307',
+      'anthropic/claude-3-5-sonnet-20241022',
+      'anthropic/claude-3-5-haiku-20241022'
+    ]
+    models.push(...anthropicModels)
+    modelsByProvider['anthropic'] = {
+      name: 'Anthropic',
+      models: anthropicModels
     }
-    if (process.env.OPENAI_API_KEY) {
-      const openaiModels = ['openai/gpt-4o', 'openai/gpt-4o-mini']
-      models.push(...openaiModels)
-      modelsByProvider['openai'] = {
-        name: 'OpenAI',
-        models: openaiModels
-      }
+  }
+  if (process.env.OPENAI_API_KEY && !modelsByProvider['openai']) {
+    const openaiModels = [
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+      'openai/gpt-4.1',
+      'openai/o1',
+      'openai/o1-mini'
+    ]
+    models.push(...openaiModels)
+    modelsByProvider['openai'] = {
+      name: 'OpenAI',
+      models: openaiModels
     }
   }
 
