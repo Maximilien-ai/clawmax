@@ -53,6 +53,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
   const [agentTemplates, setAgentTemplates] = useState<Array<{
     name: string
     slug: string
@@ -77,15 +78,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
     fetch('/api/agents/models')
       .then(r => r.json())
       .then(d => {
-        // Sort models to put openai/* first for better compatibility
-        const models = (d.models || []).sort((a: string, b: string) => {
-          const aIsOpenAI = a.startsWith('openai/')
-          const bIsOpenAI = b.startsWith('openai/')
-          if (aIsOpenAI && !bIsOpenAI) return -1
-          if (!aIsOpenAI && bIsOpenAI) return 1
-          return a.localeCompare(b)
-        })
+        const models = d.models || []
         setAvailableModels(models)
+        setModelsByProvider(d.modelsByProvider || {})
 
         // Set default model to gpt-4o/gpt-5 if available, otherwise first openai model, otherwise first available
         if (models.length > 0) {
@@ -407,7 +402,15 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                   disabled={availableModels.length === 0}
                 >
                   {availableModels.length === 0 && <option value="">Loading models...</option>}
-                  {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                  {Object.keys(modelsByProvider).length > 0 ? (
+                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                      <optgroup key={providerId} label={provider.name || providerId}>
+                        {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
+                      </optgroup>
+                    ))
+                  ) : (
+                    availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                  )}
                 </select>
               </div>
               {agentTemplates.length > 0 && (
