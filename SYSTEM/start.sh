@@ -2,9 +2,11 @@
 # Start ClawMax Dashboard (backend + frontend)
 #
 # Usage:
-#   ./SYSTEM/start.sh           - Start in background, logs to /tmp/dashboard.log
-#   ./SYSTEM/start.sh --follow  - Start in foreground with live logs
-#   ./SYSTEM/start.sh -f        - Same as --follow
+#   ./SYSTEM/start.sh            - Start in background, logs to /tmp/dashboard.log
+#   ./SYSTEM/start.sh --follow   - Start in foreground with live logs
+#   ./SYSTEM/start.sh -f         - Same as --follow
+#   ./SYSTEM/start.sh --ngrok    - Start with ngrok tunnel on drmaximilien.ngrok.dev
+#   ./SYSTEM/start.sh -n         - Same as --ngrok
 
 cd "$(dirname "$0")/dashboard"
 
@@ -16,9 +18,14 @@ fi
 
 # Parse arguments
 FOLLOW_LOGS=false
-if [[ "$1" == "--follow" ]] || [[ "$1" == "-f" ]]; then
-  FOLLOW_LOGS=true
-fi
+USE_NGROK=false
+for arg in "$@"; do
+  if [[ "$arg" == "--follow" ]] || [[ "$arg" == "-f" ]]; then
+    FOLLOW_LOGS=true
+  elif [[ "$arg" == "--ngrok" ]] || [[ "$arg" == "-n" ]]; then
+    USE_NGROK=true
+  fi
+done
 
 echo "Starting ClawMax Dashboard..."
 echo "Workspace: $OPENCLAW_WORKSPACE"
@@ -43,11 +50,34 @@ fi
 echo ""
 echo "Starting servers..."
 
+# Start ngrok if requested
+if [ "$USE_NGROK" = true ]; then
+  # Check if ngrok is installed
+  if ! command -v ngrok &> /dev/null; then
+    echo "❌ ngrok not found. Please install it: brew install ngrok"
+    exit 1
+  fi
+
+  # Check if ngrok is already running
+  if lsof -ti:80 > /dev/null 2>&1; then
+    echo "⚠ Port 80 is already in use (ngrok may already be running)"
+  else
+    echo "Starting ngrok tunnel on drmaximilien.ngrok.dev:80 -> localhost:5173..."
+    ngrok http --url=drmaximilien.ngrok.dev 5173 > /tmp/ngrok.log 2>&1 &
+    NGROK_PID=$!
+    echo "✓ ngrok started (PID: $NGROK_PID)"
+    sleep 2
+  fi
+fi
+
 if [ "$FOLLOW_LOGS" = true ]; then
   # Run in foreground with live logs
   echo ""
   echo "Running with live logs (Ctrl+C to stop)..."
   echo "Dashboard will be available at http://localhost:5173"
+  if [ "$USE_NGROK" = true ]; then
+    echo "Public URL: https://drmaximilien.ngrok.dev"
+  fi
   echo ""
   exec npm run dev
 else
@@ -67,6 +97,11 @@ else
       echo "✓ Frontend running on port 5173"
       echo ""
       echo "🚀 Dashboard ready at http://localhost:5173"
+      if [ "$USE_NGROK" = true ]; then
+        echo "🌍 Public URL: https://drmaximilien.ngrok.dev"
+        echo ""
+        echo "ngrok logs: tail -f /tmp/ngrok.log"
+      fi
       echo ""
       echo "Logs: tail -f /tmp/dashboard.log"
       echo "Stop: ./SYSTEM/stop.sh"

@@ -37,6 +37,12 @@ if lsof -ti:5173 > /dev/null 2>&1; then
   ((stopped++))
 fi
 
+# Kill ngrok if running
+if pkill -f "ngrok http" 2>/dev/null; then
+  echo "✓ Stopped ngrok tunnel"
+  ((stopped++))
+fi
+
 sleep 1
 
 if [ $stopped -eq 0 ]; then
@@ -46,5 +52,6 @@ else
   echo "✓ Dashboard stopped"
 fi
 
-# Clean up log file
+# Clean up log files
 rm -f /tmp/dashboard.log 2>/dev/null
+rm -f /tmp/ngrok.log 2>/dev/null
