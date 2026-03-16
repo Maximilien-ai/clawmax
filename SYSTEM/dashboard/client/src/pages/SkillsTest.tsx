@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { SkillCard } from '../components/skills/SkillCard'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 
-const API_BASE = 'http://localhost:3001'
+// Use relative path so it works with ngrok and localhost
+const API_BASE = ''
 
 export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
