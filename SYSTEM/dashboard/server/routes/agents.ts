@@ -629,7 +629,19 @@ router.get('/models', (req, res) => {
     }
   }
 
-  res.json({ models, modelsByProvider })
+  // Sort providers alphabetically
+  const sortedProviders: Record<string, { name: string; models: string[] }> = {}
+  Object.keys(modelsByProvider)
+    .sort((a, b) => a.localeCompare(b))
+    .forEach(key => {
+      // Sort models within each provider alphabetically
+      sortedProviders[key] = {
+        name: modelsByProvider[key].name,
+        models: modelsByProvider[key].models.sort((a, b) => a.localeCompare(b))
+      }
+    })
+
+  res.json({ models, modelsByProvider: sortedProviders })
 })
 
 // GET /api/agents/usage — get token usage for all agents
