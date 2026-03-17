@@ -2,13 +2,24 @@
 
 This directory contains presentation materials for ClawMax demos and launches.
 
-## Files
+## Presentation History
 
-### `clawmax-v1-launch.html`
-Main presentation for v1.0.0 launch (March 13, 2026)
+### 2026-03-14: Launch Talk - "AI Agents 1:1"
+**File**: `2026-03-14-launch-talk.md`
+- **Event**: AI Assistants with OpenClaw and ClawMax
+- **Platform**: LinkedIn Live
+- **Result**: ✅ Successful launch, multiple sign-ups
+- **Recording**: [Google Drive](https://drive.google.com/file/d/1OZAC0d-qMAHsLP-GLp48QQyde_ECJxVy/view)
+- **Key Outcomes**: Feature requests for v1.1.0, setup automation needs identified
+
+### 2026-03-13: Launch Presentation Deck
+**File**: `clawmax-v1-launch.html`
 - **Format**: HTML with reveal.js
 - **Duration**: 10-15 minutes
 - **Slides**: 11 slides (10 main + 1 Q&A)
+- **Used For**: March 14 launch talk
+
+## Files
 
 ## How to Use
 
@@ -190,10 +201,21 @@ All content is in the HTML file. Edit directly and refresh browser to see change
 - **Decktape (PDF export)**: https://github.com/astefanutti/decktape
 - **ClawMax Docs**: ../
 - **Blog Post**: ../BLOG_POST_FINAL.md
-- **Demo Checklist**: ../DEMO_PRACTICE_CHECKLIST.md
+
+## Upcoming Presentations
+
+### 2026-03-27: ClawMax Self-Management Demo
+- **Audience**: TBD
+- **Focus**: Agents managing ClawMax development
+- **Demo**: Live GitHub triage, PR reviews, autonomous workflows
+
+### 2026-03-28: Hackathon Demo
+- **Event**: TBD
+- **Focus**: Latest improvements, live coding
+- **Interactive**: Help others deploy ClawMax
 
 ---
 
 **Created**: March 12, 2026
-**Last Updated**: March 12, 2026
-**For**: ClawMax v1.0.0 Launch (March 13, 2026)
+**Last Updated**: March 17, 2026
+**Next**: March 27-28 demos
