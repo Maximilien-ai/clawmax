@@ -1155,13 +1155,19 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     let gatewayRunning = false
 
     if (gatewayConfig && gatewayConfig.port) {
-      try {
-        const { execSync } = require('child_process')
-        // Check if gateway port is listening
-        execSync(`lsof -ti:${gatewayConfig.port}`, { encoding: 'utf-8', stdio: 'pipe' })
-        gatewayRunning = true
-      } catch {
-        gatewayRunning = false
+      // Probe gateway port — try multiple methods for portability
+      const { execSync } = require('child_process')
+      const portChecks = [
+        `lsof -ti:${gatewayConfig.port}`,
+        `bash -c 'echo > /dev/tcp/127.0.0.1/${gatewayConfig.port}' 2>/dev/null`,
+        `curl -s -o /dev/null --connect-timeout 1 http://127.0.0.1:${gatewayConfig.port}/`,
+      ]
+      for (const cmd of portChecks) {
+        try {
+          execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
+          gatewayRunning = true
+          break
+        } catch {}
       }
     }
 
