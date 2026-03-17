@@ -35,6 +35,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [inputHistory, setInputHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
@@ -136,6 +138,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   async function sendMessage(messageText?: string) {
     const textToSend = messageText || input.trim()
     if (!textToSend || sending) return
+
+    // Add to input history
+    if (!messageText && textToSend) {
+      setInputHistory(prev => [...prev, textToSend])
+      setHistoryIndex(-1)
+    }
 
     if (!messageText) {
       setInput('')
@@ -254,6 +262,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       if (data.ok) {
         setMessages([])
         setShowClearConfirm(false)
+        setInputHistory([]) // Clear input history when chat is archived
+        setHistoryIndex(-1)
         fetchArchives()
       }
     } catch (e) {
@@ -513,6 +523,27 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     cancelStreaming()
                   } else {
                     onClose()
+                  }
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  if (inputHistory.length > 0) {
+                    const newIndex = historyIndex === -1
+                      ? inputHistory.length - 1
+                      : Math.max(0, historyIndex - 1)
+                    setHistoryIndex(newIndex)
+                    setInput(inputHistory[newIndex])
+                  }
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  if (historyIndex !== -1) {
+                    const newIndex = historyIndex + 1
+                    if (newIndex >= inputHistory.length) {
+                      setHistoryIndex(-1)
+                      setInput('')
+                    } else {
+                      setHistoryIndex(newIndex)
+                      setInput(inputHistory[newIndex])
+                    }
                   }
                 }
               }}

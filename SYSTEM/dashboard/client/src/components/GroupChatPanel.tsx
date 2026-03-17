@@ -56,6 +56,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
+  const [inputHistory, setInputHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
@@ -217,12 +219,18 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   async function sendMessage() {
     if (!input.trim() || sending) return
 
+    const userMessage = input.trim()
+
+    // Add to input history
+    setInputHistory(prev => [...prev, userMessage])
+    setHistoryIndex(-1)
+
     // For bulk chat (temporary ad-hoc groups), auto-mention all members
     const isBulkChat = channel.tags?.includes('bulk-chat')
 
     // Extract @mentions
     const mentionRegex = /@(\w+)/g
-    const matches = Array.from(input.matchAll(mentionRegex))
+    const matches = Array.from(userMessage.matchAll(mentionRegex))
     const mentionedNames = matches.map(m => m[1])
 
     // Check for @all
@@ -237,8 +245,6 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             agent.id.toLowerCase() === name.toLowerCase()
           )
         )
-
-    const userMessage = input.trim()
     setInput('')
     setSending(true)
     setError(null)
@@ -377,6 +383,27 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     } else if (e.key === 'Enter') {
       e.preventDefault()
       sendMessage()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (inputHistory.length > 0) {
+        const newIndex = historyIndex === -1
+          ? inputHistory.length - 1
+          : Math.max(0, historyIndex - 1)
+        setHistoryIndex(newIndex)
+        setInput(inputHistory[newIndex])
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (historyIndex !== -1) {
+        const newIndex = historyIndex + 1
+        if (newIndex >= inputHistory.length) {
+          setHistoryIndex(-1)
+          setInput('')
+        } else {
+          setHistoryIndex(newIndex)
+          setInput(inputHistory[newIndex])
+        }
+      }
     }
   }
 
@@ -390,6 +417,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       if (r.ok) {
         setMessages([])
         setShowClearConfirm(false)
+        setInputHistory([]) // Clear input history when chat is archived
+        setHistoryIndex(-1)
         fetchMessages()
         // Refresh archives list to show the new archive
         const archivesEndpoint = channel.type === 'community'
