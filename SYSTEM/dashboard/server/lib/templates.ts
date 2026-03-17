@@ -8,12 +8,10 @@ import { listWorkflows, createWorkflow } from './workflows'
 
 // Global templates (shared across all workspaces - ClawMax system templates)
 export function getGlobalTemplatesDir(): string {
-  // For clawmax-private repo structure, global templates are at repo root
-  // Find repo root by going up from workspace path
-  const workspacePath = getWorkspacePath()
-  // workspace path is like: /path/to/repo/WORKSPACES/default
-  // repo root is 2 levels up
-  const repoRoot = path.resolve(workspacePath, '../..')
+  // Derive repo root from this file's location:
+  // this file is at SYSTEM/dashboard/server/lib/templates.ts
+  // repo root is 4 levels up
+  const repoRoot = path.resolve(__dirname, '../../../..')
   return path.join(repoRoot, 'TEMPLATES')
 }
 
