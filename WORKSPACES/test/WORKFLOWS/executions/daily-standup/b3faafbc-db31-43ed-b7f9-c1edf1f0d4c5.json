@@ -1,0 +1,36 @@
+{
+  "id": "b3faafbc-db31-43ed-b7f9-c1edf1f0d4c5",
+  "workflowId": "daily-standup",
+  "startedAt": "2026-03-17T20:23:54.581Z",
+  "status": "completed",
+  "triggerType": "manual",
+  "participants": [
+    {
+      "agentId": "ceo",
+      "agentName": "CEO",
+      "status": "completed",
+      "response": "# Daily Standup Update\n\n### 1. Yesterday's Accomplishments\n- Monitored system and session status as requested.\n- Responded to repeated status inquiries and general availability checks.\n- Confirmed communication channels were active by replying to \"test\" messages and other check-ins.\n- Provided assistance on identity and capabilities when prompted.\n\n### 2. Today's Plans\n- Continue providing timely status updates and system monitoring.\n- Stay ready to assist with any organizational or project management tasks you request.\n- Address any new commands, reminders, or requests for information as they arrive.\n- Offer proactive support and summarization if patterns or recurring needs are observed.\n\n### 3. Blockers\n- No blockers currently. My ability to assist is only limited by the integrations and information available within our workspace setup.\n- If you want me to handle new types of tasks (calendar, email, device integration), please let me know or provide the necessary connections.\n\nLet me know if you have specific tasks or projects you’d like me to focus on today!"
+    },
+    {
+      "agentId": "engineer",
+      "agentName": "Engineer",
+      "status": "completed",
+      "response": "### 🟢 Daily Standup Update\n\n**1. Yesterday’s Accomplishments**\n- Monitored and resolved outstanding GitHub issues.\n- Merged completed pull requests, ensuring code quality checks passed.\n- Updated project documentation to reflect recent changes.\n\n**2. Today’s Plans**\n- Continue monitoring and addressing new GitHub issues.\n- Review and test any incoming pull requests.\n- Focus on implementing improvements for code efficiency.\n\n**3. Blockers**\n- No current blockers—ready for new tasks or feedback!\n\nLet me know if there’s anything specific you want prioritized today or if you have feedback."
+    },
+    {
+      "agentId": "product-manager",
+      "agentName": "Product Manager",
+      "status": "completed",
+      "response": "Here’s my standup update:\n\n### 1. Yesterday's Accomplishments\n- Monitored product queues and status—no open issues or tasks to address.\n- Confirmed no recent onboarding or team roster changes.\n- Responded promptly to all status and test check-ins.\n\n### 2. Today's Plans\n- Continue tracking incoming requirements, issues, or team updates.\n- Remain available for new priorities, status summaries, or coordination requests.\n- Review for any product updates or sudden blockers that may appear during the day.\n\n### 3. Blockers\n- No blockers or outstanding tasks at this time. Ready for new directions or assignments as needed."
+    }
+  ],
+  "logs": [
+    "Workflow triggered at 2026-03-17T20:23:54.581Z",
+    "Targeting 3 agent(s)",
+    "Agent ceo completed: # Daily Standup Update\n\n### 1. Yesterday's Accomplishments\n- Monitored system and session status as ",
+    "Agent engineer completed: ### 🟢 Daily Standup Update\n\n**1. Yesterday’s Accomplishments**\n- Monitored and resolved outstanding",
+    "Agent product-manager completed: Here’s my standup update:\n\n### 1. Yesterday's Accomplishments\n- Monitored product queues and status—",
+    "Workflow completed at 2026-03-17T20:24:12.436Z"
+  ],
+  "completedAt": "2026-03-17T20:24:12.436Z"
+}
