@@ -121,13 +121,13 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="text-center">
             <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Gateway Not Available</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              {gatewayStatus?.error || 'The agent gateway is not running.'}
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Agent Chat Unavailable</h3>
+            <p className="text-sm text-gray-500 mb-2">
+              {gatewayStatus?.error || 'Chat requires the gateway and API keys to be configured.'}
             </p>
-            <code className="text-xs bg-gray-100 px-3 py-1 rounded dark:bg-gray-800">
-              openclaw gateway install
-            </code>
+            <p className="text-xs text-gray-400 mb-3">
+              Run <code className="bg-gray-100 px-1 rounded dark:bg-gray-700">openclaw gateway start</code> and add API keys to <code className="bg-gray-100 px-1 rounded dark:bg-gray-700">.env</code>
+            </p>
           </div>
         </div>
       </div>

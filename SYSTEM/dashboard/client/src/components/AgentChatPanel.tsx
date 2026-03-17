@@ -357,13 +357,18 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           </div>
           <div className="text-center py-8">
             <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Gateway Not Available</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              The agent gateway is not running. Start it first:
-            </p>
-            <code className="text-xs bg-gray-100 px-3 py-1 rounded dark:bg-gray-800">
-              openclaw gateway install
-            </code>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Agent Chat Unavailable</h3>
+            <div className="text-sm text-gray-500 mb-4 space-y-3">
+              <p>Chat requires the OpenClaw gateway and at least one AI API key configured.</p>
+              <div className="text-left inline-block">
+                <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">1. Ensure the gateway is running:</p>
+                <code className="text-xs bg-gray-100 px-3 py-1 rounded block mb-3 dark:bg-gray-700">openclaw gateway install && openclaw gateway start</code>
+                <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">2. Add API keys to <code className="text-xs bg-gray-100 px-1 rounded dark:bg-gray-700">SYSTEM/dashboard/.env</code>:</p>
+                <code className="text-xs bg-gray-100 px-3 py-1 rounded block dark:bg-gray-700">ANTHROPIC_API_KEY=sk-ant-...</code>
+                <code className="text-xs bg-gray-100 px-3 py-1 rounded block mt-1 dark:bg-gray-700">OPENAI_API_KEY=sk-...</code>
+              </div>
+              <p className="text-xs text-gray-400">Restart the dashboard after making changes.</p>
+            </div>
           </div>
         </div>
       </div>
