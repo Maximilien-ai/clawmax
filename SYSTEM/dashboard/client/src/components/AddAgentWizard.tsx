@@ -53,6 +53,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
   const [agentTemplates, setAgentTemplates] = useState<Array<{
     name: string
@@ -80,6 +81,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
       .then(d => {
         const models = d.models || []
         setAvailableModels(models)
+        setModelsLoaded(true)
         setModelsByProvider(d.modelsByProvider || {})
 
         // Set default model to gpt-4o/gpt-5 if available, otherwise first openai model, otherwise first available
@@ -90,7 +92,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
           setForm(f => ({ ...f, model: defaultModel }))
         }
       })
-      .catch(() => {})
+      .catch(() => { setModelsLoaded(true) })
 
     // If cloning, skip initial fetch - the cloneFrom effect will handle it
     if (!defaultCloneFrom) {
@@ -401,7 +403,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
                   disabled={availableModels.length === 0}
                 >
-                  {availableModels.length === 0 && <option value="">Loading models...</option>}
+                  {availableModels.length === 0 && (
+                    <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
+                  )}
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
@@ -412,6 +416,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                     availableModels.map(m => <option key={m} value={m}>{m}</option>)
                   )}
                 </select>
+                {modelsLoaded && availableModels.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    No API keys configured. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to SYSTEM/dashboard/.env and restart the dashboard.
+                  </p>
+                )}
               </div>
               {agentTemplates.length > 0 && (
                 <div>
