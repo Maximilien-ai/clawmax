@@ -1341,20 +1341,20 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       {/* Workflows Section - Always show */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-gray-400">Workflows</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Workflows</span>
         </div>
         {loadingWorkflows ? (
-          <div className="text-xs text-gray-400">Loading workflows...</div>
+          <div className="text-xs text-gray-400 dark:text-gray-500">Loading workflows...</div>
         ) : (
           (() => {
             const workflowMap = channel.type === 'community' ? communityWorkflows : groupWorkflows
             const workflows = workflowMap.get(channel.name) || []
             const themeColors = channel.type === 'community'
-              ? 'border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 text-purple-700'
-              : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700'
+              ? 'border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 dark:hover:border-purple-600 dark:text-purple-300'
+              : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/40 dark:hover:border-indigo-600 dark:text-indigo-300'
 
             if (workflows.length === 0) {
-              return <span className="text-xs text-gray-300">No workflows</span>
+              return <span className="text-xs text-gray-300 dark:text-gray-600">No workflows</span>
             }
 
             return (
@@ -1497,11 +1497,11 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                       onClick={() => insertMention(agent.name)}
                       className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
                         index === selectedMentionIndex
-                          ? 'bg-sky-100 text-sky-900'
-                          : 'hover:bg-sky-50'
+                          ? 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100'
+                          : 'hover:bg-sky-50 text-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
                       } ${
                         'isAll' in agent && agent.isAll
-                          ? 'font-semibold border-b border-gray-100'
+                          ? 'font-semibold border-b border-gray-100 dark:border-gray-700'
                           : ''
                       }`}
                     >
@@ -1512,10 +1512,10 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                         {'isAll' in agent && agent.isAll ? '👥 @all' : agent.name}
                       </span>
                       {!('isAll' in agent && agent.isAll) && (
-                        <span className="text-xs text-gray-400">({agent.id})</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">({agent.id})</span>
                       )}
                       {('isAll' in agent && agent.isAll) && (
-                        <span className="text-xs text-gray-500 ml-auto">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
                           {channel.members.length} agents
                         </span>
                       )}
