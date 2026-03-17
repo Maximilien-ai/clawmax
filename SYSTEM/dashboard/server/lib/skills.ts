@@ -41,8 +41,43 @@ export interface OpenClawSkill {
 }
 
 // Paths to skill directories
-const OPENCLAW_REPO = '/Users/maximilien/github/maximilien/openclaw'
-const BUNDLED_SKILLS_DIR = path.join(OPENCLAW_REPO, 'skills')
+// Auto-detect OpenClaw installation path instead of hardcoding
+function findOpenClawSkillsDir(): string {
+  const home = os.homedir()
+  const candidates: string[] = []
+
+  // 1. pnpm global install (macOS / Linux)
+  const pnpmDir = path.join(home, 'Library/pnpm/global/5/.pnpm')
+  if (fs.existsSync(pnpmDir)) {
+    try {
+      const dirs = fs.readdirSync(pnpmDir, { withFileTypes: true })
+      for (const d of dirs) {
+        if (d.isDirectory() && d.name.startsWith('openclaw@')) {
+          const p = path.join(pnpmDir, d.name, 'node_modules/openclaw/skills')
+          if (fs.existsSync(p)) candidates.push(p)
+        }
+      }
+    } catch {}
+  }
+
+  // 2. npm global installs (Homebrew, system)
+  candidates.push(
+    path.join('/opt/homebrew/lib/node_modules/openclaw/skills'),
+    path.join('/usr/local/lib/node_modules/openclaw/skills'),
+  )
+
+  // 3. Development repo clone
+  candidates.push(path.join(home, 'github/maximilien/openclaw/skills'))
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  // Final fallback — will fail gracefully in listAvailableSkills()
+  return path.join(home, '.openclaw', 'skills')
+}
+
+const BUNDLED_SKILLS_DIR = findOpenClawSkillsDir()
 const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
 
 /**
@@ -369,7 +404,51 @@ interface OpenClawConfig {
   [key: string]: any
 }
 
-const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+// Auto-detect OpenClaw config: scan gateway-specific dirs (.openclaw-*)
+// and prefer whichever config has agents defined
+function findOpenClawConfigPath(): string {
+  const home = os.homedir()
+  const candidates: string[] = []
+
+  // Scan for gateway-specific configs (.openclaw-<name>/openclaw.json)
+  try {
+    const entries = fs.readdirSync(home, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('.openclaw-')) {
+        candidates.push(path.join(home, entry.name, 'openclaw.json'))
+      }
+    }
+  } catch {}
+
+  // Default global config
+  candidates.push(path.join(home, '.openclaw', 'openclaw.json'))
+
+  // Prefer config with the most agents defined
+  let bestPath = ''
+  let bestCount = 0
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      try {
+        const content = JSON.parse(fs.readFileSync(candidate, 'utf-8'))
+        const count = content.agents?.list?.length || 0
+        if (count > bestCount) {
+          bestCount = count
+          bestPath = candidate
+        }
+      } catch {}
+    }
+  }
+  if (bestPath) return bestPath
+
+  // Fallback to first existing
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  return path.join(home, '.openclaw', 'openclaw.json')
+}
+
+const OPENCLAW_CONFIG_PATH = findOpenClawConfigPath()
 
 /**
  * Load openclaw.json configuration
