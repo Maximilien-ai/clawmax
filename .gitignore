@@ -15,7 +15,7 @@ dist/
 .env.local
 
 # Dashboard auth token
-SYSTEM/dashboard/server/.dashboard-token
+SYSTEM/dashboard/.dashboard-token
 
 # Logs
 *.log
@@ -38,6 +38,9 @@ WORKFLOWS/executions/
 TEMPLATES/organizations/*/agents/
 TEMPLATES/organizations/qa-team/
 # Note: User-created templates in workspace. Global system templates at ~/.openclaw/TEMPLATES/
+
+# Workspace runtime data
+WORKSPACES/
 
 # Generated scripts
 SYSTEM/scripts/
