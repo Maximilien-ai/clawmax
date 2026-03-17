@@ -111,39 +111,46 @@ router.post('/:id/chat', (req, res) => {
   invalidateAgentStatusCache(id)
 
   let fullOutput = ''
+  let stderrOutput = ''
 
   proc.stdout.on('data', (chunk: Buffer) => {
-    const text = chunk.toString()
-    fullOutput += text
-
-    // Try to parse as JSON lines (openclaw --json output)
-    const lines = text.split('\n').filter(Boolean)
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line)
-        if (event.type === 'delta' || event.event === 'delta') {
-          send('delta', { text: event.text || event.data || '' })
-        } else if (event.type === 'complete' || event.event === 'complete') {
-          send('complete', {})
-        } else if (event.type === 'error') {
-          send('error', event.message || event.error || 'Agent error')
-        }
-      } catch {
-        // Not JSON — treat as plain text delta
-        send('delta', { text: line })
-      }
-    }
+    fullOutput += chunk.toString()
   })
 
   proc.stderr.on('data', (chunk: Buffer) => {
-    console.error(`[Chat Route] stderr for ${id}:`, chunk.toString())
+    stderrOutput += chunk.toString()
   })
 
   proc.on('close', (code) => {
     console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
     clearInterval(keepalive)
-    if (code !== 0 && !fullOutput) {
-      send('error', `Agent process exited with code ${code}`)
+
+    if (stderrOutput) {
+      console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
+    }
+
+    // Try to parse --json output
+    let replied = false
+    if (fullOutput.trim()) {
+      try {
+        const result = JSON.parse(fullOutput)
+        const text = result.payloads?.map((p: any) => p.text).join('\n') || ''
+        if (text) {
+          send('delta', { text })
+          replied = true
+        }
+      } catch {
+        // Not JSON — send as plain text
+        const text = fullOutput.trim()
+        if (text) {
+          send('delta', { text })
+          replied = true
+        }
+      }
+    }
+
+    if (!replied && code !== 0) {
+      send('error', `Agent failed. Check that API keys are configured.`)
     }
     send('complete', {})
     if (!res.writableEnded) {
