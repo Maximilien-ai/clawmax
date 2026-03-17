@@ -16,6 +16,7 @@ dist/
 
 # Dashboard auth token
 SYSTEM/dashboard/.dashboard-token
+SYSTEM/dashboard/server/.dashboard-token
 
 # Logs
 *.log
