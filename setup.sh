@@ -119,24 +119,12 @@ if command -v openclaw &> /dev/null; then
         cd - > /dev/null
     fi
 else
-    print_error "OpenClaw not found"
+    print_warning "OpenClaw not found"
     print_info "ClawMax requires OpenClaw to manage agents"
     print_info "Install from: https://openclaw.ai or https://github.com/openclaw/openclaw"
     echo ""
-    read -p "Would you like installation instructions? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo ""
-        print_info "OpenClaw Installation:"
-        echo "  1. Clone the repository:"
-        echo "     git clone https://github.com/openclaw/openclaw.git ~/github/maximilien/openclaw"
-        echo ""
-        echo "  2. Follow the installation guide at https://openclaw.ai"
-        echo ""
-        echo "  3. After installing OpenClaw, re-run this setup script"
-        echo ""
-    fi
-    exit 1
+    print_info "Continuing setup to install dashboard dependencies..."
+    echo ""
 fi
 
 echo ""
@@ -262,12 +250,7 @@ if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
     echo '  }'
     echo ""
 
-    read -p "Continue setup without API keys? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Please configure API keys and re-run setup"
-        exit 1
-    fi
+    print_info "You can configure these later — continuing setup..."
 else
     print_success "API keys configured"
 fi
@@ -287,14 +270,9 @@ if [ -d "node_modules" ]; then
 
     # Check if we need to update
     if [ "package.json" -nt "node_modules" ]; then
-        print_warning "package.json is newer than node_modules"
-        read -p "Re-run npm install? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Running npm install..."
-            npm install
-            print_success "Dependencies updated"
-        fi
+        print_warning "package.json is newer than node_modules — updating..."
+        npm install
+        print_success "Dependencies updated"
     else
         print_success "Dependencies up to date"
     fi
@@ -453,6 +431,12 @@ echo "     - README.md - Getting started"
 echo "     - SYSTEM/docs/WORKFLOWS.md - Creating workflows"
 echo "     - SYSTEM/docs/TESTING_GUIDE.md - Running tests"
 echo ""
+
+if [ "$OPENCLAW_INSTALLED" = false ]; then
+    print_warning "OpenClaw CLI is not installed — agent management requires it"
+    echo "  Install from: https://openclaw.ai or https://github.com/openclaw/openclaw"
+    echo ""
+fi
 
 if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
     print_warning "Remember to configure API keys for agent functionality"
