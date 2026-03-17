@@ -1362,7 +1362,7 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
     : path.join(HOME, '.openclaw', 'openclaw.json')
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const port = config?.gateway?.port ?? 18889
+    const port = config?.gateway?.port ?? 18789
     const token = config?.gateway?.auth?.token ?? ''
     if (!token) return null
     return { port, token }
