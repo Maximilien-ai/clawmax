@@ -149,16 +149,19 @@ router.post('/:id/chat', (req, res) => {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'clawmax-dashboard',
+          id: 'openclaw-control-ui',
           displayName: 'Dashboard Chat',
           version: '1.0.0',
-          platform: process.platform
+          platform: process.platform,
+          mode: 'ui'
         },
         caps: [],
-        auth: { token: gatewayConfig.token }
+        auth: { token: gatewayConfig.token },
+        role: 'operator',
+        scopes: ['operator.admin', 'operator.write', 'operator.read']
       }
     }
-    console.log(`[Chat Route] Connect message sent for agent ${id}`)
+    console.log(`[Chat Route] Connect message sent for agent ${id}`, JSON.stringify(connectMessage.params.client))
     ws.send(JSON.stringify(connectMessage))
   }
 
