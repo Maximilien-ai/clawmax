@@ -50,10 +50,9 @@ fi
 echo ""
 echo "Starting servers..."
 
-# Load .env for ngrok config
-ENV_FILE="$(dirname "$0")/dashboard/.env"
-if [ -f "$ENV_FILE" ]; then
-  NGROK_URL=$(grep '^NGROK_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2)
+# Load .env for ngrok config (we're already in SYSTEM/dashboard/)
+if [ -f ".env" ]; then
+  NGROK_URL=$(grep '^NGROK_URL=' .env 2>/dev/null | cut -d= -f2)
 fi
 NGROK_URL="${NGROK_URL:-}"
 
@@ -67,6 +66,12 @@ if [ "$USE_NGROK" = true ]; then
 
   if [ -z "$NGROK_URL" ]; then
     echo "❌ NGROK_URL not set. Add NGROK_URL=yourdomain.ngrok.dev to SYSTEM/dashboard/.env"
+    echo ""
+    echo "  Setup steps:"
+    echo "  1. Sign up at https://dashboard.ngrok.com/signup"
+    echo "  2. Get your authtoken: https://dashboard.ngrok.com/get-started/your-authtoken"
+    echo "  3. Run: ngrok config add-authtoken YOUR_TOKEN"
+    echo "  4. Add to SYSTEM/dashboard/.env: NGROK_URL=yourdomain.ngrok.dev"
     exit 1
   fi
 
