@@ -45,41 +45,53 @@ NC='\033[0m' # No Color
 
 preflight_ok=true
 
+echo "Pre-flight checks:"
+
 # Check Node.js
 if ! command -v node &> /dev/null; then
-  echo -e "${RED}✗${NC} Node.js not found. Install from https://nodejs.org/"
+  echo -e "  ${RED}✗${NC} Node.js not found. Install from https://nodejs.org/"
   preflight_ok=false
 else
   NODE_MAJOR=$(node --version | cut -d'.' -f1 | sed 's/v//')
   if [ "$NODE_MAJOR" -lt 18 ]; then
-    echo -e "${RED}✗${NC} Node.js 18+ required (found v$NODE_MAJOR)"
+    echo -e "  ${RED}✗${NC} Node.js 18+ required (found v$NODE_MAJOR)"
     preflight_ok=false
+  else
+    echo -e "  ${GREEN}✓${NC} Node.js $(node --version)"
   fi
 fi
 
 # Check npm dependencies
 if [ ! -d "dashboard/node_modules" ]; then
-  echo -e "${RED}✗${NC} Dashboard dependencies not installed (missing SYSTEM/dashboard/node_modules)"
+  echo -e "  ${RED}✗${NC} Dashboard dependencies not installed (missing SYSTEM/dashboard/node_modules)"
   preflight_ok=false
+else
+  echo -e "  ${GREEN}✓${NC} Dashboard dependencies installed"
 fi
 
 # Check OpenClaw
 if ! command -v openclaw &> /dev/null; then
-  echo -e "${RED}✗${NC} OpenClaw CLI not found"
+  echo -e "  ${RED}✗${NC} OpenClaw CLI not found"
   preflight_ok=false
+else
+  echo -e "  ${GREEN}✓${NC} OpenClaw CLI"
 fi
 
 # Check OpenClaw config
 if [ ! -f "$HOME/.openclaw/openclaw.json" ]; then
-  echo -e "${RED}✗${NC} OpenClaw config not found (~/.openclaw/openclaw.json)"
+  echo -e "  ${RED}✗${NC} OpenClaw config not found (~/.openclaw/openclaw.json)"
   preflight_ok=false
+else
+  echo -e "  ${GREEN}✓${NC} OpenClaw config"
 fi
 
 # Check dashboard server is running
 if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
-  echo -e "${RED}✗${NC} Dashboard server not running on $API_BASE"
-  echo -e "  Start it with: ${YELLOW}./SYSTEM/start.sh${NC}"
+  echo -e "  ${RED}✗${NC} Dashboard server not running on $API_BASE"
+  echo -e "    Start it with: ${YELLOW}./SYSTEM/start.sh${NC}"
   preflight_ok=false
+else
+  echo -e "  ${GREEN}✓${NC} Dashboard server running on $API_BASE"
 fi
 
 if [ "$preflight_ok" = false ]; then
@@ -87,6 +99,8 @@ if [ "$preflight_ok" = false ]; then
   echo -e "${RED}Pre-flight checks failed.${NC} Please run ${YELLOW}./setup.sh${NC} first, then ${YELLOW}./SYSTEM/start.sh${NC}"
   exit 1
 fi
+
+echo ""
 
 # Parse flags - validation tests are SKIPPED by default
 SKIP_VALIDATION=true
@@ -163,8 +177,24 @@ echo "Section 0: TypeScript & Skills Tests"
 echo "========================================="
 echo ""
 
+# Portable timeout: runs command with a time limit (seconds)
+run_with_timeout() {
+  local secs="$1"
+  shift
+  "$@" &
+  local pid=$!
+  ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+  local watchdog=$!
+  wait "$pid" 2>/dev/null
+  local rc=$?
+  kill "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return $rc
+}
+
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
-if (cd dashboard && npm run typecheck 2>&1) | grep -q "error TS"; then
+typecheck_output=$(run_with_timeout 60 bash -c 'cd dashboard && npm run typecheck 2>&1')
+if echo "$typecheck_output" | grep -q "error TS"; then
   fail "TypeScript type check"
 else
   pass "TypeScript type check"
@@ -172,7 +202,8 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Skills API unit tests...${NC}"
-if (cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1 | grep -v "Skill file missing name" | grep -v "Failed to parse skill") | grep -q "All tests passed"; then
+skills_output=$(run_with_timeout 30 bash -c 'cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1')
+if echo "$skills_output" | grep -v "Skill file missing name" | grep -v "Failed to parse skill" | grep -q "All tests passed"; then
   pass "Skills API unit tests (17 tests)"
 else
   fail "Skills API unit tests"
@@ -180,7 +211,8 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
-if (cd dashboard && npx ts-node server/lib/templates.test.ts 2>&1) | grep -q "All tests passed"; then
+templates_output=$(run_with_timeout 30 bash -c 'cd dashboard && npx ts-node server/lib/templates.test.ts 2>&1')
+if echo "$templates_output" | grep -q "All tests passed"; then
   pass "Templates API unit tests (15 tests)"
 else
   fail "Templates API unit tests"
