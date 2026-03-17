@@ -15,6 +15,25 @@ cd "$(dirname "$0")"
 
 API_BASE="http://localhost:3001"
 CURL_OPTS="--connect-timeout 5 --max-time 10"
+
+# Load dashboard auth token
+TOKEN_FILE="$(pwd)/dashboard/.dashboard-token"
+if [ -n "$DASHBOARD_TOKEN" ]; then
+  DASHBOARD_AUTH="$DASHBOARD_TOKEN"
+elif [ -f "$TOKEN_FILE" ]; then
+  DASHBOARD_AUTH="$(cat "$TOKEN_FILE")"
+else
+  DASHBOARD_AUTH=""
+fi
+
+# Wrapper for curl that adds auth header and timeouts
+apicurl() {
+  if [ -n "$DASHBOARD_AUTH" ]; then
+    apicurl -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
+  else
+    apicurl "$@"
+  fi
+}
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -87,7 +106,7 @@ echo "========================================="
 echo ""
 
 # Ensure tests run on the correct workspace (default workspace for this repo)
-curl -s $CURL_OPTS -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
+apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
 
 # Helper functions
 pass() {
@@ -109,7 +128,7 @@ test_api() {
   local endpoint="$2"
   local expected_code="${3:-200}"
 
-  response=$(curl -s $CURL_OPTS -w "\n%{http_code}" "$API_BASE$endpoint")
+  response=$(apicurl -w "\n%{http_code}" "$API_BASE$endpoint")
   code=$(echo "$response" | tail -n 1)
   body=$(echo "$response" | sed '$d')
 
@@ -127,7 +146,7 @@ test_json_field() {
   local endpoint="$2"
   local field="$3"
 
-  response=$(curl -s $CURL_OPTS "$API_BASE$endpoint")
+  response=$(apicurl "$API_BASE$endpoint")
   if echo "$response" | jq -e "$field" > /dev/null 2>&1; then
     pass "$name"
     return 0
@@ -250,7 +269,7 @@ if [ -f ~/.openclaw/openclaw.json.test-backup ]; then
   sleep 0.5
 
   # Check if validation warning appears
-  if curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "9invalid") | .validationWarnings' > /dev/null 2>&1; then
+  if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "9invalid") | .validationWarnings' > /dev/null 2>&1; then
     pass "Invalid agent ID detected (starts with digit)"
   else
     fail "Invalid agent ID not detected"
@@ -273,7 +292,7 @@ EOF
   cp /tmp/test-openclaw-missing.json ~/.openclaw/openclaw.json
   sleep 0.5
 
-  if curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "test") | .validationWarnings' > /dev/null 2>&1; then
+  if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "test") | .validationWarnings' > /dev/null 2>&1; then
     pass "Missing required fields detected"
   else
     fail "Missing required fields not detected"
@@ -437,7 +456,7 @@ test_api "Get group messages" "/api/groups/General/messages"
 test_json_field "Group messages array" "/api/groups/General/messages" ".messages"
 
 # Test sending a message
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/groups/General/messages" \
+response=$(apicurl -X POST "$API_BASE/api/groups/General/messages" \
   -H 'Content-Type: application/json' \
   -d '{"content":"Test message from test suite","mentions":[]}')
 
@@ -470,7 +489,7 @@ test_json_field "Activity has file" "/api/activity" ".feed[0].file"
 test_json_field "Activity has ageMins" "/api/activity" ".feed[0].ageMins"
 
 # Verify we have activity from multiple agents
-agent_count=$(curl -s $CURL_OPTS "$API_BASE/api/activity" | jq '.feed | map(.agentId) | unique | length')
+agent_count=$(apicurl "$API_BASE/api/activity" | jq '.feed | map(.agentId) | unique | length')
 if [ "$agent_count" -gt 1 ]; then
   pass "Activity from multiple agents ($agent_count agents)"
 else
@@ -488,12 +507,12 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Test agent health endpoint includes WhatsApp status (conditional)
 # First check if dave agent exists
-dave_exists=$(curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "dave")' > /dev/null 2>&1 && echo "yes" || echo "no")
+dave_exists=$(apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "dave")' > /dev/null 2>&1 && echo "yes" || echo "no")
 if [ "$dave_exists" = "yes" ]; then
   test_api "Agent health endpoint" "/api/agents/dave/health"
 
   # Check if channels field exists before testing WhatsApp-specific fields
-  has_channels=$(curl -s $CURL_OPTS "$API_BASE/api/agents/dave/health" | jq -e '.channels' > /dev/null 2>&1 && echo "yes" || echo "no")
+  has_channels=$(apicurl "$API_BASE/api/agents/dave/health" | jq -e '.channels' > /dev/null 2>&1 && echo "yes" || echo "no")
   if [ "$has_channels" = "yes" ]; then
     test_json_field "Health has channels" "/api/agents/dave/health" ".channels"
     test_json_field "WhatsApp channel status" "/api/agents/dave/health" ".channels.whatsapp"
@@ -507,7 +526,7 @@ else
 fi
 
 # Verify groups have WhatsApp channels (optional)
-whatsapp_groups=$(curl -s $CURL_OPTS "$API_BASE/api/groups" | jq '[.groups[] | select(.channels[]? == "whatsapp")] | length')
+whatsapp_groups=$(apicurl "$API_BASE/api/groups" | jq '[.groups[] | select(.channels[]? == "whatsapp")] | length')
 if [ "$whatsapp_groups" -gt 0 ]; then
   pass "Groups with WhatsApp channel ($whatsapp_groups groups)"
 else
@@ -525,7 +544,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Verify mandate schema exists
 # Get actual workspace path from health endpoint
-WORKSPACE=$(curl -s $CURL_OPTS "$API_BASE/api/health" | jq -r '.workspace')
+WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
 if [ -f "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" ]; then
   pass "MANDATE.md schema file exists"
 
@@ -552,7 +571,7 @@ echo "13. DocHub Search"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Test empty query returns empty results
-response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=")
+response=$(apicurl "$API_BASE/api/docs/search?q=")
 if echo "$response" | jq -e '.results == []' > /dev/null 2>&1; then
   pass "Empty query returns empty results"
 else
@@ -560,7 +579,7 @@ else
 fi
 
 # Test search for "template" returns results (or warn if no docs indexed yet)
-response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=template")
+response=$(apicurl "$API_BASE/api/docs/search?q=template")
 result_count=$(echo "$response" | jq '.results | length')
 if [ "$result_count" -gt 0 ]; then
   pass "Search for 'template' found $result_count results"
@@ -569,7 +588,7 @@ else
 fi
 
 # Test search results have required fields (path, matches, preview)
-response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=agent")
+response=$(apicurl "$API_BASE/api/docs/search?q=agent")
 if echo "$response" | jq -e '.results[0] | has("path") and has("matches") and has("preview")' > /dev/null 2>&1; then
   pass "Search results contain required fields"
 else
@@ -577,7 +596,7 @@ else
 fi
 
 # Test search results sorted by matches (descending)
-response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=the")
+response=$(apicurl "$API_BASE/api/docs/search?q=the")
 first_matches=$(echo "$response" | jq '.results[0].matches // 0')
 second_matches=$(echo "$response" | jq '.results[1].matches // 0')
 if [ "$first_matches" -ge "$second_matches" ]; then
@@ -587,8 +606,8 @@ else
 fi
 
 # Test search is case-insensitive
-lower_response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=community")
-upper_response=$(curl -s $CURL_OPTS "$API_BASE/api/docs/search?q=COMMUNITY")
+lower_response=$(apicurl "$API_BASE/api/docs/search?q=community")
+upper_response=$(apicurl "$API_BASE/api/docs/search?q=COMMUNITY")
 lower_count=$(echo "$lower_response" | jq '.results | length')
 upper_count=$(echo "$upper_response" | jq '.results | length')
 if [ "$lower_count" -eq "$upper_count" ]; then
@@ -614,7 +633,7 @@ test_json_field "Skills have description" "/api/skills" ".skills[0].description"
 test_json_field "Skills have source" "/api/skills" ".skills[0].source"
 
 # Count available skills
-skill_count=$(curl -s $CURL_OPTS "$API_BASE/api/skills" | jq '.skills | length')
+skill_count=$(apicurl "$API_BASE/api/skills" | jq '.skills | length')
 if [ "$skill_count" -gt 40 ]; then
   pass "Skills catalog loaded ($skill_count skills)"
 else
@@ -632,7 +651,7 @@ test_json_field "Agent skills array" "/api/skills/agent/engineer" ".skillIds"
 test_json_field "Agent skills objects" "/api/skills/agent/engineer" ".skills"
 
 # Test agents API includes skills field (look for an agent with skills, not just first)
-if curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[] | select(.skills != null)' > /dev/null 2>&1; then
+if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.skills != null)' > /dev/null 2>&1; then
   pass "Agents have skills field"
 else
   # If no agent has skills yet, just check the field exists (can be null)
@@ -640,7 +659,7 @@ else
 fi
 
 # Test skill validation
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/skills/validate" \
+response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
   -H 'Content-Type: application/json' \
   -d '{"skills":["github","slack","notion"]}')
 
@@ -651,7 +670,7 @@ else
 fi
 
 # Test invalid skill detection
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/skills/validate" \
+response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
   -H 'Content-Type: application/json' \
   -d '{"skills":["github","nonexistent-skill-xyz"]}')
 
@@ -667,15 +686,15 @@ else
 fi
 
 # Test skill assignment update (if we have agents)
-if curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
-  first_agent=$(curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -r '.agents[0].id')
+if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
+  first_agent=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
 
   # Get current skills
-  current_skills=$(curl -s $CURL_OPTS "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
+  current_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
 
   # Try to update (use valid skills: github and slack)
   test_skills='["github","slack"]'
-  response=$(curl -s $CURL_OPTS -X PUT "$API_BASE/api/skills/agent/$first_agent" \
+  response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
     -H 'Content-Type: application/json' \
     -d "{\"skills\":$test_skills}")
 
@@ -684,7 +703,7 @@ if curl -s $CURL_OPTS "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null
 
     # Verify persistence - check if skills were saved
     sleep 0.5
-    updated_skills=$(curl -s $CURL_OPTS "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
+    updated_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
     if echo "$updated_skills" | grep -q "github"; then
       pass "Skills persisted to openclaw.json"
     else
@@ -722,7 +741,7 @@ else
   META_BEFORE=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
 
   # Update skills via dashboard API (should use Gateway RPC)
-  response=$(curl -s $CURL_OPTS -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
+  response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
     -H 'Content-Type: application/json' \
     -d "{\"skills\":$TEST_SKILLS_PAYLOAD}")
 
@@ -769,7 +788,7 @@ test_api "List workflows" "/api/workflows"
 test_json_field "Workflows array exists" "/api/workflows" ".workflows"
 
 # Count existing workflows
-workflow_count=$(curl -s $CURL_OPTS "$API_BASE/api/workflows" | jq '.workflows | length')
+workflow_count=$(apicurl "$API_BASE/api/workflows" | jq '.workflows | length')
 if [ "$workflow_count" -ge 0 ]; then
   pass "Workflows endpoint returns array (count: $workflow_count)"
 else
@@ -778,7 +797,7 @@ fi
 
 # Test get specific workflow (if any exist)
 if [ "$workflow_count" -gt 0 ]; then
-  first_workflow_id=$(curl -s $CURL_OPTS "$API_BASE/api/workflows" | jq -r '.workflows[0].id')
+  first_workflow_id=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[0].id')
   test_api "Get workflow by ID" "/api/workflows/$first_workflow_id"
   test_json_field "Workflow has name" "/api/workflows/$first_workflow_id" ".name"
   test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_id" ".schedule"
@@ -800,7 +819,7 @@ fi
 # Test create workflow
 test_workflow_payload='{"name":"Test Workflow","description":"Test workflow for testing","schedule":"0 9 * * *","enabled":true,"targeting":{"communities":[],"groups":[],"tags":[],"agents":[]},"author":"test-suite","executionMode":"automated","content":"# Test Workflow\\n\\nThis is a test."}'
 
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/workflows" \
+response=$(apicurl -X POST "$API_BASE/api/workflows" \
   -H 'Content-Type: application/json' \
   -d "$test_workflow_payload")
 
@@ -809,7 +828,7 @@ if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
   pass "Create workflow (ID: $test_workflow_id)"
 
   # Test update workflow
-  response=$(curl -s $CURL_OPTS -X PUT "$API_BASE/api/workflows/$test_workflow_id" \
+  response=$(apicurl -X PUT "$API_BASE/api/workflows/$test_workflow_id" \
     -H 'Content-Type: application/json' \
     -d '{"enabled":false}')
 
@@ -820,7 +839,7 @@ if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
   fi
 
   # Verify update
-  updated_workflow=$(curl -s $CURL_OPTS "$API_BASE/api/workflows/$test_workflow_id")
+  updated_workflow=$(apicurl "$API_BASE/api/workflows/$test_workflow_id")
   if [ "$(echo "$updated_workflow" | jq -r '.enabled')" = "false" ]; then
     pass "Workflow update persisted"
   else
@@ -828,7 +847,7 @@ if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
   fi
 
   # Test delete workflow
-  response=$(curl -s $CURL_OPTS -X DELETE "$API_BASE/api/workflows/$test_workflow_id")
+  response=$(apicurl -X DELETE "$API_BASE/api/workflows/$test_workflow_id")
 
   if echo "$response" | jq -e '.message' > /dev/null 2>&1; then
     pass "Delete workflow"
@@ -837,7 +856,7 @@ if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
   fi
 
   # Verify deletion
-  response=$(curl -s $CURL_OPTS -w "\n%{http_code}" "$API_BASE/api/workflows/$test_workflow_id")
+  response=$(apicurl -w "\n%{http_code}" "$API_BASE/api/workflows/$test_workflow_id")
   code=$(echo "$response" | tail -n 1)
   if [ "$code" -eq 404 ]; then
     pass "Workflow deleted successfully"
@@ -849,7 +868,7 @@ else
 fi
 
 # Test invalid cron expression
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/workflows" \
+response=$(apicurl -X POST "$API_BASE/api/workflows" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Bad Cron","description":"Test","schedule":"invalid","content":"test"}')
 
@@ -860,7 +879,7 @@ else
 fi
 
 # Test missing required fields
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/workflows" \
+response=$(apicurl -X POST "$API_BASE/api/workflows" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Incomplete"}')
 
@@ -882,7 +901,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Test SKILLS directory exists
 # Get actual workspace path from health endpoint (reuse from Section 12 if available, otherwise fetch)
 if [ -z "$WORKSPACE" ]; then
-  WORKSPACE=$(curl -s $CURL_OPTS "$API_BASE/api/health" | jq -r '.workspace')
+  WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
 fi
 if [ -d "$WORKSPACE/SKILLS/custom" ]; then
   pass "SKILLS/custom directory exists"
@@ -917,7 +936,7 @@ export const tools = {
 EOF
 
 # Test import API endpoint
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/skills/import" \
+response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_SKILL_DIR\"}")
 
@@ -927,11 +946,11 @@ if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
 
   # Verify skill appears in skills list (check by id, not name)
   sleep 0.5
-  if curl -s $CURL_OPTS "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
+  if apicurl "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
     pass "Imported skill appears in skills list"
 
     # Verify skill source is 'workspace'
-    skill_source=$(curl -s $CURL_OPTS "$API_BASE/api/skills" | jq -r ".skills[] | select(.id == \"$test_skill_id\") | .source")
+    skill_source=$(apicurl "$API_BASE/api/skills" | jq -r ".skills[] | select(.id == \"$test_skill_id\") | .source")
     if [ "$skill_source" = "workspace" ]; then
       pass "Imported skill has source 'workspace'"
     else
@@ -939,13 +958,13 @@ if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     fi
 
     # Test delete imported skill
-    response=$(curl -s $CURL_OPTS -X DELETE "$API_BASE/api/skills/$test_skill_id")
+    response=$(apicurl -X DELETE "$API_BASE/api/skills/$test_skill_id")
     if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
       pass "Delete custom skill"
 
       # Verify skill removed from list (check by id)
       sleep 0.5
-      if ! curl -s $CURL_OPTS "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
+      if ! apicurl "$API_BASE/api/skills" | jq -e ".skills[] | select(.id == \"$test_skill_id\")" > /dev/null 2>&1; then
         pass "Deleted skill removed from skills list"
       else
         fail "Deleted skill still appears in skills list"
@@ -966,7 +985,7 @@ TEST_INVALID_DIR="/tmp/test-invalid-skill-$RANDOM"
 mkdir -p "$TEST_INVALID_DIR"
 echo "export const tools = {}" > "$TEST_INVALID_DIR/index.ts"
 
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/skills/import" \
+response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_INVALID_DIR\"}")
 
@@ -981,7 +1000,7 @@ TEST_INVALID_DIR2="/tmp/test-invalid-skill2-$RANDOM"
 mkdir -p "$TEST_INVALID_DIR2"
 echo "# Test" > "$TEST_INVALID_DIR2/skill.md"
 
-response=$(curl -s $CURL_OPTS -X POST "$API_BASE/api/skills/import" \
+response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_INVALID_DIR2\"}")
 

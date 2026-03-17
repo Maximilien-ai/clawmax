@@ -19,34 +19,26 @@ jobs:
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: SYSTEM/dashboard
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install OpenClaw CLI
+        run: |
+          git clone https://github.com/openclaw/openclaw.git /tmp/openclaw
+          cd /tmp/openclaw
+          go build -o /usr/local/bin/openclaw .
 
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Create workspace structure
-        run: |
-          mkdir -p WORKSPACES/default/AGENTS
-          mkdir -p WORKSPACES/default/WORKFLOWS
-          mkdir -p WORKSPACES/default/ORG
-          mkdir -p WORKSPACES/default/TEMPLATES
-          mkdir -p WORKSPACES/default/SKILLS/custom
-
-      - name: Create minimal OpenClaw config
-        run: |
-          mkdir -p ~/.openclaw
-          cat > ~/.openclaw/openclaw.json << 'EOF'
-          {
-            "agents": { "list": [] },
-            "meta": { "version": "0.3.0", "lastTouchedAt": "2026-01-01T00:00:00.000Z" }
-          }
-          EOF
+      - name: Run setup
+        run: ./setup.sh < /dev/null
 
       - name: Start dashboard server
         run: |
           export OPENCLAW_WORKSPACE="$GITHUB_WORKSPACE/WORKSPACES/default"
+          export DASHBOARD_AUTH_DISABLED=true
           cd SYSTEM/dashboard
           npx ts-node server/index.ts &
           # Wait for server to be ready
