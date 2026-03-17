@@ -79,11 +79,35 @@ if [ "$USE_NGROK" = true ]; then
   if lsof -ti:80 > /dev/null 2>&1; then
     echo "⚠ Port 80 is already in use (ngrok may already be running)"
   else
-    echo "Starting ngrok tunnel on $NGROK_URL:80 -> localhost:5173..."
+    # Check if ngrok authtoken is configured
+    if ! ngrok config check 2>/dev/null | grep -q "valid" && ! [ -f "$HOME/.config/ngrok/ngrok.yml" ] && ! [ -f "$HOME/Library/Application Support/ngrok/ngrok.yml" ]; then
+      echo "⚠ ngrok may not be authenticated. If tunnel fails, run:"
+      echo "  ngrok config add-authtoken YOUR_TOKEN"
+      echo "  Get your token: https://dashboard.ngrok.com/get-started/your-authtoken"
+      echo ""
+    fi
+
+    echo "Starting ngrok tunnel on $NGROK_URL -> localhost:5173..."
     ngrok http --url=$NGROK_URL 5173 > /tmp/ngrok.log 2>&1 &
     NGROK_PID=$!
-    echo "✓ ngrok started (PID: $NGROK_PID)"
     sleep 2
+
+    # Verify ngrok started successfully
+    if ! kill -0 $NGROK_PID 2>/dev/null; then
+      echo "❌ ngrok failed to start. Check /tmp/ngrok.log"
+      if grep -q "ERR_NGROK_4018\|authtoken" /tmp/ngrok.log 2>/dev/null; then
+        echo ""
+        echo "  ngrok is not authenticated. Run:"
+        echo "  1. ngrok config add-authtoken YOUR_TOKEN"
+        echo "  2. Get token: https://dashboard.ngrok.com/get-started/your-authtoken"
+      fi
+      # Continue without ngrok — dashboard still works locally
+      echo ""
+      echo "  Continuing without ngrok tunnel..."
+      USE_NGROK=false
+    else
+      echo "✓ ngrok started (PID: $NGROK_PID)"
+    fi
   fi
 fi
 
