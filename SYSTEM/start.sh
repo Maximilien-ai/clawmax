@@ -50,6 +50,13 @@ fi
 echo ""
 echo "Starting servers..."
 
+# Load .env for ngrok config
+ENV_FILE="$(dirname "$0")/dashboard/.env"
+if [ -f "$ENV_FILE" ]; then
+  NGROK_URL=$(grep '^NGROK_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2)
+fi
+NGROK_URL="${NGROK_URL:-}"
+
 # Start ngrok if requested
 if [ "$USE_NGROK" = true ]; then
   # Check if ngrok is installed
@@ -58,12 +65,17 @@ if [ "$USE_NGROK" = true ]; then
     exit 1
   fi
 
+  if [ -z "$NGROK_URL" ]; then
+    echo "❌ NGROK_URL not set. Add NGROK_URL=yourdomain.ngrok.dev to SYSTEM/dashboard/.env"
+    exit 1
+  fi
+
   # Check if ngrok is already running
   if lsof -ti:80 > /dev/null 2>&1; then
     echo "⚠ Port 80 is already in use (ngrok may already be running)"
   else
-    echo "Starting ngrok tunnel on drmaximilien.ngrok.dev:80 -> localhost:5173..."
-    ngrok http --url=drmaximilien.ngrok.dev 5173 > /tmp/ngrok.log 2>&1 &
+    echo "Starting ngrok tunnel on $NGROK_URL:80 -> localhost:5173..."
+    ngrok http --url=$NGROK_URL 5173 > /tmp/ngrok.log 2>&1 &
     NGROK_PID=$!
     echo "✓ ngrok started (PID: $NGROK_PID)"
     sleep 2
@@ -76,7 +88,7 @@ if [ "$FOLLOW_LOGS" = true ]; then
   echo "Running with live logs (Ctrl+C to stop)..."
   echo "Dashboard will be available at http://localhost:5173"
   if [ "$USE_NGROK" = true ]; then
-    echo "Public URL: https://drmaximilien.ngrok.dev"
+    echo "Public URL: https://$NGROK_URL"
   fi
   echo ""
   exec npm run dev
@@ -98,7 +110,7 @@ else
       echo ""
       echo "🚀 Dashboard ready at http://localhost:5173"
       if [ "$USE_NGROK" = true ]; then
-        echo "🌍 Public URL: https://drmaximilien.ngrok.dev"
+        echo "🌍 Public URL: https://$NGROK_URL"
         echo ""
         echo "ngrok logs: tail -f /tmp/ngrok.log"
       fi
