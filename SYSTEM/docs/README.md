@@ -1,7 +1,7 @@
 # SYSTEM Documentation
 
 **Last Updated**: Feb 25, 2026  
-**Status**: v0.7.0 Skills & Tools Management complete, Demo Day tomorrow
+**Status**: v1.1.0 — Agent chat, workflow execution, OpenClaw compatibility
 
 ---
 

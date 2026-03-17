@@ -5,7 +5,7 @@
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
 **Last Updated:** 2026-03-03
-**Dashboard Version:** v0.8.8
+**Dashboard Version:** v1.1.0
 **OpenClaw Protocol:** Version 3
 
 NOTE: avoid duplication with other docs unless on purpose for adding context of keeping track of work done.

@@ -1,6 +1,6 @@
 # ClawMax Roadmap
 
-**Current Version**: v1.0.0
+**Current Version**: v1.1.0
 **Last Updated**: 2026-03-15
 
 This roadmap tracks completed work and plans for upcoming releases.
