@@ -1353,7 +1353,14 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   }
 }
 
-/** Return the gateway config (port + auth token) for a given agent */
+/** Return the gateway config (port + auth token) for a given agent
+ *
+ * IMPORTANT: Port default must match OpenClaw gateway configuration
+ * - OpenClaw source default: 18789 (src/config/paths.ts)
+ * - Common user override: 18889 (in ~/.openclaw/openclaw.json)
+ * - This fallback should match the most common deployment
+ * - Always reads from openclaw.json first to get actual configured port
+ */
 export function getAgentGatewayConfig(id: string): { port: number; token: string } | null {
   const HOME = process.env.HOME || ''
   const isProfile = fs.existsSync(path.join(HOME, `.openclaw-${id}`))
@@ -1362,7 +1369,7 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
     : path.join(HOME, '.openclaw', 'openclaw.json')
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const port = config?.gateway?.port ?? 18789
+    const port = config?.gateway?.port ?? 18889  // Fallback to 18889 (common override of 18789 default)
     const token = config?.gateway?.auth?.token ?? ''
     if (!token) return null
     return { port, token }
@@ -1398,8 +1405,11 @@ export function getNextAgentId(cloneFrom?: string): string {
   return `${prefix}${maxN + 1}`
 }
 
-/** Find first unused TCP port >= startPort */
-export function findFreePort(startPort = 18789): Promise<number> {
+/** Find first unused TCP port >= startPort
+ *
+ * IMPORTANT: Default must match OpenClaw gateway port (18889 common, 18789 OpenClaw default)
+ */
+export function findFreePort(startPort = 18889): Promise<number> {
   return new Promise((resolve) => {
     function tryPort(p: number) {
       const srv = net.createServer()

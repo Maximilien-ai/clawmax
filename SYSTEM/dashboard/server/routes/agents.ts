@@ -167,7 +167,7 @@ router.get('/next', async (req, res) => {
   // Extract number from ID for port calculation
   const numMatch = id.match(/(\d+)$/)
   const n = numMatch ? parseInt(numMatch[1], 10) : 0
-  const port = await findFreePort(18789 + n * 100)
+  const port = await findFreePort(18889 + n * 100)
 
   res.json({ id, port })
 })
@@ -782,7 +782,7 @@ router.post('/:id/restart', async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Gateway config not found' })
     }
 
-    const port = gatewayConfig.port || 18789
+    const port = gatewayConfig.port || 18889
 
     // Kill existing process on this port
     const { execSync } = require('child_process')
