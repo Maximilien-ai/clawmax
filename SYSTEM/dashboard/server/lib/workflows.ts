@@ -497,16 +497,60 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
     const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
     fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
 
-    // Spawn openclaw workflow run process (fire and forget)
-    // IMPORTANT: Pass --workspace flag to ensure execution runs in correct workspace
-    const workspacePath = getWorkspacePath()
-    const child = spawn('openclaw', ['workflow', 'run', workflowId, '--workspace', workspacePath], {
-      detached: true,
-      stdio: 'ignore'
-    })
+    // Run workflow by calling each participant agent directly
+    const executeAsync = async () => {
+      const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
 
-    // Detach the child process so it continues running independently
-    child.unref()
+      for (const participant of executionParticipants) {
+        try {
+          participant.status = 'running' as any
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+          // Call agent via CLI
+          const agentResponse = await new Promise<string>((resolve, reject) => {
+            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
+            const proc = spawn('openclaw', args, { env: process.env })
+            let stdout = ''
+            let stderr = ''
+            const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 120000)
+
+            proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+            proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+            proc.on('close', (code: number) => {
+              clearTimeout(timer)
+              if (code !== 0 && !stdout) {
+                reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                return
+              }
+              try {
+                const result = JSON.parse(stdout)
+                resolve(result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || '')
+              } catch {
+                resolve(stdout.trim())
+              }
+            })
+          })
+
+          participant.status = 'completed' as any
+          ;(participant as any).response = agentResponse
+          execution.logs.push(`Agent ${participant.agentId} completed: ${agentResponse.slice(0, 100)}`)
+        } catch (err: any) {
+          participant.status = 'failed' as any
+          ;(participant as any).error = err.message
+          execution.logs.push(`Agent ${participant.agentId} failed: ${err.message}`)
+        }
+        fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+      }
+
+      // Mark execution complete
+      execution.status = execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'
+      execution.completedAt = new Date().toISOString()
+      execution.logs.push(`Workflow completed at ${execution.completedAt}`)
+      fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+    }
+
+    // Fire and forget
+    executeAsync().catch(err => console.error('Workflow execution error:', err))
 
     return { success: true, executionId }
   } catch (error: any) {
