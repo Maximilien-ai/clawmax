@@ -23,6 +23,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [includeBuiltIn, setIncludeBuiltIn] = useState(true)
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
   const [showModelSection, setShowModelSection] = useState(false)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +32,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   React.useEffect(() => {
     fetch('/api/agents/models')
       .then(r => r.json())
-      .then(d => setAvailableModels(d.models || []))
+      .then(d => {
+        setAvailableModels(d.models || [])
+        setModelsByProvider(d.modelsByProvider || {})
+      })
       .catch(() => {})
   }, [])
 
@@ -240,9 +244,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                     className="w-full mt-1 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">Use template defaults</option>
-                    {availableModels.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
+                    {Object.keys(modelsByProvider).length > 0 ? (
+                      Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                        <optgroup key={providerId} label={provider.name || providerId}>
+                          {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
+                        </optgroup>
+                      ))
+                    ) : (
+                      availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                    )}
                   </select>
                   {modelOverride && (
                     <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
