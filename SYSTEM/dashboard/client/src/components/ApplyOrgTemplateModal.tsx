@@ -5,7 +5,7 @@ interface OrganizationTemplate {
   type: 'organization'
   version: string
   description?: string
-  agents: Array<{ id: string; role: string; tags?: string[] }>
+  agents: Array<{ id: string; role: string; model?: string; tags?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
   workflows?: Array<{ id: string; name: string }>
@@ -23,6 +23,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [includeBuiltIn, setIncludeBuiltIn] = useState(true)
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [showModelSection, setShowModelSection] = useState(false)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -183,51 +184,77 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             </div>
           </div>
 
-          {/* Model Override */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 dark:bg-amber-900/20 dark:border-amber-700">
-            <h3 className="text-sm font-semibold text-amber-900 mb-1 dark:text-amber-200">Model Override <span className="font-normal text-xs text-amber-600 dark:text-amber-400">(optional)</span></h3>
-            <p className="text-xs text-amber-700 mb-3 dark:text-amber-400">
-              Override the model for all agents. Leave as "Use template default" to keep each agent's configured model.
-            </p>
-            <select
-              value={modelOverride}
-              onChange={e => setModelOverride(e.target.value)}
-              className="w-full px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          {/* Agent List with Models (collapsible) */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => setShowModelSection(!showModelSection)}
+              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
             >
-              <option value="">Use template default</option>
-              {availableModels.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            {modelOverride && (
-              <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
-                ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.
-              </p>
-            )}
-          </div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Agents & Models ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''})
+              </h3>
+              <span className="text-gray-400 text-xs">{showModelSection ? '▼' : '▶'}</span>
+            </button>
 
-          {/* Agent List Preview */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
-              Will Create ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}):
-            </h3>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto dark:border-gray-700 dark:bg-gray-900">
-              <div className="space-y-1">
-                {agentsToCreate.map((agent, idx) => {
-                  const newId = `${prefix}${agent.id}${suffix}`
-                  const isBuiltIn = agent.tags?.includes('built-in')
-                  return (
-                    <div key={idx} className="text-xs flex items-center gap-2">
-                      {isBuiltIn && <span className="text-purple-500">🤖</span>}
-                      <span className="font-mono text-gray-500">{agent.id}</span>
-                      <span className="text-gray-400">→</span>
-                      <span className={`font-mono font-semibold ${isBuiltIn ? 'text-purple-700' : 'text-sky-700'}`}>{newId}</span>
-                      <span className="text-gray-400 text-xs">({agent.role})</span>
-                    </div>
-                  )
-                })}
+            {showModelSection && (
+              <div className="p-4 space-y-3 border-t border-gray-200 dark:border-gray-700">
+                {/* Agent table with models */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 dark:bg-gray-900">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-100 dark:bg-gray-800">
+                        <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Agent</th>
+                        <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Role</th>
+                        <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Model</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agentsToCreate.map((agent, idx) => {
+                        const newId = `${prefix}${agent.id}${suffix}`
+                        const effectiveModel = modelOverride || agent.model || 'not set'
+                        const isOverridden = modelOverride && agent.model && modelOverride !== agent.model
+                        return (
+                          <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
+                            <td className="px-3 py-2 font-mono font-medium text-sky-700 dark:text-sky-400">{newId}</td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{agent.role}</td>
+                            <td className="px-3 py-2">
+                              <span className={isOverridden ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}>
+                                {effectiveModel}
+                              </span>
+                              {isOverridden && <span className="ml-1 text-amber-500" title={`Template default: ${agent.model}`}>*</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Model override dropdown */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 dark:bg-amber-900/20 dark:border-amber-700">
+                  <label className="text-xs font-medium text-amber-900 dark:text-amber-200">Override model for all agents:</label>
+                  <select
+                    value={modelOverride}
+                    onChange={e => setModelOverride(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">Use template defaults</option>
+                    {availableModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  {modelOverride && (
+                    <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
+                      ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.
+                    </p>
+                  )}
+                  <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                    You can also change individual agent models after import via the agent's Edit Config menu.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
