@@ -29,9 +29,9 @@ fi
 # Wrapper for curl that adds auth header and timeouts
 apicurl() {
   if [ -n "$DASHBOARD_AUTH" ]; then
-    apicurl -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
+    curl -s $CURL_OPTS -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
   else
-    apicurl "$@"
+    curl -s $CURL_OPTS "$@"
   fi
 }
 GREEN='\033[0;32m'
@@ -177,24 +177,10 @@ echo "Section 0: TypeScript & Skills Tests"
 echo "========================================="
 echo ""
 
-# Portable timeout: runs command with a time limit (seconds)
-run_with_timeout() {
-  local secs="$1"
-  shift
-  "$@" &
-  local pid=$!
-  ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
-  local watchdog=$!
-  wait "$pid" 2>/dev/null
-  local rc=$?
-  kill "$watchdog" 2>/dev/null
-  wait "$watchdog" 2>/dev/null
-  return $rc
-}
-
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
-typecheck_output=$(run_with_timeout 60 bash -c 'cd dashboard && npm run typecheck 2>&1')
-if echo "$typecheck_output" | grep -q "error TS"; then
+cd dashboard
+npm run typecheck > /tmp/clawmax-typecheck.out 2>&1
+if grep -q "error TS" /tmp/clawmax-typecheck.out; then
   fail "TypeScript type check"
 else
   pass "TypeScript type check"
@@ -202,8 +188,8 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Skills API unit tests...${NC}"
-skills_output=$(run_with_timeout 30 bash -c 'cd dashboard && npx ts-node server/lib/skills.test.ts 2>&1')
-if echo "$skills_output" | grep -v "Skill file missing name" | grep -v "Failed to parse skill" | grep -q "All tests passed"; then
+npx ts-node --transpileOnly server/lib/skills.test.ts > /tmp/clawmax-skills.out 2>&1 || true
+if grep -v "Skill file missing name" /tmp/clawmax-skills.out | grep -v "Failed to parse skill" | grep -q "All tests passed"; then
   pass "Skills API unit tests (17 tests)"
 else
   fail "Skills API unit tests"
@@ -211,12 +197,13 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
-templates_output=$(run_with_timeout 30 bash -c 'cd dashboard && npx ts-node server/lib/templates.test.ts 2>&1')
-if echo "$templates_output" | grep -q "All tests passed"; then
+npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-templates.out; then
   pass "Templates API unit tests (15 tests)"
 else
   fail "Templates API unit tests"
 fi
+cd ..
 echo ""
 
 # =========================================
