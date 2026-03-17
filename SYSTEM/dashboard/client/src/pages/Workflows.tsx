@@ -952,7 +952,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <div className="flex items-center gap-3">
                 <button
                   onClick={async () => {
-                    if (!confirm('Trigger this workflow to run now?')) return
+                    // Run immediately without confirmation
                     try {
                       console.log('[Workflow Toast] Triggering workflow:', selectedWorkflow.id, selectedWorkflow.name)
                       const resp = await fetch(`/api/workflows/${selectedWorkflow.id}/trigger`, {

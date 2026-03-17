@@ -143,8 +143,6 @@ export default function Templates() {
   }
 
   const handleInstantiateWorkflow = async (id: string, name: string) => {
-    if (!confirm(`Run workflow "${name}" now?`)) return
-
     try {
       const resp = await fetch(`/api/workflows/${id}/run`, {
         method: 'POST',
