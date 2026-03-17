@@ -63,7 +63,9 @@
 
 ---
 
-### Tuesday (8h): Skills Sync + Agent Templates
+### Tuesday (8h): Skills Sync + Agent Templates (Iteration Focus)
+
+**IMPORTANT**: Build templates iteratively - create, test, refine, repeat
 
 **Morning (4h): Skills Catalog Sync**
 - Add "Sync Skills" button to Skills page
@@ -81,7 +83,15 @@
 - UI: Show last sync timestamp
 - Handle conflicts: Modal asking user to rename conflicting custom skill
 
-**Afternoon (4h): Core Agent Templates**
+**Afternoon (4h): Core Agent Templates (Iterative Approach)**
+
+**Process**: Create → Test → Refine → Template
+- Don't create all templates at once
+- Create one agent, test it thoroughly
+- Refine based on real behavior
+- Then template it
+- Repeat for next agent
+
 Create essential templates for ClawMax development:
 
 1. **qa-engineer** (Quality Assurance)
@@ -145,9 +155,9 @@ Create essential templates for ClawMax development:
 
 ---
 
-### Wednesday (8h): GitHub Workflows for ClawMax
+### Wednesday (8h): GitHub Workflows + Cron Testing
 
-**Goal**: Create workflows that agents execute to manage ClawMax
+**Goal**: Create workflows AND test cron automation (CRITICAL)
 
 **Morning (4h): Core Workflows**
 
@@ -248,17 +258,35 @@ Create essential templates for ClawMax development:
    - GitHub release created
    ```
 
-**Afternoon (4h): Workflow Execution Integration**
+**Afternoon (4h): Cron Automation Testing ⚠️ CRITICAL**
 
-- Update workflow execution to use agent's github skill
-- Test manual trigger of each workflow
-- Verify agents can:
-  - Read GitHub issues/PRs via API
-  - Comment on issues/PRs
-  - Create labels
-  - Approve/request changes on PRs
+**IMPORTANT**: We've never tested automated cron execution - only manual triggers!
 
-**Deliverable**: 3 workflows ready, agents can interact with GitHub
+1. **Test Cron Scheduling** (2h)
+   - Create test workflow with schedule: `*/5 * * * *` (every 5 min)
+   - Enable the workflow
+   - Verify OpenClaw cron daemon picks it up
+   - Watch for automatic execution
+   - Check execution logs
+   - Confirm agents respond automatically
+
+2. **Test Managed Workflows** (1h)
+   - Create workflow that requires approval
+   - Assign managing agent (e.g., release-engineer)
+   - Test managing agent can trigger workflow
+   - Verify workflow executes for target agents
+
+3. **Workflow Execution Integration** (1h)
+   - Update execution to use agent's github skill
+   - Test manual trigger of each workflow
+   - Verify agents can interact with GitHub
+
+**CRITICAL SUCCESS CRITERIA**:
+- ✅ Cron workflows execute automatically (without manual trigger)
+- ✅ Managed workflows work (agent triggers workflow for other agents)
+- ✅ Both modes work reliably
+
+**Deliverable**: 3 workflows ready, cron + managed execution verified
 
 ---
 
