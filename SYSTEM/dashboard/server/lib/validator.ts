@@ -1,9 +1,11 @@
 import Ajv, { ValidateFunction } from 'ajv'
 import fs from 'fs'
 import path from 'path'
-import { WORKSPACE } from './workspace'
 
 const ajv = new Ajv({ allErrors: true, strict: false })
+
+// Repo root: this file is at SYSTEM/dashboard/server/lib/validator.ts
+const REPO_ROOT = path.resolve(__dirname, '../../../..')
 
 // Schema cache
 const schemas: Record<string, ValidateFunction> = {}
@@ -16,7 +18,7 @@ function loadSchema(schemaName: string): ValidateFunction {
     return schemas[schemaName]
   }
 
-  const schemaPath = path.join(WORKSPACE, 'SYSTEM', 'schemas', `${schemaName}.schema.json`)
+  const schemaPath = path.join(REPO_ROOT, 'SYSTEM', 'schemas', `${schemaName}.schema.json`)
   try {
     const schemaContent = fs.readFileSync(schemaPath, 'utf-8')
     const schema = JSON.parse(schemaContent)
