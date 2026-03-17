@@ -149,8 +149,8 @@ async function callAgent(agentId: string, message: string, sessionId: string): P
 
       try {
         const result = JSON.parse(stdout)
-        const responseText = result?.result?.payloads?.[0]?.text || ''
-        const actualSessionId = result?.result?.meta?.agentMeta?.sessionId
+        const responseText = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+        const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
 
         // Save session mapping if we got one
         if (actualSessionId) {
