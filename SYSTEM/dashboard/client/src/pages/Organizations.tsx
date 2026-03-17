@@ -795,7 +795,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               <button
                                 key={workflow.id}
                                 onClick={() => onNavigateToWorkflow?.(workflow.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer dark:border-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 dark:hover:border-purple-600 dark:text-purple-300"
                                 title={`Go to ${workflow.name} in Workflows page`}
                               >
                                 {workflow.name}
@@ -821,7 +821,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               <button
                                 key={agent.id}
                                 onClick={() => onNavigateToAgent?.(agent.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer dark:border-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 dark:hover:border-purple-600 dark:text-purple-300"
                                 title={`Go to ${agent.name} in Agents page`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
@@ -970,7 +970,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               <button
                                 key={workflow.id}
                                 onClick={() => onNavigateToWorkflow?.(workflow.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer dark:border-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/40 dark:hover:border-indigo-600 dark:text-indigo-300"
                                 title={`Go to ${workflow.name} in Workflows page`}
                               >
                                 {workflow.name}
@@ -996,7 +996,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               <button
                                 key={agent.id}
                                 onClick={() => onNavigateToAgent?.(agent.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer dark:border-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/40 dark:hover:border-indigo-600 dark:text-indigo-300"
                                 title={`Go to ${agent.name} in Agents page`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
