@@ -43,7 +43,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[480px] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[480px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-orange-700">Archive Agent</h2>
@@ -59,7 +59,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
           <div className="flex items-center gap-3">
             <span className="text-2xl">📦</span>
             <div>
-              <p className="font-semibold text-gray-800">{agent.name}</p>
+              <p className="font-semibold text-gray-800 dark:text-gray-200">{agent.name}</p>
               <p className="font-mono text-xs text-gray-400">{agent.id}</p>
             </div>
           </div>
@@ -70,7 +70,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
             <ul className="space-y-1 text-sm text-orange-800">
               <li className="flex items-center gap-2">
                 <span className="w-4 text-center">📁</span>
-                <span>Agent directory moved to <code className="text-xs bg-white/50 px-1 rounded">AGENTS/archive/{agent.id}/</code></span>
+                <span>Agent directory moved to <code className="text-xs bg-white dark:bg-gray-800/50 px-1 rounded">AGENTS/archive/{agent.id}/</code></span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-4 text-center">⏸️</span>
@@ -112,7 +112,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
               onChange={e => setReason(e.target.value)}
               placeholder="e.g., No longer needed, Replaced by new agent, Testing..."
               disabled={archiving}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none transition-colors focus:border-orange-400"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none transition-colors focus:border-orange-400 dark:border-gray-700"
             />
           </div>
 
@@ -126,7 +126,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
           <button
             onClick={onClose}
             disabled={archiving}
-            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

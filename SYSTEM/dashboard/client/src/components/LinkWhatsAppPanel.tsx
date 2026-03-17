@@ -83,11 +83,11 @@ export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[520px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[520px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Link WhatsApp</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Link WhatsApp</h2>
             <p className="text-xs text-gray-400 mt-0.5">Agent: <span className="font-mono">{agentName}</span></p>
           </div>
           <button
@@ -118,7 +118,7 @@ export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClo
                 value={phone}
                 onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="14155551234"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 font-mono dark:border-gray-700"
                 onKeyDown={e => e.key === 'Enter' && phoneOk && !pairing && startPairing()}
               />
               <p className="mt-1 text-xs text-gray-400">
@@ -173,7 +173,7 @@ export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClo
           <button
             onClick={onClose}
             disabled={pairing}
-            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

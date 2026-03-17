@@ -60,9 +60,9 @@ const STATUS_COLORS = {
 }
 
 const STATUS_TEXT = {
-  online: 'text-green-700 bg-green-50',
-  offline: 'text-yellow-700 bg-yellow-50',
-  unknown: 'text-gray-600 bg-gray-100',
+  online: 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30',
+  offline: 'text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30',
+  unknown: 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800',
 }
 
 function timeAgo(iso: string | null): string {
@@ -791,7 +791,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Agent Roster</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Agent Roster</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
             {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
             {selectedTags.size > 0 && <span className="text-gray-300">({agents.length} total)</span>}
@@ -802,25 +802,25 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         </div>
         <div className="flex items-center gap-3">
           {/* View toggle */}
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view (compact)"
-              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               ⊞
             </button>
             <button
               onClick={() => setViewMode('list')}
               title="Large grid view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'list' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               ☰
             </button>
             <button
               onClick={() => setViewMode('table')}
               title="Table view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'table' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               ≡
             </button>
@@ -837,7 +837,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <div className="relative">
             <button
               onClick={() => setShowRestartMenu(!showRestartMenu)}
-              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
               title="Restart agents"
             >
               ↻ Restart {showRestartMenu ? '▲' : '▼'}
@@ -845,11 +845,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             {showRestartMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowRestartMenu(false)} />
-                <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden dark:border-gray-700">
                   {/* System Status */}
                   {systemStatus && (
-                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                      <div className="text-xs font-semibold text-gray-700 mb-2">System Status</div>
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="text-xs font-semibold text-gray-700 mb-2 dark:text-gray-300">System Status</div>
                       <div className="space-y-1 text-xs text-gray-600">
                         <div className="flex justify-between">
                           <span>Total Agents:</span>
@@ -867,7 +867,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           <span>Unknown:</span>
                           <span className="font-medium text-gray-400">{systemStatus.unknown}</span>
                         </div>
-                        <div className="flex justify-between pt-1 border-t border-gray-200">
+                        <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
                           <span>Running Gateways:</span>
                           <span className="font-medium text-sky-600">{systemStatus.runningGateways}</span>
                         </div>
@@ -925,7 +925,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
                 selectionMode
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple agents'}
             >
@@ -944,13 +944,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {/* Archive tabs */}
       <div className="mb-4">
-        <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden">
+        <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
           <button
             onClick={() => setArchiveTab('active')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               archiveTab === 'active'
                 ? 'bg-sky-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-700 hover:bg-gray-50'
             }`}
           >
             Active ({agents.filter(a => !a.archived).length})
@@ -960,7 +960,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               archiveTab === 'archived'
                 ? 'bg-sky-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-700 hover:bg-gray-50'
             }`}
           >
             Archived ({agents.filter(a => a.archived).length})
@@ -976,7 +976,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search agents by name, ID, or tags (supports * wildcard)"
-            className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+            className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
           />
           {searchQuery && (
             <button
@@ -1005,7 +1005,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedTags.size === 0
                   ? 'bg-sky-600 text-white border border-sky-600'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
               }`}
             >
               All
@@ -1017,7 +1017,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   selectedTags.has(tag)
                     ? 'bg-sky-600 text-white border border-sky-600'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
                 }`}
               >
                 {tag}
@@ -1026,7 +1026,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             {secondaryTags.length > 0 && (
               <button
                 onClick={() => setShowSecondaryTags(!showSecondaryTags)}
-                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600"
+                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
               >
                 {showSecondaryTags ? '▼' : '▶'} Secondary tags ({secondaryTags.length})
               </button>
@@ -1041,7 +1041,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedTags.has(tag)
                       ? 'bg-sky-600 text-white border border-sky-600'
-                      : 'bg-white text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
                   }`}
                 >
                   {tag}
@@ -1056,17 +1056,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <div className="space-y-4">
           {/* Loading skeletons */}
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm animate-pulse">
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 shadow-sm animate-pulse dark:border-gray-700">
               <div className="flex items-center justify-between px-5 pt-4 pb-3">
                 <div className="flex items-center gap-2 flex-1">
                   <div className="w-2 h-2 rounded-full bg-gray-200"></div>
                   <div className="h-5 bg-gray-200 rounded w-32"></div>
-                  <div className="h-5 bg-gray-100 rounded w-16"></div>
+                  <div className="h-5 bg-gray-100 rounded w-16 dark:bg-gray-800"></div>
                 </div>
                 <div className="flex gap-1">
-                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
-                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
-                  <div className="w-6 h-6 bg-gray-100 rounded"></div>
+                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
+                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
+                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
                 </div>
               </div>
             </div>
@@ -1110,7 +1110,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               <>
                 {title && (
                   <div className="mb-4">
-                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
                       {title.includes('Built-in') && <span>🤖</span>}
                       {title}
                     </h2>
@@ -1168,7 +1168,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
                 {/* Built-in System Agents Section */}
                 {builtInAgents.length > 0 && (
-                  <div className={userAgents.length > 0 ? "mt-10 pt-8 border-t-2 border-gray-300" : ""}>
+                  <div className={userAgents.length > 0 ? "mt-10 pt-8 border-t-2 border-gray-300 dark:border-gray-600" : ""}>
                     {renderAgentCards(builtInAgents, 'Built-in System Agents')}
                   </div>
                 )}
@@ -1205,7 +1205,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               <>
                 {sectionTitle && groupedAgents.size > 0 && (
                   <div className="mb-4">
-                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
                       {sectionTitle === 'Built-in System Agents' && <span>🤖</span>}
                       {sectionTitle}
                       <span className="text-sm font-normal text-gray-400">
@@ -1233,7 +1233,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
               return (
                 <div key={tag}>
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
                     {tag === '__untagged__' ? 'Untagged' : tag}
                     <span className="ml-2 text-xs font-normal text-gray-400">
                       {primaryAgents.length} agent{primaryAgents.length !== 1 ? 's' : ''}
@@ -1343,7 +1343,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
                 {/* Built-in System Agents Section */}
                 {builtInGrouped.size > 0 && (
-                  <div className="mt-8 pt-8 border-t border-gray-200">
+                  <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
                     {renderAgentSection(builtInGrouped, 'Built-in System Agents', shownAgentIds)}
                   </div>
                 )}
@@ -1366,7 +1366,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   <>
                     {userAgents.length > 0 && builtInAgents.length > 0 && (
                       <div className="mb-4">
-                        <h2 className="text-base font-bold text-gray-800">Your Agents ({userAgents.length})</h2>
+                        <h2 className="text-base font-bold text-gray-800 dark:text-gray-200">Your Agents ({userAgents.length})</h2>
                       </div>
                     )}
                     <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -1399,9 +1399,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
                 {/* Built-in System Agents */}
                 {builtInAgents.length > 0 && (
-                  <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200" : ""}>
+                  <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200 dark:border-gray-700" : ""}>
                     <div className="mb-4">
-                      <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                      <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
                         <span>🤖</span> Built-in System Agents ({builtInAgents.length})
                       </h2>
                     </div>
@@ -1591,8 +1591,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <ErrorBoundary
           fallback={
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">Chat Error</h3>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2 dark:text-gray-200">Chat Error</h3>
                 <p className="text-sm text-gray-600 mb-4">Failed to load chat panel</p>
                 <button
                   onClick={() => setChatTarget(null)}
@@ -1632,8 +1632,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {tagToRemove && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Primary Tag</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Remove Primary Tag</h3>
             <p className="text-sm text-gray-600 mb-4">
               You're removing the primary tag <span className="font-semibold text-sky-600">"{tagToRemove.tag}"</span>.
               {(() => {
@@ -1649,7 +1649,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setTagToRemove(null)}
-                className="px-4 py-2 text-sm rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
@@ -1732,7 +1732,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           </button>
           <button
             onClick={() => setShowBulkOperations(true)}
-            className="px-4 py-1 bg-white text-blue-600 hover:bg-blue-50 rounded font-medium transition-colors text-sm"
+            className="px-4 py-1 bg-white dark:bg-gray-800 text-blue-600 hover:bg-blue-50 rounded font-medium transition-colors text-sm"
           >
             Bulk Operations
           </button>
@@ -1804,8 +1804,8 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Manage Tags</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Manage Tags</h3>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
         <div className="space-y-2 mb-4">
@@ -1818,11 +1818,11 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
                 className={`flex items-center gap-2 p-2 rounded border ${
-                  index === 0 ? 'border-sky-400 bg-sky-50' : 'border-gray-200 bg-white'
+                  index === 0 ? 'border-sky-400 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                 } cursor-move hover:shadow-sm transition-shadow`}
               >
                 <span className="text-gray-400 text-xs">☰</span>
-                <span className={`flex-1 text-sm ${index === 0 ? 'font-semibold text-sky-700' : 'text-gray-700'}`}>
+                <span className={`flex-1 text-sm ${index === 0 ? 'font-semibold text-sky-700 dark:text-sky-400' : 'text-gray-700 dark:text-gray-300'}`}>
                   {tag}
                   {index === 0 && <span className="ml-1.5 text-xs text-sky-500">(primary)</span>}
                 </span>
@@ -1846,7 +1846,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
             onChange={e => setNewTag(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addTag()}
             placeholder="Add new tag..."
-            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400"
+            className="flex-1 text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 dark:focus:border-sky-600"
           />
           <button
             onClick={addTag}
@@ -1859,7 +1859,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1902,14 +1902,14 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Agent</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Agent</h3>
         <p className="text-xs text-gray-500 mb-4">
           Renaming will update the agent directory and all references in communities and groups
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
             Current ID: <span className="font-mono text-gray-500">{agent.id}</span>
           </label>
           <input
@@ -1921,7 +1921,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
             }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder="Enter new agent ID..."
-            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono"
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono dark:border-gray-700"
           />
           {error && (
             <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -1931,7 +1931,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1983,8 +1983,8 @@ const AgentCard = React.memo(function AgentCard({
   return (
     <div
       id={`agent-card-${agent.id}`}
-      className={`bg-white rounded-xl border shadow-sm transition-all relative ${
-        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:shadow-md'
+      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm transition-all relative ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 dark:border-gray-700 hover:shadow-md'
       }`}
     >
       {/* Selection checkbox overlay */}
@@ -1995,7 +1995,7 @@ const AgentCard = React.memo(function AgentCard({
             checked={isSelected || false}
             onChange={e => { e.stopPropagation(); onToggleSelect() }}
             onClick={e => e.stopPropagation()}
-            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer dark:border-gray-600"
           />
         </div>
       )}
@@ -2003,9 +2003,9 @@ const AgentCard = React.memo(function AgentCard({
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0" style={onToggleSelect ? { paddingLeft: '1.5rem' } : {}}>
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
-          <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
+          <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">{agent.name}</h3>
           {agent.archived ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 text-orange-700 border border-orange-300">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700">
               📦 Archived
             </span>
           ) : (
@@ -2038,7 +2038,7 @@ const AgentCard = React.memo(function AgentCard({
           <div className="relative">
             <button
               onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu) }}
-              className="text-gray-300 hover:text-gray-600 transition-colors text-base p-1 rounded hover:bg-gray-50"
+              className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
               title="More actions"
             >
               ⋮
@@ -2046,56 +2046,56 @@ const AgentCard = React.memo(function AgentCard({
             {showActionsMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
-                <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700">
                   <button
                     onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span>📋</span> Clone
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-sky-500">💾</span> Save as Template
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-indigo-500">📦</span> Export as ZIP
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-amber-500">↻</span> Restart
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-purple-500">✎</span> Rename
                   </button>
                   {agent.archived ? (
                     <button
                       onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                     >
                       <span className="text-green-500">📤</span> Unarchive
                     </button>
                   ) : (
                     <button
                       onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                     >
                       <span className="text-orange-500">📦</span> Archive
                     </button>
                   )}
-                  <div className="border-t border-gray-200 my-1"></div>
+                  <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                   <button
                     onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
                   >
                     <span>🗑</span> Delete
                   </button>
@@ -2155,7 +2155,7 @@ const AgentCard = React.memo(function AgentCard({
                       </button>
                       <button
                         onClick={() => setConfirmUnlink(false)}
-                        className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                        className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         Cancel
                       </button>
@@ -2163,10 +2163,10 @@ const AgentCard = React.memo(function AgentCard({
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs">+{agent.whatsapp}</span>
+                    <span className="font-mono text-xs text-gray-900 dark:text-gray-100">+{agent.whatsapp}</span>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmUnlink(true) }}
-                      className="text-xs text-gray-300 hover:text-red-400 transition-colors"
+                      className="text-xs text-gray-300 dark:text-gray-600 hover:text-red-400 dark:hover:text-red-400 transition-colors"
                       title="Unlink WhatsApp"
                     >
                       ×
@@ -2213,7 +2213,7 @@ const AgentCard = React.memo(function AgentCard({
                     key={c.name}
                     title={c.description ?? undefined}
                     onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(c.name); }}
-                    className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium hover:bg-purple-100 transition-colors cursor-pointer"
+                    className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
                   >
                     {c.name}
                   </button>
@@ -2223,7 +2223,7 @@ const AgentCard = React.memo(function AgentCard({
                     key={g.name}
                     title={g.description ?? undefined}
                     onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
-                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium hover:bg-indigo-100 transition-colors cursor-pointer"
+                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
                   >
                     {g.name}
                   </button>
@@ -2254,7 +2254,7 @@ const AgentCard = React.memo(function AgentCard({
                   <button
                     key={skill}
                     onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(agent.id); }}
-                    className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors"
+                    className="text-xs px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 font-medium hover:bg-blue-100 transition-colors"
                   >
                     {skill}
                   </button>
@@ -2264,7 +2264,7 @@ const AgentCard = React.memo(function AgentCard({
               onNavigateToSkills ? (
                 <button
                   onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   + Add Skills
                 </button>
@@ -2290,7 +2290,7 @@ const AgentCard = React.memo(function AgentCard({
                     key={workflow.id}
                     title={workflow.description}
                     onClick={e => { e.stopPropagation(); if (onNavigateToWorkflow) onNavigateToWorkflow(workflow.id); }}
-                    className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200 font-medium hover:bg-purple-100 transition-colors cursor-pointer inline-flex items-center gap-1"
+                    className="text-xs px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors cursor-pointer inline-flex items-center gap-1"
                   >
                     {workflow.enabled ? '🔄' : '⏸️'} {workflow.name}
                   </button>
@@ -2315,7 +2315,7 @@ const AgentCard = React.memo(function AgentCard({
             <div className="flex flex-wrap gap-1">
               {agent.tags.length > 0 ? (
                 agent.tags.map(tag => (
-                  <span key={tag} className="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 font-medium inline-flex items-center gap-1">
+                  <span key={tag} className="text-xs px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700 font-medium inline-flex items-center gap-1">
                     {tag}
                     <button
                       onClick={e => { e.stopPropagation(); onRemoveTag(tag); }}
@@ -2373,8 +2373,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
     <div
       id={`agent-card-${agent.id}`}
       onClick={onClick}
-      className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${
-        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
+      className={`bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 dark:border-gray-700'
       }`}
     >
       {onToggleSelect && (
@@ -2388,14 +2388,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       )}
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
-        <span className="font-semibold text-gray-900 text-sm truncate">{agent.name}</span>
+        <span className="font-semibold text-gray-900 text-sm truncate dark:text-gray-100">{agent.name}</span>
         {agent.tags.includes('built-in') && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300 shrink-0" title="Built-in system agent">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700 shrink-0" title="Built-in system agent">
             🤖
           </span>
         )}
         {agent.archived && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300 shrink-0">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 shrink-0">
             📦
           </span>
         )}
@@ -2428,7 +2428,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         {agent.whatsapp && (
           <div className="flex items-center gap-0.5" title={`WhatsApp: +${agent.whatsapp}`}>
             <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-            <span className="text-xs text-green-600">WA</span>
+            <span className="text-xs text-green-600 dark:text-green-400">WA</span>
           </div>
         )}
       </div>
@@ -2437,7 +2437,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {agent.tags.length > 0 ? (
             <>
               {agent.tags.slice(0, 3).map(tag => (
-                <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200 cursor-pointer hover:bg-sky-100 transition-colors">
+                <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700 cursor-pointer hover:bg-sky-100 transition-colors">
                   {tag}
                 </span>
               ))}
@@ -2460,7 +2460,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         <div className="relative shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
-            className="text-gray-300 hover:text-gray-600 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50"
+            className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
             aria-label="More actions"
             title="More actions"
           >
@@ -2469,75 +2469,75 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {showActionsMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
-              <div className="absolute right-0 bottom-full mb-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+              <div className="absolute right-0 bottom-full mb-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700">
                 <button
                   onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span>👁️</span> View Details
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onChat(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-sky-500">💬</span> Chat
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-green-500">📊</span> Status & Logs
                 </button>
-                <div className="border-t border-gray-200 my-1"></div>
+                <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <span>📋</span> Clone
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-sky-500">💾</span> Save as Template
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-indigo-500">📦</span> Export as ZIP
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-amber-500">↻</span> Restart
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                 >
                   <span className="text-purple-500">✎</span> Rename
                 </button>
                 {agent.archived ? (
                   <button
                     onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-green-500">📤</span> Unarchive
                   </button>
                 ) : (
                   <button
                     onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
                     <span className="text-orange-500">📦</span> Archive
                   </button>
                 )}
-                <div className="border-t border-gray-200 my-1"></div>
+                <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
                 >
                   <span>🗑</span> Delete
                 </button>
@@ -2637,12 +2637,12 @@ const AgentTableView = React.memo(function AgentTableView({
   const SortHeader = ({ column, label }: { column: string; label: string }) => (
     <th
       onClick={() => onSort(column)}
-      className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
+      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none dark:bg-gray-800 dark:hover:bg-gray-700"
     >
       <div className="flex items-center gap-1">
         {label}
         {sortColumn === column && (
-          <span className="text-sky-600">
+          <span className="text-sky-600 dark:text-sky-400">
             {sortDirection === 'asc' ? '↑' : '↓'}
           </span>
         )}
@@ -2651,9 +2651,9 @@ const AgentTableView = React.memo(function AgentTableView({
   )
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50 sticky top-0 z-10">
+    <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead className="bg-gray-50 sticky top-0 z-10 dark:bg-gray-900">
           <tr>
             {selectionMode && (
               <th className="px-4 py-3 w-12">
@@ -2669,7 +2669,7 @@ const AgentTableView = React.memo(function AgentTableView({
                       }
                     })
                   }}
-                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500 dark:border-gray-600"
                 />
               </th>
             )}
@@ -2679,17 +2679,17 @@ const AgentTableView = React.memo(function AgentTableView({
             <SortHeader column="whatsapp" label="WhatsApp" />
             <SortHeader column="groups" label="Groups" />
             <SortHeader column="skills" label="Skills" />
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tags</th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider dark:bg-gray-800">Tags</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider dark:bg-gray-800">Actions</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           {sortedAgents.map(agent => (
             <tr
               key={agent.id}
               onClick={() => onSelectAgent(agent)}
-              className={`hover:bg-gray-50 transition-colors cursor-pointer ${
-                selectedAgent?.id === agent.id ? 'bg-sky-50' : ''
+              className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
+                selectedAgent?.id === agent.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''
               }`}
             >
               {selectionMode && (
@@ -2702,15 +2702,15 @@ const AgentTableView = React.memo(function AgentTableView({
                       onToggleSelect(agent.id)
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500 dark:border-gray-600"
                   />
                 </td>
               )}
               <td className="px-4 py-3 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
                   {agent.tags.includes('built-in') && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300" title="Built-in system agent">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700" title="Built-in system agent">
                       🤖
                     </span>
                   )}
@@ -2736,7 +2736,7 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 text-sm text-gray-600">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.groups.slice(0, 3).map(g => (
-                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px]" title={g.name}>
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={g.name}>
                       {g.name}
                     </span>
                   ))}
@@ -2748,7 +2748,7 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 text-sm text-gray-600">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.skills?.slice(0, 3).map(s => (
-                    <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 text-sky-700 rounded">
+                    <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded">
                       {s}
                     </span>
                   ))}
@@ -2760,7 +2760,7 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 text-sm text-gray-600">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.tags.filter(t => t !== 'archived').slice(0, 2).map(t => (
-                    <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-purple-50 text-purple-700 rounded">
+                    <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-700 rounded">
                       {t}
                     </span>
                   ))}
@@ -2797,21 +2797,21 @@ const AgentTableView = React.memo(function AgentTableView({
                       e.stopPropagation()
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="More actions"
                   >
                     ⋮
                   </button>
 
                   {openDropdown === agent.id && (
-                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-20 dark:border-gray-700">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setOpenDropdown(null)
                           onSelectAgent(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <span>👁️</span>
                         View Details
@@ -2822,7 +2822,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onChat(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <span>💬</span>
                         Chat
@@ -2833,12 +2833,12 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onStatus(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
                       >
                         <span className="text-green-500">📊</span>
                         Status & Logs
                       </button>
-                      <div className="border-t border-gray-200 my-1"></div>
+                      <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                       {agent.archived ? (
                         <button
                           onClick={(e) => {
@@ -2846,7 +2846,7 @@ const AgentTableView = React.memo(function AgentTableView({
                             setOpenDropdown(null)
                             onUnarchive(agent)
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
                           <span>📤</span>
                           Unarchive
@@ -2858,13 +2858,13 @@ const AgentTableView = React.memo(function AgentTableView({
                             setOpenDropdown(null)
                             onArchive(agent)
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
                           <span>📦</span>
                           Archive
                         </button>
                       )}
-                      <div className="border-t border-gray-200 my-1"></div>
+                      <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

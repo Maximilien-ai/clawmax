@@ -69,8 +69,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-900 mb-1">Apply Organization Template</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+        <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Apply Organization Template</h2>
         <p className="text-sm text-gray-600 mb-4">
           <span className="font-semibold">{template.name}</span> —
           Will create {agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}
@@ -95,7 +95,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   type="checkbox"
                   checked={includeBuiltIn}
                   onChange={e => setIncludeBuiltIn(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 dark:border-gray-600"
                 />
                 <div className="flex-1">
                   <label htmlFor="include-built-in" className="text-sm font-semibold text-purple-900 cursor-pointer">
@@ -105,7 +105,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                     This template includes {builtInAgents.length} built-in ClawMax system agent{builtInAgents.length !== 1 ? 's' : ''} that provide{builtInAgents.length === 1 ? 's' : ''} system functionality.
                   </p>
                   {includeBuiltIn && (
-                    <div className="mt-2 bg-white border border-purple-200 rounded p-2">
+                    <div className="mt-2 bg-white dark:bg-gray-800 border border-purple-200 rounded p-2">
                       <div className="text-xs text-purple-600 font-medium mb-1">Will add:</div>
                       <div className="space-y-0.5">
                         {builtInAgents.map((agent, idx) => (
@@ -138,7 +138,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Prefix
                 </label>
                 <input
@@ -146,12 +146,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={prefix}
                   onChange={e => setPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., proj1-"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Suffix
                 </label>
                 <input
@@ -159,12 +159,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={suffix}
                   onChange={e => setSuffix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., -v2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
                 />
               </div>
             </div>
 
-            <div className="bg-white border border-sky-300 rounded p-2">
+            <div className="bg-white dark:bg-gray-800 border border-sky-300 rounded p-2">
               <div className="text-xs text-gray-500 mb-1">Preview:</div>
               <div className="font-mono text-sm text-sky-700">
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
@@ -174,10 +174,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
           {/* Agent List Preview */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
               Will Create ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}):
             </h3>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto dark:border-gray-700 dark:bg-gray-900">
               <div className="space-y-1">
                 {agentsToCreate.map((agent, idx) => {
                   const newId = `${prefix}${agent.id}${suffix}`
@@ -201,7 +201,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm text-gray-700 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
             disabled={applying}
           >
             Cancel

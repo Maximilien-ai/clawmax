@@ -318,7 +318,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Communication</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Communication</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
             {filteredChannels.length} channel{filteredChannels.length !== 1 ? 's' : ''}
             {(selectedTags.size > 0 || selectedAgents.size > 0) && <span className="text-gray-300">({allChannels.length} total)</span>}
@@ -329,18 +329,18 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         </div>
         <div className="flex items-center gap-3">
           {/* View toggle */}
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('list')}
               title="List view"
-              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'list' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               ☰
             </button>
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               ⊞
             </button>
@@ -365,7 +365,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search communities/groups by name, tags, or members (supports * wildcard)"
-            className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+            className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
           />
           {searchQuery && (
             <button
@@ -394,7 +394,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedTags.size === 0
                   ? 'bg-sky-600 text-white border border-sky-600'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
               }`}
             >
               All
@@ -406,7 +406,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   selectedTags.has(tag)
                     ? 'bg-sky-600 text-white border border-sky-600'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
                 }`}
               >
                 {tag}
@@ -415,7 +415,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             {secondaryTags.length > 0 && (
               <button
                 onClick={() => setShowSecondaryTags(!showSecondaryTags)}
-                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600"
+                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
               >
                 {showSecondaryTags ? '▼' : '▶'} Secondary tags ({secondaryTags.length})
               </button>
@@ -430,7 +430,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedTags.has(tag)
                       ? 'bg-sky-600 text-white border border-sky-600'
-                      : 'bg-white text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
                   }`}
                 >
                   {tag}
@@ -451,7 +451,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedAgents.size === 0
                   ? 'bg-emerald-600 text-white border border-emerald-600'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
               }`}
             >
               All agents
@@ -466,7 +466,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedAgents.has(agentId)
                       ? 'bg-emerald-600 text-white border border-emerald-600'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
                   }`}
                 >
                   {agent.name}
@@ -574,7 +574,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         <div className="space-y-6">
           {communities.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
                 Communities
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   {communities.length} channel{communities.length !== 1 ? 's' : ''}
@@ -589,7 +589,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           )}
           {groups.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
                 Groups
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   {groups.length} channel{groups.length !== 1 ? 's' : ''}
@@ -608,7 +608,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
       {/* Group Chat Panel - Right Pane (List View Only) */}
       {chatPanelChannel && viewMode === 'list' && (
-        <div className="w-[480px] h-full flex-shrink-0 border-l border-gray-200">
+        <div className="w-[480px] h-full flex-shrink-0 border-l border-gray-200 dark:border-gray-700">
           <GroupChatPanel
             channel={chatPanelChannel}
             onClose={() => setChatPanelChannel(null)}
@@ -781,8 +781,8 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Manage Members</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
         <p className="text-xs text-gray-500 mb-4">
           {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
@@ -795,7 +795,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search agents by name or ID..."
-            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400 text-sm"
+            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 text-sm"
           />
         </div>
 
@@ -807,7 +807,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-sky-600 text-white border border-sky-600'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
             }`}
           >
             All
@@ -817,7 +817,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'in_group'
                 ? 'bg-emerald-600 text-white border border-emerald-600'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
             }`}
           >
             In Group ({currentMemberIds.size})
@@ -827,7 +827,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'not_in_group'
                 ? 'bg-orange-600 text-white border border-orange-600'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
             }`}
           >
             Not in Group ({allAgents.length - currentMemberIds.size})
@@ -835,7 +835,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
         </div>
 
         {/* Agent list */}
-        <div className="flex-1 overflow-y-auto border border-gray-200 rounded p-3 mb-4">
+        <div className="flex-1 overflow-y-auto border border-gray-200 rounded p-3 mb-4 dark:border-gray-700">
           {filteredAgents.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">No agents found</p>
           )}
@@ -850,7 +850,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100'
-                      : 'bg-white border border-gray-100 hover:bg-gray-50'
+                      : 'bg-white dark:bg-gray-800 border border-gray-100 hover:bg-gray-50'
                   }`}
                 >
                   <input
@@ -861,7 +861,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{agent.name}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
                       <span className="text-xs text-gray-400">({agent.id})</span>
                     </div>
                   </div>
@@ -876,7 +876,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -929,8 +929,8 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Manage Tags</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Manage Tags</h3>
         <p className="text-sm text-gray-600 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
@@ -944,11 +944,11 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
                 className={`flex items-center gap-2 p-2 rounded border ${
-                  index === 0 ? 'border-sky-400 bg-sky-50' : 'border-gray-200 bg-white'
+                  index === 0 ? 'border-sky-400 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                 } cursor-move hover:shadow-sm transition-shadow`}
               >
                 <span className="text-gray-400 text-xs">☰</span>
-                <span className={`flex-1 text-sm ${index === 0 ? 'font-semibold text-sky-700' : 'text-gray-700'}`}>
+                <span className={`flex-1 text-sm ${index === 0 ? 'font-semibold text-sky-700 dark:text-sky-400' : 'text-gray-700 dark:text-gray-300'}`}>
                   {tag}
                   {index === 0 && <span className="ml-1.5 text-xs text-sky-500">(primary)</span>}
                 </span>
@@ -972,7 +972,7 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
             onChange={e => setNewTag(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addTag()}
             placeholder="Add new tag..."
-            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-sky-400"
+            className="flex-1 text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 dark:focus:border-sky-600"
           />
           <button
             onClick={addTag}
@@ -985,7 +985,7 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1025,8 +1025,8 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const typeStyle = channel.type === 'community'
-    ? 'bg-purple-50 text-purple-700 border-purple-200'
-    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+    ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-700'
+    : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700'
 
   const channelEmojis: Record<string, string> = {
     whatsapp: '📱',
@@ -1197,16 +1197,16 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   return (
     <div
       id={`channel-card-${channel.name}`}
-      className={`bg-white rounded-xl border p-4 shadow-sm hover:shadow-md transition-all ${
+      className={`bg-white dark:bg-gray-800 rounded-xl border p-4 shadow-sm hover:shadow-md transition-all ${
         isHighlighted
           ? 'border-blue-500 border-2 ring-4 ring-blue-200 shadow-lg'
-          : 'border-gray-200'
+          : 'border-gray-200 dark:border-gray-700'
       }`}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-gray-900 text-sm truncate">{channel.name}</h3>
+            <h3 className="font-semibold text-gray-900 text-sm truncate dark:text-gray-100">{channel.name}</h3>
             {channel.channels.length > 0 && (
               <div className="flex gap-1">
                 {channel.channels.map(ch => (
@@ -1235,7 +1235,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
               ⋮
             </button>
             {showMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px] dark:border-gray-700">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -1282,8 +1282,8 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                   key={tag}
                   className={`text-xs px-1.5 py-0.5 rounded border ${
                     isSelected
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-400 font-semibold ring-2 ring-emerald-200'
-                      : 'bg-sky-50 text-sky-600 border-sky-200'
+                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-400 dark:border-emerald-700 font-semibold ring-2 ring-emerald-200'
+                      : 'bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-700'
                   }`}
                 >
                   {tag}
@@ -1326,8 +1326,8 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                 title={`${agent.name} (${agent.id}) - ${agent.status}\nClick to view agent details`}
                 className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border font-medium transition-all ${
                   isSelected
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-400 font-semibold ring-2 ring-emerald-200'
-                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-400 dark:border-emerald-700 font-semibold ring-2 ring-emerald-200 dark:ring-emerald-900/50'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30 hover:text-sky-700 dark:hover:text-sky-400'
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
@@ -1409,25 +1409,25 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
           <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
             {/* Message History */}
             {messages.length > 0 || typingAgents.size > 0 ? (
-              <div className="bg-gray-50 rounded-lg p-3 max-h-60 overflow-y-auto space-y-2">
+              <div className="bg-gray-50 rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 dark:bg-gray-900">
                 {messages.map((msg) => (
-                  <div key={msg.id} className="bg-white rounded p-2 shadow-sm">
+                  <div key={msg.id} className="bg-white dark:bg-gray-800 rounded p-2 shadow-sm">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-gray-700">{msg.from}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
                       <span className="text-xs text-gray-400">
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap dark:text-gray-200">{msg.content}</p>
                   </div>
                 ))}
                 {/* Typing indicators */}
                 {Array.from(typingAgents).map((agentId) => {
                   const agent = channel.members.find(a => a.id === agentId)
                   return agent ? (
-                    <div key={`typing-${agentId}`} className="bg-white rounded p-2 shadow-sm border-l-2 border-sky-400">
+                    <div key={`typing-${agentId}`} className="bg-white dark:bg-gray-800 rounded p-2 shadow-sm border-l-2 border-sky-400">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-gray-700">{agent.name}</span>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{agent.name}</span>
                         <span className="flex gap-0.5">
                           <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                           <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -1439,7 +1439,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                 })}
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
+              <div className="bg-gray-50 rounded-lg p-4 text-center dark:bg-gray-900">
                 <p className="text-xs text-gray-400">No messages yet</p>
               </div>
             )}
@@ -1478,14 +1478,14 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                   }
                 }}
                 placeholder="Type a message... use @name or @all to mention agents"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent dark:border-gray-700"
                 rows={2}
                 disabled={sending}
               />
 
               {/* @Mention Dropdown */}
               {showMentions && filteredMentionAgents.length > 0 && (
-                <div className="absolute bottom-full left-0 mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10">
+                <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10 dark:border-gray-700">
                   {filteredMentionAgents
                     .filter((agent, index, self) =>
                       // Remove duplicates
@@ -1546,7 +1546,9 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
 
 function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const typeColor = channel.type === 'community' ? 'border-purple-300 bg-purple-50' : 'border-indigo-300 bg-indigo-50'
+  const typeColor = channel.type === 'community'
+    ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
+    : 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30'
   const onlineCount = channel.members.filter(m => m.status === 'online').length
 
   const channelEmojis: Record<string, string> = {
@@ -1561,13 +1563,13 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
     <div className={`rounded-lg border-2 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${typeColor}`}>
       <div className="flex items-center gap-1.5 mb-2">
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
-        <span className="font-semibold text-gray-900 text-sm truncate flex-1">{channel.name}</span>
+        <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onOpenChat?.()
           }}
-          className="shrink-0 text-sky-600 hover:text-sky-700 hover:bg-white/50 rounded p-1 transition-colors"
+          className="shrink-0 text-sky-600 hover:text-sky-700 hover:bg-white dark:bg-gray-800/50 rounded p-1 transition-colors"
           title="Open chat"
         >
           💬
@@ -1594,10 +1596,10 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
               return (
                 <span
                   key={tag}
-                  className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer hover:bg-sky-100 transition-colors ${
+                  className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors ${
                     isSelected
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-400 font-semibold'
-                      : 'bg-white text-sky-600 border-sky-200'
+                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-400 dark:border-emerald-700 font-semibold'
+                      : 'bg-white dark:bg-gray-800 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-700'
                   }`}
                 >
                   {tag}
@@ -1616,8 +1618,8 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
-          <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3 dark:text-gray-100">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
             <p className="text-sm text-gray-600 mb-4">
               Are you sure you want to delete <span className="font-semibold">{channel.name}</span>?
               {channel.members.length > 0 && (
@@ -1635,7 +1637,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
                   e.stopPropagation()
                   setShowDeleteConfirm(false)
                 }}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>

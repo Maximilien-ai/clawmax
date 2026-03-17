@@ -183,11 +183,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/20" onClick={onClose}>
-      <div className="bg-white h-full w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 h-full w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Chat with Agent</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Chat with Agent</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               <span className="font-mono">{agentName}</span>
             </p>
@@ -207,7 +207,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title="Clear messages"
             >
               🗑️ Clear
@@ -260,7 +260,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
 
           {sending && (
             <div className="flex justify-start">
-              <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2.5">
+              <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2.5 dark:text-gray-200 dark:bg-gray-800">
                 <p className="text-sm text-gray-400">
                   <span className="animate-pulse">Agent is thinking…</span>
                 </p>
@@ -282,7 +282,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
               onKeyDown={handleKeyDown}
               disabled={sending}
               placeholder="Type a message…"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700"
             />
             <button
               onClick={sendMessage}
@@ -301,7 +301,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {/* Clear Confirmation Modal */}
         {showClearConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
               <h3 className="text-base font-semibold mb-2">Clear Chat?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This will archive all current messages and start a fresh chat. You can view archived chats anytime from History.
@@ -309,7 +309,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
@@ -327,7 +327,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {/* Archives List Modal */}
         {showArchives && !viewingArchive && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 max-h-[80vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md mx-4 max-h-[80vh] flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold">Chat Archives</h3>
                 <button
@@ -345,7 +345,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                     {archives.map(archive => (
                       <div
                         key={archive.filename}
-                        className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                        className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         <button
                           onClick={() => viewArchive(archive.filename)}
@@ -377,20 +377,20 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {/* Archive Viewer Modal */}
         {viewingArchive && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-20">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold">Archived Chat</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => copyToClipboard(viewingArchive.messages)}
-                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Copy to clipboard"
                   >
                     📋 Copy
                   </button>
                   <button
                     onClick={() => downloadArchive(viewingArchive.messages, viewingArchive.filename)}
-                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Download as text file"
                   >
                     💾 Download
@@ -410,7 +410,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                   </button>
                 </div>
               </div>
-              <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4">
+              <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4 dark:border-gray-700">
                 {viewingArchive.messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                     No messages in this archive
@@ -444,7 +444,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
               <h3 className="text-base font-semibold mb-2">Delete Archive?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This archive will be permanently deleted. This action cannot be undone.
@@ -452,7 +452,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>

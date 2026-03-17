@@ -498,11 +498,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
   return (
     <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"} onClick={isOverlay ? onClose : undefined}>
-      <div className={`bg-white h-full ${isOverlay ? 'w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
+      <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-gray-800">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">
               {channel.type === 'community' ? '🏘' : '👥'} {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -525,7 +525,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title="Clear chat (archives first)"
               disabled={messages.length === 0}
             >
@@ -534,7 +534,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             {mode === 'pane' && onExpand && (
               <button
                 onClick={onExpand}
-                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 title="Expand to full view"
               >
                 ⤢ Expand
@@ -570,14 +570,14 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
           )}
 
           {messages.map((msg) => (
-            <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5">
+            <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-gray-700">{msg.from}</span>
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
                 <span className="text-xs text-gray-400">
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{msg.content}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
             </div>
           ))}
 
@@ -585,9 +585,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
           {Array.from(typingAgents).map((agentId) => {
             const agent = channel.members.find(a => a.id === agentId)
             return agent ? (
-              <div key={`typing-${agentId}`} className="bg-gray-100 rounded-lg px-4 py-2.5 border-l-2 border-sky-400">
+              <div key={`typing-${agentId}`} className="bg-gray-100 rounded-lg px-4 py-2.5 border-l-2 border-sky-400 dark:bg-gray-800">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-700">{agent.name}</span>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{agent.name}</span>
                   <span className="flex gap-0.5">
                     <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-sky-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -606,7 +606,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
           <div className="relative">
             {/* @Mention Dropdown */}
             {showMentions && filteredMentionAgents.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
+              <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10 dark:border-gray-700">
                 {filteredMentionAgents.map((agent, index) => (
                   <button
                     key={agent.id}
@@ -647,8 +647,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                 className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
                   isListening
                     ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                } disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed`}
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                } disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-500 disabled:cursor-not-allowed`}
                 title={isListening ? 'Stop listening' : 'Start voice input'}
               >
                 {isListening ? (
@@ -668,7 +668,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder={isListening ? "Listening..." : "Type or speak... use @name or @all"}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
                 disabled={sending || isListening}
               />
             </div>
@@ -681,7 +681,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               ref={sendButtonRef}
               onClick={sendMessage}
               disabled={!input.trim() || sending}
-              className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
             >
               {sending ? 'Sending...' : 'Send'}
             </button>
@@ -691,15 +691,15 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         {/* Clear Confirmation Modal */}
         {showClearConfirm && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Clear Chat?</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2 dark:text-gray-200">Clear Chat?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This will archive all current messages and start a fresh chat. You can view archived chats anytime from History.
               </p>
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
@@ -717,8 +717,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         {/* Archives List Modal */}
         {showArchives && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl max-h-[80%] flex flex-col">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Chat History</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl max-h-[80%] flex flex-col">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 dark:text-gray-200">Chat History</h3>
               {archives.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No archived chats</p>
               ) : (
@@ -726,7 +726,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                   {archives.map(archive => (
                     <div
                       key={archive.filename}
-                      className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                      className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                     >
                       <button
                         onClick={() => viewArchive(archive.filename)}
@@ -752,7 +752,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               )}
               <button
                 onClick={() => setShowArchives(false)}
-                className="mt-4 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors w-full"
+                className="mt-4 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors w-full dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 Close
               </button>
@@ -762,10 +762,10 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
         {/* Archive Viewer Modal */}
         {viewingArchive && (
-          <div className="absolute inset-0 bg-white z-10 flex flex-col">
+          <div className="absolute inset-0 bg-white dark:bg-gray-800 z-10 flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-800">
+                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
                   📂 {new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toLocaleDateString()}
                 </h3>
                 <p className="text-xs text-gray-400">{viewingArchive.messages.length} messages</p>
@@ -780,7 +780,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                     setCopyFeedback(true)
                     setTimeout(() => setCopyFeedback(false), 2000)
                   }}
-                  className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                   title="Copy to clipboard"
                 >
                   📋 Copy
@@ -798,7 +798,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
-                  className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                   title="Download as text file"
                 >
                   💾 Download
@@ -813,14 +813,14 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
               {viewingArchive.messages.map((msg) => (
-                <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5">
+                <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-700">{msg.from}</span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
                     <span className="text-xs text-gray-400">
                       {new Date(msg.timestamp).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
                 </div>
               ))}
             </div>
@@ -838,7 +838,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
               <h3 className="text-base font-semibold mb-2">Delete Archive?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This archive will be permanently deleted. This action cannot be undone.
@@ -846,7 +846,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>

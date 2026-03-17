@@ -73,6 +73,25 @@ export default function App() {
   })
   const [draggedNavIndex, setDraggedNavIndex] = useState<number | null>(null)
   const [runningWorkflowsCount, setRunningWorkflowsCount] = useState(0)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    // Check localStorage first
+    const saved = localStorage.getItem('dark-mode')
+    if (saved !== null) {
+      return saved === 'true'
+    }
+    // Fall back to browser preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('dark-mode', String(darkMode))
+  }, [darkMode])
 
   useEffect(() => {
     const load = () =>
@@ -147,7 +166,7 @@ export default function App() {
             isOpen={showWorkspaceDialog}
             onClose={() => setShowWorkspaceDialog(false)}
           />
-          <div className="flex h-screen bg-gray-50 text-gray-900">
+          <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 dark:bg-gray-900">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
             <div
@@ -225,6 +244,8 @@ export default function App() {
               onOpenWorkspaceDialog={() => setShowWorkspaceDialog(true)}
               runningWorkflowsCount={runningWorkflowsCount}
               onClickRunningWorkflows={() => setPage('workflows')}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(d => !d)}
             />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
@@ -286,14 +307,16 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
   runningWorkflowsCount?: number
   onClickRunningWorkflows?: () => void
+  darkMode?: boolean
+  onToggleDarkMode?: () => void
 }) {
-  if (!system) return <div className="h-9 border-b border-gray-200 bg-white shrink-0" />
+  if (!system) return <div className="h-9 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
 
   // Split orgName at last "." to style the tld separately (e.g. "Maximilien" + ".ai")
@@ -308,12 +331,12 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-    <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
+    <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700">
       <div className="flex items-center gap-4">
         {/* Mobile menu button */}
         <button
           onClick={onMobileMenuToggle}
-          className="md:hidden text-gray-600 hover:text-gray-900 transition-colors p-1"
+          className="md:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors p-1 dark:text-gray-100"
           aria-label="Toggle menu"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -327,25 +350,25 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         )}
 
         {orgBase && (
-          <span className="text-sm font-bold text-gray-800 tracking-tight">
-            {orgBase}{orgTld && <span className="text-sky-500">{orgTld}</span>}
+          <span className="text-sm font-bold text-gray-800 dark:text-gray-200 tracking-tight dark:text-gray-200">
+            {orgBase}{orgTld && <span className="text-sky-500 dark:text-sky-400">{orgTld}</span>}
           </span>
         )}
-        <div className="flex items-center gap-3 text-xs text-gray-500">
-          <span className="font-mono text-gray-400">{system.hostname}</span>
-          <span className="text-gray-300">·</span>
+        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span className="font-mono text-gray-400 dark:text-gray-500">{system.hostname}</span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
           <span>{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
-          <span className="text-gray-300">·</span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
           <span className="flex items-center gap-1">
             <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
             {system.onlineCount} online
           </span>
           {runningWorkflowsCount !== undefined && runningWorkflowsCount > 0 && (
             <>
-              <span className="text-gray-300">·</span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
               <button
                 onClick={onClickRunningWorkflows}
-                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors dark:text-gray-300"
                 title="View running workflows"
               >
                 <span className="animate-pulse">⚙️</span>
@@ -355,7 +378,28 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           )}
         </div>
       </div>
-      <span className="text-xs text-gray-300 font-mono">{system.version}</span>
+      <div className="flex items-center gap-3">
+        {/* Dark mode toggle */}
+        {onToggleDarkMode && (
+          <button
+            onClick={onToggleDarkMode}
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors p-1 dark:text-gray-300"
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
+          </button>
+        )}
+        <span className="text-xs text-gray-300 dark:text-gray-600 font-mono">{system.version}</span>
+      </div>
     </div>
   )
 }

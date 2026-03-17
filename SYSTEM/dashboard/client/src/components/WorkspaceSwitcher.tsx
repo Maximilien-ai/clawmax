@@ -84,14 +84,14 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       {/* Current workspace button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 transition-colors text-sm font-medium"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 transition-colors text-sm font-medium dark:bg-gray-800"
         title="Switch workspace"
       >
         <div
           className="w-2 h-2 rounded-full"
           style={{ backgroundColor: activeWorkspace.color || '#3B82F6' }}
         />
-        <span className="text-gray-800">{activeWorkspace.name}</span>
+        <span className="text-gray-800 dark:text-gray-200">{activeWorkspace.name}</span>
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
@@ -104,7 +104,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+        <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700">
           {/* Workspace list */}
           <div className="max-h-80 overflow-y-auto">
             {workspaces.map((workspace) => (
@@ -116,8 +116,8 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     }
                     setIsOpen(false)
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${
-                    workspace.id === activeWorkspace.id ? 'bg-blue-50' : ''
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                    workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
                   <div
@@ -127,12 +127,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`font-medium text-sm ${
-                        workspace.id === activeWorkspace.id ? 'text-blue-700' : 'text-gray-900'
+                        workspace.id === activeWorkspace.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
                       }`}>
                         {workspace.name}
                       </span>
                       {workspace.id === activeWorkspace.id && (
-                        <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                           <path
                             fillRule="evenodd"
                             d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -147,7 +147,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           {workspace.tags.slice(0, 2).map((tag) => (
                             <span
                               key={tag}
-                              className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600"
+                              className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800"
                             >
                               {tag}
                             </span>
@@ -197,7 +197,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           </div>
 
           {/* Divider */}
-          <div className="border-t border-gray-200 my-1" />
+          <div className="border-t border-gray-200 my-1 dark:border-gray-700" />
 
           {/* Create new workspace button */}
           <button

@@ -232,10 +232,10 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
               {mode === 'create' ? 'Create Workflow' : 'Edit Workflow'}
             </h2>
             <button
@@ -250,7 +250,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           <div className="p-6 space-y-6">
             {/* Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Name *
               </label>
               <input
@@ -262,8 +262,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     setValidationErrors({ ...validationErrors, name: undefined })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
-                  validationErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+                  validationErrors.name ? 'border-red-300 dark:border-red-700 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:ring-sky-500'
                 }`}
                 placeholder="e.g., Daily Standup Report"
               />
@@ -274,7 +274,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Description *
               </label>
               <textarea
@@ -285,8 +285,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     setValidationErrors({ ...validationErrors, description: undefined })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
-                  validationErrors.description ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+                  validationErrors.description ? 'border-red-300 dark:border-red-700 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:ring-sky-500'
                 }`}
                 rows={2}
                 placeholder="Brief description of what this workflow does"
@@ -298,7 +298,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Schedule */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Schedule (Cron Expression) *
               </label>
 
@@ -319,7 +319,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       className={`text-xs px-2.5 py-1.5 rounded border transition-colors mr-2 ${
                         formData.schedule === cron
                           ? 'bg-purple-100 border-purple-500 text-purple-700 font-medium'
-                          : 'bg-white border-gray-300 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
+                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
                       }`}
                     >
                       {cron}
@@ -354,7 +354,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     className={`text-xs px-2.5 py-1.5 rounded border transition-colors ${
                       formData.schedule === preset.cron
                         ? 'bg-sky-100 border-sky-500 text-sky-700 font-medium'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 hover:border-sky-400 hover:bg-sky-50'
                     }`}
                   >
                     {preset.label}
@@ -363,7 +363,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <button
                   type="button"
                   onClick={() => setShowCronBuilder(!showCronBuilder)}
-                  className="text-xs px-2.5 py-1.5 rounded border bg-white border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                  className="text-xs px-2.5 py-1.5 rounded border bg-white dark:bg-gray-800 border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50 transition-colors dark:text-gray-300 dark:border-gray-600"
                 >
                   {showCronBuilder ? '✕ Close' : '🔧 Builder'}
                 </button>
@@ -371,14 +371,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
               {/* Cron builder */}
               {showCronBuilder && (
-                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md space-y-3">
+                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md space-y-3 dark:border-gray-700 dark:bg-gray-900">
                   <div className="grid grid-cols-5 gap-2 text-xs">
                     <div>
                       <label className="block text-gray-600 mb-1 font-medium">Minute</label>
                       <input
                         type="text"
                         placeholder="0-59 or *"
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[0] = e.target.value || '*'
@@ -391,7 +391,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       <input
                         type="text"
                         placeholder="0-23 or *"
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[1] = e.target.value || '*'
@@ -404,7 +404,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       <input
                         type="text"
                         placeholder="1-31 or *"
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[2] = e.target.value || '*'
@@ -417,7 +417,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       <input
                         type="text"
                         placeholder="1-12 or *"
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[3] = e.target.value || '*'
@@ -430,7 +430,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       <input
                         type="text"
                         placeholder="0-6 or *"
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[4] = e.target.value || '*'
@@ -455,8 +455,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     setValidationErrors({ ...validationErrors, schedule: undefined })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 ${
-                  cronError || validationErrors.schedule ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+                  cronError || validationErrors.schedule ? 'border-red-300 dark:border-red-700 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:ring-sky-500'
                 }`}
                 placeholder="0 9 * * *"
               />
@@ -470,7 +470,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Execution Mode */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Execution Mode *
               </label>
               <div className="space-y-2">
@@ -482,7 +482,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     className="mt-0.5"
                   />
                   <div>
-                    <div className="text-sm font-medium text-gray-900">Automated</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Automated</div>
                     <div className="text-xs text-gray-500">Fully automated by execution engine</div>
                   </div>
                 </label>
@@ -494,7 +494,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     className="mt-0.5"
                   />
                   <div>
-                    <div className="text-sm font-medium text-gray-900">Managed</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Managed</div>
                     <div className="text-xs text-gray-500">Agent owner manages execution lifecycle</div>
                   </div>
                 </label>
@@ -504,7 +504,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             {/* Owner (for managed mode) */}
             {formData.executionMode === 'managed' && (
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                   Owner Agent *
                 </label>
                 <select
@@ -515,8 +515,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       setValidationErrors({ ...validationErrors, owner: undefined })
                     }
                   }}
-                  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${
-                    validationErrors.owner ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                    validationErrors.owner ? 'border-red-300 dark:border-red-700 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:ring-sky-500'
                   }`}
                 >
                   <option value="">Select agent...</option>
@@ -534,11 +534,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Agent Targeting */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Target Agents (OR logic) *
               </label>
-              <div className={`space-y-4 bg-gray-50 border rounded-md p-4 ${
-                validationErrors.targeting ? 'border-red-300' : 'border-gray-200'
+              <div className={`space-y-4 bg-gray-50 dark:bg-gray-900 border rounded-md p-4 ${
+                validationErrors.targeting ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'
               }`}>
                 {/* Specific Agents */}
                 <div>
@@ -550,7 +550,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       placeholder="Search agents..."
                       value={agentSearch}
                       onChange={e => setAgentSearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                     />
                     {agentSearch && (
                       <button
@@ -561,14 +561,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       </button>
                     )}
                   </div>
-                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
                     {agents.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No agents available</p>
                     ) : agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No agents match search</p>
                     ) : (
                       agents.filter(a => (a.name || a.id).toLowerCase().includes(agentSearch.toLowerCase())).map(agent => (
-                        <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                        <label key={agent.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                           <input
                             type="checkbox"
                             checked={formData.targeting.agents.includes(agent.id)}
@@ -580,7 +580,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                             }}
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700">{agent.name || agent.id}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{agent.name || agent.id}</span>
                         </label>
                       ))
                     )}
@@ -597,7 +597,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       placeholder="Search groups..."
                       value={groupSearch}
                       onChange={e => setGroupSearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                     />
                     {groupSearch && (
                       <button
@@ -608,14 +608,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       </button>
                     )}
                   </div>
-                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
                     {groups.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No groups available</p>
                     ) : groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No groups match search</p>
                     ) : (
                       groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).map(group => (
-                        <label key={group.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                        <label key={group.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                           <input
                             type="checkbox"
                             checked={formData.targeting.groups.includes(group.name)}
@@ -627,7 +627,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                             }}
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700">{group.name}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{group.name}</span>
                         </label>
                       ))
                     )}
@@ -643,15 +643,15 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       placeholder="Search communities..."
                       value={communitySearch}
                       onChange={e => setCommunitySearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
                     />
                     {communitySearch && (
                       <button onClick={() => setCommunitySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
                     )}
                   </div>
-                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                  <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
                     {communities.filter(c => c.name.toLowerCase().includes(communitySearch.toLowerCase())).map(community => (
-                      <label key={community.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                      <label key={community.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                         <input
                           type="checkbox"
                           checked={formData.targeting.communities.includes(community.name)}
@@ -663,7 +663,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                           }}
                           className="rounded"
                         />
-                        <span className="text-sm text-gray-700">{community.name}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{community.name}</span>
                       </label>
                     ))}
                   </div>
@@ -695,16 +695,16 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                   {/* Available tags to select */}
                   {allTags.length > 0 && (
-                    <div className="space-y-1.5 max-h-32 overflow-auto border border-gray-200 rounded-md bg-white p-2">
+                    <div className="space-y-1.5 max-h-32 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
                       {allTags.filter(tag => !formData.targeting.tags.includes(tag)).map(tag => (
-                        <label key={tag} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                        <label key={tag} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                           <input
                             type="checkbox"
                             checked={false}
                             onChange={() => handleTargetingChange('tags', [...formData.targeting.tags, tag])}
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700">{tag}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{tag}</span>
                         </label>
                       ))}
                     </div>
@@ -714,7 +714,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   <input
                     type="text"
                     placeholder="Type custom tag and press Enter..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 mt-2"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 mt-2 dark:border-gray-600"
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
@@ -736,7 +736,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Workflow Content */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Workflow Content (Markdown) *
               </label>
               <textarea
@@ -747,8 +747,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     setValidationErrors({ ...validationErrors, content: undefined })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 ${
-                  validationErrors.content ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sky-500'
+                className={`w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+                  validationErrors.content ? 'border-red-300 dark:border-red-700 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:ring-sky-500'
                 }`}
                 rows={10}
                 placeholder="# Task Description&#10;&#10;Write the instructions for what agents should do..."
@@ -770,16 +770,16 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   onChange={e => setFormData({ ...formData, enabled: e.target.checked })}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-700">Enable workflow immediately</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Enable workflow immediately</span>
               </label>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3">
+          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
               disabled={saving}
             >
               Cancel

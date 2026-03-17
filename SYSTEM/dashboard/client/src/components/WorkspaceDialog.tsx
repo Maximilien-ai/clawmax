@@ -58,13 +58,13 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Workspace</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Create New Workspace</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name input */}
           <div>
-            <label htmlFor="workspace-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="workspace-name" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Workspace Name *
             </label>
             <input
@@ -73,7 +73,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Work, Personal, Client Project"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
               required
               autoFocus
             />
@@ -81,7 +81,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
           {/* Path input */}
           <div>
-            <label htmlFor="workspace-path" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="workspace-path" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Path (optional)
             </label>
             <input
@@ -90,7 +90,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
               value={path}
               onChange={(e) => setPath(e.target.value)}
               placeholder="Auto-generated from name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:border-gray-600"
             />
             <p className="mt-1 text-xs text-gray-500">
               Leave blank to auto-generate: ~/.openclaw/workspaces/workspace-name
@@ -99,7 +99,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
           {/* Tags input */}
           <div>
-            <label htmlFor="workspace-tags" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="workspace-tags" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Tags (optional)
             </label>
             <input
@@ -108,7 +108,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="e.g., personal, work, sandbox"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm dark:border-gray-600"
             />
             <p className="mt-1 text-xs text-gray-500">
               Comma-separated tags for organizing workspaces
@@ -117,7 +117,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
           {/* Color picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
               Color
             </label>
             <div className="flex gap-2">
@@ -139,7 +139,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={() => {
@@ -149,7 +149,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
                 setSelectedColor(PRESET_COLORS[0].value)
                 onClose()
               }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
               disabled={creating}
             >
               Cancel

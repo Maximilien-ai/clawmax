@@ -538,7 +538,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Organization Overview</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Organization Overview</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {agents.length} agent{agents.length !== 1 ? 's' : ''}
             <span className="text-gray-300 mx-1.5">•</span>
@@ -556,7 +556,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           </button>
           <button
             onClick={collapseAll}
-            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
           >
             ▶ Collapse All
           </button>
@@ -583,7 +583,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
             placeholder="Search communities, groups, tags, agents..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+            className="w-full px-4 py-2 pr-10 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-gray-600"
           />
           {searchQuery && (
             <button
@@ -623,12 +623,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {!loading && agents.length > 0 && (
         <div className="space-y-6">
           {/* Organization Info */}
-          <div className="bg-gradient-to-r from-sky-50 to-purple-50 rounded-lg border border-sky-200 shadow-sm p-4">
+          <div className="bg-gradient-to-r from-sky-50 to-purple-50 dark:from-sky-900/20 dark:to-purple-900/20 rounded-lg border border-sky-200 dark:border-sky-700 shadow-sm p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">🏢</span>
-                  <h2 className="text-lg font-bold text-gray-900">{orgName}</h2>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{orgName}</h2>
                   <button
                     onClick={() => setEditingOrg(!editingOrg)}
                     className="text-sm text-sky-600 hover:text-sky-800 ml-2"
@@ -640,21 +640,21 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   <textarea
                     value={orgDescription}
                     onChange={(e) => setOrgDescription(e.target.value)}
-                    className="w-full px-3 py-2 border border-sky-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    className="w-full px-3 py-2 border border-sky-300 dark:border-sky-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     rows={2}
                     placeholder="Describe your organization..."
                   />
                 ) : (
-                  <p className="text-sm text-gray-600">{orgDescription}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{orgDescription}</p>
                 )}
               </div>
             </div>
           </div>
 
           {/* All Agents */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
+            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 🤖 All Agents ({agents.length})
               </h2>
             </div>
@@ -664,7 +664,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   <button
                     key={agent.id}
                     onClick={() => onNavigateToAgent?.(agent.id)}
-                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
                     title={`Go to ${agent.name} in Agents page`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
@@ -678,11 +678,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
           {/* Communities */}
           {communities.length > 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-200 bg-purple-50 flex items-center justify-between">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
+              <div className="px-4 py-3 border-b border-gray-200 bg-purple-50 dark:bg-purple-900/30 flex items-center justify-between dark:border-gray-700">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCommunitiesSectionCollapsed(!communitiesSectionCollapsed)}>
                   <span className="text-sm">{communitiesSectionCollapsed ? '▶' : '▼'}</span>
-                  <h2 className="text-sm font-semibold text-purple-800">
+                  <h2 className="text-sm font-semibold text-purple-800 dark:text-purple-400">
                     🏘 Communities ({communities.length})
                   </h2>
                 </div>
@@ -707,7 +707,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
                         onClick={() => toggleCommunity(community.name)}
-                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded"
+                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm">
@@ -718,7 +718,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               e.stopPropagation()
                               onNavigateToGroup?.(community.name)
                             }}
-                            className="font-semibold text-gray-900 text-sm hover:text-purple-600 hover:underline transition-colors"
+                            className="font-semibold text-gray-900 text-sm hover:text-purple-600 hover:underline transition-colors dark:text-gray-100"
                             title="View chat in Communication page"
                           >
                             {community.name}
@@ -745,7 +745,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             {community.tags.map(tag => (
                               <span
                                 key={tag}
-                                className="text-xs px-1.5 py-0.5 rounded border bg-purple-50 text-purple-600 border-purple-200"
+                                className="text-xs px-1.5 py-0.5 rounded border bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-700"
                               >
                                 {tag}
                               </span>
@@ -841,11 +841,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
           {/* Groups */}
           {groups.length > 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50 flex items-center justify-between">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
+              <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-between dark:border-gray-700">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setGroupsSectionCollapsed(!groupsSectionCollapsed)}>
                   <span className="text-sm">{groupsSectionCollapsed ? '▶' : '▼'}</span>
-                  <h2 className="text-sm font-semibold text-indigo-800">
+                  <h2 className="text-sm font-semibold text-indigo-800 dark:text-indigo-400">
                     👥 Groups ({groups.length})
                   </h2>
                 </div>
@@ -870,7 +870,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                     <div className="flex items-start justify-between -m-4 p-4 rounded transition-colors">
                       <div
                         onClick={() => toggleGroup(group.name)}
-                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded"
+                        className="flex-1 cursor-pointer hover:bg-gray-50 -m-4 p-4 rounded dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm">
@@ -881,7 +881,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                               e.stopPropagation()
                               onNavigateToGroup?.(group.name)
                             }}
-                            className="font-semibold text-gray-900 text-sm hover:text-indigo-600 hover:underline transition-colors"
+                            className="font-semibold text-gray-900 text-sm hover:text-indigo-600 hover:underline transition-colors dark:text-gray-100"
                             title="View chat in Communication page"
                           >
                             {group.name}
@@ -920,7 +920,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             {group.tags.map(tag => (
                               <span
                                 key={tag}
-                                className="text-xs px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-200"
+                                className="text-xs px-1.5 py-0.5 rounded border bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700"
                               >
                                 {tag}
                               </span>
@@ -1016,7 +1016,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
           {/* Empty state for communities/groups */}
           {communities.length === 0 && groups.length === 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm p-8 dark:border-gray-700">
               <div className="flex flex-col items-center justify-center text-gray-400">
                 <span className="text-4xl mb-4">💬</span>
                 <p className="text-sm">No communities or groups configured</p>
@@ -1060,45 +1060,45 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Create Community Modal */}
       {showCreateCommunity && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Create Community</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Community Name *
                 </label>
                 <input
                   type="text"
                   value={newCommunityName}
                   onChange={(e) => setNewCommunityName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600"
                   placeholder="Engineering Team"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Description
                 </label>
                 <textarea
                   value={newCommunityDesc}
                   onChange={(e) => setNewCommunityDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600"
                   rows={3}
                   placeholder="Describe this community..."
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 dark:border-gray-700">
               <button
                 onClick={() => {
                   setShowCreateCommunity(false)
                   setNewCommunityName('')
                   setNewCommunityDesc('')
                 }}
-                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors"
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
               >
                 Cancel
               </button>
@@ -1108,7 +1108,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newCommunityName.trim()
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
                 Create
@@ -1121,45 +1121,45 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Create Group Modal */}
       {showCreateGroup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Create Group</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Group Name *
                 </label>
                 <input
                   type="text"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
                   placeholder="Backend Team"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Description
                 </label>
                 <textarea
                   value={newGroupDesc}
                   onChange={(e) => setNewGroupDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
                   rows={3}
                   placeholder="Describe this group..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Community (optional)
                 </label>
                 {workspaceCommunities.length > 0 ? (
                   <select
                     value={newGroupCommunity}
                     onChange={(e) => setNewGroupCommunity(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
                   >
                     <option value="">No community</option>
                     {workspaceCommunities.map(c => (
@@ -1171,7 +1171,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                     type="text"
                     value={newGroupCommunity}
                     onChange={(e) => setNewGroupCommunity(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
                     placeholder="Enter community name"
                   />
                 )}
@@ -1182,7 +1182,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 )}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 dark:border-gray-700">
               <button
                 onClick={() => {
                   setShowCreateGroup(false)
@@ -1190,7 +1190,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   setNewGroupDesc('')
                   setNewGroupCommunity('')
                 }}
-                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors"
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
               >
                 Cancel
               </button>
@@ -1200,7 +1200,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newGroupName.trim()
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
                 Create
@@ -1324,14 +1324,14 @@ function RenameCommunityModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Community</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Community</h3>
         <p className="text-xs text-gray-500 mb-4">
           Renaming will update all references in groups and agents
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
             Current name: <span className="font-medium text-purple-600">{community.name}</span>
           </label>
           <input
@@ -1343,7 +1343,7 @@ function RenameCommunityModal({
             }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder="Enter new community name..."
-            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:border-gray-700"
           />
           {error && (
             <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -1353,7 +1353,7 @@ function RenameCommunityModal({
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1403,14 +1403,14 @@ function RenameGroupModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Rename Group</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Group</h3>
         <p className="text-xs text-gray-500 mb-4">
           Renaming will update all references in agents
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
             Current name: <span className="font-medium text-indigo-600">{group.name}</span>
           </label>
           <input
@@ -1422,7 +1422,7 @@ function RenameGroupModal({
             }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder="Enter new group name..."
-            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:border-gray-700"
           />
           {error && (
             <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -1432,7 +1432,7 @@ function RenameGroupModal({
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

@@ -31,31 +31,31 @@ function buildTree(paths: string[]): FileTree {
 const SECTION_CONFIG: Record<DocSection, { label: string; accent: string; headerCls: string; itemCls: string; selectedCls: string }> = {
   ORG: {
     label: 'ORG',
-    accent: 'text-sky-600',
-    headerCls: 'text-sky-600 bg-sky-50 border-sky-100',
-    itemCls: 'text-gray-700 hover:bg-sky-50',
-    selectedCls: 'bg-sky-50 text-sky-700 font-medium',
+    accent: 'text-sky-600 dark:text-sky-400',
+    headerCls: 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 border-sky-100 dark:border-sky-700',
+    itemCls: 'text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30',
+    selectedCls: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-medium',
   },
   AGENTS: {
     label: 'AGENTS',
-    accent: 'text-emerald-600',
-    headerCls: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-    itemCls: 'text-gray-700 hover:bg-emerald-50',
-    selectedCls: 'bg-emerald-50 text-emerald-700 font-medium',
+    accent: 'text-emerald-600 dark:text-emerald-400',
+    headerCls: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-700',
+    itemCls: 'text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
+    selectedCls: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium',
   },
   WORKFLOWS: {
     label: 'WORKFLOWS',
-    accent: 'text-purple-600',
-    headerCls: 'text-purple-600 bg-purple-50 border-purple-100',
-    itemCls: 'text-gray-700 hover:bg-purple-50',
-    selectedCls: 'bg-purple-50 text-purple-700 font-medium',
+    accent: 'text-purple-600 dark:text-purple-400',
+    headerCls: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 border-purple-100 dark:border-purple-700',
+    itemCls: 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30',
+    selectedCls: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium',
   },
   SYSTEM: {
     label: 'SYSTEM',
-    accent: 'text-gray-400',
-    headerCls: 'text-gray-400 bg-gray-50 border-gray-100',
-    itemCls: 'text-gray-400 hover:bg-gray-50',
-    selectedCls: 'bg-gray-100 text-gray-600 font-medium',
+    accent: 'text-gray-400 dark:text-gray-500',
+    headerCls: 'text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700',
+    itemCls: 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700',
+    selectedCls: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium',
   },
 }
 
@@ -322,20 +322,20 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   return (
     <div className="flex h-full overflow-hidden">
       {/* File tree sidebar */}
-      <aside className={`bg-white border-r border-gray-200 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'}`}>
+      <aside className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'}`}>
         {treeCollapsed ? (
           <div className="flex flex-col items-center pt-3">
             <button
               onClick={() => setTreeCollapsed(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
               title="Expand file tree"
             >▶</button>
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            <div className="px-4 py-3 border-b border-gray-200 shrink-0">
+            <div className="px-4 py-3 border-b border-gray-200 shrink-0 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Documents</h2>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Documents</h2>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={openCreateDialog}
@@ -344,12 +344,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   >+ New</button>
                   <button
                     onClick={collapseAllDirs}
-                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs px-2 py-1 rounded hover:bg-gray-100"
+                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs px-2 py-1 rounded hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Collapse all directories"
                   >Collapse All</button>
                   <button
                     onClick={() => setTreeCollapsed(true)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100"
+                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Collapse file tree"
                   >◀</button>
                 </div>
@@ -363,7 +363,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && performSearch()}
-                  className="w-full text-xs px-2 py-1 pr-14 border border-sky-300 rounded focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  className="w-full text-xs px-2 py-1 pr-14 border border-sky-300 dark:border-sky-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                 />
                 {searchQuery && (
                   <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
@@ -394,7 +394,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   placeholder="Filter agents (e.g., max0, engineer*)"
                   value={agentFilter}
                   onChange={e => setAgentFilter(e.target.value)}
-                  className="w-full text-xs px-2 py-1 pr-6 border border-gray-200 rounded focus:outline-none focus:border-sky-400"
+                  className="w-full text-xs px-2 py-1 pr-6 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 dark:focus:border-sky-600"
                 />
                 {agentFilter && (
                   <button
@@ -410,7 +410,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
             {/* Search results */}
             {searchResults.length > 0 && (
-              <div className="border-b border-gray-200 bg-sky-50 p-3 space-y-2">
+              <div className="border-b border-gray-200 bg-sky-50 p-3 space-y-2 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-sky-700">
                     {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
@@ -429,7 +429,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       loadFile(result.path)
                       clearSearch()
                     }}
-                    className="w-full text-left p-2 bg-white rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
+                    className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
                   >
                     <div className="text-xs font-medium text-sky-700 mb-1">{result.path}</div>
                     <div className="text-xs text-gray-600 line-clamp-2">{result.preview}</div>
@@ -541,7 +541,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       </aside>
 
       {/* Content area */}
-      <div className="flex-1 overflow-hidden flex flex-col bg-white">
+      <div className="flex-1 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
         {loading && (
           <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading...</div>
         )}
@@ -564,7 +564,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   <>
                     <button
                       onClick={cancelEdit}
-                      className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                      className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                     >
                       Cancel
                     </button>
@@ -581,7 +581,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 ) : (
                   <button
                     onClick={startEdit}
-                    className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                    className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
                     Edit
                   </button>
@@ -599,7 +599,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   {validationErrors.map((err, idx) => (
                     <div key={idx} className="text-sm">
                       <span className="font-mono text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{err.field}</span>
-                      <span className="text-gray-700 ml-2">{err.message}</span>
+                      <span className="text-gray-700 ml-2 dark:text-gray-300">{err.message}</span>
                       {err.value !== undefined && (
                         <span className="text-gray-500 ml-2 italic">({JSON.stringify(err.value)})</span>
                       )}
@@ -615,7 +615,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             {/* View or Edit */}
             {editMode ? (
               <textarea
-                className="flex-1 w-full px-8 py-6 font-mono text-sm text-gray-800 resize-none outline-none border-none bg-gray-50"
+                className="flex-1 w-full px-8 py-6 font-mono text-sm text-gray-800 resize-none outline-none border-none bg-gray-50 dark:text-gray-200 dark:bg-gray-900"
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 spellCheck={false}
@@ -643,8 +643,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       {/* Create Document Dialog */}
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeCreateDialog}>
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Document</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Create New Document</h3>
 
             {createError && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -654,11 +654,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Section</label>
                 <select
                   value={newDocSection}
                   onChange={e => setNewDocSection(e.target.value as DocSection)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-gray-700"
                 >
                   <option value="ORG">ORG</option>
                   <option value="AGENTS">AGENTS</option>
@@ -668,14 +668,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Path</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Path</label>
                 <input
                   type="text"
                   value={newDocPath}
                   onChange={e => setNewDocPath(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && createDocument()}
                   placeholder="example.md or subdirectory/example.md"
-                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm dark:border-gray-700"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   File path relative to {newDocSection}/ (must end with .md)
@@ -683,7 +683,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Initial Content</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Initial Content</label>
                 <textarea
                   value={newDocContent}
                   onChange={e => setNewDocContent(e.target.value)}
@@ -691,7 +691,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
 Start writing..."
                   rows={10}
-                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm dark:border-gray-700"
                 />
               </div>
             </div>
@@ -699,7 +699,7 @@ Start writing..."
             <div className="flex gap-2 justify-end mt-6">
               <button
                 onClick={closeCreateDialog}
-                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>

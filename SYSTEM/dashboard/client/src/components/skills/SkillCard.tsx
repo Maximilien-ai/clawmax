@@ -16,7 +16,7 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
   return (
     <div
       className={`
-        border rounded-lg p-4 bg-white hover:shadow-md transition-shadow
+        border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow
         ${compact ? 'p-3' : 'p-4'}
       `}
     >
@@ -27,7 +27,7 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
             {skill.emoji && (
               <span className="text-2xl flex-shrink-0">{skill.emoji}</span>
             )}
-            <h3 className="font-semibold text-gray-900 truncate">
+            <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">
               {skill.name}
             </h3>
           </div>
@@ -54,7 +54,7 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
             className={`
               px-3 py-1 rounded text-sm font-medium transition-colors flex-shrink-0
               ${assigned
-                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
               }
             `}
@@ -81,13 +81,13 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
             <div className="mt-2 space-y-2 text-sm">
               {/* Requirements */}
               {skill.requires?.bins && skill.requires.bins.length > 0 && (
-                <div className="bg-gray-50 p-2 rounded">
-                  <div className="font-medium text-gray-700 mb-1">
+                <div className="bg-gray-50 p-2 rounded dark:bg-gray-900">
+                  <div className="font-medium text-gray-700 mb-1 dark:text-gray-300">
                     Requires:
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {skill.requires.bins.map(bin => (
-                      <code key={bin} className="px-2 py-0.5 bg-gray-200 text-gray-800 rounded text-xs">
+                      <code key={bin} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded text-xs">
                         {bin}
                       </code>
                     ))}
@@ -97,12 +97,12 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
 
               {/* Install Options */}
               {skill.install && skill.install.length > 0 && (
-                <div className="bg-blue-50 p-2 rounded">
-                  <div className="font-medium text-gray-700 mb-1">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded">
+                  <div className="font-medium text-gray-700 mb-1 dark:text-gray-300">
                     Install:
                   </div>
                   {skill.install.map((option, i) => (
-                    <div key={i} className="text-xs text-gray-600 font-mono">
+                    <div key={i} className="text-xs text-gray-600 dark:text-gray-300 font-mono">
                       {option.kind === 'brew' && `brew install ${option.formula}`}
                       {option.kind === 'apt' && `apt install ${option.package}`}
                       {option.kind === 'npm' && `npm install -g ${option.package}`}

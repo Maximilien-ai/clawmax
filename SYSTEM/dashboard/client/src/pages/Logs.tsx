@@ -141,20 +141,20 @@ export default function Logs() {
   // Get log level color
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'ERROR': return 'text-red-600 bg-red-50'
-      case 'WARN': return 'text-yellow-600 bg-yellow-50'
-      case 'DEBUG': return 'text-gray-500 bg-gray-50'
-      default: return 'text-blue-600 bg-blue-50'
+      case 'ERROR': return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30'
+      case 'WARN': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30'
+      case 'DEBUG': return 'text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800'
+      default: return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
     }
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">System Logs</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
             <p className="text-sm text-gray-500 mt-1">
               Live streaming logs from OpenClaw
               {connected && <span className="ml-2 text-green-600">● Connected</span>}
@@ -164,7 +164,7 @@ export default function Logs() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLogs([])}
-              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors dark:bg-gray-800 dark:text-gray-300"
             >
               Clear
             </button>
@@ -203,12 +203,12 @@ export default function Logs() {
             placeholder="Search logs..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
           />
           <select
             value={agentFilter}
             onChange={(e) => setAgentFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
           >
             <option value="">All Agents</option>
             {uniqueAgents.map(agent => (
@@ -218,7 +218,7 @@ export default function Logs() {
           <select
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
           >
             <option value="">All Levels</option>
             <option value="ERROR">ERROR</option>
@@ -254,7 +254,7 @@ export default function Logs() {
       </div>
 
       {/* Footer stats */}
-      <div className="bg-white border-t border-gray-200 px-6 py-2 text-xs text-gray-500">
+      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-2 text-xs text-gray-500 dark:border-gray-700">
         {filteredLogs.length} / {logs.length} logs
         {paused && pausedLogsBufferRef.current.length > 0 && (
           <span className="ml-4 text-amber-600">

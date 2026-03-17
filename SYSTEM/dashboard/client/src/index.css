@@ -19,19 +19,19 @@
 }
 
 /* Markdown prose styles */
-.prose h1 { @apply text-2xl font-bold mb-4 mt-6 text-gray-900; }
-.prose h2 { @apply text-xl font-semibold mb-3 mt-5 text-gray-800; }
-.prose h3 { @apply text-lg font-semibold mb-2 mt-4 text-gray-800; }
-.prose p  { @apply mb-3 text-gray-700 leading-relaxed; }
-.prose ul { @apply list-disc list-inside mb-3 text-gray-700; }
-.prose ol { @apply list-decimal list-inside mb-3 text-gray-700; }
+.prose h1 { @apply text-2xl font-bold mb-4 mt-6 text-gray-900 dark:text-gray-100; }
+.prose h2 { @apply text-xl font-semibold mb-3 mt-5 text-gray-800 dark:text-gray-200; }
+.prose h3 { @apply text-lg font-semibold mb-2 mt-4 text-gray-800 dark:text-gray-200; }
+.prose p  { @apply mb-3 text-gray-700 dark:text-gray-300 leading-relaxed; }
+.prose ul { @apply list-disc list-inside mb-3 text-gray-700 dark:text-gray-300; }
+.prose ol { @apply list-decimal list-inside mb-3 text-gray-700 dark:text-gray-300; }
 .prose li { @apply mb-1; }
-.prose a  { @apply text-sky-600 underline hover:text-sky-800; }
-.prose code { @apply bg-gray-100 text-sm font-mono px-1 py-0.5 rounded; }
-.prose pre  { @apply bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4 text-sm; }
+.prose a  { @apply text-sky-600 dark:text-sky-400 underline hover:text-sky-800 dark:hover:text-sky-300; }
+.prose code { @apply bg-gray-100 dark:bg-gray-800 text-sm font-mono px-1 py-0.5 rounded; }
+.prose pre  { @apply bg-gray-900 dark:bg-gray-950 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4 text-sm; }
 .prose pre code { @apply bg-transparent p-0; }
-.prose blockquote { @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-3; }
+.prose blockquote { @apply border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 mb-3; }
 .prose table { @apply w-full border-collapse mb-4 text-sm; }
-.prose th { @apply border border-gray-300 bg-gray-50 px-3 py-2 text-left font-semibold; }
-.prose td { @apply border border-gray-300 px-3 py-2; }
-.prose hr { @apply border-gray-200 my-6; }
+.prose th { @apply border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-left font-semibold; }
+.prose td { @apply border border-gray-300 dark:border-gray-600 px-3 py-2; }
+.prose hr { @apply border-gray-200 dark:border-gray-700 my-6; }

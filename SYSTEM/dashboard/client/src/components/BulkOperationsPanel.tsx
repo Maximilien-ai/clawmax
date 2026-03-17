@@ -112,10 +112,10 @@ export default function BulkOperationsPanel({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Bulk Operations ({selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''})
           </h2>
           <button
@@ -135,7 +135,7 @@ export default function BulkOperationsPanel({
               <span
                 key={a.id}
                 className={`px-2 py-1 rounded text-xs font-medium ${
-                  a.archived ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-700'
+                  a.archived ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                 }`}
               >
                 {a.name}{a.archived ? ' (archived)' : ''}
@@ -148,7 +148,7 @@ export default function BulkOperationsPanel({
           <>
             {/* Operation selection */}
             <div className="px-6 py-4">
-              <div className="text-sm font-medium text-gray-700 mb-3">Choose an operation:</div>
+              <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Choose an operation:</div>
               <div className="space-y-2">
                 {onChat && (
                   <button
@@ -156,9 +156,9 @@ export default function BulkOperationsPanel({
                       onChat(selectedAgents.map(a => a.id))
                       onClose()
                     }}
-                    className="w-full text-left px-4 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 bg-white transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 bg-white dark:bg-gray-800 transition-colors dark:border-gray-700"
                   >
-                    <div className="font-medium text-gray-900">Chat with Selected</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Chat with Selected</div>
                     <div className="text-sm text-gray-500">Open a chat with the selected agents</div>
                   </button>
                 )}
@@ -168,10 +168,10 @@ export default function BulkOperationsPanel({
                   className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                     operation === 'communities'
                       ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 hover:border-purple-300 bg-white'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'
                   }`}
                 >
-                  <div className="font-medium text-gray-900">Add to Communities</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">Add to Communities</div>
                   <div className="text-sm text-gray-500">Add selected agents to one or more communities</div>
                 </button>
 
@@ -180,10 +180,10 @@ export default function BulkOperationsPanel({
                   className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                     operation === 'groups'
                       ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-indigo-300 bg-white'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'
                   }`}
                 >
-                  <div className="font-medium text-gray-900">Add to Groups</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">Add to Groups</div>
                   <div className="text-sm text-gray-500">Add selected agents to one or more groups</div>
                 </button>
 
@@ -193,10 +193,10 @@ export default function BulkOperationsPanel({
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'archive'
                         ? 'border-orange-500 bg-orange-50'
-                        : 'border-gray-200 hover:border-orange-300 bg-white'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900">Archive Agents</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Archive Agents</div>
                     <div className="text-sm text-gray-500">Archive {activeCount} active agent{activeCount !== 1 ? 's' : ''}</div>
                   </button>
                 )}
@@ -207,10 +207,10 @@ export default function BulkOperationsPanel({
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'unarchive'
                         ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-green-300 bg-white'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-green-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900">Unarchive Agents</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Unarchive Agents</div>
                     <div className="text-sm text-gray-500">Unarchive {archivedCount} archived agent{archivedCount !== 1 ? 's' : ''}</div>
                   </button>
                 )}
@@ -221,10 +221,10 @@ export default function BulkOperationsPanel({
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'delete'
                         ? 'border-red-500 bg-red-50'
-                        : 'border-gray-200 hover:border-red-300 bg-white'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-red-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900 text-red-700">⚠️ Delete Agents Permanently</div>
+                    <div className="font-medium text-gray-900 text-red-700 dark:text-gray-100">⚠️ Delete Agents Permanently</div>
                     <div className="text-sm text-red-600">Permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} (cannot be undone)</div>
                   </button>
                 )}
@@ -234,10 +234,10 @@ export default function BulkOperationsPanel({
             {/* Communities selection */}
             {operation === 'communities' && (
               <div className="px-6 py-4 border-t border-gray-100">
-                <div className="text-sm font-medium text-gray-700 mb-3">Select communities:</div>
+                <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select communities:</div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {allCommunities.map(c => (
-                    <label key={c.name} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <label key={c.name} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                       <input
                         type="checkbox"
                         checked={selectedCommunities.has(c.name)}
@@ -245,7 +245,7 @@ export default function BulkOperationsPanel({
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{c.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{c.name}</div>
                         {c.description && <div className="text-sm text-gray-500">{c.description}</div>}
                       </div>
                     </label>
@@ -257,10 +257,10 @@ export default function BulkOperationsPanel({
             {/* Groups selection */}
             {operation === 'groups' && (
               <div className="px-6 py-4 border-t border-gray-100">
-                <div className="text-sm font-medium text-gray-700 mb-3">Select groups:</div>
+                <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select groups:</div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {allGroups.map(g => (
-                    <label key={g.name} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <label key={g.name} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                       <input
                         type="checkbox"
                         checked={selectedGroups.has(g.name)}
@@ -268,7 +268,7 @@ export default function BulkOperationsPanel({
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{g.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{g.name}</div>
                         {g.description && <div className="text-sm text-gray-500">{g.description}</div>}
                       </div>
                     </label>
@@ -278,10 +278,10 @@ export default function BulkOperationsPanel({
             )}
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex gap-3 justify-end">
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-4 flex gap-3 justify-end dark:border-gray-700">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium dark:text-gray-100 dark:text-gray-300"
                 disabled={processing}
               >
                 Cancel
@@ -318,8 +318,8 @@ export default function BulkOperationsPanel({
 
               <div className="space-y-3">
                 <div>
-                  <div className="text-sm font-medium text-gray-700">Operation:</div>
-                  <div className="text-base text-gray-900">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Operation:</div>
+                  <div className="text-base text-gray-900 dark:text-gray-100">
                     {operation === 'communities' && `Add to ${selectedCommunities.size} communit${selectedCommunities.size !== 1 ? 'ies' : 'y'}`}
                     {operation === 'groups' && `Add to ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`}
                     {operation === 'archive' && `Archive ${activeCount} agent${activeCount !== 1 ? 's' : ''}`}
@@ -329,7 +329,7 @@ export default function BulkOperationsPanel({
 
                 {operation === 'communities' && (
                   <div>
-                    <div className="text-sm font-medium text-gray-700">Communities:</div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Communities:</div>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {Array.from(selectedCommunities).map(name => (
                         <span key={name} className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm font-medium">
@@ -342,7 +342,7 @@ export default function BulkOperationsPanel({
 
                 {operation === 'groups' && (
                   <div>
-                    <div className="text-sm font-medium text-gray-700">Groups:</div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Groups:</div>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {Array.from(selectedGroups).map(name => (
                         <span key={name} className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-sm font-medium">
@@ -356,10 +356,10 @@ export default function BulkOperationsPanel({
             </div>
 
             {/* Confirmation footer */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex gap-3 justify-end">
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-4 flex gap-3 justify-end dark:border-gray-700">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium dark:text-gray-100 dark:text-gray-300"
                 disabled={processing}
               >
                 ← Back
@@ -392,11 +392,11 @@ export default function BulkOperationsPanel({
 
               {deleteImpact && (
                 <div className="space-y-3 mb-4">
-                  <div className="text-sm font-medium text-gray-700">Impact Summary:</div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Impact Summary:</div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="p-3 bg-gray-50 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-900">
                       <div className="text-xs text-gray-500">Agents to delete</div>
-                      <div className="text-2xl font-bold text-gray-900">{deleteImpact.agentCount}</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{deleteImpact.agentCount}</div>
                     </div>
                     <div className="p-3 bg-purple-50 rounded border border-purple-200">
                       <div className="text-xs text-purple-600">Community memberships</div>
@@ -414,8 +414,8 @@ export default function BulkOperationsPanel({
                 </div>
               )}
 
-              <div className="p-4 bg-gray-50 rounded border border-gray-200">
-                <div className="text-sm font-medium text-gray-700 mb-2">Agents to be deleted:</div>
+              <div className="p-4 bg-gray-50 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-900">
+                <div className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Agents to be deleted:</div>
                 <div className="flex flex-wrap gap-2">
                   {selectedAgents.map(a => (
                     <span
@@ -430,10 +430,10 @@ export default function BulkOperationsPanel({
             </div>
 
             {/* Second confirmation footer */}
-            <div className="sticky bottom-0 bg-white border-t-2 border-red-200 px-6 py-4 flex gap-3 justify-end bg-red-50">
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t-2 border-red-200 px-6 py-4 flex gap-3 justify-end bg-red-50">
               <button
                 onClick={() => setShowSecondConfirm(false)}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium dark:text-gray-100 dark:text-gray-300"
                 disabled={processing}
               >
                 ← Cancel

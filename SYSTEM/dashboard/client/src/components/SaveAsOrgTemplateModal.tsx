@@ -71,8 +71,8 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-900 mb-1">Save Organization as Template</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Save Organization as Template</h2>
         <p className="text-sm text-gray-600 mb-4">
           Export your entire organization structure ({agentCount} agents, {communityCount} communities, {groupCount} groups, and all workflows) as a reusable template
         </p>
@@ -86,7 +86,7 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
         <div className="space-y-4">
           {/* Template Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Template Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -94,14 +94,14 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
               value={templateName}
               onChange={e => setTemplateName(e.target.value)}
               placeholder="e.g., Enterprise Software Team"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
               autoFocus
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Description
             </label>
             <textarea
@@ -109,13 +109,13 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
               onChange={e => setDescription(e.target.value)}
               placeholder="What is this organization template for?"
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
             />
           </div>
 
           {/* Author */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Author
             </label>
             <input
@@ -123,13 +123,13 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
               value={author}
               onChange={e => setAuthor(e.target.value)}
               placeholder="Your name or organization"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
             />
           </div>
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Tags
             </label>
             <div className="flex gap-2 mb-2">
@@ -139,7 +139,7 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
                 onChange={e => setTagInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
                 placeholder="Add tags..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
               />
               <button
                 onClick={addTag}
@@ -173,7 +173,7 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm text-gray-700 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
             disabled={saving}
           >
             Cancel

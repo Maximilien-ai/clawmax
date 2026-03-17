@@ -38,12 +38,12 @@ export function ConnectionStatus() {
     >
       {isOnline ? (
         <span className="flex items-center justify-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-white"></span>
+          <span className="w-2 h-2 rounded-full bg-white dark:bg-gray-800"></span>
           Back online
         </span>
       ) : (
         <span className="flex items-center justify-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+          <span className="w-2 h-2 rounded-full bg-white dark:bg-gray-800 animate-pulse"></span>
           No internet connection - Some features may not work
         </span>
       )}

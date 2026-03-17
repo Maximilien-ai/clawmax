@@ -231,13 +231,13 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                 Skills Manager
               </h1>
               <button
@@ -261,7 +261,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   }}
                   onFocus={() => setShowAgentDropdown(true)}
                   placeholder="Search agents..."
-                  className="px-4 py-2 pr-10 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
+                  className="px-4 py-2 pr-10 border rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
                 />
                 {(agentSearchQuery || agentId) && (
                   <button
@@ -277,7 +277,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </button>
                 )}
                 {showAgentDropdown && filteredAgents.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {filteredAgents.map(id => (
                       <button
                         key={id}
@@ -287,8 +287,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                           setShowAgentDropdown(false)
                           setFilterAssigned('assigned') // Auto-filter to assigned skills when selecting agent
                         }}
-                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors ${
-                          id === agentId ? 'bg-blue-100 font-medium' : ''
+                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${
+                          id === agentId ? 'bg-blue-100 dark:bg-blue-900/30 font-medium' : ''
                         }`}
                       >
                         {id}
@@ -301,7 +301,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           </div>
           {availableAgents.length > 0 ? (
             <p className="text-gray-600">
-              Assign skills to <span className="font-semibold text-gray-900">{agentId}</span> agent
+              Assign skills to <span className="font-semibold text-gray-900 dark:text-gray-100">{agentId}</span> agent
             </p>
           ) : (
             <p className="text-gray-600">
@@ -324,25 +324,25 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         <div className="grid grid-cols-3 gap-4 mb-6">
           <button
             onClick={() => setFilterAssigned('all')}
-            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
               filterAssigned === 'all' ? 'ring-2 ring-blue-500' : ''
             }`}
           >
             <div className="text-2xl font-bold text-blue-600">{allSkills.length}</div>
-            <div className="text-sm text-gray-600">Total Skills</div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">Total Skills</div>
           </button>
           <button
             onClick={() => setFilterAssigned('assigned')}
-            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
               filterAssigned === 'assigned' ? 'ring-2 ring-green-500' : ''
             }`}
           >
             <div className="text-2xl font-bold text-green-600">{assignedSkills.size}</div>
-            <div className="text-sm text-gray-600">Assigned</div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">Assigned</div>
           </button>
           <button
             onClick={() => setFilterAssigned('available')}
-            className={`bg-white p-4 rounded-lg border text-left hover:shadow-md transition-shadow ${
+            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
               filterAssigned === 'available' ? 'ring-2 ring-gray-500' : ''
             }`}
           >
@@ -353,8 +353,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
         {/* Popular Skills */}
         {skillUsage.size > 0 && (
-          <div className="bg-white p-4 rounded-lg border mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Most Popular Skills</h3>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-gray-300">Most Popular Skills</h3>
             <div className="flex flex-wrap gap-2">
               {Array.from(skillUsage.entries())
                 .sort((a, b) => b[1].length - a[1].length)
@@ -366,11 +366,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       setSearchQuery(skillName)
                       setFilterAssigned('all')
                     }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200 hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-600 transition-colors cursor-pointer"
                     title={`Search for ${skillName}`}
                   >
-                    <span className="text-sm font-medium text-purple-900">{skillName}</span>
-                    <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                    <span className="text-sm font-medium text-purple-900 dark:text-purple-400">{skillName}</span>
+                    <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
                       {users.length}
                     </span>
                   </button>
@@ -380,7 +380,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         )}
 
         {/* Filters */}
-        <div className="bg-white p-4 rounded-lg border mb-6">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
           <div className="flex gap-4 flex-wrap">
             {/* Search */}
             <div className="relative flex-1 min-w-64">
@@ -389,12 +389,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 placeholder="Search skills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   title="Clear search"
                 >
                   ✕
@@ -409,7 +409,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 className={`px-4 py-2 rounded-lg font-medium ${
                   filterAssigned === 'all'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 All
@@ -419,7 +419,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 className={`px-4 py-2 rounded-lg font-medium ${
                   filterAssigned === 'assigned'
                     ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 Assigned
@@ -429,7 +429,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 className={`px-4 py-2 rounded-lg font-medium ${
                   filterAssigned === 'available'
                     ? 'bg-gray-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 Available
@@ -464,7 +464,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
         {/* Skills Grid */}
         {filteredSkills.length === 0 ? (
-          <div className="bg-white p-12 rounded-lg border text-center">
+          <div className="bg-white dark:bg-gray-800 p-12 rounded-lg border text-center">
             <div className="text-gray-400 text-5xl mb-4">🔍</div>
             <p className="text-gray-600">No skills found matching your criteria</p>
           </div>
@@ -491,10 +491,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         {/* Import Skill Dialog */}
         {showImportDialog && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">Import Custom Skill</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Import Custom Skill</h2>
                   <button
                     onClick={() => {
                       setShowImportDialog(false)
@@ -513,8 +513,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     onClick={() => setImportSource('local')}
                     className={`px-4 py-2 font-medium transition-colors ${
                       importSource === 'local'
-                        ? 'text-purple-600 border-b-2 border-purple-600'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                     }`}
                   >
                     📁 Local Directory
@@ -523,8 +523,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     onClick={() => setImportSource('github')}
                     className={`px-4 py-2 font-medium transition-colors ${
                       importSource === 'github'
-                        ? 'text-purple-600 border-b-2 border-purple-600'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                     }`}
                   >
                     🐙 GitHub Repository
@@ -534,16 +534,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 {/* Local Import */}
                 {importSource === 'local' && (
                   <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
                       Enter the full path to your custom skill directory. The directory must contain:
                     </p>
-                    <ul className="text-sm text-gray-600 list-disc list-inside space-y-1 ml-2">
-                      <li><code className="bg-gray-100 px-1 rounded">skill.md</code> - Skill description</li>
-                      <li><code className="bg-gray-100 px-1 rounded">index.ts</code> - Skill implementation</li>
+                    <ul className="text-sm text-gray-600 dark:text-gray-300 list-disc list-inside space-y-1 ml-2">
+                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">skill.md</code> - Skill description</li>
+                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">index.ts</code> - Skill implementation</li>
                     </ul>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                         Directory Path
                       </label>
                       <div className="flex gap-2">
@@ -552,7 +552,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                           value={importPath}
                           onChange={(e) => setImportPath(e.target.value)}
                           placeholder="/path/to/your/custom-skill"
-                          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         />
                         <button
                           type="button"
@@ -576,7 +576,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                               setError('Failed to open directory picker: ' + err.message)
                             }
                           }}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 border rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap"
+                          className="px-4 py-2 bg-gray-100 text-gray-700 border rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap dark:bg-gray-800 dark:text-gray-300"
                         >
                           📁 Browse...
                         </button>
@@ -594,12 +594,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 {/* GitHub Import */}
                 {importSource === 'github' && (
                   <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
                       Clone and import a skill from a GitHub repository.
                     </p>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                         GitHub Repository URL
                       </label>
                       <input
@@ -607,7 +607,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         value={importPath}
                         onChange={(e) => setImportPath(e.target.value)}
                         placeholder="https://github.com/username/skill-name"
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600 focus:border-purple-500 dark:focus:border-purple-600"
                       />
                       <p className="text-xs text-gray-500 mt-1">
                         The repository will be cloned and imported automatically
@@ -642,7 +642,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       setImportPath('')
                       setError(null)
                     }}
-                    className="px-6 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
                   >
                     Cancel
                   </button>

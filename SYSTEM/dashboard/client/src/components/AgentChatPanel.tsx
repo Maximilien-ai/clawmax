@@ -341,13 +341,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   if (gatewayAvailable === false) {
     return (
       <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
-        <div className={`bg-white shadow-2xl ${isSlideMode ? 'h-full w-[600px] absolute right-0 top-0' : 'rounded-xl w-[600px]'} p-6`}>
+        <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-[600px] absolute right-0 top-0' : 'rounded-xl w-[600px]'} p-6`}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">Agent Chat: {agentName}</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsSlideMode(!isSlideMode)}
-                className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors"
+                className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 title={isSlideMode ? "Switch to modal" : "Switch to slide"}
               >
                 {isSlideMode ? '◧' : '»'}
@@ -357,11 +357,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           </div>
           <div className="text-center py-8">
             <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Gateway Not Available</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Gateway Not Available</h3>
             <p className="text-sm text-gray-500 mb-4">
               The agent gateway is not running. Start it first:
             </p>
-            <code className="text-xs bg-gray-100 px-3 py-1 rounded">
+            <code className="text-xs bg-gray-100 px-3 py-1 rounded dark:bg-gray-800">
               openclaw gateway install
             </code>
           </div>
@@ -381,13 +381,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       }}
     >
       <div
-        className={`bg-white shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[600px]'} w-[700px] flex flex-col`}
+        className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[600px]'} w-[700px] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">Agent Chat: {agentName}</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
             <p className="text-xs text-gray-400 mt-0.5">Real-time streaming via gateway</p>
           </div>
           <div className="flex items-center gap-2">
@@ -405,14 +405,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title="Clear messages"
             >
               🗑️ Clear
             </button>
             <button
               onClick={() => setIsSlideMode(!isSlideMode)}
-              className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors"
+              className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title={isSlideMode ? "Switch to modal" : "Switch to slide"}
             >
               {isSlideMode ? '◧' : '»'}
@@ -457,7 +457,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   <button
                     onClick={() => resendMessage(msg.id)}
                     disabled={sending}
-                    className="absolute -bottom-2 -right-2 bg-white text-sky-600 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 text-sky-600 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Resend this message"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -487,7 +487,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         )}
 
         {/* Input */}
-        <div className="px-6 py-4 border-t border-gray-200 shrink-0">
+        <div className="px-6 py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
           <div className="flex gap-2">
             <button
               onClick={toggleVoiceInput}
@@ -549,7 +549,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               }}
               placeholder={isListening ? "Listening..." : "Type or speak your message... (Enter to send)"}
               disabled={sending || !gatewayAvailable || isListening}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
             {streaming ? (
               <button
@@ -563,7 +563,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 ref={sendButtonRef}
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || sending || !gatewayAvailable}
-                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
               >
                 Send
               </button>
@@ -574,7 +574,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Clear Confirmation Modal */}
         {showClearConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
               <h3 className="text-base font-semibold mb-2">Clear Chat?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This will archive all current messages and start a fresh chat. You can view archived chats anytime from History.
@@ -582,7 +582,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
@@ -600,7 +600,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Archives List Modal */}
         {showArchives && !viewingArchive && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 max-h-[80vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md mx-4 max-h-[80vh] flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold">Chat Archives</h3>
                 <button
@@ -618,7 +618,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     {archives.map(archive => (
                       <div
                         key={archive.filename}
-                        className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                        className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         <button
                           onClick={() => viewArchive(archive.filename)}
@@ -650,20 +650,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Archive Viewer Modal */}
         {viewingArchive && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-20">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold">Archived Chat</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => copyToClipboard(viewingArchive.messages)}
-                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Copy to clipboard"
                   >
                     📋 Copy
                   </button>
                   <button
                     onClick={() => downloadArchive(viewingArchive.messages, viewingArchive.filename)}
-                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="Download as text file"
                   >
                     💾 Download
@@ -683,7 +683,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   </button>
                 </div>
               </div>
-              <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4">
+              <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4 dark:border-gray-700">
                 {viewingArchive.messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                     No messages in this archive
@@ -717,7 +717,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
               <h3 className="text-base font-semibold mb-2">Delete Archive?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 This archive will be permanently deleted. This action cannot be undone.
@@ -725,7 +725,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>

@@ -60,7 +60,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-[480px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[480px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-red-700">Delete Agent</h2>
@@ -76,7 +76,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
           <div className="flex items-center gap-3">
             <span className="text-2xl">🤖</span>
             <div>
-              <p className="font-mono font-bold text-gray-800">{agentId}</p>
+              <p className="font-mono font-bold text-gray-800 dark:text-gray-200">{agentId}</p>
               <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
                 onChange={e => setRemoveStateDir(e.target.checked)}
                 className="mt-0.5"
               />
-              <label htmlFor="remove-state" className="text-sm text-gray-700 cursor-pointer">
+              <label htmlFor="remove-state" className="text-sm text-gray-700 cursor-pointer dark:text-gray-300">
                 <span className="font-medium">Also remove state directory</span>
                 <span className="block text-xs text-gray-400 mt-0.5">
                   Permanently deletes <code>~/.openclaw-{agentId}/</code> including credentials and message history.
@@ -192,7 +192,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
           <button
             onClick={onClose}
             disabled={deleting}
-            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

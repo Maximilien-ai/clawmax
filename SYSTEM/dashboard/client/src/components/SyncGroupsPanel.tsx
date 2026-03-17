@@ -92,7 +92,7 @@ function DiffSection({
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-800 truncate">{entry.name}</span>
+                <span className="text-sm font-medium text-gray-800 truncate dark:text-gray-200">{entry.name}</span>
                 {entry.kind === 'both' && (
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${accent.badge}`}>in WA</span>
                 )}
@@ -174,11 +174,11 @@ export default function SyncGroupsPanel({ agentId, agentName, localGroups, local
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-[560px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[560px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Sync Groups &amp; Communities from WhatsApp</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Sync Groups &amp; Communities from WhatsApp</h2>
             <p className="text-xs text-gray-400 mt-0.5">Agent: <span className="font-mono">{agentName}</span></p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none">×</button>
@@ -221,7 +221,7 @@ export default function SyncGroupsPanel({ agentId, agentName, localGroups, local
           <button
             onClick={onClose}
             disabled={saving}
-            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

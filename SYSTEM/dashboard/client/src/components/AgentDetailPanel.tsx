@@ -141,12 +141,12 @@ export default function AgentDetailPanel({
   return (
     <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose}>
       {/* Panel */}
-      <aside className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <aside className="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5">
+              <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5 dark:text-gray-100">
                 {agent.tags.includes('built-in') && <span>🤖</span>}
                 {agent.name}
               </h2>
@@ -216,7 +216,7 @@ export default function AgentDetailPanel({
                 <ul className="space-y-1">
                   {activity.recentFiles.map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
-                      <span className="font-mono text-gray-700 text-xs">{f.name}</span>
+                      <span className="font-mono text-gray-700 text-xs dark:text-gray-300">{f.name}</span>
                       <span className="text-gray-400 text-xs shrink-0 ml-3">{timeAgo(f.ageMins)}</span>
                     </li>
                   ))}
@@ -226,7 +226,7 @@ export default function AgentDetailPanel({
               {/* TODOs */}
               {activity.todos && (
                 <Section title="Active TODOs" source="TODOs.md">
-                  <div className="prose prose-sm max-w-none text-gray-700 [&_ul]:pl-4 [&_li]:my-0.5">
+                  <div className="prose prose-sm max-w-none text-gray-700 [&_ul]:pl-4 [&_li]:my-0.5 dark:text-gray-300">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.todos}
                     </ReactMarkdown>
@@ -251,17 +251,17 @@ export default function AgentDetailPanel({
                   <div className="space-y-1.5 text-xs">
                     <div className="flex items-start justify-between">
                       <span className="text-gray-400">Model</span>
-                      <span className="text-gray-700 font-mono text-right">{activity.liveConfig.model}</span>
+                      <span className="text-gray-700 font-mono text-right dark:text-gray-300">{activity.liveConfig.model}</span>
                     </div>
                     <div className="flex items-start justify-between">
                       <span className="text-gray-400">Workspace</span>
-                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all">
+                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all dark:text-gray-300">
                         {activity.liveConfig.workspace.replace(/^\/Users\/[^/]+/, '~')}
                       </span>
                     </div>
                     <div className="flex items-start justify-between">
                       <span className="text-gray-400">Agent Dir</span>
-                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all">
+                      <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all dark:text-gray-300">
                         {activity.liveConfig.agentDir.replace(/^\/Users\/[^/]+/, '~')}
                       </span>
                     </div>
@@ -282,7 +282,7 @@ export default function AgentDetailPanel({
                             onClose()
                           }
                         }}
-                        className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                        className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 transition-colors"
                       >
                         {skill}
                       </button>

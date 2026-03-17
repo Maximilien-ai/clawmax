@@ -12,14 +12,14 @@ type SortCol = 'age' | 'agent' | 'type' | 'file'
 type SortDir = 'asc' | 'desc'
 
 const FILE_TYPES: Record<string, { label: string; cls: string }> = {
-  'TODOs.md':     { label: 'tasks',     cls: 'bg-orange-50 text-orange-700' },
-  'COMPLETED.md': { label: 'done',      cls: 'bg-green-50 text-green-700' },
-  'HEARTBEAT.md': { label: 'heartbeat', cls: 'bg-blue-50 text-blue-700' },
-  'IDENTITY.md':  { label: 'identity',  cls: 'bg-purple-50 text-purple-700' },
+  'TODOs.md':     { label: 'tasks',     cls: 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' },
+  'COMPLETED.md': { label: 'done',      cls: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
+  'HEARTBEAT.md': { label: 'heartbeat', cls: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
+  'IDENTITY.md':  { label: 'identity',  cls: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' },
 }
 
 function fileType(name: string) {
-  return FILE_TYPES[name] ?? { label: name.replace(/\.md$/, ''), cls: 'bg-gray-100 text-gray-500' }
+  return FILE_TYPES[name] ?? { label: name.replace(/\.md$/, ''), cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }
 }
 
 function timeAgo(mins: number): string {
@@ -176,7 +176,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Installation Activity</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Installation Activity</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             <span className="flex items-center gap-1.5">
             All file writes across all agents
@@ -199,16 +199,16 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
               📥 Export
             </button>
             {rows.length > 0 && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px]">
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px] dark:border-gray-700">
                 <button
                   onClick={handleExportCSV}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   📄 CSV
                 </button>
                 <button
                   onClick={handleExportJSON}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   📦 JSON
                 </button>
@@ -217,7 +217,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
           </div>
           <button
             onClick={() => setShowSystemLogs(true)}
-            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
           >
             📋 System Logs
           </button>
@@ -249,7 +249,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 shadow-sm overflow-hidden dark:border-gray-700">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -271,14 +271,14 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
               {rows.map((entry, i) => {
                 const ft = fileType(entry.file)
                 return (
-                  <tr key={`${entry.agentId}-${entry.file}-${i}`} className="hover:bg-gray-50 transition-colors">
+                  <tr key={`${entry.agentId}-${entry.file}-${i}`} className="hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:hover:bg-gray-700">
                     <td className="px-4 py-2 text-xs text-gray-400 font-mono shrink-0">
                       {timeAgo(entry.ageMins)}
                     </td>
                     <td className="px-4 py-2">
                       <button
                         onClick={() => setDebugAgent(entry.agentId)}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer"
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors cursor-pointer"
                         title="View agent logs and status"
                       >
                         {entry.agentId}
@@ -360,12 +360,12 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
-          <h2 className="text-lg font-semibold text-gray-800">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             Agent Debug: <span className="font-mono text-sky-600">{agentId}</span>
           </h2>
           <button
@@ -377,7 +377,7 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 px-6 shrink-0 items-center justify-between">
+        <div className="flex border-b border-gray-200 px-6 shrink-0 items-center justify-between dark:border-gray-700">
           <div className="flex">
             {(['health', 'status'] as const).map((t) => (
               <button
@@ -396,7 +396,7 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
           {tab === 'health' && health && (
             <button
               onClick={() => setShowRawJson(!showRawJson)}
-              className="text-xs px-3 py-1 mr-4 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              className="text-xs px-3 py-1 mr-4 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors dark:bg-gray-800"
             >
               {showRawJson ? 'Show Friendly' : 'Show JSON'}
             </button>
@@ -410,7 +410,7 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
               {loading && <div className="text-gray-400">Loading health...</div>}
               {!loading && health && (
                 showRawJson ? (
-                  <pre className="bg-gray-50 rounded-lg p-4 text-xs overflow-auto">
+                  <pre className="bg-gray-50 rounded-lg p-4 text-xs overflow-auto dark:bg-gray-900">
                     {JSON.stringify(health, null, 2)}
                   </pre>
                 ) : (
@@ -433,7 +433,7 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0">
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0 dark:border-gray-700">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
@@ -451,11 +451,11 @@ function HealthDisplay({ health }: { health: any }) {
   return (
     <div className="space-y-4">
       {/* Overall Status */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 rounded-lg p-4 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${health.ok ? 'bg-green-400' : 'bg-red-400'}`} />
           <div>
-            <div className="font-semibold text-gray-800">
+            <div className="font-semibold text-gray-800 dark:text-gray-200">
               {health.ok ? 'Healthy' : 'Unhealthy'}
             </div>
             <div className="text-xs text-gray-500">
@@ -467,13 +467,13 @@ function HealthDisplay({ health }: { health: any }) {
 
       {/* Channels */}
       {health.channels && Object.keys(health.channels).length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-semibold text-gray-800 mb-3">Channels</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 rounded-lg p-4 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-800 mb-3 dark:text-gray-200">Channels</h3>
           <div className="space-y-3">
             {Object.entries(health.channels).map(([name, info]: [string, any]) => (
               <div key={name} className="border-l-2 border-sky-400 pl-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-700">{name}</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{name}</span>
                   <span className={`text-xs px-2 py-0.5 rounded ${info.connected ? 'bg-green-100 text-green-700' : info.linked ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
                     {info.connected ? 'Connected' : info.linked ? 'Linked' : 'Not linked'}
                   </span>
@@ -489,8 +489,8 @@ function HealthDisplay({ health }: { health: any }) {
 
       {/* Gateway */}
       {health.gateway && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-semibold text-gray-800 mb-3">Gateway</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 rounded-lg p-4 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-800 mb-3 dark:text-gray-200">Gateway</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-gray-500">Port:</span>
@@ -542,12 +542,12 @@ function SystemLogsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
-          <h2 className="text-lg font-semibold text-gray-800">System Logs</h2>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">System Logs</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
@@ -568,7 +568,7 @@ function SystemLogsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0">
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0 dark:border-gray-700">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"

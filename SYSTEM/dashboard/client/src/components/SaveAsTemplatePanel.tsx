@@ -64,14 +64,14 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">
           💾 Save "{agent.name}" as Template
         </h2>
 
         <div className="space-y-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Template Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -79,13 +79,13 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="e.g., Senior Software Engineer"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Description
             </label>
             <textarea
@@ -93,12 +93,12 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What is this template for?"
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Author
             </label>
             <input
@@ -106,12 +106,12 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               placeholder="Your name (optional)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Tags
             </label>
             <input
@@ -119,7 +119,7 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="engineer, golang, backend (comma-separated)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
             />
             <p className="text-xs text-gray-500 mt-1">Comma-separated tags for searchability</p>
           </div>
@@ -134,7 +134,7 @@ export default function SaveAsTemplatePanel({ agent, onClose, onSuccess }: SaveA
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+            className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300"
             disabled={saving}
           >
             Cancel
