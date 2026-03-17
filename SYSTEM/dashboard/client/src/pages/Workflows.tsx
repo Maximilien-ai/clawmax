@@ -107,6 +107,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [archivedExecutions, setArchivedExecutions] = useState<WorkflowExecution[]>([])
   const [archivedWorkflowId, setArchivedWorkflowId] = useState<string | null>(null)
   const [trackedExecutions, setTrackedExecutions] = useState<Map<string, { status: string; executionId: string; workflowName: string }>>(new Map())
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Workflow | null>(null)
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -469,24 +471,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     const workflow = workflows.find(w => w.id === id)
-    if (!workflow || !confirm(`Delete workflow "${workflow.name}"?`)) return
+    if (!workflow) return
+    setDeleteTarget(workflow)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
 
     try {
-      const resp = await fetch(`/api/workflows/${id}`, {
+      const resp = await fetch(`/api/workflows/${deleteTarget.id}`, {
         method: 'DELETE'
       })
 
       if (!resp.ok) throw new Error('Failed to delete')
 
-      showSuccess(`Deleted workflow "${workflow.name}"`)
+      showSuccess(`Deleted workflow "${deleteTarget.name}"`)
       fetchWorkflows()
 
-      if (selectedWorkflow?.id === id) {
+      if (selectedWorkflow?.id === deleteTarget.id) {
         setSelectedWorkflow(null)
         setShowDetailPanel(false)
       }
+
+      setShowDeleteConfirm(false)
+      setDeleteTarget(null)
     } catch (err) {
       showError('Failed to delete workflow')
     }
@@ -1519,6 +1530,79 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete Workflow?</h3>
+
+            {/* Workflow name */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⚙️</span>
+              <div>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{deleteTarget.name}</p>
+                <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Impact summary */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2 mb-4">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Impact</p>
+              <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">📅</span>
+                  <span>Scheduled execution: <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">{deleteTarget.schedule}</code></span>
+                </li>
+                {deleteTarget.participantCount > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">👥</span>
+                    <span>{deleteTarget.participantCount} agent{deleteTarget.participantCount !== 1 ? 's' : ''} will no longer receive this workflow</span>
+                  </li>
+                )}
+                {deleteTarget.targeting.groups.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">💬</span>
+                    <span>Targets {deleteTarget.targeting.groups.length} group{deleteTarget.targeting.groups.length !== 1 ? 's' : ''}</span>
+                  </li>
+                )}
+                {deleteTarget.targeting.communities.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">🏘</span>
+                    <span>Targets {deleteTarget.targeting.communities.length} communit{deleteTarget.targeting.communities.length !== 1 ? 'ies' : 'y'}</span>
+                  </li>
+                )}
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">📁</span>
+                  <span>Workflow file <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">WORKFLOWS/{deleteTarget.id}.md</code> will be removed</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">📊</span>
+                  <span>All execution history will be lost</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setDeleteTarget(null)
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Delete Workflow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1613,19 +1697,19 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
           <div className="absolute right-4 top-12 z-20 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] dark:border-gray-700">
             <button
               onClick={(e) => { e.stopPropagation(); onOpenFile(); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               📄 Open File
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onToggle(workflow.enabled); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               {workflow.enabled ? 'Disable' : 'Enable'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
             >
               Delete
             </button>

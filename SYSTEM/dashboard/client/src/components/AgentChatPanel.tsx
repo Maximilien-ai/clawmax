@@ -495,8 +495,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
                 isListening
                   ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              } disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed`}
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              } disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed`}
               title={isListening ? 'Stop listening' : 'Start voice input'}
             >
               {isListening ? (

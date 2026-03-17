@@ -97,11 +97,19 @@ export default function AgentDetailPanel({
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
+  const [showRenameDialog, setShowRenameDialog] = useState(false)
+  const [newName, setNewName] = useState('')
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
+    if (e.key === 'Escape') {
+      if (showRenameDialog) {
+        setShowRenameDialog(false)
+      } else {
+        onClose()
+      }
+    }
+  }, [onClose, showRenameDialog])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
@@ -135,6 +143,28 @@ export default function AgentDetailPanel({
     setTimeout(() => setCooling(false), 3000)
   }
 
+  const handleRename = async () => {
+    if (!newName.trim() || newName === agent.name) {
+      setShowRenameDialog(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newName: newName.trim() })
+      })
+
+      if (res.ok) {
+        setShowRenameDialog(false)
+        window.location.reload() // Reload to reflect the new name
+      }
+    } catch (err) {
+      console.error('Failed to rename agent:', err)
+    }
+  }
+
   // Derive the relative agent dir path (e.g. AGENTS/max0)
   const relDir = agent.workspacePath.split('/').slice(-2).join('/')
 
@@ -146,9 +176,17 @@ export default function AgentDetailPanel({
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-bold text-gray-900 text-base flex items-center gap-1.5 dark:text-gray-100">
+              <h2
+                className="font-bold text-gray-900 text-base flex items-center gap-1.5 dark:text-gray-100 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors group"
+                onClick={() => {
+                  setNewName(agent.name)
+                  setShowRenameDialog(true)
+                }}
+                title="Click to rename"
+              >
                 {agent.tags.includes('built-in') && <span>🤖</span>}
                 {agent.name}
+                <span className="text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✏️</span>
               </h2>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_TEXT[agent.status]}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[agent.status]}`} />
@@ -361,6 +399,45 @@ export default function AgentDetailPanel({
           </span>
         </div>
       </aside>
+
+      {/* Rename Dialog */}
+      {showRenameDialog && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setShowRenameDialog(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename Agent</h3>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleRename()
+                } else if (e.key === 'Escape') {
+                  setShowRenameDialog(false)
+                }
+              }}
+              placeholder="Enter new name"
+              autoFocus
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 dark:focus:border-sky-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 mb-4"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowRenameDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRename}
+                disabled={!newName.trim() || newName === agent.name}
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

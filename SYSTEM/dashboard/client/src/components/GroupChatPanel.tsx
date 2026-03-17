@@ -668,23 +668,23 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder={isListening ? "Listening..." : "Type or speak... use @name or @all"}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening}
               />
+              <button
+                ref={sendButtonRef}
+                onClick={sendMessage}
+                disabled={!input.trim() || sending}
+                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              >
+                {sending ? 'Sending...' : 'Send'}
+              </button>
             </div>
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
-              Use @name to mention agents or @all for everyone
-            </span>
-            <button
-              ref={sendButtonRef}
-              onClick={sendMessage}
-              disabled={!input.trim() || sending}
-              className="px-4 py-2 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
-            >
-              {sending ? 'Sending...' : 'Send'}
-            </button>
+            <div className="mt-2">
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Use @name to mention agents or @all for everyone
+              </span>
+            </div>
           </div>
         </div>
 

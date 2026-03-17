@@ -582,7 +582,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {communities.map(channel => (
-                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
+                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} onDelete={() => handleDeleteChannel(channel)} />
                 ))}
               </div>
             </div>
@@ -597,7 +597,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {groups.map(channel => (
-                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} />
+                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} onDelete={() => handleDeleteChannel(channel)} />
                 ))}
               </div>
             </div>
@@ -1525,13 +1525,13 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
               )}
 
               <div className="flex items-center justify-between mt-2">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
                   {messageText.length > 0 && `${messageText.length} chars`}
                 </span>
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageText.trim() || sending}
-                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                 >
                   {sending ? 'Sending...' : 'Send'}
                 </button>
@@ -1540,11 +1540,78 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
+
+            {/* Channel name */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">{channel.type === 'community' ? '🏘' : '👥'}</span>
+              <div>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.name}</p>
+                <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Impact summary */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2 mb-4">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Impact</p>
+              <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
+                {channel.members.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">👥</span>
+                    <span>{channel.members.length} member{channel.members.length !== 1 ? 's' : ''} will be removed from this {channel.type}</span>
+                  </li>
+                )}
+                {channel.tags.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">🏷️</span>
+                    <span>{channel.tags.length} tag{channel.tags.length !== 1 ? 's' : ''} will be removed</span>
+                  </li>
+                )}
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">📁</span>
+                  <span>{channel.type === 'community' ? 'Community' : 'Group'} file <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">{channel.type === 'community' ? 'COMMUNITIES' : 'GROUPS'}/{channel.name}.md</code> will be removed</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">💬</span>
+                  <span>All message history will be lost</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(false)
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(false)
+                  onDelete?.()
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Delete {channel.type === 'community' ? 'Community' : 'Group'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, onDelete }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community'
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
@@ -1574,6 +1641,18 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
         >
           💬
         </button>
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowDeleteConfirm(true)
+            }}
+            className="shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-white dark:bg-gray-800/50 rounded p-1 transition-colors"
+            title="Delete"
+          >
+            🗑️
+          </button>
+        )}
         {channel.channels.length > 0 && (
           <div className="flex gap-0.5">
             {channel.channels.map(ch => (
@@ -1619,25 +1698,51 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3 dark:text-gray-100">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Are you sure you want to delete <span className="font-semibold">{channel.name}</span>?
-              {channel.members.length > 0 && (
-                <span className="block mt-2 text-red-600">
-                  ⚠️ This {channel.type} has {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}. They will be removed from this {channel.type}.
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-gray-500 mb-4">
-              This action cannot be undone.
-            </p>
+            <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
+
+            {/* Channel name */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">{channel.type === 'community' ? '🏘' : '👥'}</span>
+              <div>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.name}</p>
+                <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Impact summary */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2 mb-4">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Impact</p>
+              <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
+                {channel.members.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">👥</span>
+                    <span>{channel.members.length} member{channel.members.length !== 1 ? 's' : ''} will be removed from this {channel.type}</span>
+                  </li>
+                )}
+                {channel.tags.length > 0 && (
+                  <li className="flex items-center gap-2">
+                    <span className="w-4 text-center">🏷️</span>
+                    <span>{channel.tags.length} tag{channel.tags.length !== 1 ? 's' : ''} will be removed</span>
+                  </li>
+                )}
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">📁</span>
+                  <span>{channel.type === 'community' ? 'Community' : 'Group'} file <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">{channel.type === 'community' ? 'COMMUNITIES' : 'GROUPS'}/{channel.name}.md</code> will be removed</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-4 text-center">💬</span>
+                  <span>All message history will be lost</span>
+                </li>
+              </ul>
+            </div>
+
             <div className="flex gap-2 justify-end">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowDeleteConfirm(false)
                 }}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
               </button>
@@ -1649,7 +1754,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
                 }}
                 className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
-                Delete
+                Delete {channel.type === 'community' ? 'Community' : 'Group'}
               </button>
             </div>
           </div>

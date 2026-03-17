@@ -112,7 +112,7 @@ export default function ArchiveAgentPanel({ agent, onClose, onArchived }: Archiv
               onChange={e => setReason(e.target.value)}
               placeholder="e.g., No longer needed, Replaced by new agent, Testing..."
               disabled={archiving}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none transition-colors focus:border-orange-400 dark:border-gray-700"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none transition-colors focus:border-orange-400 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             />
           </div>
 

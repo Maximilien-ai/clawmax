@@ -167,10 +167,10 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
               onChange={e => setConfirm(e.target.value)}
               placeholder={agentId}
               disabled={deleting}
-              className={`w-full px-3 py-2 text-sm border rounded-md outline-none transition-colors font-mono ${
-                confirm && !confirmed ? 'border-red-300 bg-red-50' :
-                confirmed ? 'border-green-400 bg-green-50' :
-                'border-gray-200 focus:border-red-400'
+              className={`w-full px-3 py-2 text-sm border rounded-md outline-none transition-colors font-mono text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+                confirm && !confirmed ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30' :
+                confirmed ? 'border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-900/30' :
+                'border-gray-200 dark:border-gray-700 focus:border-red-400 dark:focus:border-red-600 bg-white dark:bg-gray-900'
               }`}
             />
           </div>
@@ -201,7 +201,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
             disabled={!confirmed || deleting}
             className={`text-sm px-4 py-1.5 rounded font-medium transition-colors ${
               !confirmed || deleting
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-red-600 text-white hover:bg-red-700'
             }`}
           >
