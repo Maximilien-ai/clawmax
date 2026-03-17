@@ -1260,6 +1260,93 @@ router.patch('/:id/tags', (req, res) => {
   }
 })
 
+// GET /api/agents/:id/config — get editable agent config files
+router.get('/:id/config', (req, res) => {
+  const { id } = req.params
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const agentDir = path.join(getAgentsDir(), id)
+  if (!fs.existsSync(agentDir)) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  const readFile = (name: string) => {
+    const p = path.join(agentDir, name)
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : ''
+  }
+
+  res.json({
+    identity: readFile('IDENTITY.md'),
+    soul: readFile('SOUL.md'),
+    tools: readFile('TOOLS.md')
+  })
+})
+
+// PUT /api/agents/:id/config — update agent config files
+router.put('/:id/config', (req, res) => {
+  const { id } = req.params
+  const { identity, soul, tools } = req.body
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const agentDir = path.join(getAgentsDir(), id)
+  if (!fs.existsSync(agentDir)) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    if (typeof identity === 'string') {
+      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identity, 'utf-8')
+    }
+    if (typeof soul === 'string') {
+      fs.writeFileSync(path.join(agentDir, 'SOUL.md'), soul, 'utf-8')
+    }
+    if (typeof tools === 'string') {
+      fs.writeFileSync(path.join(agentDir, 'TOOLS.md'), tools, 'utf-8')
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Failed to update agent config:', err)
+    res.status(500).json({ error: 'Failed to update agent config' })
+  }
+})
+
+// PATCH /api/agents/:id/model — update agent model in IDENTITY.md
+router.patch('/:id/model', (req, res) => {
+  const { id } = req.params
+  const { model } = req.body
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  if (!model || typeof model !== 'string') {
+    return res.status(400).json({ error: 'model is required' })
+  }
+
+  const agentDir = path.join(getAgentsDir(), id)
+  const identityPath = path.join(agentDir, 'IDENTITY.md')
+
+  try {
+    const content = fs.readFileSync(identityPath, 'utf-8')
+    const updatedContent = content.replace(
+      /^-\s+\*\*Model:\*\*\s+.+$/m,
+      `- **Model:** ${model}`
+    )
+
+    fs.writeFileSync(identityPath, updatedContent, 'utf-8')
+    res.json({ ok: true, model })
+  } catch (err) {
+    console.error('Failed to update model:', err)
+    res.status(500).json({ error: 'Failed to update model' })
+  }
+})
+
 // PATCH /api/agents/:id/rename — rename agent and update all references
 router.patch('/:id/rename', (req, res) => {
   const { id } = req.params

@@ -114,6 +114,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [statusTarget, setStatusTarget] = useState<Agent | null>(null)
   const [communitiesTarget, setCommunitiesTarget] = useState<Agent | null>(null)
   const [saveAsTemplateTarget, setSaveAsTemplateTarget] = useState<Agent | null>(null)
+  const [editTarget, setEditTarget] = useState<Agent | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [tagToRemove, setTagToRemove] = useState<{ agentId: string; tag: string; isPrimary: boolean } | null>(null)
@@ -1130,6 +1131,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       onSyncGroups={() => setSyncGroupsTarget(agent)}
                       onChat={() => setChatTarget(agent)}
                       onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
+                      onEdit={() => setEditTarget(agent)}
                       onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                       onRemoveTag={(tag) => handleRemoveTag(agent.id, tag)}
                       onManageTags={() => setTagManageTarget(agent)}
@@ -1250,6 +1252,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                        onEdit={() => setEditTarget(agent)}
                         onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                         onExport={() => handleExportAgent(agent.id)}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1293,6 +1296,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onStatus={() => setStatusTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                              onEdit={() => setEditTarget(agent)}
                               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                               onExport={() => handleExportAgent(agent.id)}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1380,6 +1384,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onStatus={() => setStatusTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+              onEdit={() => setEditTarget(agent)}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
               onExport={() => handleExportAgent(agent.id)}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1416,6 +1421,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           onStatus={() => setStatusTarget(agent)}
                           onDelete={() => setDeleteTarget(agent.id)}
                           onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
+                          onEdit={() => setEditTarget(agent)}
                           onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                           onExport={() => handleExportAgent(agent.id)}
                           onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1460,6 +1466,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onChat={setChatTarget}
           onStatus={setStatusTarget}
           onDelete={(id) => setDeleteTarget(id)}
+          onEdit={setEditTarget}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
         />
@@ -1763,6 +1770,156 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           mode="overlay"
         />
       )}
+
+      {/* Edit Agent Config Modal */}
+      {editTarget && (
+        <EditAgentConfigModal
+          agent={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => { fetchAgents(); setEditTarget(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClose: () => void; onSaved: () => void }) {
+  const [identity, setIdentity] = React.useState('')
+  const [soul, setSoul] = React.useState('')
+  const [tools, setTools] = React.useState('')
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setLoading(true)
+    setError(null)
+    fetch(`/api/agents/${agent.id}/config`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load config')
+        return r.json()
+      })
+      .then(data => {
+        setIdentity(data.identity || '')
+        setSoul(data.soul || '')
+        setTools(data.tools || '')
+        setLoading(false)
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to load config')
+        setLoading(false)
+      })
+  }, [agent.id])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity, soul, tools }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to save config')
+      }
+      onSaved()
+    } catch (err: any) {
+      setError(err.message || 'Failed to save config')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
+            &times;
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <svg className="animate-spin h-6 w-6 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">Loading config...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              {error}
+            </div>
+          )}
+
+          {!loading && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>
+                <textarea
+                  value={identity}
+                  onChange={e => setIdentity(e.target.value)}
+                  rows={8}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm font-mono px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y"
+                  placeholder="Agent identity markdown..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SOUL.md</label>
+                <textarea
+                  value={soul}
+                  onChange={e => setSoul(e.target.value)}
+                  rows={8}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm font-mono px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y"
+                  placeholder="Agent soul markdown..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">TOOLS.md</label>
+                <textarea
+                  value={tools}
+                  onChange={e => setTools(e.target.value)}
+                  rows={8}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm font-mono px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y"
+                  placeholder="Agent tools markdown..."
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={loading || saving}
+            className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${
+              loading || saving
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                : 'bg-sky-600 text-white hover:bg-sky-700'
+            }`}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1948,7 +2105,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect,
 }: {
   agent: Agent
   selected: boolean
@@ -1963,6 +2120,7 @@ const AgentCard = React.memo(function AgentCard({
   onUnlinkWa: () => void
   onChat: () => void
   onClone: () => void
+  onEdit?: () => void
   onViewDocs?: () => void
   onRemoveTag: (tag: string) => void
   onManageTags: () => void
@@ -2047,6 +2205,14 @@ const AgentCard = React.memo(function AgentCard({
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
                 <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700">
+                  {onEdit && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                    >
+                      <span className="text-emerald-500">✏️</span> Edit Config
+                    </button>
+                  )}
                   <button
                     onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -2359,7 +2525,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number } }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number } }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
 
@@ -2489,6 +2655,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   <span className="text-green-500">📊</span> Status & Logs
                 </button>
                 <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
+                {onEdit && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                  >
+                    <span className="text-emerald-500">✏️</span> Edit Config
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -2563,6 +2737,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onChat,
   onStatus,
   onDelete,
+  onEdit,
   onArchive,
   onUnarchive,
 }: {
@@ -2578,6 +2753,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onChat: (agent: Agent) => void
   onStatus: (agent: Agent) => void
   onDelete: (id: string) => void
+  onEdit?: (agent: Agent) => void
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
 }) {
@@ -2838,6 +3014,19 @@ const AgentTableView = React.memo(function AgentTableView({
                         <span className="text-green-500">📊</span>
                         Status & Logs
                       </button>
+                      {onEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onEdit(agent)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        >
+                          <span className="text-emerald-500">✏️</span>
+                          Edit Config
+                        </button>
+                      )}
                       <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
                       {agent.archived ? (
                         <button
