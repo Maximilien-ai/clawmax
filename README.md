@@ -121,6 +121,25 @@ export OPENAI_API_KEY='your-key-here'
 
 ---
 
+## 🔑 API Key Configuration
+
+ClawMax requires API keys for agent creation and AI model access. Add at least one to `SYSTEM/dashboard/.env`:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+| Variable | Provider | Required |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic (Claude) | At least one key |
+| `OPENAI_API_KEY` | OpenAI (GPT) | At least one key |
+| `GOOGLE_API_KEY` | Google (Gemini) | Optional |
+
+Without API keys, the dashboard will run but agent creation and model selection will be unavailable.
+
+---
+
 ## 📖 Documentation
 
 ### User Guides

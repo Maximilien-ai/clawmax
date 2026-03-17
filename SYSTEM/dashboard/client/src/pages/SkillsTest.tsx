@@ -53,6 +53,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       // Set default agent to first available if not already set
       if (!agentId && agentIds.length > 0) {
         setAgentId(agentIds[0])
+      } else if (agentIds.length === 0) {
+        setLoading(false)
       }
 
       // Compute skill usage across all agents

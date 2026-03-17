@@ -227,9 +227,9 @@ if ! grep -q "OPENAI_API_KEY" "$OPENCLAW_CONFIG" 2>/dev/null && [ -z "$OPENAI_AP
 fi
 
 if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
-    print_warning "Missing API keys detected"
+    print_warning "Missing API keys — AI models will not load without them"
     echo ""
-    echo "ClawMax agents require API keys to function:"
+    echo "ClawMax requires API keys for agent creation and AI model access:"
     echo ""
 
     for key in "${MISSING_KEYS[@]}"; do
@@ -237,20 +237,19 @@ if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
     done
 
     echo ""
-    print_info "You can add these to your environment or OpenClaw config"
+    print_info "Add keys to SYSTEM/dashboard/.env or export as environment variables"
     echo ""
-    echo "Option 1: Export environment variables (recommended):"
+    echo "Option 1: Add to SYSTEM/dashboard/.env (recommended):"
+    echo "  ANTHROPIC_API_KEY=sk-ant-..."
+    echo "  OPENAI_API_KEY=sk-..."
+    echo ""
+    echo "Option 2: Export environment variables:"
     echo "  export ANTHROPIC_API_KEY='your-key-here'"
     echo "  export OPENAI_API_KEY='your-key-here'"
     echo ""
-    echo "Option 2: Add to ~/.openclaw/openclaw.json:"
-    echo '  "env": {'
-    echo '    "ANTHROPIC_API_KEY": "your-key-here",'
-    echo '    "OPENAI_API_KEY": "your-key-here"'
-    echo '  }'
-    echo ""
 
-    print_info "You can configure these later — continuing setup..."
+    print_info "Agents and AI models will not be available until keys are set."
+    print_info "Continuing setup..."
 else
     print_success "API keys configured"
 fi
@@ -328,8 +327,14 @@ OPENCLAW_WORKSPACE=$WORKSPACE
 NODE_ENV=development
 PORT=3001
 VITE_PORT=5173
+
+# AI Model API Keys (required for agent creation)
+# ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# GOOGLE_API_KEY=...
 EOF
     print_success "Created .env file"
+    print_info "Edit SYSTEM/dashboard/.env to add your API keys for AI model access"
 fi
 
 print_info "Workspace: $WORKSPACE"

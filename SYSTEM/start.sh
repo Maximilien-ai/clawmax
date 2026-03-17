@@ -70,6 +70,15 @@ else
       echo ""
       echo "Logs: tail -f /tmp/dashboard.log"
       echo "Stop: ./SYSTEM/stop.sh"
+
+      # Check for AI model API keys
+      if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+        echo ""
+        echo "⚠ No AI model API keys detected (ANTHROPIC_API_KEY, OPENAI_API_KEY)"
+        echo "  Agent creation requires at least one API key configured."
+        echo "  Add keys to SYSTEM/dashboard/.env or export in your shell."
+        echo "  See README.md for details."
+      fi
       exit 0
     fi
     echo -n "."
