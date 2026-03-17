@@ -562,13 +562,14 @@ echo "12. MANDATE.md Schema Validation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify mandate schema exists
-# Get actual workspace path from health endpoint
+# Schema is in repo root SYSTEM/schemas, not workspace
 WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
-if [ -f "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" ]; then
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -f "$REPO_ROOT/SYSTEM/schemas/mandate.schema.json" ]; then
   pass "MANDATE.md schema file exists"
 
   # Test schema is valid JSON
-  if jq empty "$WORKSPACE/SYSTEM/schemas/mandate.schema.json" 2>/dev/null; then
+  if jq empty "$REPO_ROOT/SYSTEM/schemas/mandate.schema.json" 2>/dev/null; then
     pass "MANDATE.md schema is valid JSON"
   else
     fail "MANDATE.md schema is not valid JSON"

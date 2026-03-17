@@ -183,6 +183,11 @@ if [ ! -d "$WORKSPACE/TEMPLATES" ]; then
     print_success "Created TEMPLATES/ directory"
 fi
 
+if [ ! -d "$WORKSPACE/SKILLS/custom" ]; then
+    mkdir -p "$WORKSPACE/SKILLS/custom"
+    print_success "Created SKILLS/custom/ directory"
+fi
+
 echo ""
 
 # ============================================================================
