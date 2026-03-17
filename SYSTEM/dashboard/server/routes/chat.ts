@@ -176,12 +176,24 @@ router.post('/:id/chat', (req, res) => {
     }
   }, 120000)
 
-  // Handle client disconnect
+  // Handle client disconnect — only kill if process hasn't exited yet
+  let procExited = false
+  proc.on('exit', () => { procExited = true })
+
   req.on('close', () => {
-    console.log(`[Chat Route] Client disconnected for agent ${id}`)
+    console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}`)
     clearTimeout(timeout)
     clearInterval(keepalive)
-    proc.kill()
+    // Don't kill process immediately — let it finish if it's close to done
+    // Only kill after a grace period
+    if (!procExited) {
+      setTimeout(() => {
+        if (!procExited) {
+          console.log(`[Chat Route] Killing agent process for ${id} after grace period`)
+          proc.kill()
+        }
+      }, 30000) // 30s grace period
+    }
   })
 })
 
