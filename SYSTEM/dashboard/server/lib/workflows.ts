@@ -5,6 +5,7 @@ import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
+import { addMessage } from './messages'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -534,6 +535,25 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
           participant.status = 'completed' as any
           ;(participant as any).response = agentResponse
           execution.logs.push(`Agent ${participant.agentId} completed: ${agentResponse.slice(0, 100)}`)
+
+          // Post response to targeted groups/communities
+          if (agentResponse && agentResponse.trim()) {
+            const targeting = workflow.targeting || {}
+            for (const group of (targeting.groups || [])) {
+              addMessage('group', group, {
+                from: participant.agentId,
+                content: agentResponse,
+                mentions: []
+              })
+            }
+            for (const community of (targeting.communities || [])) {
+              addMessage('community', community, {
+                from: participant.agentId,
+                content: agentResponse,
+                mentions: []
+              })
+            }
+          }
         } catch (err: any) {
           participant.status = 'failed' as any
           ;(participant as any).error = err.message
