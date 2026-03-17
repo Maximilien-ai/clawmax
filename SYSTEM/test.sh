@@ -20,6 +20,55 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# =========================================
+# Pre-flight checks
+# =========================================
+
+preflight_ok=true
+
+# Check Node.js
+if ! command -v node &> /dev/null; then
+  echo -e "${RED}✗${NC} Node.js not found. Install from https://nodejs.org/"
+  preflight_ok=false
+else
+  NODE_MAJOR=$(node --version | cut -d'.' -f1 | sed 's/v//')
+  if [ "$NODE_MAJOR" -lt 18 ]; then
+    echo -e "${RED}✗${NC} Node.js 18+ required (found v$NODE_MAJOR)"
+    preflight_ok=false
+  fi
+fi
+
+# Check npm dependencies
+if [ ! -d "dashboard/node_modules" ]; then
+  echo -e "${RED}✗${NC} Dashboard dependencies not installed (missing SYSTEM/dashboard/node_modules)"
+  preflight_ok=false
+fi
+
+# Check OpenClaw
+if ! command -v openclaw &> /dev/null; then
+  echo -e "${RED}✗${NC} OpenClaw CLI not found"
+  preflight_ok=false
+fi
+
+# Check OpenClaw config
+if [ ! -f "$HOME/.openclaw/openclaw.json" ]; then
+  echo -e "${RED}✗${NC} OpenClaw config not found (~/.openclaw/openclaw.json)"
+  preflight_ok=false
+fi
+
+# Check dashboard server is running
+if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
+  echo -e "${RED}✗${NC} Dashboard server not running on $API_BASE"
+  echo -e "  Start it with: ${YELLOW}./SYSTEM/start.sh${NC}"
+  preflight_ok=false
+fi
+
+if [ "$preflight_ok" = false ]; then
+  echo ""
+  echo -e "${RED}Pre-flight checks failed.${NC} Please run ${YELLOW}./setup.sh${NC} first, then ${YELLOW}./SYSTEM/start.sh${NC}"
+  exit 1
+fi
+
 # Parse flags - validation tests are SKIPPED by default
 SKIP_VALIDATION=true
 for arg in "$@"; do
