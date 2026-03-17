@@ -10,14 +10,18 @@
       "name": "test1",
       "role": "Test Assistant",
       "tags": ["test", "assistant"],
-      "skills": []
+      "skills": [],
+      "communities": ["test-community"],
+      "groups": ["test-group"]
     },
     {
       "id": "test2",
       "name": "test2",
       "role": "Test Engineer",
       "tags": ["test", "engineer"],
-      "skills": []
+      "skills": [],
+      "communities": ["test-community"],
+      "groups": ["test-group"]
     }
   ],
   "groups": [
@@ -33,7 +37,8 @@
     {
       "name": "test-community",
       "description": "Test community for multi-agent coordination",
-      "tags": ["test"]
+      "tags": ["test"],
+      "channels": ["whatsapp"]
     }
   ],
   "workflows": [
