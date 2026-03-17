@@ -1355,11 +1355,8 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
 
 /** Return the gateway config (port + auth token) for a given agent
  *
- * IMPORTANT: Port default must match OpenClaw gateway configuration
- * - OpenClaw source default: 18789 (src/config/paths.ts)
- * - Common user override: 18889 (in ~/.openclaw/openclaw.json)
- * - This fallback should match the most common deployment
- * - Always reads from openclaw.json first to get actual configured port
+ * Port detection: reads from openclaw.json first, then probes both
+ * common ports (18789 = OpenClaw default, 18889 = common override)
  */
 export function getAgentGatewayConfig(id: string): { port: number; token: string } | null {
   const HOME = process.env.HOME || ''
@@ -1369,10 +1366,26 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
     : path.join(HOME, '.openclaw', 'openclaw.json')
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const port = config?.gateway?.port ?? 18889  // Fallback to 18889 (common override of 18789 default)
+    const configPort = config?.gateway?.port
     const token = config?.gateway?.auth?.token ?? ''
     if (!token) return null
-    return { port, token }
+
+    // If port is explicitly set in config, use it
+    if (configPort) {
+      return { port: configPort, token }
+    }
+
+    // No port in config — probe both common ports
+    const { execSync } = require('child_process')
+    for (const port of [18789, 18889]) {
+      try {
+        execSync(`lsof -ti:${port}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 1000 })
+        return { port, token }
+      } catch {}
+    }
+
+    // Neither port listening — return 18789 as default
+    return { port: 18789, token }
   } catch {
     return null
   }
