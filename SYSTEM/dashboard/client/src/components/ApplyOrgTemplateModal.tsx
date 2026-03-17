@@ -21,8 +21,18 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
   const [includeBuiltIn, setIncludeBuiltIn] = useState(true)
+  const [modelOverride, setModelOverride] = useState('')
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Fetch available models
+  React.useEffect(() => {
+    fetch('/api/agents/models')
+      .then(r => r.json())
+      .then(d => setAvailableModels(d.models || []))
+      .catch(() => {})
+  }, [])
 
   // Separate built-in agents from regular agents
   const builtInAgents = template.agents.filter(a => a.tags?.includes('built-in'))
@@ -49,6 +59,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           prefix: prefix || undefined,
           suffix: suffix || undefined,
           includeBuiltIn,
+          modelOverride: modelOverride || undefined,
         }),
       })
 
@@ -170,6 +181,29 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
               </div>
             </div>
+          </div>
+
+          {/* Model Override */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 dark:bg-amber-900/20 dark:border-amber-700">
+            <h3 className="text-sm font-semibold text-amber-900 mb-1 dark:text-amber-200">Model Override <span className="font-normal text-xs text-amber-600 dark:text-amber-400">(optional)</span></h3>
+            <p className="text-xs text-amber-700 mb-3 dark:text-amber-400">
+              Override the model for all agents. Leave as "Use template default" to keep each agent's configured model.
+            </p>
+            <select
+              value={modelOverride}
+              onChange={e => setModelOverride(e.target.value)}
+              className="w-full px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">Use template default</option>
+              {availableModels.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {modelOverride && (
+              <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
+                ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.
+              </p>
+            )}
           </div>
 
           {/* Agent List Preview */}

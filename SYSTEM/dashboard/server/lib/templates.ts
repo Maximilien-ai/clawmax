@@ -819,6 +819,7 @@ export function importOrganizationTemplate(
     prefix?: string
     suffix?: string
     includeBuiltIn?: boolean
+    modelOverride?: string
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -884,6 +885,19 @@ export function importOrganizationTemplate(
 
         if (!copyResult.ok) {
           throw new Error(`Failed to copy agent files: ${copyResult.error}`)
+        }
+
+        // Override model in IDENTITY.md if specified
+        if (options?.modelOverride) {
+          const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+          if (fs.existsSync(identityPath)) {
+            let content = fs.readFileSync(identityPath, 'utf-8')
+            content = content.replace(
+              /^-\s+\*\*Model:\*\*\s+.+$/m,
+              `- **Model:** ${options.modelOverride}`
+            )
+            fs.writeFileSync(identityPath, content, 'utf-8')
+          }
         }
 
         // Add tags to IDENTITY.md if specified in template
