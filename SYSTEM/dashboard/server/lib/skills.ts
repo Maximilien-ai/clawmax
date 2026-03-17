@@ -369,7 +369,30 @@ interface OpenClawConfig {
   [key: string]: any
 }
 
-const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+// Auto-detect the gateway config path instead of assuming ~/.openclaw
+function findOpenClawConfigPath(): string {
+  const home = os.homedir()
+
+  // 1. Default location
+  const defaultPath = path.join(home, '.openclaw', 'openclaw.json')
+  if (fs.existsSync(defaultPath)) return defaultPath
+
+  // 2. Scan for profile-mode gateway dirs (~/.openclaw-*)
+  try {
+    const entries = fs.readdirSync(home, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('.openclaw-')) {
+        const candidate = path.join(home, entry.name, 'openclaw.json')
+        if (fs.existsSync(candidate)) return candidate
+      }
+    }
+  } catch {}
+
+  // Fallback to default (will fail gracefully in loadOpenClawConfig)
+  return defaultPath
+}
+
+const OPENCLAW_CONFIG_PATH = findOpenClawConfigPath()
 
 /**
  * Load openclaw.json configuration
@@ -379,8 +402,8 @@ function loadOpenClawConfig(): OpenClawConfig {
     const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
     return JSON.parse(content)
   } catch (err) {
-    console.error('Error loading openclaw.json:', err)
-    throw new Error('Failed to load openclaw.json')
+    console.error(`Error loading ${OPENCLAW_CONFIG_PATH}:`, err)
+    throw new Error(`Failed to load ${OPENCLAW_CONFIG_PATH}`)
   }
 }
 
