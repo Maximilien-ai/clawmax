@@ -79,6 +79,16 @@ else
         echo "  Add keys to SYSTEM/dashboard/.env or export in your shell."
         echo "  See README.md for details."
       fi
+
+      # Show gateway pairing URL if gateway is running
+      if command -v openclaw &> /dev/null; then
+        GATEWAY_URL=$(openclaw dashboard --no-open 2>/dev/null | grep -o 'http://[^ ]*')
+        if [ -n "$GATEWAY_URL" ]; then
+          echo ""
+          echo "🔗 Gateway Control UI (pair device for agent chat):"
+          echo "  $GATEWAY_URL"
+        fi
+      fi
       exit 0
     fi
     echo -n "."
