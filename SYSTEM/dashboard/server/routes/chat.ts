@@ -134,12 +134,17 @@ router.post('/:id/chat', (req, res) => {
     if (fullOutput.trim()) {
       try {
         const result = JSON.parse(fullOutput)
-        const text = result.payloads?.map((p: any) => p.text).join('\n') || ''
+        console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
+        const payloads = result.result?.payloads || result.payloads || []
+        const text = payloads.map((p: any) => p.text).join('\n') || ''
         if (text) {
           send('delta', { text })
           replied = true
+        } else {
+          console.log(`[Chat Route] Empty payloads for ${id}, status: ${result.status}, summary: ${result.summary}`)
         }
-      } catch {
+      } catch (err) {
+        console.log(`[Chat Route] JSON parse error for ${id}:`, err)
         // Not JSON — send as plain text
         const text = fullOutput.trim()
         if (text) {
