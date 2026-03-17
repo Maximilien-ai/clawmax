@@ -449,7 +449,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 className={`max-w-[80%] rounded-lg px-4 py-2 relative group ${
                   msg.role === 'user'
                     ? 'bg-sky-600 text-white'
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
                 }`}
               >
                 <div className="text-sm whitespace-pre-wrap break-words">
@@ -488,8 +488,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
         {/* Typing indicator */}
         {streaming && (
-          <div className="px-6 py-2 bg-sky-50 border-t border-sky-200">
-            <p className="text-xs text-sky-600">Agent is typing...</p>
+          <div className="px-6 py-2 bg-sky-50 dark:bg-sky-900/30 border-t border-sky-200 dark:border-sky-800">
+            <p className="text-xs text-sky-600 dark:text-sky-400">Agent is typing...</p>
           </div>
         )}
 
