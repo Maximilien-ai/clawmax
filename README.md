@@ -5,8 +5,8 @@
 ClawMax provides a powerful web-based interface to manage, monitor, and orchestrate OpenClaw AI agents. Build teams of specialized agents, assign skills, create workflows, and track activity across your entire agent ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/Maximilien-ai/clawmax)
-[![Tests](https://img.shields.io/badge/tests-92%2F92-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/Maximilien-ai/clawmax)
+[![Tests](https://img.shields.io/badge/tests-89%2F89-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
@@ -20,7 +20,7 @@ ClawMax provides a powerful web-based interface to manage, monitor, and orchestr
 - **Tag-based Filtering** - Organize agents by role, project, or capability
 
 ### Communication & Monitoring
-- **Real-time Chat** - Interactive chat with any agent via WebSocket
+- **Real-time Chat** - Interactive chat with any agent via CLI proxy
 - **Group Conversations** - Multi-agent group chats and communities
 - **Activity Feed** - Track agent actions, file changes, and workflow executions
 - **Status Dashboard** - System health, agent count, and workspace metrics
