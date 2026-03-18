@@ -187,8 +187,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     // Only show loading on initial fetch, not on polling
     if (messages.length === 0) {
       setLoading(true)
+      setError(null)
     }
-    setError(null)
     try {
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
@@ -198,25 +198,32 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       const newMessages = data.messages || []
 
       // Clear typing indicators for agents who have responded
+      // Only update messages state if content actually changed (prevents flicker)
       setMessages(prevMessages => {
-        setTypingAgents(currentTypingAgents => {
-          if (currentTypingAgents.size > 0 && newMessages.length > prevMessages.length) {
-            const latestMessages = newMessages.slice(prevMessages.length)
-            // Only count agent responses, not user messages
-            const respondedAgentIds = new Set(
-              latestMessages
-                .filter((m: any) => m.from !== 'User')
-                .map((m: any) => m.from)
-            )
-            if (respondedAgentIds.size > 0) {
-              const updated = new Set(currentTypingAgents)
-              respondedAgentIds.forEach(id => updated.delete(id))
-              return updated
+        const changed = newMessages.length !== prevMessages.length ||
+          (newMessages.length > 0 && prevMessages.length > 0 &&
+            newMessages[newMessages.length - 1]?.id !== prevMessages[prevMessages.length - 1]?.id)
+
+        if (changed) {
+          setTypingAgents(currentTypingAgents => {
+            if (currentTypingAgents.size > 0 && newMessages.length > prevMessages.length) {
+              const latestMessages = newMessages.slice(prevMessages.length)
+              const respondedAgentIds = new Set(
+                latestMessages
+                  .filter((m: any) => m.from !== 'User')
+                  .map((m: any) => m.from)
+              )
+              if (respondedAgentIds.size > 0) {
+                const updated = new Set(currentTypingAgents)
+                respondedAgentIds.forEach(id => updated.delete(id))
+                return updated
+              }
             }
-          }
-          return currentTypingAgents
-        })
-        return newMessages
+            return currentTypingAgents
+          })
+          return newMessages
+        }
+        return prevMessages // Same reference — no re-render
       })
     } catch (e) {
       setError(String(e))
