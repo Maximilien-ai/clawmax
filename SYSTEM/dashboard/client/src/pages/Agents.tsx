@@ -1822,6 +1822,10 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        // Show detailed validation errors if available
+        if (data.details && Array.isArray(data.details)) {
+          throw new Error(data.details.join('\n'))
+        }
         throw new Error(data.error || 'Failed to save config')
       }
       onSaved()
@@ -1858,7 +1862,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           )}
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400">
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
               {error}
             </div>
           )}

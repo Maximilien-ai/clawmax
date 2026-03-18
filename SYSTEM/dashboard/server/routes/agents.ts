@@ -1285,6 +1285,53 @@ router.get('/:id/config', (req, res) => {
   })
 })
 
+// Parse structured fields from IDENTITY.md markdown format
+function parseIdentityMd(content: string): { errors: string[] } {
+  const errors: string[] = []
+
+  // Extract Name field
+  const nameMatch = content.match(/\*\*Name:\*\*\s*(.+)/i)
+  if (nameMatch) {
+    const name = nameMatch[1].trim()
+    if (name && !/^[a-z][a-z0-9_-]*$/.test(name)) {
+      errors.push(`Name "${name}" must be lowercase alphanumeric with dashes/underscores only`)
+    }
+  }
+
+  // Extract Tags field — validate each tag
+  const tagsMatch = content.match(/\*\*Tags:\*\*\s*(.+)/i)
+  if (tagsMatch) {
+    const tagsStr = tagsMatch[1].trim()
+    if (tagsStr) {
+      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+      for (const tag of tags) {
+        if (!/^[a-z][a-z0-9_-]*$/.test(tag)) {
+          errors.push(`Tag "${tag}" must be lowercase alphanumeric with dashes/underscores only (no spaces)`)
+        }
+      }
+      // Check for duplicates
+      const seen = new Set<string>()
+      for (const tag of tags) {
+        if (seen.has(tag)) {
+          errors.push(`Duplicate tag: "${tag}"`)
+        }
+        seen.add(tag)
+      }
+    }
+  }
+
+  // Extract WhatsApp field
+  const waMatch = content.match(/\*\*WhatsApp:\*\*\s*(.+)/i)
+  if (waMatch) {
+    const wa = waMatch[1].trim()
+    if (wa && !/^\+?[1-9]\d{1,14}$/.test(wa)) {
+      errors.push(`WhatsApp number "${wa}" must be in E.164 format (e.g., +14155551234)`)
+    }
+  }
+
+  return { errors }
+}
+
 // PUT /api/agents/:id/config — update agent config files
 router.put('/:id/config', (req, res) => {
   const { id } = req.params
@@ -1297,6 +1344,17 @@ router.put('/:id/config', (req, res) => {
   const agentDir = path.join(getAgentsDir(), id)
   if (!fs.existsSync(agentDir)) {
     return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  // Validate IDENTITY.md content before saving
+  if (typeof identity === 'string') {
+    const validation = parseIdentityMd(identity)
+    if (validation.errors.length > 0) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      })
+    }
   }
 
   try {
