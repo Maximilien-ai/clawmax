@@ -309,6 +309,9 @@ export function getWorkflow(id: string): Workflow | null {
       author: data.author || '',
       owner: data.owner,
       executionMode: data.executionMode || 'automated',
+      maxRuns: data.maxRuns || 0,
+      runCount: data.runCount || 0,
+      cronJobId: data.cronJobId,
       content: content.trim()
     }
   } catch (error) {

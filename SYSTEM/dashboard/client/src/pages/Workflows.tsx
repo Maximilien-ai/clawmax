@@ -1698,10 +1698,16 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
 
         <p className="text-xs text-gray-600 mb-3 line-clamp-2">{workflow.description}</p>
 
-        <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
-          <span className="font-mono">{workflow.schedule}</span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 mb-3">
+          <span>{workflow.scheduleHuman || workflow.schedule}</span>
           <span>·</span>
           <span>{workflow.participantCount} agents</span>
+          {workflow.maxRuns && workflow.maxRuns > 0 ? (
+            <>
+              <span>·</span>
+              <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
+            </>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
