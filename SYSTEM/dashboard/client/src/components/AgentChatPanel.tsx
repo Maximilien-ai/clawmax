@@ -21,33 +21,51 @@ interface Props {
 function cleanMessageContent(content: string): string {
   if (!content) return content
 
-  // Strip ANSI escape codes first
-  let cleaned = content.replace(/\x1b\[[0-9;]*m|\[[\d;]*m/g, '')
+  // Process line by line — keep only human-readable content
+  const lines = content.split('\n')
+  const cleanedLines: string[] = []
+  let skipBlock = false
 
-  // Remove multi-line JSON blocks (payloads, meta, tool calls, thinking, systemPromptReport, etc.)
-  cleaned = cleaned.replace(/^\s*\{[\s\S]*?"(type|payloads|meta|runId|count|sessions|requester|entries)"[\s\S]*?\n\}\s*$/gm, '')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trimmed = line.trim()
 
-  // Remove single-line JSON objects
-  cleaned = cleaned.replace(/^\s*\{[^{}]*\}\s*$/gm, '')
+    // Skip empty lines in skip mode
+    if (skipBlock) {
+      // End skip block on a line that starts with markdown or readable text
+      if (trimmed === '' || trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"') ||
+          trimmed.match(/^\[[\d;]*m/) || trimmed.startsWith('(Command') || trimmed.startsWith('Available') ||
+          trimmed.startsWith('Usage:') || trimmed.startsWith('Options:') || trimmed.startsWith('Commands:') ||
+          trimmed.startsWith('Examples:') || trimmed.startsWith('Docs:') || trimmed.startsWith('store:') ||
+          trimmed.match(/^\s+--/) || trimmed.match(/^\s+\[/)) {
+        continue
+      }
+      skipBlock = false
+    }
 
-  // Remove OpenClaw banners and CLI help output
-  cleaned = cleaned.replace(/^🦞 OpenClaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
-  cleaned = cleaned.replace(/^Usage:.*openclaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
-  cleaned = cleaned.replace(/^\s*\[[\d;]*m.*$/gm, '') // Remaining ANSI lines
+    // Skip lines that are JSON
+    if (trimmed.startsWith('{') || trimmed.startsWith('[{')) { skipBlock = true; continue }
 
-  // Remove "Command still running" and "Process exited" lines
-  cleaned = cleaned.replace(/^Command still running.*$/gm, '')
-  cleaned = cleaned.replace(/^Process exited.*$/gm, '')
-  cleaned = cleaned.replace(/^Successfully wrote.*$/gm, '')
-  cleaned = cleaned.replace(/^store:.*auth-profiles\.json.*$/gm, '')
+    // Skip lines with ANSI escape codes
+    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
 
-  // Remove lines that are just timestamps
-  cleaned = cleaned.replace(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/gm, '')
+    // Skip OpenClaw internal lines
+    if (trimmed.startsWith('🦞 OpenClaw')) { skipBlock = true; continue }
+    if (trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/) ) { skipBlock = true; continue }
 
-  // Clean up excessive blank lines
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+    // Skip inline tool calls
+    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
 
-  // If everything was stripped, return a placeholder
+    // Skip bare timestamps
+    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
+
+    // Skip lines that are just whitespace + closing braces
+    if (trimmed.match(/^[}\]],?\s*$/)) continue
+
+    cleanedLines.push(line)
+  }
+
+  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
   return cleaned || '(processing...)'
 }
 
