@@ -1,14 +1,14 @@
 # ClawMax Status & Planning
 
-**Current Version**: v1.1.2
-**Last Updated**: March 18, 2026 (afternoon)
+**Current Version**: v1.2.0
+**Last Updated**: March 18, 2026 (end of day)
 **Status**: Active Development — GTC Demo Sprint
 
 ---
 
 ## Today's Session: March 18, 2026
 
-### Shipped (16 commits)
+### Shipped (22 commits, 30 total including docs/fixes)
 
 **Mobile Responsiveness**
 - All chat panels (1:1, agent, group) full-width on mobile
@@ -41,6 +41,16 @@
 - Parameterized agent counts in Apply wizard (+/- controls)
 - Apply progress toasts
 - Auth profiles created for imported agents
+- Template detail popup shows workflows with schedules
+- Small Startup template: 7 workflows (standup, status, triage, PR review, coding, merge, release)
+
+**Workflow Execution**
+- Built-in node-cron scheduler — workflows run on schedule automatically
+- Run limits (maxRuns) with auto-disable — persisted and displayed
+- Run count displayed in cards and detail pane ("2 runs completed · Unlimited" or "Run 2 of 5")
+- Human-readable schedule shown everywhere ("Every 5 minutes")
+- Resolved target agents shown in detail pane with clickable badges
+- Workflow editor sends maxRuns to API, preserves on edit
 
 **Quality**
 - Agent config schema validation (tags, name, whatsapp)

@@ -59,6 +59,7 @@
 
 ## Medium Priority (UX)
 
+- [ ] Templates page: list view with select/bulk-delete (like Workflows page) — system templates are read-only, workspace templates can be deleted/bulk-deleted
 - [ ] Parameterized templates — allow custom agent counts in Apply wizard (done for count, could add more params)
 - [ ] Dark mode audit — some components may have missing variants
 - [ ] Agent creation flow — agents from templates need `openclaw agents add` registration
