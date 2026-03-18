@@ -667,7 +667,7 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
             const proc = spawn('openclaw', args, { env: process.env })
             let stdout = ''
             let stderr = ''
-            const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 120000)
+            const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
 
             proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
             proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
