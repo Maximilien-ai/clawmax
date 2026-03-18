@@ -1113,6 +1113,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       ))}
                     </div>
                   )}
+                  {/* Resolved agents */}
+                  {selectedWorkflow.resolvedParticipants && selectedWorkflow.resolvedParticipants.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {selectedWorkflow.resolvedParticipants.map((p: any) => (
+                        <button
+                          key={p.id}
+                          onClick={() => onNavigateToAgent?.(p.id)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+                          title={p.reason}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                          {p.name || p.id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {selectedWorkflow.participantCount === 0 && (
                     <p className="text-sm text-gray-500">No agents match the targeting criteria</p>
                   )}

@@ -103,11 +103,15 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    // Include cron human-readable description
+    // Include cron human-readable description and resolved participants
     const cronValidation = validateCron(workflow.schedule)
+    const agents = listAgents()
+    const participants = resolveParticipants(workflow, agents)
     const response = {
       ...workflow,
-      scheduleHuman: cronValidation.humanReadable || workflow.schedule
+      scheduleHuman: cronValidation.humanReadable || workflow.schedule,
+      participantCount: participants.length,
+      resolvedParticipants: participants.map(p => ({ id: p.agentId, name: p.agentName, reason: p.reason }))
     }
 
     res.json(response)
