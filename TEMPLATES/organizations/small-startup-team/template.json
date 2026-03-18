@@ -4,7 +4,13 @@
   "version": "1.1.3",
   "description": "A complete startup team with CEO, product manager, engineers, QA, and release engineer. Includes 7 workflows covering the full development lifecycle: standups, status checks, issue triage, PR review, coding, merging, and releases.",
   "author": "ClawMax Team",
-  "tags": ["startup", "small-team", "complete", "development", "devops"],
+  "tags": [
+    "startup",
+    "small-team",
+    "complete",
+    "development",
+    "devops"
+  ],
   "parameters": [
     {
       "agentId": "engineer",
@@ -33,93 +39,168 @@
       "id": "ceo",
       "name": "CEO",
       "role": "Chief Executive Officer",
-      "tags": ["leadership", "executive"],
-      "skills": [],
-      "communities": ["Leadership"],
-      "groups": ["All Hands", "Status"]
+      "tags": [
+        "leadership",
+        "executive"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Leadership"
+      ],
+      "groups": [
+        "All Hands",
+        "Status"
+      ]
     },
     {
       "id": "product-manager",
       "name": "Product Manager",
       "role": "Product Manager",
-      "tags": ["product", "manager"],
-      "skills": ["github"],
-      "communities": ["Product & Design", "Leadership"],
-      "groups": ["All Hands", "Status"]
+      "tags": [
+        "product",
+        "manager"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Product & Design",
+        "Leadership"
+      ],
+      "groups": [
+        "All Hands",
+        "Status"
+      ]
     },
     {
       "id": "engineer",
       "name": "Engineer",
       "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["All Hands", "Status"]
+      "tags": [
+        "engineer",
+        "developer"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "All Hands",
+        "Status"
+      ]
     },
     {
       "id": "qa-engineer",
       "name": "QA Engineer",
       "role": "Quality Assurance Engineer",
-      "tags": ["engineer", "qa", "quality"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["All Hands", "Status"]
+      "tags": [
+        "engineer",
+        "qa",
+        "quality"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "All Hands",
+        "Status"
+      ]
     },
     {
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release Engineer",
-      "tags": ["engineer", "release-manager"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["All Hands", "Status"]
+      "tags": [
+        "engineer",
+        "release-manager"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "All Hands",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Leadership",
       "description": "Executive leadership and strategy",
-      "tags": ["executive"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "executive"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Engineering Team",
       "description": "Software development, QA, and release management",
-      "tags": ["engineering"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "engineering"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Product & Design",
       "description": "Product management and design",
-      "tags": ["product"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "product"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "groups": [
     {
       "name": "All Hands",
       "description": "Company-wide group for announcements and coordination",
-      "tags": ["company-wide"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "company-wide"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Status",
       "description": "Status updates and progress tracking",
-      "tags": ["status", "updates"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "status",
+        "updates"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "workflows": [
     {
       "id": "daily-standup",
       "name": "Daily Standup",
-      "description": "Morning sync — each team member shares progress, plans, and blockers",
+      "description": "Morning sync \u2014 each team member shares progress, plans, and blockers",
       "schedule": "0 9 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["All Hands"],
+        "groups": [
+          "All Hands"
+        ],
         "tags": [],
         "agents": []
       },
@@ -128,13 +209,15 @@
     {
       "id": "status-check",
       "name": "Status Check",
-      "description": "Periodic status pulse — agents report current state every 2 hours",
+      "description": "Periodic status pulse \u2014 agents report current state every 2 hours",
       "schedule": "0 */2 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["Status"],
+        "groups": [
+          "Status"
+        ],
         "tags": [],
         "agents": []
       },
@@ -143,14 +226,16 @@
     {
       "id": "issue-triage",
       "name": "Issue Triage",
-      "description": "Review and prioritize new GitHub issues — label, assign, and request info",
+      "description": "Review and prioritize new GitHub issues \u2014 label, assign, and request info",
       "schedule": "0 9,14 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["product"],
+        "tags": [
+          "product"
+        ],
         "agents": []
       },
       "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group"
@@ -165,7 +250,9 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["qa"],
+        "tags": [
+          "qa"
+        ],
         "agents": []
       },
       "content": "# PR Review\n\nReview all open pull requests:\n\n## Tasks\n1. Check for open PRs that need review\n2. For each PR:\n   - Review code changes for correctness and quality\n   - Verify tests pass and coverage is adequate\n   - Check for TypeScript/lint errors\n   - Look for security issues or breaking changes\n   - Check dark mode styling if UI changes\n3. Provide feedback:\n   - Approve if ready to merge\n   - Request changes with specific, actionable feedback\n   - Comment on areas that need improvement\n\n## Output\n- GitHub review comment on each PR (approve or request changes)\n- Summary posted to Status group"
@@ -180,7 +267,9 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["engineer"],
+        "tags": [
+          "engineer"
+        ],
         "agents": []
       },
       "content": "# Coding Sprint\n\nWork on your assigned GitHub issues:\n\n## Tasks\n1. Check your assigned issues (filter by your agent ID)\n2. For each assigned issue (prioritize by label: critical > bug > feature):\n   - Read the issue description and any comments\n   - Create a feature branch: `git checkout -b {issue-number}-{short-description}`\n   - Implement the fix or feature\n   - Write or update tests\n   - Run the test suite to verify\n   - Commit with clear message referencing the issue\n   - Create a pull request with description of changes\n3. If blocked, comment on the issue explaining the blocker\n\n## Output\n- PR link for each issue worked on\n- Status update posted to Status group\n- Comment on any issues where you're blocked"
@@ -188,14 +277,16 @@
     {
       "id": "pr-merge",
       "name": "PR Merge",
-      "description": "Merge approved PRs that pass CI — squash merge and clean up branches",
+      "description": "Merge approved PRs that pass CI \u2014 squash merge and clean up branches",
       "schedule": "0 11,16 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["release-manager"],
+        "tags": [
+          "release-manager"
+        ],
         "agents": []
       },
       "content": "# PR Merge\n\nMerge approved pull requests:\n\n## Tasks\n1. List all open PRs with approved reviews\n2. For each approved PR:\n   - Verify CI/CD checks pass (all green)\n   - Verify no merge conflicts\n   - Check PR is not labeled 'do-not-merge' or 'wip'\n   - Squash merge into main branch\n   - Delete the feature branch\n   - Comment on PR confirming merge\n   - Close related issue(s) if PR description references them\n3. If conflicts exist, notify the PR author\n\n## Output\n- List of merged PRs\n- List of PRs with issues (conflicts, failed CI)\n- Summary posted to Status group"
@@ -203,7 +294,7 @@
     {
       "id": "release",
       "name": "Release",
-      "description": "Prepare and publish a release — version bump, changelog, tag, and deploy",
+      "description": "Prepare and publish a release \u2014 version bump, changelog, tag, and deploy",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
@@ -211,7 +302,9 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["release-manager"],
+        "tags": [
+          "release-manager"
+        ],
         "agents": []
       },
       "content": "# Release Preparation\n\nPrepare and publish a new release:\n\n## Pre-Release Checklist\n1. **Code freeze**: Verify all planned features are merged\n2. **CI/CD**: All tests passing on main branch\n3. **Open issues**: No critical/blocker issues open\n4. **Documentation**: README and CHANGELOG updated\n\n## Release Tasks\n1. Review all PRs merged since last release\n2. Update CHANGELOG.md with categorized changes (features, fixes, breaking)\n3. Bump version in package.json (semver: patch/minor/major)\n4. Create git tag (e.g., v1.2.0)\n5. Push tag to trigger release workflow\n6. Create GitHub release with release notes\n7. Verify release artifacts are published\n\n## Output\n- Updated CHANGELOG.md\n- New version tag pushed\n- GitHub release created\n- Summary posted to All Hands group"

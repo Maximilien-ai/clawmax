@@ -4,14 +4,24 @@
   "version": "1.0.0",
   "description": "Professional software engineer specializing in Golang and GitHub workflows",
   "author": "ClawMax System",
-  "tags": ["engineer", "developer", "golang", "github"],
+  "tags": [
+    "engineer",
+    "developer",
+    "golang",
+    "github"
+  ],
   "agents": [
     {
       "id": "engineer",
       "name": "Engineer",
       "role": "Software Engineer",
-      "tags": ["engineer", "golang"],
-      "skills": []
+      "tags": [
+        "engineer",
+        "golang"
+      ],
+      "skills": [
+        "github"
+      ]
     }
   ],
   "metadata": {

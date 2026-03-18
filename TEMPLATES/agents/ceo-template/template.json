@@ -4,14 +4,24 @@
   "version": "1.0.0",
   "description": "Virtual CEO for organizational oversight and decision-making",
   "author": "ClawMax System",
-  "tags": ["leadership", "executive", "ceo", "management"],
+  "tags": [
+    "leadership",
+    "executive",
+    "ceo",
+    "management"
+  ],
   "agents": [
     {
       "id": "ceo",
       "name": "CEO",
       "role": "Chief Executive Officer",
-      "tags": ["ceo", "executive"],
-      "skills": []
+      "tags": [
+        "ceo",
+        "executive"
+      ],
+      "skills": [
+        "github"
+      ]
     }
   ],
   "metadata": {

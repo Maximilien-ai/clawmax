@@ -4,14 +4,24 @@
   "version": "1.0.0",
   "description": "Product manager coordinating requirements, prioritization, and releases",
   "author": "ClawMax System",
-  "tags": ["product", "manager", "planning", "coordination"],
+  "tags": [
+    "product",
+    "manager",
+    "planning",
+    "coordination"
+  ],
   "agents": [
     {
       "id": "product-manager",
       "name": "Product Manager",
       "role": "Product Manager",
-      "tags": ["project-manager", "manager"],
-      "skills": []
+      "tags": [
+        "project-manager",
+        "manager"
+      ],
+      "skills": [
+        "github"
+      ]
     }
   ],
   "metadata": {

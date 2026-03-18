@@ -4,14 +4,25 @@
   "version": "1.0.0",
   "description": "Release engineer managing CI/CD, releases, and deployment coordination",
   "author": "ClawMax System",
-  "tags": ["release", "devops", "ci-cd", "deployment"],
+  "tags": [
+    "release",
+    "devops",
+    "ci-cd",
+    "deployment"
+  ],
   "agents": [
     {
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release Engineer",
-      "tags": ["engineer", "release-manager", "github"],
-      "skills": []
+      "tags": [
+        "engineer",
+        "release-manager",
+        "github"
+      ],
+      "skills": [
+        "github"
+      ]
     }
   ],
   "metadata": {
