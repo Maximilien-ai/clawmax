@@ -38,6 +38,16 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
+// Strip OpenClaw internal JSON blocks from message content
+function cleanContent(content: string): string {
+  if (!content) return content
+  return content
+    .replace(/^\s*\{["\s]*type["\s]*:.*\}$/gm, '')
+    .replace(/^🦞 OpenClaw [\s\S]*?(?=\n\n|\n[A-Z#*-]|$)/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')

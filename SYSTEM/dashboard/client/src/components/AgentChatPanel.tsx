@@ -15,6 +15,19 @@ interface Props {
   onSuccess?: () => void
 }
 
+// Strip OpenClaw internal JSON blocks (thinking, toolCall, session_status, etc.) from message content
+function cleanMessageContent(content: string): string {
+  if (!content) return content
+  return content
+    // Remove JSON objects on their own lines (thinking blocks, tool calls, etc.)
+    .replace(/^\s*\{["\s]*type["\s]*:.*\}$/gm, '')
+    // Remove OpenClaw status banners
+    .replace(/^🦞 OpenClaw [\s\S]*?(?=\n\n|\n[A-Z#*-]|$)/gm, '')
+    // Clean up excessive blank lines left after removal
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -478,7 +491,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 }`}
               >
                 <div className="text-sm whitespace-pre-wrap break-words">
-                  {msg.content || (streaming && idx === messages.length - 1 ? '▌' : '')}
+                  {(msg.role === 'assistant' ? cleanMessageContent(msg.content) : msg.content) || (streaming && idx === messages.length - 1 ? '▌' : '')}
                 </div>
                 <div className="text-xs opacity-60 mt-1">
                   {new Date(msg.timestamp).toLocaleTimeString()}
