@@ -5,6 +5,15 @@
   "description": "A complete startup team with CEO, product manager, 2 engineers, QA engineer, and release engineer. Includes daily standups, weekly status reporting, and PR review workflows.",
   "author": "ClawMax Team",
   "tags": ["startup", "small-team", "complete", "development"],
+  "parameters": [
+    {
+      "agentId": "engineer",
+      "label": "Number of Engineers",
+      "default": 2,
+      "min": 1,
+      "max": 20
+    }
+  ],
   "agents": [
     {
       "id": "ceo",
@@ -25,17 +34,8 @@
       "groups": ["All Hands", "Status"]
     },
     {
-      "id": "engineer1",
-      "name": "Engineer 1",
-      "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["All Hands", "Status"]
-    },
-    {
-      "id": "engineer2",
-      "name": "Engineer 2",
+      "id": "engineer",
+      "name": "Engineer",
       "role": "Software Engineer",
       "tags": ["engineer", "developer"],
       "skills": ["github"],

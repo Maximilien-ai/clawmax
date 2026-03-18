@@ -820,6 +820,7 @@ export function importOrganizationTemplate(
     suffix?: string
     includeBuiltIn?: boolean
     modelOverride?: string
+    agentCounts?: Record<string, number>
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -854,16 +855,31 @@ export function importOrganizationTemplate(
     const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
     const createdAgents: string[] = []
 
+    // Expand parameterized agents based on agentCounts
+    const paramAgentIds = new Set((template as any).parameters?.map((p: any) => p.agentId) || [])
+    const expandedAgents = template.agents.flatMap((agent: any) => {
+      if (paramAgentIds.has(agent.id) && options?.agentCounts) {
+        const count = options.agentCounts[agent.id] || (template as any).parameters?.find((p: any) => p.agentId === agent.id)?.default || 1
+        return Array.from({ length: count }, (_, i) => ({
+          ...agent,
+          id: count === 1 ? agent.id : `${agent.id}${i + 1}`,
+          name: count === 1 ? (agent.name || agent.id) : `${agent.name || agent.role} ${i + 1}`,
+          _sourceAgentId: agent.id, // Keep track of original template agent ID for file copying
+        }))
+      }
+      return [{ ...agent, _sourceAgentId: agent.id }]
+    })
+
     // Filter out built-in agents if includeBuiltIn is false
     const agentsToCreate = includeBuiltIn
-      ? template.agents
-      : template.agents.filter(a => !a.tags?.includes('built-in'))
+      ? expandedAgents
+      : expandedAgents.filter((a: any) => !a.tags?.includes('built-in'))
 
     try {
       // Step 1: Create all agents with their files
       for (const templateAgent of agentsToCreate) {
-        const sourceAgentId = templateAgent.id
-        const targetAgentId = `${prefix}${sourceAgentId}${suffix}`
+        const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
+        const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
@@ -885,6 +901,19 @@ export function importOrganizationTemplate(
 
         if (!copyResult.ok) {
           throw new Error(`Failed to copy agent files: ${copyResult.error}`)
+        }
+
+        // Update Name in IDENTITY.md if agent was expanded (e.g., engineer -> engineer1)
+        if (sourceAgentId !== templateAgent.id) {
+          const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+          if (fs.existsSync(identityPath)) {
+            let content = fs.readFileSync(identityPath, 'utf-8')
+            content = content.replace(
+              /^-\s+\*\*Name:\*\*\s+.+$/m,
+              `- **Name:** ${targetAgentId}`
+            )
+            fs.writeFileSync(identityPath, content, 'utf-8')
+          }
         }
 
         // Override model in IDENTITY.md if specified

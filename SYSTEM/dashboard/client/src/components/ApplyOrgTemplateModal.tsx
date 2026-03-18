@@ -1,11 +1,20 @@
 import React, { useState } from 'react'
 
+interface TemplateParameter {
+  agentId: string
+  label: string
+  default: number
+  min: number
+  max: number
+}
+
 interface OrganizationTemplate {
   name: string
   type: 'organization'
   version: string
   description?: string
-  agents: Array<{ id: string; role: string; model?: string; tags?: string[] }>
+  parameters?: TemplateParameter[]
+  agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
   workflows?: Array<{ id: string; name: string }>
@@ -28,6 +37,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Agent count parameters — initialize from template defaults
+  const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
+    const counts: Record<string, number> = {}
+    if (template.parameters) {
+      for (const param of template.parameters) {
+        counts[param.agentId] = param.default
+      }
+    }
+    return counts
+  })
+
   // Fetch available models
   React.useEffect(() => {
     fetch('/api/agents/models')
@@ -39,10 +59,25 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       .catch(() => {})
   }, [])
 
+  // Expand parameterized agents based on counts
+  const paramAgentIds = new Set((template.parameters || []).map(p => p.agentId))
+
+  const expandedAgents = template.agents.flatMap(agent => {
+    if (paramAgentIds.has(agent.id)) {
+      const count = agentCounts[agent.id] || 1
+      return Array.from({ length: count }, (_, i) => ({
+        ...agent,
+        id: count === 1 ? agent.id : `${agent.id}${i + 1}`,
+        name: count === 1 ? (agent.name || agent.id) : `${agent.name || agent.role} ${i + 1}`,
+      }))
+    }
+    return [agent]
+  })
+
   // Separate built-in agents from regular agents
-  const builtInAgents = template.agents.filter(a => a.tags?.includes('built-in'))
-  const regularAgents = template.agents.filter(a => !a.tags?.includes('built-in'))
-  const agentsToCreate = includeBuiltIn ? template.agents : regularAgents
+  const builtInAgents = expandedAgents.filter(a => a.tags?.includes('built-in'))
+  const regularAgents = expandedAgents.filter(a => !a.tags?.includes('built-in'))
+  const agentsToCreate = includeBuiltIn ? expandedAgents : regularAgents
 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
@@ -65,6 +100,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           suffix: suffix || undefined,
           includeBuiltIn,
           modelOverride: modelOverride || undefined,
+          agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
         }),
       })
 
@@ -142,6 +178,48 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Agent Count Parameters */}
+          {template.parameters && template.parameters.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-green-900/20 dark:border-green-700">
+              <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-3">Team Size</h3>
+              <div className="space-y-3">
+                {template.parameters.map(param => (
+                  <div key={param.agentId} className="flex items-center gap-3">
+                    <label className="text-sm text-green-800 dark:text-green-300 flex-1">{param.label}</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAgentCounts(prev => ({
+                          ...prev,
+                          [param.agentId]: Math.max(param.min, (prev[param.agentId] || param.default) - 1)
+                        }))}
+                        disabled={agentCounts[param.agentId] <= param.min}
+                        className="w-8 h-8 rounded-md border border-green-300 dark:border-green-600 bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
+                      >
+                        -
+                      </button>
+                      <span className="w-10 text-center text-lg font-bold text-green-800 dark:text-green-200">
+                        {agentCounts[param.agentId] || param.default}
+                      </span>
+                      <button
+                        onClick={() => setAgentCounts(prev => ({
+                          ...prev,
+                          [param.agentId]: Math.min(param.max, (prev[param.agentId] || param.default) + 1)
+                        }))}
+                        disabled={agentCounts[param.agentId] >= param.max}
+                        className="w-8 h-8 rounded-md border border-green-300 dark:border-green-600 bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                Agents will be created as {template.parameters[0]?.agentId}1, {template.parameters[0]?.agentId}2, etc.
+              </p>
             </div>
           )}
 

@@ -5,19 +5,19 @@
   "description": "A complete engineering team with 2 engineers, QA engineer, and release engineer. Includes daily standups, code review reminders, and release preparation workflows.",
   "author": "ClawMax Team",
   "tags": ["engineering", "software", "development"],
+  "parameters": [
+    {
+      "agentId": "engineer",
+      "label": "Number of Engineers",
+      "default": 2,
+      "min": 1,
+      "max": 20
+    }
+  ],
   "agents": [
     {
-      "id": "engineer1",
-      "name": "Engineer 1",
-      "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["Code Review", "Status"]
-    },
-    {
-      "id": "engineer2",
-      "name": "Engineer 2",
+      "id": "engineer",
+      "name": "Engineer",
       "role": "Software Engineer",
       "tags": ["engineer", "developer"],
       "skills": ["github"],
