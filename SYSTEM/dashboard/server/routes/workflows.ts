@@ -22,27 +22,33 @@ const router = Router()
  * POST /api/workflows/generate-cron
  * Convert natural language to cron expression using AI
  */
-router.post('/generate-cron', async (req, res) => {
+router.post('/generate-cron', (req, res) => {
   const { text } = req.body
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' })
   }
 
-  const result = await generateCronFromText(text)
-  if (result.error) {
-    return res.status(500).json({ error: result.error })
-  }
+  generateCronFromText(text)
+    .then(result => {
+      if (result.error) {
+        return res.status(500).json({ error: result.error })
+      }
 
-  // Validate the generated cron
-  if (result.cron) {
-    const validation = validateCron(result.cron)
-    if (!validation.valid) {
-      return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
-    }
-    return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
-  }
+      // Validate the generated cron
+      if (result.cron) {
+        const validation = validateCron(result.cron)
+        if (!validation.valid) {
+          return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
+        }
+        return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
+      }
 
-  res.json({ cron: '', explanation: result.explanation, valid: false })
+      res.json({ cron: '', explanation: result.explanation, valid: false })
+    })
+    .catch(err => {
+      console.error('Error generating cron:', err)
+      res.status(500).json({ error: 'Failed to generate cron expression' })
+    })
 })
 
 /**
