@@ -6,6 +6,7 @@ import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
+import { validateWorkflow } from './validator'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -321,43 +322,37 @@ export function getWorkflow(id: string): Workflow | null {
 }
 
 // Create workflow
-export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?: string; error?: string } {
+export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?: string; errors?: string[]; error?: string } {
   try {
-    // Validate required fields
-    if (!data.name) {
-      return { success: false, error: 'Name is required' }
-    }
-    if (!data.description) {
-      return { success: false, error: 'Description is required' }
-    }
-    if (!data.schedule) {
-      return { success: false, error: 'Schedule is required' }
-    }
-    if (!data.content) {
-      return { success: false, error: 'Content is required' }
+    // Validate against schema
+    const schemaResult = validateWorkflow(data)
+    if (!schemaResult.valid) {
+      const messages = schemaResult.errors.map(e => `${e.field}: ${e.message}`)
+      return { success: false, errors: messages, error: messages.join('; ') }
     }
 
-    // Validate cron expression
-    const cronValidation = validateCron(data.schedule)
+    // Validate cron expression (semantic check beyond schema)
+    const cronValidation = validateCron(data.schedule!)
     if (!cronValidation.valid) {
       return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
     }
 
-    // Validate execution mode
-    if (data.executionMode === 'managed' && !data.owner) {
-      return { success: false, error: 'Owner is required for managed workflows' }
-    }
+    // Schema validation passed — these fields are guaranteed present
+    const name = data.name!
+    const description = data.description!
+    const schedule = data.schedule!
+    const content = data.content!
 
     // Generate and ensure unique ID
-    const baseId = generateId(data.name)
+    const baseId = generateId(name)
     const id = ensureUniqueId(baseId)
 
     const now = new Date().toISOString()
     const workflow: Workflow = {
       id,
-      name: data.name,
-      description: data.description,
-      schedule: data.schedule,
+      name,
+      description,
+      schedule,
       enabled: data.enabled !== false,
       targeting: data.targeting || { communities: [], groups: [], tags: [], agents: [] },
       created: now,
@@ -367,7 +362,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       executionMode: data.executionMode || 'automated',
       maxRuns: data.maxRuns || 0,
       runCount: 0,
-      content: data.content
+      content
     }
 
     // Create file with YAML frontmatter
@@ -399,24 +394,27 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
 }
 
 // Update workflow
-export function updateWorkflow(id: string, data: Partial<Workflow>): { success: boolean; error?: string } {
+export function updateWorkflow(id: string, data: Partial<Workflow>): { success: boolean; errors?: string[]; error?: string } {
   try {
     const existing = getWorkflow(id)
     if (!existing) {
       return { success: false, error: 'Workflow not found' }
     }
 
-    // Validate cron expression if provided
+    // Merge with existing to validate the full resulting object
+    const merged = { ...existing, ...data, id: existing.id, created: existing.created }
+    const schemaResult = validateWorkflow(merged)
+    if (!schemaResult.valid) {
+      const messages = schemaResult.errors.map(e => `${e.field}: ${e.message}`)
+      return { success: false, errors: messages, error: messages.join('; ') }
+    }
+
+    // Validate cron expression if provided (semantic check beyond schema)
     if (data.schedule) {
       const cronValidation = validateCron(data.schedule)
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
-    }
-
-    // Validate execution mode
-    if (data.executionMode === 'managed' && !data.owner && !existing.owner) {
-      return { success: false, error: 'Owner is required for managed workflows' }
     }
 
     const updated: Workflow = {

@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workflow Schema",
+  "description": "Schema for validating workflow definitions",
+  "type": "object",
+  "required": ["name", "description", "schedule", "content"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "description": "Workflow ID (lowercase, alphanumeric, dashes). Auto-generated from name if not provided."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable workflow name"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Description of what the workflow does"
+    },
+    "schedule": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Cron expression (e.g. '0 9 * * 1') or 'manual' for manual-only triggers"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether the workflow is active. Defaults to true."
+    },
+    "executionMode": {
+      "type": "string",
+      "enum": ["automated", "managed"],
+      "description": "Execution mode: 'automated' runs without oversight, 'managed' requires an owner agent"
+    },
+    "owner": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$",
+      "description": "Owner agent ID. Required when executionMode is 'managed'."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who created the workflow"
+    },
+    "maxRuns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Maximum number of runs before auto-disabling. 0 = unlimited."
+    },
+    "targeting": {
+      "type": "object",
+      "properties": {
+        "communities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Target communities"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Target groups"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+$"
+          },
+          "description": "Target agent tags"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+$"
+          },
+          "description": "Specific agent IDs to target"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Agent targeting configuration. At least one targeting field should have entries."
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "description": "Workflow content/instructions sent to agents"
+    }
+  },
+  "if": {
+    "properties": {
+      "executionMode": { "const": "managed" }
+    },
+    "required": ["executionMode"]
+  },
+  "then": {
+    "required": ["owner"]
+  }
+}
