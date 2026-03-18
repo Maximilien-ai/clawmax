@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useToast } from './Toast'
 
 interface TemplateParameter {
   agentId: string
@@ -37,6 +38,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [applying, setApplying] = useState(false)
   const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
@@ -93,18 +95,19 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       // Generate template slug from name
       const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-      // Show progress steps
+      // Show progress toasts
+      showSuccess(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
       const steps = [
-        `Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`,
         ...(template.communities?.length ? [`Setting up ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}...`] : []),
         ...(template.groups?.length ? [`Creating ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}...`] : []),
         ...(template.workflows?.length ? [`Configuring ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}...`] : []),
       ]
       let stepIdx = 0
       const progressInterval = setInterval(() => {
-        stepIdx++
         if (stepIdx < steps.length) {
+          showSuccess(steps[stepIdx])
           setApplyProgress(steps[stepIdx])
+          stepIdx++
         }
       }, 800)
 
@@ -125,6 +128,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       clearInterval(progressInterval)
 
       if (resp.ok) {
+        showSuccess(`Template "${template.name}" applied successfully!`)
         setApplyProgress('Done! Refreshing workspace...')
         setTimeout(() => {
           onSuccess()
@@ -132,10 +136,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }, 500)
       } else {
         setApplyProgress(null)
+        showToastError(data.error || 'Failed to apply template')
         setError(data.error || 'Failed to apply template')
       }
     } catch (err) {
       setApplyProgress(null)
+      showToastError('Network error')
       setError('Network error')
     } finally {
       setApplying(false)
