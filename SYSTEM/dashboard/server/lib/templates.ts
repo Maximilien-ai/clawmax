@@ -4,16 +4,13 @@ import Ajv from 'ajv'
 import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { listWorkflows, createWorkflow } from './workflows'
+import { findRepoRoot } from './paths'
 
 // Template storage paths (dynamic functions)
 
 // Global templates (shared across all workspaces - ClawMax system templates)
 export function getGlobalTemplatesDir(): string {
-  // Derive repo root from this file's location:
-  // this file is at SYSTEM/dashboard/server/lib/templates.ts
-  // repo root is 4 levels up
-  const repoRoot = path.resolve(__dirname, '../../../..')
-  return path.join(repoRoot, 'TEMPLATES')
+  return path.join(findRepoRoot(), 'TEMPLATES')
 }
 
 export function getGlobalAgentTemplatesDir(): string {
@@ -138,8 +135,8 @@ export type Template = AgentTemplate | OrganizationTemplate
 const ajv = new Ajv({ strict: false, validateFormats: false })
 
 // Load schemas
-const agentSchemaPath = path.join(__dirname, '..', 'schemas', 'agent-template.schema.json')
-const orgSchemaPath = path.join(__dirname, '..', 'schemas', 'organization-template.schema.json')
+const agentSchemaPath = path.join(findRepoRoot(), 'SYSTEM', 'dashboard', 'server', 'schemas', 'agent-template.schema.json')
+const orgSchemaPath = path.join(findRepoRoot(), 'SYSTEM', 'dashboard', 'server', 'schemas', 'organization-template.schema.json')
 
 const agentSchema = JSON.parse(fs.readFileSync(agentSchemaPath, 'utf-8'))
 const orgSchema = JSON.parse(fs.readFileSync(orgSchemaPath, 'utf-8'))

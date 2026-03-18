@@ -1,11 +1,11 @@
 import Ajv, { ValidateFunction } from 'ajv'
 import fs from 'fs'
 import path from 'path'
+import { findRepoRoot } from './paths'
 
 const ajv = new Ajv({ allErrors: true, strict: false })
 
-// Repo root: this file is at SYSTEM/dashboard/server/lib/validator.ts
-const REPO_ROOT = path.resolve(__dirname, '../../../..')
+const REPO_ROOT = findRepoRoot()
 
 // Schema cache
 const schemas: Record<string, ValidateFunction> = {}
