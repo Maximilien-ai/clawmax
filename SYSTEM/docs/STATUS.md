@@ -1,113 +1,87 @@
 # ClawMax Status & Planning
 
-**Current Version**: v1.1.1+
-**Last Updated**: March 18, 2026
+**Current Version**: v1.1.2
+**Last Updated**: March 18, 2026 (afternoon)
 **Status**: Active Development — GTC Demo Sprint
 
 ---
 
-## Current Sprint: GTC Demo Week (March 17-21)
+## Today's Session: March 18, 2026
 
-**Context**: Demoing ClawMax at GTC events. Mobile responsiveness and stability are critical.
+### Shipped (16 commits)
 
-### Completed (March 17-18)
+**Mobile Responsiveness**
+- All chat panels (1:1, agent, group) full-width on mobile
+- All modal dialogs (15+ components) responsive
+- All page layouts with proper mobile padding
+- Toolbar overflow fixed (wraps on mobile)
+- DocHub file tree mobile toggle
+- TopBar compact on small screens
+- Group chat scroll fix (no more input disruption)
+- Group chat flicker eliminated
 
-1. **v1.1.0 Features** (March 17)
-   - Agent config editor (IDENTITY.md, SOUL.md, TOOLS.md)
-   - Model override on template apply with provider-grouped dropdown
-   - Ngrok URL configurable via `.env`
-   - Gateway port auto-detection (18789/18889)
-   - Dark mode workflow tags
-   - package-lock.json committed
+**Chat Improvements**
+- 1:1 chat polling (3s) — agent-initiated messages now visible
+- API key validation before chat (clear error vs timeout)
+- Chat timeout increased to 3min for cold starts
+- Group chat "responding" indicator auto-clears at 30s
 
-2. **Bug Fixes** (March 17-18)
-   - start.sh API key warning false positive (PR #19)
-   - SETUP.md for gateway pairing (PR #20)
-   - CI OpenClaw CLI build resilience (stub fallback)
+**Workflow System**
+- Built-in cron scheduler (node-cron) — workflows run on schedule
+- Run limits (maxRuns) with auto-disable
+- AI cron generator — natural language to cron expression
+- Workflow detail pane shows resolved target agents with names
+- Run count and human-readable schedule in workflow cards
+- OpenClaw cron integration explored (auth challenges documented)
 
-3. **Mobile Responsiveness** (March 18)
-   - All chat panels responsive (1:1, agent, group)
-   - All modal dialogs responsive (15 components fixed)
-   - DocHub file browser mobile toggle
-   - TopBar compact on small screens
-   - Group chat auto-scroll no longer steals input focus
+**Templates**
+- Small Startup Team: 6 agents (CEO, PM, 2 engineers, QA, release)
+- Engineering Team: 4 agents (2 engineers, QA, release)
+- Test Template: auto-running status check workflow (5 runs)
+- Parameterized agent counts in Apply wizard (+/- controls)
+- Apply progress toasts
+- Auth profiles created for imported agents
 
-4. **Engineer Agent PRs** (March 18)
-   - Reviewed 7 PRs from Engineer agent
-   - Merged 2 (real changes: #19, #20)
-   - Closed 5 (empty commits: #21-25) with feedback
-   - Issues remain open for proper implementation
+**Quality**
+- Agent config schema validation (tags, name, whatsapp)
+- CI fix — resilient to upstream OpenClaw changes
+- PR review: merged #19, #20; closed #21-25 (empty commits)
 
-### In Progress / Next Up
+### Known Issues
 
-- [ ] Test mobile fixes on iPhone (user testing today)
-- [ ] Agent proactive response issue (server-side)
-- [ ] Agent API key timeout errors
-- [ ] Group chat "responding" indicator stuck
-
-### Blocked / Needs Research
-
-- Agent not proactively updating after first response — needs server-side push or long-polling
-- "Forward to group" feature — new feature request from GTC demos
-- Branch protection on main
+- Template apply doesn't always create agent GROUPS.md/COMMUNITIES.md (intermittent)
+- Cron scheduler uses node-cron (interim) — should consolidate with OpenClaw cron
+- Agent auth-profiles.json needed for gateway-based cron execution
 
 ---
 
 ## Key Demos
 
-- **March 17 (Mon)**: GTC evening events — discovered mobile issues
-- **March 18 (Tue)**: GTC events — mobile fixes deployed
-- **March 27 (Thu)**: Presentation demo — ClawMax self-management
+- **March 17 (Mon)**: GTC evening — discovered mobile issues
+- **March 18 (Tue)**: GTC evening — mobile fixed, cron working
+- **March 27 (Thu)**: Presentation demo
 - **March 28 (Fri)**: Hackathon demo
 
 ---
 
 ## Project Health
 
-### Testing
-- **Test Count**: 95 tests
-- **Pass Rate**: 100%
-- **CI**: Fixed — resilient to upstream OpenClaw changes
-
-### Code Quality
-- TypeScript with strict mode
-- All components mobile responsive (Tailwind sm: breakpoints)
-- Dark mode supported (audit needed for stragglers)
-
-### Open Issues (GitHub)
-- 14 open issues (#5-#18)
-- #5 closed via PR #19
-- #17 closed via PR #20
-- Issues #11, #12, #15, #16, #18 remain open (PRs were empty)
-
-### Deployment
-- **Public Repo**: github.com/Maximilien-ai/clawmax
-- **WORKSPACES**: Local only (not committed)
-- **Access**: via ngrok (drmaximilien.ngrok.dev)
+| Metric | Status |
+|--------|--------|
+| Tests | 95 passing (100%) |
+| CI | Fixed — resilient |
+| Mobile | All pages responsive |
+| Dark mode | Mostly complete (audit needed) |
+| Cron | Working via node-cron |
+| Templates | 3 org templates, 5 agent templates |
 
 ---
 
-## Docs Review Status (March 18)
+## Architecture Notes
 
-| Document | Status | Notes |
-|----------|--------|-------|
-| BACKLOG.md | Reviewed, updated | NOTEs addressed, items converted to tasks |
-| BUGS.md | Reviewed | Schema bug still open, test cleanup still open |
-| KNOWN_ISSUES.md | Reviewed | Setup issues mostly resolved, some stale entries |
-| FEATURES.md | Reviewed | — |
-| ROADMAP.md | Reviewed | Needs update — many items stale |
-| SECURITY.md | Reviewed | — |
-| TESTING_GUIDE.md | Reviewed | — |
-| WORKFLOWS.md | Reviewed | — |
-| BLOG_POST_FINAL.md | Reviewed | Published on AI Musings, can archive |
-| STATUS.md | Updated this session | You're reading it |
-| Planning docs | To review | Will update after mobile testing |
+### Cron Scheduling (Technical Debt)
+ClawMax currently uses `node-cron` for workflow scheduling. OpenClaw has its own cron system (`openclaw cron`) that runs through the gateway. We chose node-cron because bridging OpenClaw cron output back to ClawMax's execution/chat system was complex (auth profile format, delivery channel requirements). Future consolidation should either:
+1. Use OpenClaw cron with a callback webhook to ClawMax trigger API
+2. Or register ClawMax workflows as OpenClaw cron jobs that POST to `/api/workflows/:id/trigger`
 
----
-
-## Next Planning Update
-
-Once mobile fixes are tested and GTC demos complete, update:
-1. TWO_WEEK_SPRINT_MAR17-28.md — mark completed items
-2. WEEK_PLAN_MAR17-21.md — mark completed, adjust remaining days
-3. ROADMAP.md — update version targets and completed items
+See commit `4247024` for full documentation of this decision.
