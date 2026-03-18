@@ -344,6 +344,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setSelectedWorkflow(workflow)
       setExecutions(sortedExecutions)
       setShowDetailPanel(true)
+      // Also refresh the card list to keep counts/status in sync
+      fetchWorkflows()
       setShowExecutionPanel(false) // Close execution panel when viewing workflow
     } catch (err) {
       showError('Failed to load workflow details')
