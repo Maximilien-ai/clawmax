@@ -35,8 +35,7 @@ AGENTS/*/
 # Workflow executions (runtime data)
 WORKFLOWS/executions/
 
-# Template agent instances (keep template definitions only)
-TEMPLATES/organizations/*/agents/
+# Template agent instances are committed (needed for org template apply)
 TEMPLATES/organizations/qa-team/
 # Note: User-created templates in workspace. Global system templates at ~/.openclaw/TEMPLATES/
 
