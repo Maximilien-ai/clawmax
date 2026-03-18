@@ -171,6 +171,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
       '--cron', `"${workflow.schedule}"`,
       '--message', JSON.stringify(workflow.content).slice(0, 2000),
       ...(agentModel ? ['--model', agentModel] : []),
+      '--no-deliver',
       '--json'
     ]
 
