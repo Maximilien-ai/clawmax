@@ -66,6 +66,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const userScrolledUp = useRef(false)
   const prevMessageCount = useRef(0)
   const userJustSent = useRef(false)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -107,6 +108,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     return () => {
       clearInterval(interval)
       clearInterval(workflowInterval)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
       if (recognitionRef.current) {
         recognitionRef.current.stop()
       }
@@ -278,8 +280,10 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         // Show typing indicators for mentioned agents
         if (mentionedAgents.length > 0) {
           setTypingAgents(new Set(mentionedAgents.map(a => a.id)))
-          // Clear typing indicators after 60 seconds (agent timeout)
-          setTimeout(() => setTypingAgents(new Set()), 60000)
+          // Clear any previous timeout
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+          // Auto-clear typing indicators after 30 seconds to prevent stuck state
+          typingTimeoutRef.current = setTimeout(() => setTypingAgents(new Set()), 30000)
         }
         fetchMessages()
         // Focus back on input after sending
