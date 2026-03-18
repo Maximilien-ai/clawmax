@@ -246,3 +246,54 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
     return fallbackTitle
   }
 }
+
+/**
+ * Convert natural language schedule description to a cron expression.
+ * Returns the cron expression and a human-readable confirmation.
+ */
+export async function generateCronFromText(text: string): Promise<{ cron: string; explanation: string; error?: string }> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey || apiKey.trim() === '') {
+    return { cron: '', explanation: '', error: 'No OpenAI API key configured' }
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a cron expression generator. Convert the user's natural language schedule into a standard 5-field cron expression (minute hour day-of-month month day-of-week).
+
+Rules:
+- Output ONLY valid JSON: {"cron": "EXPRESSION", "explanation": "HUMAN READABLE"}
+- Use standard 5-field cron syntax
+- If the request is ambiguous, pick the most reasonable interpretation
+- If the request is impossible or nonsensical, set cron to "" and explain why in the explanation field
+- For "every N minutes" use */N in the minute field
+- For specific times, use 24-hour format
+- Examples: "every weekday at 9am" → "0 9 * * 1-5", "twice daily" → "0 9,17 * * *", "every 5 minutes" → "*/5 * * * *"`
+        },
+        {
+          role: 'user',
+          content: text
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 100,
+    })
+
+    const raw = completion.choices[0].message.content?.trim() || ''
+    try {
+      const parsed = JSON.parse(raw)
+      return { cron: parsed.cron || '', explanation: parsed.explanation || '' }
+    } catch {
+      // Try to extract cron from raw text
+      const cronMatch = raw.match(/(\S+\s+\S+\s+\S+\s+\S+\s+\S+)/)
+      return { cron: cronMatch?.[1] || '', explanation: raw }
+    }
+  } catch (err: any) {
+    console.error('Failed to generate cron:', err)
+    return { cron: '', explanation: '', error: err.message }
+  }
+}

@@ -59,6 +59,9 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [saving, setSaving] = useState(false)
   const [cronError, setCronError] = useState<string | null>(null)
   const [cronHuman, setCronHuman] = useState<string>('')
+  const [aiCronInput, setAiCronInput] = useState('')
+  const [aiCronLoading, setAiCronLoading] = useState(false)
+  const [aiCronResult, setAiCronResult] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<{
     name?: string
     description?: string
@@ -140,6 +143,33 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     const timer = setTimeout(validateCron, 300)
     return () => clearTimeout(timer)
   }, [formData.schedule])
+
+  const handleAiCron = async () => {
+    if (!aiCronInput.trim() || aiCronLoading) return
+    setAiCronLoading(true)
+    setAiCronResult(null)
+    try {
+      const r = await fetch('/api/workflows/generate-cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: aiCronInput.trim() })
+      })
+      const data = await r.json()
+      if (data.valid && data.cron) {
+        setFormData({ ...formData, schedule: data.cron })
+        setAiCronResult(`${data.humanReadable || data.explanation}`)
+        if (validationErrors.schedule) {
+          setValidationErrors({ ...validationErrors, schedule: undefined })
+        }
+      } else {
+        setAiCronResult(data.explanation || data.error || 'Could not generate a valid cron expression')
+      }
+    } catch (err) {
+      setAiCronResult('Failed to connect to AI service')
+    } finally {
+      setAiCronLoading(false)
+    }
+  }
 
   const handleSave = async () => {
     // Validation
@@ -369,6 +399,37 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   {showCronBuilder ? '✕ Close' : '🔧 Builder'}
                 </button>
               </div>
+
+              {/* AI Cron Generator */}
+              <div className="mb-3 flex gap-2">
+                <input
+                  type="text"
+                  value={aiCronInput}
+                  onChange={e => { setAiCronInput(e.target.value); setAiCronResult(null) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (aiCronInput.trim()) handleAiCron()
+                    }
+                  }}
+                  placeholder='Describe schedule in English (e.g., "every weekday at 9am and 3pm")'
+                  className="flex-1 px-3 py-2 text-sm border border-purple-300 dark:border-purple-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-400"
+                  disabled={aiCronLoading}
+                />
+                <button
+                  type="button"
+                  onClick={handleAiCron}
+                  disabled={aiCronLoading || !aiCronInput.trim()}
+                  className="px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
+                >
+                  {aiCronLoading ? '...' : 'AI Generate'}
+                </button>
+              </div>
+              {aiCronResult && (
+                <div className="mb-3 text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded p-2">
+                  {aiCronResult}
+                </div>
+              )}
 
               {/* Cron builder */}
               {showCronBuilder && (
