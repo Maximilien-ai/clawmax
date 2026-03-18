@@ -552,7 +552,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           targeting: data.targeting,
           executionMode: data.executionMode,
           owner: data.owner,
-          content: data.content
+          content: data.content,
+          maxRuns: data.maxRuns || 0
         })
       })
 
@@ -1499,7 +1500,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             executionMode: editingWorkflow.executionMode,
             owner: editingWorkflow.owner,
             targeting: editingWorkflow.targeting,
-            content: editingWorkflow.content
+            content: editingWorkflow.content,
+            maxRuns: editingWorkflow.maxRuns
           }}
           mode="edit"
         />
