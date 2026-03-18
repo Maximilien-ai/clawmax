@@ -1,10 +1,10 @@
 {
   "name": "Small Startup Team",
   "type": "organization",
-  "version": "1.0.0",
-  "description": "A complete startup team with CEO, engineer, and product manager. Includes daily standups and weekly status reporting workflows.",
+  "version": "1.1.0",
+  "description": "A complete startup team with CEO, product manager, 2 engineers, QA engineer, and release engineer. Includes daily standups, weekly status reporting, and PR review workflows.",
   "author": "ClawMax Team",
-  "tags": ["startup", "small-team", "complete"],
+  "tags": ["startup", "small-team", "complete", "development"],
   "agents": [
     {
       "id": "ceo",
@@ -13,16 +13,7 @@
       "tags": ["leadership", "executive"],
       "skills": [],
       "communities": ["Leadership"],
-      "groups": ["All Hands"]
-    },
-    {
-      "id": "engineer",
-      "name": "Engineer",
-      "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": [],
-      "communities": ["Engineering Team"],
-      "groups": ["All Hands"]
+      "groups": ["All Hands", "Status"]
     },
     {
       "id": "product-manager",
@@ -30,25 +21,61 @@
       "role": "Product Manager",
       "tags": ["product", "manager"],
       "skills": [],
-      "communities": ["Product Team"],
-      "groups": ["All Hands"]
+      "communities": ["Product & Design", "Leadership"],
+      "groups": ["All Hands", "Status"]
+    },
+    {
+      "id": "engineer1",
+      "name": "Engineer 1",
+      "role": "Software Engineer",
+      "tags": ["engineer", "developer"],
+      "skills": ["github"],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands", "Status"]
+    },
+    {
+      "id": "engineer2",
+      "name": "Engineer 2",
+      "role": "Software Engineer",
+      "tags": ["engineer", "developer"],
+      "skills": ["github"],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands", "Status"]
+    },
+    {
+      "id": "qa-engineer",
+      "name": "QA Engineer",
+      "role": "Quality Assurance Engineer",
+      "tags": ["engineer", "qa", "quality"],
+      "skills": ["github"],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands", "Status"]
+    },
+    {
+      "id": "release-engineer",
+      "name": "Release Engineer",
+      "role": "Release Engineer",
+      "tags": ["engineer", "release-manager", "github"],
+      "skills": ["github"],
+      "communities": ["Engineering Team"],
+      "groups": ["All Hands", "Status"]
     }
   ],
   "communities": [
     {
       "name": "Leadership",
-      "description": "Executive leadership team",
+      "description": "Executive leadership and strategy",
       "tags": ["executive"],
       "channels": ["whatsapp"]
     },
     {
       "name": "Engineering Team",
-      "description": "Software development team",
+      "description": "Software development, QA, and release management",
       "tags": ["engineering"],
       "channels": ["whatsapp"]
     },
     {
-      "name": "Product Team",
+      "name": "Product & Design",
       "description": "Product management and design",
       "tags": ["product"],
       "channels": ["whatsapp"]
@@ -57,8 +84,14 @@
   "groups": [
     {
       "name": "All Hands",
-      "description": "Company-wide group for announcements",
+      "description": "Company-wide group for announcements and coordination",
       "tags": ["company-wide"],
+      "channels": ["whatsapp"]
+    },
+    {
+      "name": "Status",
+      "description": "Status updates and progress tracking",
+      "tags": ["status", "updates"],
       "channels": ["whatsapp"]
     }
   ],
@@ -92,6 +125,21 @@
         "agents": []
       },
       "content": "# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
+    },
+    {
+      "id": "pr-review",
+      "name": "PR Review",
+      "description": "Review open pull requests for code quality and test coverage",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["qa"],
+        "agents": []
+      },
+      "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary\n"
     }
   ]
 }
