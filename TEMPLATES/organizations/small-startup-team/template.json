@@ -1,10 +1,10 @@
 {
   "name": "Small Startup Team",
   "type": "organization",
-  "version": "1.1.0",
-  "description": "A complete startup team with CEO, product manager, 2 engineers, QA engineer, and release engineer. Includes daily standups, weekly status reporting, and PR review workflows.",
+  "version": "1.2.0",
+  "description": "A complete startup team with CEO, product manager, engineers, QA, and release engineer. Includes 7 workflows covering the full development lifecycle: standups, status checks, issue triage, PR review, coding, merging, and releases.",
   "author": "ClawMax Team",
-  "tags": ["startup", "small-team", "complete", "development"],
+  "tags": ["startup", "small-team", "complete", "development", "devops"],
   "parameters": [
     {
       "agentId": "engineer",
@@ -29,7 +29,7 @@
       "name": "Product Manager",
       "role": "Product Manager",
       "tags": ["product", "manager"],
-      "skills": [],
+      "skills": ["github"],
       "communities": ["Product & Design", "Leadership"],
       "groups": ["All Hands", "Status"]
     },
@@ -55,7 +55,7 @@
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release Engineer",
-      "tags": ["engineer", "release-manager", "github"],
+      "tags": ["engineer", "release-manager"],
       "skills": ["github"],
       "communities": ["Engineering Team"],
       "groups": ["All Hands", "Status"]
@@ -99,7 +99,7 @@
     {
       "id": "daily-standup",
       "name": "Daily Standup",
-      "description": "Morning sync for team coordination",
+      "description": "Morning sync — each team member shares progress, plans, and blockers",
       "schedule": "0 9 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
@@ -109,29 +109,44 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Standup Workflow\n\nPlease provide your standup update covering:\n\n### 1. Yesterday's Accomplishments\n- What did you complete yesterday?\n\n### 2. Today's Plans  \n- What are your top priorities for today?\n\n### 3. Blockers\n- Are you blocked on anything?\n"
+      "content": "# Daily Standup\n\nProvide your standup update:\n\n### 1. Yesterday\n- What did you complete?\n\n### 2. Today\n- What are your top priorities?\n\n### 3. Blockers\n- Anything blocking your work?\n\nKeep it concise (3-5 bullet points total)."
     },
     {
-      "id": "weekly-status-report",
-      "name": "Weekly Status Report",
-      "description": "Weekly progress summary for leadership",
-      "schedule": "0 17 * * 5",
+      "id": "status-check",
+      "name": "Status Check",
+      "description": "Periodic status pulse — agents report current state every 2 hours",
+      "schedule": "0 */2 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["All Hands"],
+        "groups": ["Status"],
         "tags": [],
         "agents": []
       },
-      "content": "# Weekly Status Report\n\nPlease provide your weekly status:\n\n### 1. Key Accomplishments This Week\n- Major wins and completed work\n\n### 2. Next Week's Priorities\n- Planned focus areas\n\n### 3. Risks & Concerns\n- Potential issues or blockers\n"
+      "content": "# Status Check\n\nProvide a brief status pulse:\n\n1. **Current task**: What are you working on right now?\n2. **Progress**: On track or any delays?\n3. **Need help?**: Anything you need from the team?\n\nKeep it to 2-3 sentences."
+    },
+    {
+      "id": "issue-triage",
+      "name": "Issue Triage",
+      "description": "Review and prioritize new GitHub issues — label, assign, and request info",
+      "schedule": "0 9,14 * * 1-5",
+      "enabled": false,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["product"],
+        "agents": []
+      },
+      "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group"
     },
     {
       "id": "pr-review",
       "name": "PR Review",
-      "description": "Review open pull requests for code quality and test coverage",
-      "schedule": "manual",
-      "enabled": true,
+      "description": "Review open pull requests for code quality, tests, and style",
+      "schedule": "0 10,15 * * 1-5",
+      "enabled": false,
       "executionMode": "automated",
       "targeting": {
         "communities": [],
@@ -139,7 +154,53 @@
         "tags": ["qa"],
         "agents": []
       },
-      "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary\n"
+      "content": "# PR Review\n\nReview all open pull requests:\n\n## Tasks\n1. Check for open PRs that need review\n2. For each PR:\n   - Review code changes for correctness and quality\n   - Verify tests pass and coverage is adequate\n   - Check for TypeScript/lint errors\n   - Look for security issues or breaking changes\n   - Check dark mode styling if UI changes\n3. Provide feedback:\n   - Approve if ready to merge\n   - Request changes with specific, actionable feedback\n   - Comment on areas that need improvement\n\n## Output\n- GitHub review comment on each PR (approve or request changes)\n- Summary posted to Status group"
+    },
+    {
+      "id": "coding",
+      "name": "Coding Sprint",
+      "description": "Engineers pick up assigned issues and create PRs with fixes/features",
+      "schedule": "0 10 * * 1-5",
+      "enabled": false,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["engineer"],
+        "agents": []
+      },
+      "content": "# Coding Sprint\n\nWork on your assigned GitHub issues:\n\n## Tasks\n1. Check your assigned issues (filter by your agent ID)\n2. For each assigned issue (prioritize by label: critical > bug > feature):\n   - Read the issue description and any comments\n   - Create a feature branch: `git checkout -b {issue-number}-{short-description}`\n   - Implement the fix or feature\n   - Write or update tests\n   - Run the test suite to verify\n   - Commit with clear message referencing the issue\n   - Create a pull request with description of changes\n3. If blocked, comment on the issue explaining the blocker\n\n## Output\n- PR link for each issue worked on\n- Status update posted to Status group\n- Comment on any issues where you're blocked"
+    },
+    {
+      "id": "pr-merge",
+      "name": "PR Merge",
+      "description": "Merge approved PRs that pass CI — squash merge and clean up branches",
+      "schedule": "0 11,16 * * 1-5",
+      "enabled": false,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["release-manager"],
+        "agents": []
+      },
+      "content": "# PR Merge\n\nMerge approved pull requests:\n\n## Tasks\n1. List all open PRs with approved reviews\n2. For each approved PR:\n   - Verify CI/CD checks pass (all green)\n   - Verify no merge conflicts\n   - Check PR is not labeled 'do-not-merge' or 'wip'\n   - Squash merge into main branch\n   - Delete the feature branch\n   - Comment on PR confirming merge\n   - Close related issue(s) if PR description references them\n3. If conflicts exist, notify the PR author\n\n## Output\n- List of merged PRs\n- List of PRs with issues (conflicts, failed CI)\n- Summary posted to Status group"
+    },
+    {
+      "id": "release",
+      "name": "Release",
+      "description": "Prepare and publish a release — version bump, changelog, tag, and deploy",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "product-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["release-manager"],
+        "agents": []
+      },
+      "content": "# Release Preparation\n\nPrepare and publish a new release:\n\n## Pre-Release Checklist\n1. **Code freeze**: Verify all planned features are merged\n2. **CI/CD**: All tests passing on main branch\n3. **Open issues**: No critical/blocker issues open\n4. **Documentation**: README and CHANGELOG updated\n\n## Release Tasks\n1. Review all PRs merged since last release\n2. Update CHANGELOG.md with categorized changes (features, fixes, breaking)\n3. Bump version in package.json (semver: patch/minor/major)\n4. Create git tag (e.g., v1.2.0)\n5. Push tag to trigger release workflow\n6. Create GitHub release with release notes\n7. Verify release artifacts are published\n\n## Output\n- Updated CHANGELOG.md\n- New version tag pushed\n- GitHub release created\n- Summary posted to All Hands group"
     }
   ]
 }

@@ -408,6 +408,7 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
   const agentCount = template.agents.length
   const communityCount = isOrg && template.communities ? template.communities.length : 0
   const groupCount = isOrg && template.groups ? template.groups.length : 0
+  const workflowCount = isOrg && (template as any).workflows ? (template as any).workflows.length : 0
 
   return (
     <div
@@ -445,6 +446,12 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
           <>
             <span>•</span>
             <span>{groupCount} group{groupCount !== 1 ? 's' : ''}</span>
+          </>
+        )}
+        {isOrg && workflowCount > 0 && (
+          <>
+            <span>•</span>
+            <span>{workflowCount} workflow{workflowCount !== 1 ? 's' : ''}</span>
           </>
         )}
       </div>
