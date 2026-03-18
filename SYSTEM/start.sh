@@ -147,8 +147,18 @@ else
       echo "Logs: tail -f /tmp/dashboard.log"
       echo "Stop: ./SYSTEM/stop.sh"
 
-      # Check for AI model API keys
+      # Check for AI model API keys in both env and .env file
+      ENV_API_KEYS_MISSING=false
       if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+        # If the environment doesn't have the keys, check .env
+        if [ -f ".env" ]; then
+          . ./.env
+        fi
+        if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+          ENV_API_KEYS_MISSING=true
+        fi
+      fi
+      if [ "$ENV_API_KEYS_MISSING" = true ]; then
         echo ""
         echo "⚠ No AI model API keys detected (ANTHROPIC_API_KEY, OPENAI_API_KEY)"
         echo "  Agent creation requires at least one API key configured."
