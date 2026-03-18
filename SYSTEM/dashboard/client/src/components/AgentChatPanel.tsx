@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -52,6 +54,7 @@ function cleanMessageContent(content: string): string {
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -523,12 +526,38 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
                 }`}
               >
-                <div className="text-sm whitespace-pre-wrap break-words">
-                  {(msg.role === 'assistant' ? cleanMessageContent(msg.content) : msg.content) || (streaming && idx === messages.length - 1 ? '▌' : '')}
-                </div>
-                <div className="text-xs opacity-60 mt-1">
-                  {new Date(msg.timestamp).toLocaleTimeString()}
-                </div>
+                {msg.role === 'assistant' ? (
+                  <>
+                    {rawViewIds.has(msg.id) ? (
+                      <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
+                    ) : (
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {cleanMessageContent(msg.content) || (streaming && idx === messages.length - 1 ? '▌' : '')}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs opacity-60">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setRawViewIds(prev => { const next = new Set(prev); next.has(msg.id) ? next.delete(msg.id) : next.add(msg.id); return next }) }}
+                        className="text-xs opacity-40 hover:opacity-80 transition-opacity"
+                        title={rawViewIds.has(msg.id) ? 'Show preview' : 'Show source'}
+                      >
+                        {rawViewIds.has(msg.id) ? '📝' : '</>'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm whitespace-pre-wrap break-words">
+                      {msg.content || ''}
+                    </div>
+                    <div className="text-xs opacity-60 mt-1">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
+                  </>
+                )}
 
                 {/* Resubmit button for user messages */}
                 {msg.role === 'user' && (

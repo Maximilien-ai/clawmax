@@ -1584,6 +1584,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
   }
 
   const sessionKey = `agent:${id}:dashboard-chat`
+  const mainSessionKey = `agent:${id}:main`
 
   try {
     const HOME = process.env.HOME || ''
@@ -1597,8 +1598,11 @@ router.delete('/:id/chat/messages', async (req, res) => {
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
     let actualSessionId: string | null = null
 
+    // Try dashboard-chat first, fall back to main session
     if (sessionsIndex[sessionKey]?.sessionId) {
       actualSessionId = sessionsIndex[sessionKey].sessionId
+    } else if (sessionsIndex[mainSessionKey]?.sessionId) {
+      actualSessionId = sessionsIndex[mainSessionKey].sessionId
     }
 
     if (!actualSessionId) {
