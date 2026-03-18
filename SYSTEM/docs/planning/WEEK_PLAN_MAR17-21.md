@@ -32,6 +32,8 @@
 - [ ] **Fix test cleanup** (1h): general.json reset after tests
 - [ ] **Run full test suite**: Target 86/86 passing
 
+NOTE: let's move this ^^^ to tonight since my first GTC event is at 4p today and can run on this laptop -- tonight I'll install on Mac mini and have that be ClawMax Org. Then we will setup the second Mac mini for weave-cli Org
+
 #### Afternoon (1:00 PM - 6:00 PM) — 6 hours
 **Workflow Dependencies - Backend [6h]**
 - [ ] **Data model** (1.5h): Add `depends_on` field to workflow YAML schema
@@ -39,6 +41,10 @@
 - [ ] **Execution engine** (1.5h): Check constraints before workflow run
 - [ ] **Failure handling** (1h): Skip dependents on failure, retry logic
 - [ ] **Tests** (30min): Dependency resolution, circular detection
+
+NOTE: thinking also of parallel workflows and sync and being able to visually see that dependency. Maybe by connecting them visually and specifying the dependency and parameters. Retry for failed executions. Restart?
+
+NOTE: we need agent to be able to trigger workflows too... I think we have that but have never tested.
 
 **Deliverables:**
 - ✅ All tests passing (86/86)
@@ -62,6 +68,8 @@
   - Multi-select with constraint type (all/any)
   - Circular dependency warnings
 - [ ] **Tests** (30min): API + UI component tests
+
+NOTE: visual connection for workflows with drag and connect or something. And then editing params.
 
 #### Afternoon (1:00 PM - 6:00 PM) — 6 hours
 **Favorites System - Backend + API [6h]**

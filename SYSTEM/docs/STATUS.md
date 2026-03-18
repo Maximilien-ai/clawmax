@@ -1,6 +1,6 @@
 # ClawMax Status & Planning
 
-**Current Version**: v1.2.0
+**Current Version**: v1.1.3
 **Last Updated**: March 18, 2026 (end of day)
 **Status**: Active Development — GTC Demo Sprint
 

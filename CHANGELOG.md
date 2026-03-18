@@ -2,7 +2,7 @@
 
 All notable changes to ClawMax are documented here.
 
-## [v1.2.0] - 2026-03-18
+## [v1.1.3] - 2026-03-18
 
 ### Features
 - **Workflow Scheduler** — Built-in cron scheduler runs enabled workflows on schedule automatically
@@ -16,7 +16,7 @@ All notable changes to ClawMax are documented here.
 - **Template Apply Progress** — Toast notifications show step-by-step progress
 
 ### Templates
-- **Small Startup Team v1.2.0** — 5 agents (CEO, PM, Engineers, QA, Release), 7 dev lifecycle workflows (standup, status, triage, PR review, coding, merge, release), parameterized counts for engineers/QA/PM
+- **Small Startup Team v1.1.3** — 5 agents (CEO, PM, Engineers, QA, Release), 7 dev lifecycle workflows (standup, status, triage, PR review, coding, merge, release), parameterized counts for engineers/QA/PM
 - **Engineering Team v1.1.0** — 4 agents with github skills, PR review workflow
 - **Test Template v1.1.0** — Status check workflow with run limits
 

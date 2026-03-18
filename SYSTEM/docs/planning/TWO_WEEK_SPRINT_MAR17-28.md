@@ -1,3 +1,5 @@
+NOTE: let's update this based on week plan and the reality of what we have done.
+
 # Two-Week Sprint: ClawMax Self-Management
 **March 17-28, 2026**
 

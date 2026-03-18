@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 18, 2026 (v1.2.0 release)
+> Last updated: March 18, 2026 (v1.1.3 release)
 
 ## Completed Since v1.1.0
 
