@@ -233,13 +233,13 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 px-4 sm:p-6 py-4 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
                 Skills Manager
               </h1>
               <button

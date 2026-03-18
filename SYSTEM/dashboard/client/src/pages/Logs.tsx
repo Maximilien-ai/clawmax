@@ -151,10 +151,10 @@ export default function Logs() {
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 px-4 sm:px-6 py-4 dark:border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
             <p className="text-sm text-gray-500 mt-1">
               Live streaming logs from OpenClaw
               {connected && <span className="ml-2 text-green-600">● Connected</span>}
@@ -197,13 +197,13 @@ export default function Logs() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <input
             type="text"
             placeholder="Search logs..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+            className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
           />
           <select
             value={agentFilter}

@@ -269,7 +269,7 @@ export default function Templates() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 sm:py-6">
         {totalTemplates === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">📑</div>

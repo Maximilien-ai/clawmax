@@ -812,7 +812,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Tag filters */}
         {allTags.length > 0 && (
           <div className="mb-6">
