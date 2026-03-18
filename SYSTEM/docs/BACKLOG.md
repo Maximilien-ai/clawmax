@@ -49,6 +49,7 @@
 
 ## Medium Priority (UX)
 
+- [ ] Parameterized templates — allow users to specify agent counts in Apply wizard (e.g., "Number of Engineers: 2" with min/max). Template defines `parameters` array, wizard renders number inputs, apply logic clones agents with suffixed IDs.
 - [ ] Dark mode audit — likely more components with missing dark variants
 - [ ] Agent creation flow — agents created via templates aren't fully registered with `openclaw agents add`
 - [ ] Workflow cron scheduler — scheduled workflows don't actually run on schedule (no daemon)
