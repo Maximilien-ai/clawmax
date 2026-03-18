@@ -1,173 +1,113 @@
 # ClawMax Status & Planning
 
-**Current Version**: v1.1.1
-**Last Updated**: March 17, 2026
-**Status**: ✅ Production Ready
+**Current Version**: v1.1.1+
+**Last Updated**: March 18, 2026
+**Status**: Active Development — GTC Demo Sprint
 
 ---
 
-## ✅ Completed This Week (March 17, 2026)
+## Current Sprint: GTC Demo Week (March 17-21)
 
-### v1.1.1 - Critical Bug Fix Release
+**Context**: Demoing ClawMax at GTC events. Mobile responsiveness and stability are critical.
 
-**What Was Completed**:
-1. **Gateway Port Fix** - Agent chat completely broken → Now working
-   - Changed port 18789 → 18889 across all references
-   - Added documentation to prevent recurrence
-   - Tested on multiple machines (private + public)
+### Completed (March 17-18)
 
-2. **Dark Mode Complete** - All UI elements properly styled
-   - Agent chat message bubbles
-   - Typing indicators
-   - Group chat (already had dark mode)
+1. **v1.1.0 Features** (March 17)
+   - Agent config editor (IDENTITY.md, SOUL.md, TOOLS.md)
+   - Model override on template apply with provider-grouped dropdown
+   - Ngrok URL configurable via `.env`
+   - Gateway port auto-detection (18789/18889)
+   - Dark mode workflow tags
+   - package-lock.json committed
 
-3. **Debug Logging** - Better troubleshooting
-   - Payload logging for agent responses
-   - Empty response detection
-   - JSON parse error handling
+2. **Bug Fixes** (March 17-18)
+   - start.sh API key warning false positive (PR #19)
+   - SETUP.md for gateway pairing (PR #20)
+   - CI OpenClaw CLI build resilience (stub fallback)
 
-4. **Testing & Validation**
-   - ✅ All 95 tests passing
-   - ✅ Workflows execution tested
-   - ✅ Group chats tested
-   - ✅ Public repo tested on fresh machine
-   - ✅ Both repos synced (private/public)
+3. **Mobile Responsiveness** (March 18)
+   - All chat panels responsive (1:1, agent, group)
+   - All modal dialogs responsive (15 components fixed)
+   - DocHub file browser mobile toggle
+   - TopBar compact on small screens
+   - Group chat auto-scroll no longer steals input focus
 
-5. **Releases**
-   - Private: v1.1.1 pushed
-   - Public: v1.1.1 released on GitHub
-   - WORKSPACES kept private (as intended)
+4. **Engineer Agent PRs** (March 18)
+   - Reviewed 7 PRs from Engineer agent
+   - Merged 2 (real changes: #19, #20)
+   - Closed 5 (empty commits: #21-25) with feedback
+   - Issues remain open for proper implementation
 
----
+### In Progress / Next Up
 
-## 🎯 Current Sprint: ClawMax Self-Management (Mar 17-28)
+- [ ] Test mobile fixes on iPhone (user testing today)
+- [ ] Agent proactive response issue (server-side)
+- [ ] Agent API key timeout errors
+- [ ] Group chat "responding" indicator stuck
 
-**THE MISSION**: Deploy ClawMax on Mac Mini with agent teams that autonomously manage ClawMax development.
+### Blocked / Needs Research
 
-**Key Milestones**:
-- **Mar 27 (Thu)**: Live presentation demo
-- **Mar 28 (Fri)**: Hackathon demo with improvements
-
-**Detailed Plan**: See `SYSTEM/docs/planning/TWO_WEEK_SPRINT_MAR17-28.md`
-
----
-
-## 🎯 Previous Priorities (Incorporated into Sprint)
-
-### Infrastructure & Quality
-
-**Why This Matters**:
-- Testing on new machine found issues → Need automated testing
-- OpenClaw is evolving → Need version compatibility checks
-- Skills catalog updating → Need sync mechanism
-- Manual testing is slow → Need CI/CD
-
-**Proposed This Week**:
-
-1. **OpenClaw Version Compatibility** (Mon-Tue, 8h)
-   - Test against: v0.3.0 (current), v0.3.1 (latest stable), bleeding edge
-   - Document supported versions
-   - Create CI workflow to test all versions
-   - Fix any breaking changes
-
-2. **Skills Catalog Sync** (Wed, 6h)
-   - Auto-detect OpenClaw installation
-   - Sync built-in skills from source
-   - UI for manual sync + last sync timestamp
-   - Handle custom vs built-in conflicts
-
-3. **CI/CD Pipeline** (Thu-Fri, 12h)
-   - Automated test workflow (GitHub Actions)
-   - Test against multiple OpenClaw versions
-   - Release automation
-   - Integration tests for critical flows
-
-**Deliverable**: v1.2.0 - Infrastructure Release
+- Agent not proactively updating after first response — needs server-side push or long-polling
+- "Forward to group" feature — new feature request from GTC demos
+- Branch protection on main
 
 ---
 
-## 📋 Backlog (Good Ideas for Later)
+## Key Demos
 
-### Features
-- **Agent Performance Monitoring** - Track response times, TTFT, tokens/sec
-- **Multi-Agent Broadcast** - Send message to all agents
-- **Agent Status Page** - Live log tail, start/stop controls
-- **Workflow Scheduling** - Automated cron execution (currently manual only)
-
-### Quality
-- **Browser Relay Bug** - Chrome CDP session issue (low priority)
-- **Skills Import Enhancement** - Copy skills to agent workspace (needs research)
+- **March 17 (Mon)**: GTC evening events — discovered mobile issues
+- **March 18 (Tue)**: GTC events — mobile fixes deployed
+- **March 27 (Thu)**: Presentation demo — ClawMax self-management
+- **March 28 (Fri)**: Hackathon demo
 
 ---
 
-## 🤔 Questions & Decisions Needed
-
-1. **OpenClaw Version Strategy**:
-   - Support multiple versions simultaneously?
-   - Or target latest bleeding edge only?
-   - Your update frequency?
-
-2. **Testing Scope**:
-   - Critical flows: Agent creation, skills, workflows, chat
-   - Anything else we should never break?
-
-3. **Skills Sync**:
-   - Auto-sync on startup or manual trigger?
-   - How to handle conflicts (custom skills vs updates)?
-
-4. **Release Cadence**:
-   - Continue semantic versioning (patch/minor/major)?
-   - Automated releases or manual review?
-
-5. **This Week's Focus**:
-   - Infrastructure (testing, CI/CD, compatibility)?
-   - OR new features (performance monitoring, broadcast)?
-
----
-
-## 📊 Project Health
+## Project Health
 
 ### Testing
 - **Test Count**: 95 tests
 - **Pass Rate**: 100%
-- **Coverage**: Dashboard API, Skills, Workflows, Gateway RPC
+- **CI**: Fixed — resilient to upstream OpenClaw changes
 
 ### Code Quality
 - TypeScript with strict mode
-- ESLint + Prettier configured
-- Dark mode complete
-- Responsive design
+- All components mobile responsive (Tailwind sm: breakpoints)
+- Dark mode supported (audit needed for stragglers)
 
-### Documentation
-- README.md comprehensive
-- TESTING_GUIDE.md
-- WORKFLOWS.md
-- SECURITY.md
-- This STATUS.md
+### Open Issues (GitHub)
+- 14 open issues (#5-#18)
+- #5 closed via PR #19
+- #17 closed via PR #20
+- Issues #11, #12, #15, #16, #18 remain open (PRs were empty)
 
 ### Deployment
-- **Private Repo**: clawmax-private (GitHub)
-- **Public Repo**: clawmax (GitHub, with releases)
-- **WORKSPACES**: Private only (not synced)
+- **Public Repo**: github.com/Maximilien-ai/clawmax
+- **WORKSPACES**: Local only (not committed)
+- **Access**: via ngrok (drmaximilien.ngrok.dev)
 
 ---
 
-## 🎯 Success Metrics (If We Do Infrastructure)
+## Docs Review Status (March 18)
 
-By end of week, we should have:
-- ✅ Automated tests running on every commit
-- ✅ Compatibility confirmed with 2-3 OpenClaw versions
-- ✅ Skills catalog can sync from OpenClaw source
-- ✅ Release process documented and automated
-- ✅ Clear docs of supported configurations
-
-This sets us up for faster, more confident development.
+| Document | Status | Notes |
+|----------|--------|-------|
+| BACKLOG.md | Reviewed, updated | NOTEs addressed, items converted to tasks |
+| BUGS.md | Reviewed | Schema bug still open, test cleanup still open |
+| KNOWN_ISSUES.md | Reviewed | Setup issues mostly resolved, some stale entries |
+| FEATURES.md | Reviewed | — |
+| ROADMAP.md | Reviewed | Needs update — many items stale |
+| SECURITY.md | Reviewed | — |
+| TESTING_GUIDE.md | Reviewed | — |
+| WORKFLOWS.md | Reviewed | — |
+| BLOG_POST_FINAL.md | Reviewed | Published on AI Musings, can archive |
+| STATUS.md | Updated this session | You're reading it |
+| Planning docs | To review | Will update after mobile testing |
 
 ---
 
-## 📝 Notes
+## Next Planning Update
 
-- All dark mode issues resolved
-- Port mismatch won't happen again (documented)
-- Public repo tested and working on fresh machine
-- Ready for infrastructure improvements or new features
+Once mobile fixes are tested and GTC demos complete, update:
+1. TWO_WEEK_SPRINT_MAR17-28.md — mark completed items
+2. WEEK_PLAN_MAR17-21.md — mark completed, adjust remaining days
+3. ROADMAP.md — update version targets and completed items

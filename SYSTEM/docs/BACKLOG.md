@@ -23,19 +23,16 @@
 - [x] Mobile responsive: Communication docked chat pane
 - [x] Mobile responsive: TopBar — hide verbose info on small screens
 - [x] Group chat auto-scroll fix — no longer kicks user out of input field during polling
+- [x] Engineer agent PRs reviewed — 2 merged (#19, #20), 5 closed (empty commits)
+- [x] `setup.sh` creates WORKSPACES directory with subdirs — already implemented
 
 ## High Priority (Bugs)
 
 - [ ] Group chat "responding" indicator stays on forever — needs auto-clear timeout (30s) or message polling
 - [ ] Schema path errors in logs — `tools.schema.json` and `soul.schema.json` still resolved via workspace path in some code paths
-
-NOTE: do we have schemas for workflows?
-
-NOTE: in agent Edit button/action can we make sure we check schema of all sections before saving! And give user info on what's wrong. Like we do when user tries to edit agent's files in Documents tab.
-
+- [ ] Add workflow schema validation — no `workflows.schema.json` exists yet (have schemas for agents, communities, groups, identity, mandate, soul, tools only)
+- [ ] Agent config editor: validate all sections against schema before saving, show user-friendly errors (like Documents tab does)
 - [ ] Anthropic per-agent auth store issue — agents need `ANTHROPIC_API_KEY` in env, not just `.env`; gateway fallback to embedded mode works but logs errors
-
-NOTE: make sure start.sh creates WORKSPACES directory at same level as SYSTEM and also includes .gitkeep or similar. Maybe we should commit that directory so when user clones their repo has it?
 
 ## High Priority (Mobile / GTC Demos)
 
