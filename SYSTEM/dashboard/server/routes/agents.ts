@@ -1497,6 +1497,7 @@ router.get('/:id/chat/messages', async (req, res) => {
   }
 
   const sessionKey = `agent:${id}:dashboard-chat`
+  const mainSessionKey = `agent:${id}:main`
 
   try {
     const HOME = process.env.HOME || ''
@@ -1510,18 +1511,23 @@ router.get('/:id/chat/messages', async (req, res) => {
     // Read sessions index
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
 
-    // Find the session entry - it might be keyed by sessionKey directly OR we need to find it
+    // Find the session entry — try dashboard-chat first, fall back to main session
     let actualSessionId: string | null = null
 
-    // First try direct lookup
     if (sessionsIndex[sessionKey]?.sessionId) {
       actualSessionId = sessionsIndex[sessionKey].sessionId
+    } else if (sessionsIndex[mainSessionKey]?.sessionId) {
+      // Fall back to main session (CLI creates sessions under main key)
+      actualSessionId = sessionsIndex[mainSessionKey].sessionId
     } else {
-      // Search through all entries to find one where sessionId matches our key
-      for (const [_, entry] of Object.entries(sessionsIndex)) {
-        if (typeof entry === 'object' && entry !== null && (entry as any).sessionId === sessionKey) {
-          actualSessionId = sessionKey
-          break
+      // Search through all entries
+      for (const [key, entry] of Object.entries(sessionsIndex)) {
+        if (typeof entry === 'object' && entry !== null) {
+          const e = entry as any
+          if (e.sessionId === sessionKey || key.includes(id)) {
+            actualSessionId = e.sessionId
+            break
+          }
         }
       }
     }
