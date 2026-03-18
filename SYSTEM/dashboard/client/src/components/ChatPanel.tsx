@@ -183,11 +183,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/20" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 h-full w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 h-full w-full sm:w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Chat with Agent</h2>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200">Chat with Agent</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               <span className="font-mono">{agentName}</span>
             </p>
@@ -222,7 +222,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3">
           {loading && (
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <span className="animate-spin">↻</span> Loading chat history…
@@ -272,7 +272,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         </div>
 
         {/* Input */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
           <div className="flex gap-2">
             <input
               ref={inputRef}

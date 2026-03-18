@@ -608,7 +608,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
       {/* Group Chat Panel - Right Pane (List View Only) */}
       {chatPanelChannel && viewMode === 'list' && (
-        <div className="w-[480px] h-full flex-shrink-0 border-l border-gray-200 dark:border-gray-700">
+        <div className="w-full sm:w-[480px] h-full flex-shrink-0 border-l border-gray-200 dark:border-gray-700">
           <GroupChatPanel
             channel={chatPanelChannel}
             onClose={() => setChatPanelChannel(null)}

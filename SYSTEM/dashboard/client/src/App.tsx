@@ -355,13 +355,13 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           </span>
         )}
         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-          <span className="font-mono text-gray-400 dark:text-gray-500">{system.hostname}</span>
-          <span className="text-gray-300 dark:text-gray-600">·</span>
-          <span>{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
-          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <span className="font-mono text-gray-400 dark:text-gray-500 hidden sm:inline">{system.hostname}</span>
+          <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
+          <span className="hidden sm:inline">{system.agentCount} agent{system.agentCount !== 1 ? 's' : ''}</span>
+          <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="flex items-center gap-1">
             <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : system.onlineCount > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
-            {system.onlineCount} online
+            <span className="hidden sm:inline">{system.onlineCount} online</span>
           </span>
           {runningWorkflowsCount !== undefined && runningWorkflowsCount > 0 && (
             <>

@@ -84,6 +84,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, WORKFLOWS: false, SYSTEM: true })
   const [treeCollapsed, setTreeCollapsed] = useState(false)
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false)
   // collapsedDirs: Set of "SECTION/dir" keys for collapsed subdirectories
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
   const [agentFilter, setAgentFilter] = useState<string>('')
@@ -155,6 +156,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
   function loadFile(path: string) {
     setSelected(path)
+    setMobileTreeOpen(false) // Close mobile sidebar when selecting a file
     setLoading(true)
     setError(null)
     setEditMode(false)
@@ -322,7 +324,23 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   return (
     <div className="flex h-full overflow-hidden">
       {/* File tree sidebar */}
-      <aside className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'}`}>
+      {/* Mobile tree toggle button */}
+      <button
+        onClick={() => setMobileTreeOpen(!mobileTreeOpen)}
+        className="sm:hidden fixed bottom-4 left-4 z-40 bg-sky-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg hover:bg-sky-700 transition-colors"
+        title="Toggle file tree"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h8m-8 6h16" />
+        </svg>
+      </button>
+
+      {/* Mobile tree overlay backdrop */}
+      {mobileTreeOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 sm:hidden" onClick={() => setMobileTreeOpen(false)} />
+      )}
+
+      <aside className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}>
         {treeCollapsed ? (
           <div className="flex flex-col items-center pt-3">
             <button

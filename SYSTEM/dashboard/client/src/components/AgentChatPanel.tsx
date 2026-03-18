@@ -341,7 +341,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   if (gatewayAvailable === false) {
     return (
       <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
-        <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-[600px] absolute right-0 top-0' : 'rounded-xl w-[600px]'} p-6`}>
+        <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-full sm:w-[600px] absolute right-0 top-0' : 'rounded-xl w-full sm:w-[600px] mx-2 sm:mx-0'} p-4 sm:p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
             <div className="flex items-center gap-2">
@@ -388,13 +388,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       }}
     >
       <div
-        className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[600px]'} w-[700px] flex flex-col`}
+        className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[90vh] sm:h-[600px]'} w-full sm:w-[700px] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Agent Chat: {agentName}</h2>
             <p className="text-xs text-gray-400 mt-0.5">Real-time streaming via gateway</p>
           </div>
           <div className="flex items-center gap-2">
@@ -432,7 +432,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-12 text-gray-400 text-sm">
               <div className="text-4xl mb-3">💬</div>
@@ -494,7 +494,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         )}
 
         {/* Input */}
-        <div className="px-6 py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
           <div className="flex gap-2">
             <button
               onClick={toggleVoiceInput}

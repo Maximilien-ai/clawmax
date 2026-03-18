@@ -60,7 +60,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[480px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full sm:w-[480px] mx-2 sm:mx-0 max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-red-700">Delete Agent</h2>

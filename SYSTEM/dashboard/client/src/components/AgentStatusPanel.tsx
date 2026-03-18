@@ -105,7 +105,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
 
   if (loading) {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex items-center justify-center">
+      <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex items-center justify-center">
         <div className="text-gray-500">Loading...</div>
       </div>
     )
@@ -113,7 +113,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
 
   if (!gatewayStatus?.available) {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
+      <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Status: {agentName}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -148,7 +148,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
         <div>

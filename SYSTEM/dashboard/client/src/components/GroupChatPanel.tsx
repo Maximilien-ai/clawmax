@@ -59,9 +59,13 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const recognitionRef = useRef<any>(null)
+  const userScrolledUp = useRef(false)
+  const prevMessageCount = useRef(0)
+  const userJustSent = useRef(false)
 
   useEffect(() => {
     fetchMessages()
@@ -110,8 +114,13 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   }, [channel.name])
 
   useEffect(() => {
-    // Always scroll to bottom when messages change
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Only auto-scroll if user is near bottom or just sent a message
+    // This prevents the input field from being disrupted on mobile during polling
+    if (userJustSent.current || !userScrolledUp.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      userJustSent.current = false
+    }
+    prevMessageCount.current = messages.length
   }, [messages])
 
   async function fetchActiveWorkflows() {
@@ -249,6 +258,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     setSending(true)
     setError(null)
     setShowMentions(false)
+    userJustSent.current = true
 
     try {
       const endpoint = channel.type === 'community'
@@ -498,11 +508,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
   return (
     <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"} onClick={isOverlay ? onClose : undefined}>
-      <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
+      <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-full sm:w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div className="flex-1">
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200 truncate">
               {channel.type === 'community' ? '🏘' : '👥'} {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -550,7 +560,17 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3"
+          onScroll={() => {
+            const el = messagesContainerRef.current
+            if (el) {
+              // User is "scrolled up" if more than 100px from bottom
+              userScrolledUp.current = el.scrollHeight - el.scrollTop - el.clientHeight > 100
+            }
+          }}
+        >
           {loading && (
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <span className="animate-spin">↻</span> Loading messages…
@@ -602,7 +622,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         </div>
 
         {/* Input */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
           <div className="relative">
             {/* @Mention Dropdown */}
             {showMentions && filteredMentionAgents.length > 0 && (
