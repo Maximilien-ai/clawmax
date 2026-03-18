@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import Ajv from 'ajv'
+import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { listWorkflows, createWorkflow } from './workflows'
 
@@ -1374,7 +1375,6 @@ export function importOrganizationTemplate(
 
       // Step 6: Register all created agents in openclaw.json
       // This is critical - agents must be registered to receive messages via gateway
-      const { execSync } = require('child_process')
       for (const agentId of createdAgents) {
         try {
           const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
@@ -1386,6 +1386,22 @@ export function importOrganizationTemplate(
             stdio: 'pipe'
           })
           console.log(`Registered agent ${agentId} in openclaw.json`)
+
+          // Create auth profile for the agent so cron/gateway can access API keys
+          fs.mkdirSync(agentDirArg, { recursive: true })
+          const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
+          if (!fs.existsSync(authProfilePath)) {
+            const authProfile: Record<string, any> = { profiles: {} }
+            // Copy API keys from environment
+            if (process.env.OPENAI_API_KEY) {
+              authProfile.profiles['openai'] = { apiKey: process.env.OPENAI_API_KEY }
+            }
+            if (process.env.ANTHROPIC_API_KEY) {
+              authProfile.profiles['anthropic'] = { apiKey: process.env.ANTHROPIC_API_KEY }
+            }
+            fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
+            console.log(`Created auth profile for agent ${agentId}`)
+          }
         } catch (err) {
           console.warn(`Failed to register agent ${agentId}: ${err}`)
           // Don't fail the import if registration fails - agent files are still created
