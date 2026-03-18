@@ -35,6 +35,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
   const [showModelSection, setShowModelSection] = useState(false)
   const [applying, setApplying] = useState(false)
+  const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Agent count parameters — initialize from template defaults
@@ -86,10 +87,26 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const handleApply = async () => {
     setApplying(true)
     setError(null)
+    setApplyProgress(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
 
     try {
       // Generate template slug from name
       const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+      // Show progress steps
+      const steps = [
+        `Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`,
+        ...(template.communities?.length ? [`Setting up ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}...`] : []),
+        ...(template.groups?.length ? [`Creating ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}...`] : []),
+        ...(template.workflows?.length ? [`Configuring ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}...`] : []),
+      ]
+      let stepIdx = 0
+      const progressInterval = setInterval(() => {
+        stepIdx++
+        if (stepIdx < steps.length) {
+          setApplyProgress(steps[stepIdx])
+        }
+      }, 800)
 
       const resp = await fetch('/api/templates/organizations/import', {
         method: 'POST',
@@ -105,14 +122,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       })
 
       const data = await resp.json()
+      clearInterval(progressInterval)
 
       if (resp.ok) {
-        onSuccess()
-        onClose()
+        setApplyProgress('Done! Refreshing workspace...')
+        setTimeout(() => {
+          onSuccess()
+          onClose()
+        }, 500)
       } else {
+        setApplyProgress(null)
         setError(data.error || 'Failed to apply template')
       }
     } catch (err) {
+      setApplyProgress(null)
       setError('Network error')
     } finally {
       setApplying(false)
@@ -360,7 +383,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             disabled={applying}
             className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            {applying ? 'Applying Template...' : '⚡ Apply Template'}
+            {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
           </button>
         </div>
       </div>
