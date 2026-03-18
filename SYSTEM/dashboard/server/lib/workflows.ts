@@ -40,6 +40,9 @@ export interface Workflow {
   author: string
   owner?: string
   executionMode: 'automated' | 'managed'
+  maxRuns?: number     // 0 or undefined = unlimited, >0 = auto-disable after N runs
+  runCount?: number    // Current run count (persisted)
+  cronJobId?: string   // OpenClaw cron job ID (when synced)
   content: string
 }
 
@@ -101,6 +104,110 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
     return { valid: true, humanReadable }
   } catch (error: any) {
     return { valid: false, error: error.message }
+  }
+}
+
+// ========== OpenClaw Cron Integration ==========
+
+import { execSync } from 'child_process'
+
+function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
+  try {
+    const output = execSync(`openclaw cron ${args.join(' ')}`, {
+      encoding: 'utf-8',
+      timeout: 15000,
+      env: { ...process.env }
+    }).trim()
+    return { ok: true, output }
+  } catch (err: any) {
+    console.error(`[Cron] Failed: openclaw cron ${args.join(' ')}`, err.message)
+    return { ok: false, output: '', error: err.message }
+  }
+}
+
+/**
+ * Sync a workflow to OpenClaw cron. Creates or updates the cron job.
+ * Returns the cron job ID if successful.
+ */
+export function syncWorkflowToCron(workflow: Workflow, participants: string[]): { ok: boolean; cronJobId?: string; error?: string } {
+  if (!workflow.enabled || workflow.schedule === 'manual') {
+    // If disabled or manual, remove any existing cron job
+    if (workflow.cronJobId) {
+      removeCronJob(workflow.cronJobId)
+    }
+    return { ok: true }
+  }
+
+  if (participants.length === 0) {
+    return { ok: false, error: 'No participants resolved for workflow' }
+  }
+
+  // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
+  // For multi-agent workflows, we create one cron job per agent
+  const results: string[] = []
+
+  for (const agentId of participants) {
+    const jobName = `clawmax-${workflow.id}-${agentId}`
+
+    // Remove existing job if any
+    const existingJobs = listCronJobs()
+    const existing = existingJobs.find(j => j.name === jobName)
+    if (existing) {
+      removeCronJob(existing.id)
+    }
+
+    const args = [
+      'add',
+      '--name', jobName,
+      '--agent', agentId,
+      '--cron', `"${workflow.schedule}"`,
+      '--message', JSON.stringify(workflow.content).slice(0, 2000), // Truncate if too long
+      '--json'
+    ]
+
+    const result = runCronCmd(args)
+    if (result.ok) {
+      try {
+        const parsed = JSON.parse(result.output)
+        results.push(parsed.id || parsed.jobId || jobName)
+      } catch {
+        results.push(jobName)
+      }
+    } else {
+      console.error(`[Cron] Failed to add job for agent ${agentId}:`, result.error)
+    }
+  }
+
+  return { ok: results.length > 0, cronJobId: results.join(',') }
+}
+
+export function removeCronJob(jobId: string): void {
+  // Handle comma-separated job IDs (multi-agent workflows)
+  for (const id of jobId.split(',')) {
+    runCronCmd(['rm', id.trim()])
+  }
+}
+
+export function enableCronJob(jobId: string): void {
+  for (const id of jobId.split(',')) {
+    runCronCmd(['enable', id.trim()])
+  }
+}
+
+export function disableCronJob(jobId: string): void {
+  for (const id of jobId.split(',')) {
+    runCronCmd(['disable', id.trim()])
+  }
+}
+
+function listCronJobs(): Array<{ id: string; name: string; enabled: boolean }> {
+  const result = runCronCmd(['list', '--json', '--all'])
+  if (!result.ok) return []
+  try {
+    const data = JSON.parse(result.output)
+    return data.jobs || []
+  } catch {
+    return []
   }
 }
 
@@ -245,11 +352,13 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       author: data.author || 'unknown',
       owner: data.owner,
       executionMode: data.executionMode || 'automated',
+      maxRuns: data.maxRuns || 0,
+      runCount: 0,
       content: data.content
     }
 
     // Create file with YAML frontmatter
-    const fileContent = matter.stringify(workflow.content, {
+    const frontmatter: Record<string, any> = {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
@@ -260,8 +369,11 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       modified: workflow.modified,
       author: workflow.author,
       ...(workflow.owner && { owner: workflow.owner }),
-      executionMode: workflow.executionMode
-    })
+      executionMode: workflow.executionMode,
+      ...(workflow.maxRuns && workflow.maxRuns > 0 && { maxRuns: workflow.maxRuns }),
+      ...(workflow.runCount && workflow.runCount > 0 && { runCount: workflow.runCount }),
+    }
+    const fileContent = matter.stringify(workflow.content, frontmatter)
 
     const filePath = path.join(getWorkflowsDir(), `${id}.md`)
     fs.writeFileSync(filePath, fileContent, 'utf-8')
@@ -303,7 +415,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
     }
 
     // Create file with YAML frontmatter
-    const fileContent = matter.stringify(updated.content, {
+    const updateFrontmatter: Record<string, any> = {
       id: updated.id,
       name: updated.name,
       description: updated.description,
@@ -314,8 +426,12 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       modified: updated.modified,
       author: updated.author,
       ...(updated.owner && { owner: updated.owner }),
-      executionMode: updated.executionMode
-    })
+      executionMode: updated.executionMode,
+      ...((updated.maxRuns !== undefined && updated.maxRuns > 0) && { maxRuns: updated.maxRuns }),
+      ...((updated.runCount !== undefined && updated.runCount > 0) && { runCount: updated.runCount }),
+      ...(updated.cronJobId && { cronJobId: updated.cronJobId }),
+    }
+    const fileContent = matter.stringify(updated.content, updateFrontmatter)
 
     const filePath = path.join(getWorkflowsDir(), `${id}.md`)
     fs.writeFileSync(filePath, fileContent, 'utf-8')
@@ -460,6 +576,35 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
     const workflow = getWorkflow(workflowId)
     if (!workflow) {
       return { success: false, error: 'Workflow not found' }
+    }
+
+    // Check maxRuns limit
+    if (workflow.maxRuns && workflow.maxRuns > 0) {
+      const currentCount = workflow.runCount || 0
+      if (currentCount >= workflow.maxRuns) {
+        // Auto-disable the workflow
+        updateWorkflow(workflowId, { enabled: false })
+        if (workflow.cronJobId) {
+          disableCronJob(workflow.cronJobId)
+        }
+        return { success: false, error: `Workflow reached max runs limit (${workflow.maxRuns}). Workflow has been disabled.` }
+      }
+    }
+
+    // Increment run count
+    const newRunCount = (workflow.runCount || 0) + 1
+    updateWorkflow(workflowId, { runCount: newRunCount })
+
+    // Check if this run will hit the limit — disable after this run
+    if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {
+      console.log(`[Workflow] ${workflowId} reached maxRuns (${workflow.maxRuns}), will disable after this run`)
+      // Schedule disable after execution completes
+      setTimeout(() => {
+        updateWorkflow(workflowId, { enabled: false })
+        if (workflow.cronJobId) {
+          disableCronJob(workflow.cronJobId)
+        }
+      }, 5000)
     }
 
     // Generate execution ID

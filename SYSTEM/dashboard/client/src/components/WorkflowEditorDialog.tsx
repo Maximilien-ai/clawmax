@@ -16,6 +16,7 @@ interface WorkflowFormData {
   owner?: string
   targeting: AgentTargeting
   content: string
+  maxRuns?: number
 }
 
 interface Agent {
@@ -761,8 +762,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </p>
             </div>
 
-            {/* Enabled */}
-            <div>
+            {/* Enabled + Run Limit */}
+            <div className="space-y-3">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -772,6 +773,31 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Enable workflow immediately</span>
               </label>
+
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={(formData.maxRuns || 0) > 0}
+                    onChange={e => setFormData({ ...formData, maxRuns: e.target.checked ? 5 : 0 })}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Limit runs</span>
+                </label>
+                {(formData.maxRuns || 0) > 0 && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={formData.maxRuns || 5}
+                      onChange={e => setFormData({ ...formData, maxRuns: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">runs, then auto-disable</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

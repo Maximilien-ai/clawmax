@@ -9,7 +9,9 @@ import {
   listExecutions,
   getExecution,
   validateCron,
-  triggerWorkflow
+  triggerWorkflow,
+  syncWorkflowToCron,
+  removeCronJob
 } from '../lib/workflows'
 import { listAgents } from '../lib/workspace'
 
@@ -130,6 +132,19 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
     }
 
+    // Sync to OpenClaw cron if enabled
+    if (req.body.enabled && req.body.schedule !== 'manual' && result.id) {
+      const workflow = getWorkflow(result.id)
+      if (workflow) {
+        const agents = listAgents()
+        const participants = resolveParticipants(workflow, agents).map(p => p.agentId)
+        const cronResult = syncWorkflowToCron(workflow, participants)
+        if (cronResult.ok && cronResult.cronJobId) {
+          updateWorkflow(result.id, { cronJobId: cronResult.cronJobId })
+        }
+      }
+    }
+
     res.status(201).json({ id: result.id, message: 'Workflow created successfully' })
   } catch (error: any) {
     console.error('Error creating workflow:', error)
@@ -156,6 +171,23 @@ router.put('/:id', (req, res) => {
         return res.status(404).json({ error: result.error, workflowId: id })
       }
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
+    }
+
+    // Sync cron state after update
+    const updated = getWorkflow(id)
+    if (updated) {
+      if (updated.enabled && updated.schedule !== 'manual') {
+        const agents = listAgents()
+        const participants = resolveParticipants(updated, agents).map(p => p.agentId)
+        const cronResult = syncWorkflowToCron(updated, participants)
+        if (cronResult.ok && cronResult.cronJobId) {
+          updateWorkflow(id, { cronJobId: cronResult.cronJobId })
+        }
+      } else if (updated.cronJobId) {
+        // Workflow disabled or set to manual — remove cron jobs
+        removeCronJob(updated.cronJobId)
+        updateWorkflow(id, { cronJobId: undefined } as any)
+      }
     }
 
     res.json({ message: 'Workflow updated successfully' })
