@@ -38,14 +38,22 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-// Strip OpenClaw internal JSON blocks from message content
+// Strip OpenClaw internal data from message content
 function cleanContent(content: string): string {
   if (!content) return content
-  return content
-    .replace(/^\s*\{["\s]*type["\s]*:.*\}$/gm, '')
-    .replace(/^🦞 OpenClaw [\s\S]*?(?=\n\n|\n[A-Z#*-]|$)/gm, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  let cleaned = content.replace(/\x1b\[[0-9;]*m|\[[\d;]*m/g, '')
+  cleaned = cleaned.replace(/^\s*\{[\s\S]*?"(type|payloads|meta|runId|count|sessions|requester|entries)"[\s\S]*?\n\}\s*$/gm, '')
+  cleaned = cleaned.replace(/^\s*\{[^{}]*\}\s*$/gm, '')
+  cleaned = cleaned.replace(/^🦞 OpenClaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
+  cleaned = cleaned.replace(/^Usage:.*openclaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
+  cleaned = cleaned.replace(/^\s*\[[\d;]*m.*$/gm, '')
+  cleaned = cleaned.replace(/^Command still running.*$/gm, '')
+  cleaned = cleaned.replace(/^Process exited.*$/gm, '')
+  cleaned = cleaned.replace(/^Successfully wrote.*$/gm, '')
+  cleaned = cleaned.replace(/^store:.*auth-profiles\.json.*$/gm, '')
+  cleaned = cleaned.replace(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/gm, '')
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+  return cleaned || content
 }
 
 export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent }: Props) {
@@ -618,7 +626,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.from !== 'User' ? cleanContent(msg.content) : msg.content}</p>
             </div>
           ))}
 

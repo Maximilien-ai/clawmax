@@ -15,21 +15,43 @@ interface Props {
   onSuccess?: () => void
 }
 
-// Strip OpenClaw internal JSON blocks (thinking, toolCall, session_status, etc.) from message content
+// Strip OpenClaw internal data from message content
 function cleanMessageContent(content: string): string {
   if (!content) return content
-  return content
-    // Remove JSON objects on their own lines (thinking blocks, tool calls, etc.)
-    .replace(/^\s*\{["\s]*type["\s]*:.*\}$/gm, '')
-    // Remove OpenClaw status banners
-    .replace(/^🦞 OpenClaw [\s\S]*?(?=\n\n|\n[A-Z#*-]|$)/gm, '')
-    // Clean up excessive blank lines left after removal
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+
+  // Strip ANSI escape codes first
+  let cleaned = content.replace(/\x1b\[[0-9;]*m|\[[\d;]*m/g, '')
+
+  // Remove multi-line JSON blocks (payloads, meta, tool calls, thinking, systemPromptReport, etc.)
+  cleaned = cleaned.replace(/^\s*\{[\s\S]*?"(type|payloads|meta|runId|count|sessions|requester|entries)"[\s\S]*?\n\}\s*$/gm, '')
+
+  // Remove single-line JSON objects
+  cleaned = cleaned.replace(/^\s*\{[^{}]*\}\s*$/gm, '')
+
+  // Remove OpenClaw banners and CLI help output
+  cleaned = cleaned.replace(/^🦞 OpenClaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
+  cleaned = cleaned.replace(/^Usage:.*openclaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
+  cleaned = cleaned.replace(/^\s*\[[\d;]*m.*$/gm, '') // Remaining ANSI lines
+
+  // Remove "Command still running" and "Process exited" lines
+  cleaned = cleaned.replace(/^Command still running.*$/gm, '')
+  cleaned = cleaned.replace(/^Process exited.*$/gm, '')
+  cleaned = cleaned.replace(/^Successfully wrote.*$/gm, '')
+  cleaned = cleaned.replace(/^store:.*auth-profiles\.json.*$/gm, '')
+
+  // Remove lines that are just timestamps
+  cleaned = cleaned.replace(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/gm, '')
+
+  // Clean up excessive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
+  // If everything was stripped, return a placeholder
+  return cleaned || '(processing...)'
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -74,9 +96,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         if (serverMessages.length > messages.length) {
           setMessages(serverMessages)
         }
-      } catch {}
+        setLoadingHistory(false)
+      } catch {
+        setLoadingHistory(false)
+      }
     }
 
+    pollMessages() // Fetch immediately on mount
     const interval = setInterval(pollMessages, 3000)
     return () => clearInterval(interval)
   }, [agentId, messages.length, streaming])
@@ -471,7 +497,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
-          {messages.length === 0 && (
+          {loadingHistory && messages.length === 0 && (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              <div className="text-2xl mb-3 animate-spin">↻</div>
+              <p>Loading chat history...</p>
+            </div>
+          )}
+
+          {!loadingHistory && messages.length === 0 && (
             <div className="text-center py-12 text-gray-400 text-sm">
               <div className="text-4xl mb-3">💬</div>
               <p>Start a conversation with {agentName}</p>
