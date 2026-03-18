@@ -143,8 +143,8 @@ router.post('/:id/trigger', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    // Trigger the workflow
-    const result = triggerWorkflow(id)
+    // Trigger the workflow (manual = true bypasses maxRuns limit)
+    const result = triggerWorkflow(id, { manual: true })
 
     if (!result.success) {
       return res.status(500).json({ error: 'Failed to trigger workflow', details: result.error })

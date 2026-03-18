@@ -460,7 +460,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const resp = await fetch(`/api/workflows/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !currentEnabled })
+        body: JSON.stringify({
+          enabled: !currentEnabled,
+          // Reset run count when re-enabling so limited workflows can run again
+          ...(!currentEnabled ? { runCount: 0 } : {})
+        })
       })
 
       if (!resp.ok) throw new Error('Failed to update')

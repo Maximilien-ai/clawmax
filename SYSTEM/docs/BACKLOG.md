@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 18, 2026 (afternoon)
+> Last updated: March 18, 2026 (v1.2.0 release)
 
 ## Completed Since v1.1.0
 
@@ -36,10 +36,12 @@
 - [x] Workflow UI shows run count and human-readable schedule
 - [x] Auth profiles created for template-imported agents
 - [x] Engineer agent PRs reviewed — 2 merged, 5 closed
+- [x] Template detail popup shows workflows
+- [x] Small startup template: 7 dev lifecycle workflows + parameterized QA/PM counts
 
 ## High Priority (Bugs)
 
-- [ ] Template apply: agent GROUPS.md and COMMUNITIES.md not always created — intermittent, manual fix needed after apply
+- [ ] Template apply: agent GROUPS.md and COMMUNITIES.md not always created — intermittent, manual fix needed after apply. Verify after applying small startup template.
 - [ ] Schema path errors in logs — `tools.schema.json` and `soul.schema.json` resolved via workspace path
 - [ ] Add workflow schema validation — no `workflows.schema.json` exists yet
 - [ ] Agent config editor: validate all sections against schema before saving
@@ -47,7 +49,7 @@
 
 ## High Priority (Mobile / GTC Demos)
 
-- [ ] Agent not proactively responding in 1:1 chat — polling added but needs more testing
+- [ ] Agent proactive updates — 1:1 chat polling added (3s), group chat works natively. For demos, use group chat (Status group) where agents post automatically via cron workflows.
 - [ ] "Forward to group" feature — share 1:1 agent chat to a group chat
 - [ ] Mobile: remaining page-specific responsive audit (Agents detail view)
 
@@ -59,11 +61,10 @@
 
 ## Medium Priority (UX)
 
-- [ ] Templates page: list view with select/bulk-delete (like Workflows page) — system templates are read-only, workspace templates can be deleted/bulk-deleted
-- [ ] Parameterized templates — allow custom agent counts in Apply wizard (done for count, could add more params)
+- [ ] Templates page: list view with select/bulk-delete (like Workflows page) — system templates read-only (show "system" badge), workspace templates deletable
 - [ ] Dark mode audit — some components may have missing variants
 - [ ] Agent creation flow — agents from templates need `openclaw agents add` registration
-- [ ] Consolidate cron scheduling with OpenClaw's native cron system (currently using node-cron as interim solution — see KNOWN_ISSUES.md)
+- [ ] Consolidate cron scheduling with OpenClaw's native cron system (currently using node-cron as interim)
 
 ## Low Priority (Docs)
 

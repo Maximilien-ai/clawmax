@@ -583,7 +583,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 }
 
 // Trigger workflow manually
-export function triggerWorkflow(workflowId: string): { success: boolean; executionId?: string; error?: string } {
+export function triggerWorkflow(workflowId: string, options?: { manual?: boolean }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check if workflow exists
     const workflow = getWorkflow(workflowId)
@@ -591,15 +591,11 @@ export function triggerWorkflow(workflowId: string): { success: boolean; executi
       return { success: false, error: 'Workflow not found' }
     }
 
-    // Check maxRuns limit
-    if (workflow.maxRuns && workflow.maxRuns > 0) {
+    // Check maxRuns limit (skip for manual triggers)
+    if (!options?.manual && workflow.maxRuns && workflow.maxRuns > 0) {
       const currentCount = workflow.runCount || 0
       if (currentCount >= workflow.maxRuns) {
-        // Auto-disable the workflow
         updateWorkflow(workflowId, { enabled: false })
-        if (workflow.cronJobId) {
-          disableCronJob(workflow.cronJobId)
-        }
         return { success: false, error: `Workflow reached max runs limit (${workflow.maxRuns}). Workflow has been disabled.` }
       }
     }

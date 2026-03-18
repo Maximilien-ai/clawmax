@@ -12,6 +12,20 @@
       "default": 2,
       "min": 1,
       "max": 20
+    },
+    {
+      "agentId": "qa-engineer",
+      "label": "Number of QA Engineers",
+      "default": 1,
+      "min": 1,
+      "max": 5
+    },
+    {
+      "agentId": "product-manager",
+      "label": "Number of Product Managers",
+      "default": 1,
+      "min": 1,
+      "max": 5
     }
   ],
   "agents": [
