@@ -156,12 +156,21 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
       removeCronJob(existing.id)
     }
 
+    // Try to get agent's model from IDENTITY.md
+    let agentModel = ''
+    try {
+      const { parseIdentity } = require('./workspace')
+      const identity = parseIdentity(agentId)
+      if (identity?.model) agentModel = identity.model
+    } catch {}
+
     const args = [
       'add',
       '--name', jobName,
       '--agent', agentId,
       '--cron', `"${workflow.schedule}"`,
-      '--message', JSON.stringify(workflow.content).slice(0, 2000), // Truncate if too long
+      '--message', JSON.stringify(workflow.content).slice(0, 2000),
+      ...(agentModel ? ['--model', agentModel] : []),
       '--json'
     ]
 

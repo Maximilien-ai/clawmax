@@ -1391,13 +1391,12 @@ export function importOrganizationTemplate(
           fs.mkdirSync(agentDirArg, { recursive: true })
           const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
           if (!fs.existsSync(authProfilePath)) {
-            const authProfile: Record<string, any> = { profiles: {} }
-            // Copy API keys from environment
+            const authProfile: Record<string, any> = { version: 1, profiles: {} }
             if (process.env.OPENAI_API_KEY) {
-              authProfile.profiles['openai'] = { apiKey: process.env.OPENAI_API_KEY }
+              authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: process.env.OPENAI_API_KEY }
             }
             if (process.env.ANTHROPIC_API_KEY) {
-              authProfile.profiles['anthropic'] = { apiKey: process.env.ANTHROPIC_API_KEY }
+              authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: process.env.ANTHROPIC_API_KEY }
             }
             fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
             console.log(`Created auth profile for agent ${agentId}`)
