@@ -1060,10 +1060,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Schedule</h3>
                 <p className="text-sm text-gray-900 font-mono dark:text-gray-100">{selectedWorkflow.schedule}</p>
                 <p className="text-xs text-gray-500 mt-1">{selectedWorkflow.scheduleHuman}</p>
-                {selectedWorkflow.maxRuns && selectedWorkflow.maxRuns > 0 && (
+                {selectedWorkflow.maxRuns != null && selectedWorkflow.maxRuns > 0 ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                     Run {selectedWorkflow.runCount || 0} of {selectedWorkflow.maxRuns}
-                    {(selectedWorkflow.runCount || 0) >= selectedWorkflow.maxRuns ? ' (limit reached)' : ''}
+                    {(selectedWorkflow.runCount || 0) >= selectedWorkflow.maxRuns ? ' — limit reached, auto-disabled' : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {(selectedWorkflow.runCount || 0) > 0 ? `${selectedWorkflow.runCount} run${selectedWorkflow.runCount === 1 ? '' : 's'} completed` : 'No runs yet'} · Unlimited
                   </p>
                 )}
               </div>
