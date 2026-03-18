@@ -1663,8 +1663,10 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   const [showMenu, setShowMenu] = React.useState(false)
 
   return (
-    <div className={`border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer relative ${
-      isSelected ? 'border-blue-500 border-2 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-700'
+    <div className={`border rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer relative ${
+      isSelected ? 'border-blue-500 border-2 bg-blue-50 dark:bg-blue-900/30'
+        : isRunning ? 'border-blue-400 dark:border-blue-500 shadow-sm shadow-blue-200 dark:shadow-blue-900'
+        : 'border-gray-200 dark:border-gray-700'
     }`}>
       <div onClick={onToggleSelect || onClick}>
         <div className="flex items-start justify-between mb-2">
@@ -1681,6 +1683,11 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
               />
             )}
             <h3 className="font-semibold text-gray-900 text-sm dark:text-gray-100">{workflow.name}</h3>
+            {isRunning && (
+              <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
+                Running
+              </span>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation()
