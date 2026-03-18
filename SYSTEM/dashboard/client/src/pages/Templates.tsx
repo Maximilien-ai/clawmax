@@ -679,6 +679,28 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
             </div>
           )}
 
+          {/* Workflows (for org templates) */}
+          {isOrg && (template as any).workflows && (template as any).workflows.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+                Workflows ({(template as any).workflows.length})
+              </h3>
+              <div className="space-y-2">
+                {(template as any).workflows.map((wf: any, idx: number) => (
+                  <div key={idx} className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-amber-900 dark:text-amber-200">{wf.name}</span>
+                      <span className="text-xs font-mono text-amber-600 dark:text-amber-400">{wf.schedule === 'manual' ? 'Manual' : wf.schedule}</span>
+                    </div>
+                    {wf.description && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{wf.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Metadata (for agent templates) */}
           {!isOrg && template.metadata && (
             <div className="bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded p-3 text-xs space-y-1">
