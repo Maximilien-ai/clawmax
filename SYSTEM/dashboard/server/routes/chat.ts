@@ -78,6 +78,13 @@ router.post('/:id/chat', (req, res) => {
     return res.status(400).json({ error: 'message is required' })
   }
 
+  // Validate API keys exist before starting chat
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+    return res.status(400).json({
+      error: 'No API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in SYSTEM/dashboard/.env'
+    })
+  }
+
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
   // Set up SSE headers
@@ -175,11 +182,11 @@ router.post('/:id/chat', (req, res) => {
   const timeout = setTimeout(() => {
     clearInterval(keepalive)
     proc.kill()
-    send('error', 'Agent timeout (2 minutes)')
+    send('error', 'Agent timeout (3 minutes)')
     if (!res.writableEnded) {
       res.end()
     }
-  }, 120000)
+  }, 180000) // 3 minutes to handle cold starts
 
   // Handle client disconnect — only kill if process hasn't exited yet
   let procExited = false

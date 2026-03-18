@@ -43,6 +43,31 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const abortControllerRef = useRef<AbortController | null>(null)
   const recognitionRef = useRef<any>(null)
 
+  // Poll for new messages (agent-initiated updates)
+  useEffect(() => {
+    const pollMessages = async () => {
+      // Don't poll while actively streaming
+      if (streaming) return
+      try {
+        const r = await fetch(`/api/agents/${agentId}/chat/messages`)
+        const data = await r.json()
+        const serverMessages: Message[] = (data.messages || []).map((m: any, i: number) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp || Date.now(),
+          id: m.id || `poll-${i}`
+        }))
+        // Only update if server has more messages than local (agent posted something new)
+        if (serverMessages.length > messages.length) {
+          setMessages(serverMessages)
+        }
+      } catch {}
+    }
+
+    const interval = setInterval(pollMessages, 3000)
+    return () => clearInterval(interval)
+  }, [agentId, messages.length, streaming])
+
   useEffect(() => {
     checkGateway()
     fetchArchivesList() // Fetch archives on mount to enable/disable history button
