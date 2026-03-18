@@ -62,18 +62,22 @@ router.get('/', (req, res) => {
     const agents = listAgents()
     const workflowsWithCounts = workflows.map(workflow => {
       const participants = resolveParticipants(workflow, agents)
+      const cronInfo = validateCron(workflow.schedule)
       return {
         id: workflow.id,
         name: workflow.name,
         description: workflow.description,
         schedule: workflow.schedule,
+        scheduleHuman: cronInfo.humanReadable || workflow.schedule,
         enabled: workflow.enabled,
         executionMode: workflow.executionMode,
         owner: workflow.owner,
         created: workflow.created,
         modified: workflow.modified,
         participantCount: participants.length,
-        targeting: workflow.targeting
+        targeting: workflow.targeting,
+        maxRuns: workflow.maxRuns || 0,
+        runCount: workflow.runCount || 0,
       }
     })
 

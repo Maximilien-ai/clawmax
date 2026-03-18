@@ -901,10 +901,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     </div>
                     <p className="text-xs text-gray-500 truncate mt-0.5">{workflow.description}</p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
                     <span>{workflow.participantCount} agents</span>
                     <span>·</span>
-                    <span>{workflow.schedule || 'Manual'}</span>
+                    <span>{(workflow as any).scheduleHuman || workflow.schedule || 'Manual'}</span>
+                    {(workflow as any).maxRuns > 0 && (
+                      <>
+                        <span>·</span>
+                        <span className="text-amber-600 dark:text-amber-400">{(workflow as any).runCount || 0}/{(workflow as any).maxRuns} runs</span>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -1051,6 +1057,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Schedule</h3>
                 <p className="text-sm text-gray-900 font-mono dark:text-gray-100">{selectedWorkflow.schedule}</p>
                 <p className="text-xs text-gray-500 mt-1">{selectedWorkflow.scheduleHuman}</p>
+                {(selectedWorkflow as any).maxRuns > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Run {(selectedWorkflow as any).runCount || 0} of {(selectedWorkflow as any).maxRuns}
+                    {(selectedWorkflow as any).runCount >= (selectedWorkflow as any).maxRuns ? ' (limit reached)' : ''}
+                  </p>
+                )}
               </div>
 
               {/* Participants */}
