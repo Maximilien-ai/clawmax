@@ -61,6 +61,7 @@
 
 ## Medium Priority (UX)
 
+- [ ] Group chat: markdown rendering + code toggle (reuse cleanMessageContent and ReactMarkdown from AgentChatPanel)
 - [ ] Templates page: list view with select/bulk-delete (like Workflows page) — system templates read-only (show "system" badge), workspace templates deletable
 - [ ] Dark mode audit — some components may have missing variants
 - [ ] Agent creation flow — agents from templates need `openclaw agents add` registration
