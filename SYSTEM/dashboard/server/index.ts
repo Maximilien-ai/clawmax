@@ -15,6 +15,7 @@ import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import { startScheduler, stopScheduler } from './lib/scheduler'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
 
@@ -300,4 +301,11 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`Workspace: ${WORKSPACE}`)
   logToFile(`Server started successfully on port ${PORT}`)
   logToFile(`Workspace: ${WORKSPACE}`)
+
+  // Start workflow scheduler after server is ready
+  startScheduler()
 })
+
+// Graceful shutdown
+process.on('SIGTERM', () => { stopScheduler() })
+process.on('SIGINT', () => { stopScheduler() })

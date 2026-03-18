@@ -9,12 +9,11 @@ import {
   listExecutions,
   getExecution,
   validateCron,
-  triggerWorkflow,
-  syncWorkflowToCron,
-  removeCronJob
+  triggerWorkflow
 } from '../lib/workflows'
 import { listAgents } from '../lib/workspace'
 import { generateCronFromText } from '../lib/ai-generator'
+import { syncAllWorkflows } from '../lib/scheduler'
 
 const router = Router()
 
@@ -170,19 +169,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
     }
 
-    // Sync to OpenClaw cron if enabled
-    if (req.body.enabled && req.body.schedule !== 'manual' && result.id) {
-      const workflow = getWorkflow(result.id)
-      if (workflow) {
-        const agents = listAgents()
-        const participants = resolveParticipants(workflow, agents).map(p => p.agentId)
-        const cronResult = syncWorkflowToCron(workflow, participants)
-        if (cronResult.ok && cronResult.cronJobId) {
-          updateWorkflow(result.id, { cronJobId: cronResult.cronJobId })
-        }
-      }
-    }
-
+    syncAllWorkflows() // Update scheduler
     res.status(201).json({ id: result.id, message: 'Workflow created successfully' })
   } catch (error: any) {
     console.error('Error creating workflow:', error)
@@ -211,23 +198,7 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
     }
 
-    // Sync cron state after update
-    const updated = getWorkflow(id)
-    if (updated) {
-      if (updated.enabled && updated.schedule !== 'manual') {
-        const agents = listAgents()
-        const participants = resolveParticipants(updated, agents).map(p => p.agentId)
-        const cronResult = syncWorkflowToCron(updated, participants)
-        if (cronResult.ok && cronResult.cronJobId) {
-          updateWorkflow(id, { cronJobId: cronResult.cronJobId })
-        }
-      } else if (updated.cronJobId) {
-        // Workflow disabled or set to manual — remove cron jobs
-        removeCronJob(updated.cronJobId)
-        updateWorkflow(id, { cronJobId: undefined } as any)
-      }
-    }
-
+    syncAllWorkflows() // Update scheduler
     res.json({ message: 'Workflow updated successfully' })
   } catch (error: any) {
     console.error('Error updating workflow:', error)
@@ -256,6 +227,7 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to delete workflow', details: result.error })
     }
 
+    syncAllWorkflows() // Update scheduler
     res.json({ message: 'Workflow deleted successfully' })
   } catch (error: any) {
     console.error('Error deleting workflow:', error)
