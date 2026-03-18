@@ -21,7 +21,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sessionId] = useState<string>(`dashboard-${agentId}-${Date.now()}`)
+  const [sessionId] = useState<string>(`dashboard-${agentId}-chat`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
