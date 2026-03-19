@@ -127,8 +127,8 @@ router.delete('/groups/:name', (req, res) => {
 /** Call an agent with a message and return the response */
 async function callAgent(agentId: string, message: string, _sessionId: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Don't pass --session-id — it causes empty payloads for some agents via gateway
-    const args = ['agent', '--agent', agentId, '--message', message, '--json']
+    // Use --local to bypass gateway (avoids empty payload issues with some agents)
+    const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
     const proc = spawn('openclaw', args, { env: process.env })
 
     let stdout = ''
