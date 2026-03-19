@@ -5,7 +5,8 @@
 
 ## High Priority (Bugs)
 
-- [ ] Group chat jitter on mobile — polling-related re-renders
+- [ ] **Group chat: 2nd agent empty response** — @mentioning a role group only gets response from first agent. Second returns empty payloads from OpenClaw CLI even with --local and 3s delay. Works with @all. Root cause: OpenClaw CLI session/state interference between sequential calls. Workaround: use @all or Tab-expand to select individual agents.
+- [ ] Group chat jitter on mobile — improved (3s poll) but not eliminated
 - [ ] Group chat close button (X) too small on mobile — hard to tap
 - [ ] Group chat slider panel tight on mobile — needs better touch targets
 - [ ] Template apply: agent GROUPS.md and COMMUNITIES.md not always created — intermittent
