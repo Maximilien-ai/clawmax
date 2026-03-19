@@ -441,7 +441,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               >
                 {isSlideMode ? '◧' : '»'}
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
             </div>
           </div>
           <div className="text-center py-8">

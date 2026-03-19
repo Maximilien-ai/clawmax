@@ -605,11 +605,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               {channel.tags?.includes('bulk-chat') && <span className="ml-2 text-blue-500">• Auto-mentions all members</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={fetchArchives}
               disabled={archives.length === 0}
-              className={`text-xs px-2 py-1 rounded transition-colors ${
+              className={`text-xs px-2 py-1.5 rounded transition-colors hidden sm:inline-flex ${
                 archives.length === 0
                   ? 'text-gray-300 cursor-not-allowed'
                   : 'text-gray-600 hover:bg-gray-100'
@@ -620,7 +620,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+              className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
               title="Clear chat (archives first)"
               disabled={messages.length === 0}
             >
@@ -629,7 +629,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             {mode === 'pane' && onExpand && (
               <button
                 onClick={onExpand}
-                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
                 title="Expand to full view"
               >
                 ⤢ Expand
@@ -637,7 +637,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             )}
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none p-2 -mr-1 min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
               ×
             </button>
