@@ -388,20 +388,50 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     setShowMentions(false)
   }
 
-  // Build mention list: @all first, then matching agents
+  // Build mention list: @all first, then grouped by role, then individuals
   const filteredMentionAgents = showMentions
     ? (() => {
-        const agents = channel.members.filter(agent =>
+        const matchingAgents = channel.members.filter(agent =>
           agent.name.toLowerCase().includes(mentionQuery.toLowerCase()) ||
           agent.id.toLowerCase().includes(mentionQuery.toLowerCase())
         )
 
-        const mentions: Array<{ id: string; name: string; status: string; isAll?: boolean }> = []
+        const mentions: Array<{ id: string; name: string; status: string; isAll?: boolean; isGroup?: boolean; count?: number; agentIds?: string[] }> = []
+
+        // @all option
         if ('all'.includes(mentionQuery.toLowerCase())) {
           mentions.push({ id: 'all', name: 'all', status: 'online', isAll: true })
         }
 
-        return [...mentions, ...agents]
+        // Group agents by base name (strip trailing numbers: engineer1,engineer2 → Engineer)
+        const roleGroups = new Map<string, typeof matchingAgents>()
+        for (const agent of matchingAgents) {
+          // Extract base name: "Engineer 1" → "Engineer", "engineer1" → "engineer"
+          const baseName = (agent.name || agent.id).replace(/\s*\d+$/, '').trim()
+          const key = baseName.toLowerCase()
+          if (!roleGroups.has(key)) roleGroups.set(key, [])
+          roleGroups.get(key)!.push(agent)
+        }
+
+        // Add grouped entries (only group if 2+ agents share a role)
+        for (const [, group] of roleGroups) {
+          if (group.length > 1) {
+            const baseName = (group[0].name || group[0].id).replace(/\s*\d+$/, '').trim()
+            mentions.push({
+              id: `group-${baseName.toLowerCase()}`,
+              name: baseName,
+              status: 'online',
+              isGroup: true,
+              count: group.length,
+              agentIds: group.map(a => a.id)
+            })
+          } else {
+            // Single agent — show directly
+            mentions.push(group[0])
+          }
+        }
+
+        return mentions
       })()
     : []
 
@@ -690,36 +720,42 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             {/* @Mention Dropdown */}
             {showMentions && filteredMentionAgents.length > 0 && (
               <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10 dark:border-gray-700">
-                {filteredMentionAgents.map((agent, index) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => insertMention(agent.name)}
-                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                      index === selectedMentionIndex
-                        ? 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100'
-                        : 'hover:bg-sky-50 text-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                    } ${
-                      'isAll' in agent && agent.isAll
-                        ? 'font-semibold border-b border-gray-100 dark:border-gray-700'
-                        : ''
-                    }`}
-                  >
-                    {!('isAll' in agent && agent.isAll) && (
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
-                    )}
-                    <span className="font-medium">
-                      {'isAll' in agent && agent.isAll ? '👥 @all' : agent.name}
-                    </span>
-                    {!('isAll' in agent && agent.isAll) && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">({agent.id})</span>
-                    )}
-                    {('isAll' in agent && agent.isAll) && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-                        {channel.members.length} agent{channel.members.length !== 1 ? 's' : ''}
+                {filteredMentionAgents.map((agent, index) => {
+                  const isAll = 'isAll' in agent && agent.isAll
+                  const isGroup = 'isGroup' in agent && (agent as any).isGroup
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => insertMention(agent.name)}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                        index === selectedMentionIndex
+                          ? 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100'
+                          : 'hover:bg-sky-50 text-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                      } ${isAll ? 'font-semibold border-b border-gray-100 dark:border-gray-700' : ''}`}
+                    >
+                      {!isAll && !isGroup && (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                      )}
+                      {isGroup && <span className="text-sm">👥</span>}
+                      <span className="font-medium">
+                        {isAll ? '👥 @all' : `@${agent.name}`}
                       </span>
-                    )}
-                  </button>
-                ))}
+                      {isGroup && (
+                        <span className="text-xs text-sky-600 dark:text-sky-400 ml-auto">
+                          {(agent as any).count} agent{(agent as any).count !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {!isAll && !isGroup && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">({agent.id})</span>
+                      )}
+                      {isAll && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                          {channel.members.length} agent{channel.members.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
 
