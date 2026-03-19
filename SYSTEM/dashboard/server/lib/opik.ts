@@ -49,18 +49,18 @@ function uuidv7(): string {
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
 }
 
-/** Send traces to Opik REST API */
-function sendTraces(traces: any[]): void {
-  if (!enabled || traces.length === 0) return
+/** Send a single trace to Opik REST API */
+function sendTrace(traceData: any): void {
+  if (!enabled) return
 
   const body = JSON.stringify({
     project_name: projectName,
-    traces,
+    ...traceData,
   })
 
   const req = https.request({
     hostname: 'www.comet.com',
-    path: '/opik/api/v1/private/traces/batch',
+    path: '/opik/api/v1/private/traces',
     method: 'POST',
     headers: {
       'Authorization': apiKey,
@@ -76,6 +76,8 @@ function sendTraces(traces: any[]): void {
         console.error(`[Opik] Trace failed (${res.statusCode}):`, data.slice(0, 200))
       })
     }
+    // Drain response
+    res.on('data', () => {})
   })
 
   req.on('error', (err) => {
@@ -135,7 +137,7 @@ export function traceAgentChat(
     meta.outputTokens || 0
   )
 
-  sendTraces([{
+  sendTrace({
     id: uuidv7(),
     name: `agent.chat.${agentId}`,
     start_time: startTime,
@@ -154,7 +156,7 @@ export function traceAgentChat(
       estimated_cost_usd: Math.round(cost * 10000) / 10000,
       session_id: meta.sessionId || '',
     },
-  }])
+  })
 }
 
 /**
@@ -185,7 +187,7 @@ export function traceWorkflowExecution(
   const totalInput = participants.reduce((s, p) => s + (p.inputTokens || 0), 0)
   const totalOutput = participants.reduce((s, p) => s + (p.outputTokens || 0), 0)
 
-  sendTraces([{
+  sendTrace({
     id: uuidv7(),
     name: `workflow.${workflowId}`,
     start_time: startTime,
@@ -206,7 +208,7 @@ export function traceWorkflowExecution(
       tokens_total: totalInput + totalOutput,
       duration_ms: meta.totalDurationMs,
     },
-  }])
+  })
 }
 
 export async function shutdownOpik(): Promise<void> {
