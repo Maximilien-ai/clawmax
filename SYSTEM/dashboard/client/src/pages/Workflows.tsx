@@ -912,7 +912,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     <p className="text-xs text-gray-500 truncate mt-0.5">{workflow.description}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
-                    <span>{workflow.participantCount} agents</span>
+                    <span>{workflow.participantCount} agent{workflow.participantCount !== 1 ? 's' : ''}</span>
                     <span>·</span>
                     <span>{workflow.scheduleHuman || workflow.schedule || 'Manual'}</span>
                     {workflow.maxRuns && workflow.maxRuns > 0 ? (
@@ -1227,7 +1227,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                               </span>
                             </div>
                             <div className="text-xs text-gray-600 mb-1">
-                              {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
+                              {exec.participantCount} agent{exec.participantCount !== 1 ? 's' : ''} · {exec.successCount} succeeded · {exec.failureCount} failed
                             </div>
                             <div className="text-xs text-gray-500">
                               {new Date(exec.startedAt).toLocaleString()}
@@ -1544,7 +1544,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         </span>
                       </div>
                       <div className="text-xs text-gray-600 mb-1">
-                        {exec.participantCount} agents · {exec.successCount} succeeded · {exec.failureCount} failed
+                        {exec.participantCount} agent{exec.participantCount !== 1 ? 's' : ''} · {exec.successCount} succeeded · {exec.failureCount} failed
                       </div>
                       <div className="text-xs text-gray-500">
                         {new Date(exec.startedAt).toLocaleString()}
@@ -1720,7 +1720,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 mb-3">
           <span>{workflow.scheduleHuman || workflow.schedule}</span>
           <span>·</span>
-          <span>{workflow.participantCount} agents</span>
+          <span>{workflow.participantCount} agent{workflow.participantCount !== 1 ? 's' : ''}</span>
           {workflow.maxRuns && workflow.maxRuns > 0 ? (
             <>
               <span>·</span>
