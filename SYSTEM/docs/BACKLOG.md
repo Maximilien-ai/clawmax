@@ -16,7 +16,9 @@
 ## High Priority (GTC Demo Feedback) — Must for Next Demo
 
 - [ ] **@mention grouping** — show "@Engineer (2)" not separate @engineer1, @engineer2. Both respond individually. Scales to 10+ agents.
-- [ ] **Token metering via Opik** — track token count, LLM calls, estimated costs per agent and per workflow. Aggregate for workspace. Add limits. Integrate like weave-cli. MUST for next demo.
+- [x] **Token metering via Opik** — traces flowing to Opik, metering dashboard on Activity page with per-agent breakdown
+- [ ] **Agent token limits + warnings** — set per-agent token/cost limits, yellow warning when approaching (80%), red when exceeded, auto-pause agent. Metering icon tooltip on agent cards.
+- [ ] **Metering on agent cards** — small token/cost indicator icon on each agent card with tooltip showing usage stats
 - [ ] **Unread message indicator** — red dot with count on agent/group cards (like WhatsApp/iMessage). Clear when viewed.
 - [ ] **Template skills audit** — role-appropriate skills per agent (engineers: github, coding-agent; QA: github; PM: gh-issues; CEO: web_search, memory)
 
