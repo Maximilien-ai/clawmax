@@ -6,6 +6,7 @@ import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
+import { traceAgentChat, traceWorkflowExecution } from './opik'
 import { validateWorkflow } from './validator'
 
 // Use dynamic workspace path to support multi-workspace
@@ -719,6 +720,18 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
       execution.completedAt = new Date().toISOString()
       execution.logs.push(`Workflow completed at ${execution.completedAt}`)
       fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+      // Trace to Opik
+      const execDuration = new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()
+      traceWorkflowExecution(workflowId, workflow.name, execution.participants.map(p => ({
+        agentId: p.agentId,
+        status: p.status,
+        durationMs: p.completedAt && p.startedAt ? new Date(p.completedAt).getTime() - new Date(p.startedAt).getTime() : undefined,
+      })), {
+        triggerType: options?.manual ? 'manual' : 'scheduled',
+        totalDurationMs: execDuration,
+        status: execution.status,
+      })
     }
 
     // Fire and forget

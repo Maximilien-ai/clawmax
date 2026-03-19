@@ -73,6 +73,7 @@ export default function App() {
   })
   const [draggedNavIndex, setDraggedNavIndex] = useState<number | null>(null)
   const [runningWorkflowsCount, setRunningWorkflowsCount] = useState(0)
+  const [totalUnread, setTotalUnread] = useState(0)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     // Check localStorage first
     const saved = localStorage.getItem('dark-mode')
@@ -130,6 +131,25 @@ export default function App() {
 
     checkRunningWorkflows()
     const interval = setInterval(checkRunningWorkflows, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Poll for unread message counts
+  useEffect(() => {
+    const checkUnread = () => {
+      fetch('/api/message-counts').then(r => r.json()).then(d => {
+        const counts = d.counts || {}
+        const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
+        let total = 0
+        for (const [key, count] of Object.entries(counts)) {
+          const seen = lastSeen[key] || 0
+          if ((count as number) > seen) total += (count as number) - seen
+        }
+        setTotalUnread(total)
+      }).catch(() => {})
+    }
+    checkUnread()
+    const interval = setInterval(checkUnread, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -203,6 +223,7 @@ export default function App() {
                     label={item.label}
                     icon={item.icon}
                     active={page === item.id}
+                    badge={item.id === 'communication' && totalUnread > 0 ? totalUnread : undefined}
                     onClick={() => {
                       setPage(item.id)
                       setMobileNavOpen(false)
@@ -404,10 +425,11 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   )
 }
 
-function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
+function NavItemDraggable({ label, icon, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
   label: string
   icon: string
   active: boolean
+  badge?: number
   onClick: () => void
   collapsed: boolean
   onDragStart: () => void
@@ -442,8 +464,24 @@ function NavItemDraggable({ label, icon, active, onClick, collapsed, onDragStart
           : 'text-gray-300 hover:bg-gray-800 hover:text-white'
       }`}
     >
-      <span>{icons[icon]}</span>
-      {!collapsed && <span>{label}</span>}
+      <span className="relative">
+        {icons[icon]}
+        {badge != null && badge > 0 && collapsed && (
+          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5">
+            {badge > 99 ? '!' : badge}
+          </span>
+        )}
+      </span>
+      {!collapsed && (
+        <span className="flex-1 flex items-center justify-between">
+          {label}
+          {badge != null && badge > 0 && (
+            <span className="min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
+        </span>
+      )}
     </button>
   )
 }
