@@ -494,8 +494,10 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         e.preventDefault()
         const selected = filteredMentionAgents[selectedMentionIndex]
         if (selected && 'isGroup' in selected && (selected as any).isGroup) {
-          // Selecting a group inserts the role name (matches all agents with that role)
           insertMention(selected.name)
+        } else if (selected && (selected as any).isExpanded) {
+          // Individual from expanded group — use ID for exact match
+          insertMention(selected.id)
         } else {
           insertMention(filteredMentionAgents[selectedMentionIndex].name)
         }
@@ -765,7 +767,8 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                           setExpandedMentionGroup(agent.id)
                           setSelectedMentionIndex(0)
                         } else {
-                          insertMention(agent.name)
+                          // Use agent ID for exact matching (avoids partial name matches)
+                          insertMention((agent as any).isExpanded ? agent.id : agent.name)
                           setExpandedMentionGroup(null)
                         }
                       }}
