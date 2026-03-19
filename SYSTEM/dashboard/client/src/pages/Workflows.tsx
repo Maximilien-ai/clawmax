@@ -91,6 +91,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
   const [loading, setLoading] = useState(true)
+  const [agentCosts, setAgentCosts] = useState<Record<string, number>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [showDetailPanel, setShowDetailPanel] = useState(false)
@@ -129,6 +130,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   useEffect(() => {
     fetchWorkflows()
+    // Fetch metering costs per agent
+    fetch('/api/metering').then(r => r.json()).then(d => {
+      const costs: Record<string, number> = {}
+      for (const a of d.byAgent || []) costs[a.agentId] = a.estimatedCostUsd
+      setAgentCosts(costs)
+    }).catch(() => {})
   }, [])
 
   // Use refs to access latest values without re-creating interval
@@ -1688,16 +1695,6 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
                 Running
               </span>
             )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenFile()
-              }}
-              className="text-gray-400 hover:text-sky-600 transition-colors text-base"
-              title="Open file in Documents"
-            >
-              📄
-            </button>
           </div>
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${
@@ -1727,6 +1724,12 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
               <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
             </>
           ) : null}
+          {(workflow as any).totalCost > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-emerald-600 dark:text-emerald-400">${(workflow as any).totalCost.toFixed(3)}</span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1741,7 +1744,16 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
             <span className="text-xs text-gray-500">→ {workflow.owner}</span>
           )}
         </div>
-      </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenFile() }}
+            className="text-gray-300 hover:text-sky-600 transition-colors text-xs"
+            title="Open file"
+          >
+            📄
+          </button>
+        </div>
+        </div>
 
       {/* Actions Menu Dropdown - only show when not in selection mode */}
       {showMenu && !onToggleSelect && (
