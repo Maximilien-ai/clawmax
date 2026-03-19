@@ -2582,51 +2582,36 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           className="absolute top-2 left-2 w-4 h-4 cursor-pointer z-10"
         />
       )}
-      <div className="flex items-center gap-1.5 mb-2">
+      {/* Line 1: Name */}
+      <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
-        <span className="font-semibold text-gray-900 text-sm truncate dark:text-gray-100">{agent.name}</span>
-        {agent.tags.includes('built-in') && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700 shrink-0" title="Built-in system agent">
-            🤖
-          </span>
-        )}
-        {agent.archived && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 shrink-0">
-            📦
-          </span>
-        )}
-        {metering && metering.calls > 0 && (
-          <span
-            className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
-            title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
-          >
-            💲{metering.cost.toFixed(3)}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-0.5">
-          {onViewDocs && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
-              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
-              aria-label="View documents"
-              title="View agent documents"
+        <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
+        {agent.tags.includes('built-in') && <span className="shrink-0" title="Built-in system agent">🤖</span>}
+        {agent.archived && <span className="shrink-0">📦</span>}
+      </div>
+      {/* Line 2: ID + chat + cost */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {metering && metering.calls > 0 && (
+            <span
+              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
             >
-              📄
-            </button>
+              💲{metering.cost.toFixed(3)}
+            </span>
           )}
           {!agent.archived && (
             <button
               onClick={(e) => { e.stopPropagation(); onChat(); }}
               className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
-              aria-label="Chat with agent"
-              title="Chat with agent"
+              title="Chat"
             >
               💬
             </button>
           )}
         </div>
       </div>
-      <div className="text-xs font-mono text-gray-400 truncate mb-1">{agent.id}</div>
       <div className="flex items-center gap-2">
         <div className="text-xs text-gray-400">{timeAgo(agent.lastHeartbeat)}</div>
         {agent.whatsapp && (
@@ -2661,7 +2646,17 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
             {formatTokens(usage.totalTokens)} 🪙
           </div>
         )}
-        <div className="relative shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          {onViewDocs && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
+              aria-label="View documents"
+              title="View agent documents"
+            >
+              📄
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
             className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
