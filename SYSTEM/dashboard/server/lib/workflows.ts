@@ -678,31 +678,50 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
               }
               try {
                 const result = JSON.parse(stdout)
-                resolve(result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || '')
+                const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                // Extract meta for tracing
+                const meta = result?.result?.meta || result?.meta || {}
+                const agentMeta = meta.agentMeta || {}
+                resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
               } catch {
-                resolve(stdout.trim())
+                resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
               }
             })
           })
 
+          const agentResult = agentResponse as any
+          const agentText = agentResult.text || ''
+          const agentMeta = agentResult.meta || {}
+
           participant.status = 'completed' as any
-          ;(participant as any).response = agentResponse
-          execution.logs.push(`Agent ${participant.agentId} completed: ${agentResponse.slice(0, 100)}`)
+          ;(participant as any).response = agentText
+          participant.completedAt = new Date().toISOString()
+          execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
+
+          // Trace individual agent call to Opik
+          traceAgentChat(participant.agentId, workflow.content || '', agentText, {
+            model: agentMeta.model,
+            provider: agentMeta.provider,
+            inputTokens: agentMeta.usage?.input,
+            outputTokens: agentMeta.usage?.output,
+            cacheReadTokens: agentMeta.usage?.cacheRead,
+            durationMs: agentResult.durationMs,
+          })
 
           // Post response to targeted groups/communities
-          if (agentResponse && agentResponse.trim()) {
+          if (agentText && agentText.trim()) {
             const targeting = workflow.targeting || {}
             for (const group of (targeting.groups || [])) {
               addMessage('group', group, {
                 from: participant.agentId,
-                content: agentResponse,
+                content: agentText,
                 mentions: []
               })
             }
             for (const community of (targeting.communities || [])) {
               addMessage('community', community, {
                 from: participant.agentId,
-                content: agentResponse,
+                content: agentText,
                 mentions: []
               })
             }
