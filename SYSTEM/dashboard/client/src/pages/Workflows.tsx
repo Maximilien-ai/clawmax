@@ -1751,16 +1751,13 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
           {workflow.owner && (
             <span className="text-xs text-gray-500">→ {workflow.owner}</span>
           )}
-        </div>
-        <div className="flex items-center gap-1 ml-auto">
           <button
             onClick={(e) => { e.stopPropagation(); onOpenFile() }}
-            className="text-gray-300 hover:text-sky-600 transition-colors text-xs"
+            className="ml-auto text-gray-300 hover:text-sky-600 transition-colors text-xs shrink-0"
             title="Open file"
           >
             📄
           </button>
-        </div>
         </div>
 
       {/* Actions Menu Dropdown - only show when not in selection mode */}
