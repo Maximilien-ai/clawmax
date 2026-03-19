@@ -928,6 +928,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
                       </>
                     ) : null}
+                    {Object.keys(agentCosts).length > 0 && (
+                      <>
+                        <span>·</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">${Object.values(agentCosts).reduce((s, c) => s + c, 0).toFixed(3)}</span>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
