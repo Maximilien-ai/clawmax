@@ -449,7 +449,7 @@ router.post('/communities/:name/messages', async (req, res) => {
     ;(async () => {
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
-        if (i > 0) await new Promise(r => setTimeout(r, 1000))
+        if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
           const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
@@ -510,7 +510,7 @@ router.post('/groups/:name/messages', async (req, res) => {
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
         // Small delay between agents to avoid gateway race
-        if (i > 0) await new Promise(r => setTimeout(r, 1000))
+        if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
           const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
