@@ -1277,6 +1277,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         isSelected={selectedAgentIds.has(agent.id)}
                         onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                         usage={agentUsage[agent.id]}
+                        metering={agentMetering[agent.id]}
                       />
                     ))}
                   </div>
@@ -1321,6 +1322,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               isSelected={selectedAgentIds.has(agent.id)}
                               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                               usage={agentUsage[agent.id]}
+                        metering={agentMetering[agent.id]}
                             />
                           ))}
                         </div>
@@ -1409,6 +1411,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               isSelected={selectedAgentIds.has(agent.id)}
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
               usage={agentUsage[agent.id]}
+                        metering={agentMetering[agent.id]}
             />
                       ))}
                     </div>
@@ -1446,6 +1449,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           isSelected={selectedAgentIds.has(agent.id)}
                           onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                           usage={agentUsage[agent.id]}
+                        metering={agentMetering[agent.id]}
                         />
                       ))}
                     </div>
@@ -2230,7 +2234,7 @@ const AgentCard = React.memo(function AgentCard({
             {showActionsMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
-                <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700">
+                <div className="absolute right-0 bottom-full mb-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto">
                   {onEdit && (
                     <button
                       onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
@@ -2551,7 +2555,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number } }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage, metering }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number } }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const totalGroups = agent.communities.length + agent.groups.length
 
@@ -2589,6 +2593,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         {agent.archived && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 shrink-0">
             📦
+          </span>
+        )}
+        {metering && metering.calls > 0 && (
+          <span
+            className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+            title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
+          >
+            💲{metering.cost.toFixed(3)}
           </span>
         )}
         <div className="ml-auto flex items-center gap-0.5">
