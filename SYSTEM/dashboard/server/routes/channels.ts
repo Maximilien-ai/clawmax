@@ -26,6 +26,38 @@ router.get('/communities', (req, res) => {
 })
 
 // List all groups
+// Get message counts for all groups and communities (for unread indicators)
+router.get('/message-counts', (req, res) => {
+  try {
+    const counts: Record<string, number> = {}
+
+    // Count group messages
+    const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+    if (fs.existsSync(groupsPath)) {
+      const { groups } = parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8'))
+      for (const group of groups) {
+        const messages = getMessages('group', group.name)
+        counts[`group:${group.name}`] = messages.length
+      }
+    }
+
+    // Count community messages
+    const commPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    if (fs.existsSync(commPath)) {
+      const content = fs.readFileSync(commPath, 'utf-8')
+      const communityNames = Array.from(content.matchAll(/^###\s+(.+)$/gm)).map(m => m[1].trim())
+      for (const name of communityNames) {
+        const messages = getMessages('community', name)
+        counts[`community:${name}`] = messages.length
+      }
+    }
+
+    res.json({ counts })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/groups', (req, res) => {
   try {
     const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')

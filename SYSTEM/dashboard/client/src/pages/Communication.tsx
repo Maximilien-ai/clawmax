@@ -85,6 +85,27 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [memberManageTarget, setMemberManageTarget] = useState<Channel | null>(null)
   const [chatPanelChannel, setChatPanelChannel] = useState<Channel | null>(null)
   const [highlightedChannel, setHighlightedChannel] = useState<string | null>(null)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+
+  const markChannelSeen = useCallback((channel: Channel) => {
+    const key = `${channel.type}:${channel.name}`
+    // Save current count as "last seen"
+    fetch(`/api/${channel.type === 'community' ? 'communities' : 'groups'}/${encodeURIComponent(channel.name)}/messages`)
+      .then(r => r.json())
+      .then(d => {
+        const count = (d.messages || []).length
+        const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
+        lastSeen[key] = count
+        localStorage.setItem('clawmax-last-seen-counts', JSON.stringify(lastSeen))
+        setUnreadCounts(prev => { const next = { ...prev }; delete next[key]; return next })
+      })
+      .catch(() => {})
+  }, [])
+
+  const openChat = useCallback((channel: Channel) => {
+    setChatPanelChannel(channel)
+    markChannelSeen(channel)
+  }, [markChannelSeen])
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
@@ -96,7 +117,26 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   useEffect(() => {
     fetchAgents()
     const t = setInterval(fetchAgents, 30000)
-    return () => clearInterval(t)
+
+    // Poll message counts for unread indicators
+    const checkUnread = () => {
+      fetch('/api/message-counts').then(r => r.json()).then(d => {
+        const counts = d.counts || {}
+        const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
+        const unread: Record<string, number> = {}
+        for (const [key, count] of Object.entries(counts)) {
+          const seen = lastSeen[key] || 0
+          if ((count as number) > seen) {
+            unread[key] = (count as number) - seen
+          }
+        }
+        setUnreadCounts(unread)
+      }).catch(() => {})
+    }
+    checkUnread()
+    const unreadInterval = setInterval(checkUnread, 5000)
+
+    return () => { clearInterval(t); clearInterval(unreadInterval) }
   }, [fetchAgents])
 
   useEffect(() => {
@@ -526,7 +566,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onNavigateToWorkflow={onNavigateToWorkflow}
-                    onOpenChat={() => setChatPanelChannel(channel)}
+                    onOpenChat={() => openChat(channel)}
                     isHighlighted={highlightedChannel === channel.name}
                     communityWorkflows={communityWorkflows}
                     groupWorkflows={groupWorkflows}
@@ -554,7 +594,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onNavigateToWorkflow={onNavigateToWorkflow}
-                    onOpenChat={() => setChatPanelChannel(channel)}
+                    onOpenChat={() => openChat(channel)}
                     isHighlighted={highlightedChannel === channel.name}
                     communityWorkflows={communityWorkflows}
                     groupWorkflows={groupWorkflows}
@@ -582,7 +622,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {communities.map(channel => (
-                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} onDelete={() => handleDeleteChannel(channel)} />
+                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`community:${channel.name}`] || 0} />
                 ))}
               </div>
             </div>
@@ -597,7 +637,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               </h2>
               <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {groups.map(channel => (
-                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => setChatPanelChannel(channel)} onDelete={() => handleDeleteChannel(channel)} />
+                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`group:${channel.name}`] || 0} />
                 ))}
               </div>
             </div>
@@ -1611,7 +1651,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, onDelete }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community'
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
@@ -1631,6 +1671,11 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
       <div className="flex items-center gap-1.5 mb-2">
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
         <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
+        {unreadCount > 0 && (
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
