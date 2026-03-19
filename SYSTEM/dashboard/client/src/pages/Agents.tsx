@@ -2646,7 +2646,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
             {formatTokens(usage.totalTokens)} 🪙
           </div>
         )}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex flex-col items-center shrink-0">
           {onViewDocs && (
             <button
               onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
