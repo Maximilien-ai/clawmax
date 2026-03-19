@@ -40,31 +40,38 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-// Strip OpenClaw internal data from message content (line-by-line)
+// Strip OpenClaw internal data from message content (brace-depth tracking)
 function cleanContent(content: string): string {
   if (!content) return content
   const lines = content.split('\n')
   const cleanedLines: string[] = []
-  let skipBlock = false
+  let braceDepth = 0
+  let bracketDepth = 0
 
   for (const line of lines) {
     const trimmed = line.trim()
 
-    if (skipBlock) {
-      if (trimmed === '' || trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"') ||
-          trimmed.match(/^\[[\d;]*m/) || trimmed.startsWith('(Command') || trimmed.startsWith('Available') ||
-          trimmed.startsWith('Usage:') || trimmed.startsWith('Options:') || trimmed.startsWith('Commands:') ||
-          trimmed.startsWith('Examples:') || trimmed.startsWith('Docs:') || trimmed.startsWith('store:') ||
-          trimmed.match(/^\s+--/) || trimmed.match(/^\s+\[/)) {
-        continue
+    // Inside a JSON block — track depth and skip
+    if (braceDepth > 0 || bracketDepth > 0) {
+      for (const ch of trimmed) {
+        if (ch === '{') braceDepth++
+        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
+        else if (ch === '[') bracketDepth++
+        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
       }
-      skipBlock = false
+      continue
     }
 
-    if (trimmed.startsWith('{') || trimmed.startsWith('[{')) { skipBlock = true; continue }
+    // Detect start of JSON block
+    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
+      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
+      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
+      if (braceDepth > 0 || bracketDepth > 0) continue
+      continue
+    }
+
     if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
-    if (trimmed.startsWith('🦞 OpenClaw')) { skipBlock = true; continue }
-    if (trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) { skipBlock = true; continue }
+    if (trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
     if (trimmed.match(/\{"type"\s*:\s*"/)) continue
     if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
     if (trimmed.match(/^[}\]],?\s*$/)) continue

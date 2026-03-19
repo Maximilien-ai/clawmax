@@ -24,34 +24,38 @@ function cleanMessageContent(content: string): string {
   // Process line by line — keep only human-readable content
   const lines = content.split('\n')
   const cleanedLines: string[] = []
-  let skipBlock = false
+  let braceDepth = 0 // Track JSON nesting depth
+  let bracketDepth = 0
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const trimmed = line.trim()
 
-    // Skip empty lines in skip mode
-    if (skipBlock) {
-      // End skip block on a line that starts with markdown or readable text
-      if (trimmed === '' || trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"') ||
-          trimmed.match(/^\[[\d;]*m/) || trimmed.startsWith('(Command') || trimmed.startsWith('Available') ||
-          trimmed.startsWith('Usage:') || trimmed.startsWith('Options:') || trimmed.startsWith('Commands:') ||
-          trimmed.startsWith('Examples:') || trimmed.startsWith('Docs:') || trimmed.startsWith('store:') ||
-          trimmed.match(/^\s+--/) || trimmed.match(/^\s+\[/)) {
-        continue
+    // Track JSON brace/bracket depth
+    if (braceDepth > 0 || bracketDepth > 0) {
+      for (const ch of trimmed) {
+        if (ch === '{') braceDepth++
+        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
+        else if (ch === '[') bracketDepth++
+        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
       }
-      skipBlock = false
+      continue // Skip everything inside JSON blocks
     }
 
-    // Skip lines that are JSON
-    if (trimmed.startsWith('{') || trimmed.startsWith('[{')) { skipBlock = true; continue }
+    // Detect start of JSON block
+    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
+      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
+      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
+      if (braceDepth > 0 || bracketDepth > 0) continue
+      // Single-line JSON (opened and closed on same line)
+      continue
+    }
 
     // Skip lines with ANSI escape codes
     if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
 
     // Skip OpenClaw internal lines
-    if (trimmed.startsWith('🦞 OpenClaw')) { skipBlock = true; continue }
-    if (trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/) ) { skipBlock = true; continue }
+    if (trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
 
     // Skip inline tool calls
     if (trimmed.match(/\{"type"\s*:\s*"/)) continue
@@ -59,7 +63,7 @@ function cleanMessageContent(content: string): string {
     // Skip bare timestamps
     if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
 
-    // Skip lines that are just whitespace + closing braces
+    // Skip lines that are just closing braces
     if (trimmed.match(/^[}\]],?\s*$/)) continue
 
     cleanedLines.push(line)
