@@ -124,3 +124,10 @@ export function validateSoul(content: string): ValidationResult {
 export function validateMandate(content: string): ValidationResult {
   return validate('mandate', { content })
 }
+
+/**
+ * Validate workflow data against workflows.schema.json
+ */
+export function validateWorkflow(workflow: any): ValidationResult {
+  return validate('workflows', workflow)
+}

@@ -170,7 +170,7 @@ router.post('/', (req, res) => {
     const result = createWorkflow(req.body)
 
     if (!result.success) {
-      return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
+      return res.status(400).json({ error: 'Invalid workflow data', details: result.error, validationErrors: result.errors })
     }
 
     syncAllWorkflows() // Update scheduler
@@ -199,7 +199,7 @@ router.put('/:id', (req, res) => {
       if (result.error === 'Workflow not found') {
         return res.status(404).json({ error: result.error, workflowId: id })
       }
-      return res.status(400).json({ error: 'Invalid workflow data', details: result.error })
+      return res.status(400).json({ error: 'Invalid workflow data', details: result.error, validationErrors: result.errors })
     }
 
     syncAllWorkflows() // Update scheduler
