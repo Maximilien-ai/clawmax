@@ -149,7 +149,15 @@ async function callAgent(agentId: string, message: string, sessionId: string): P
 
       try {
         const result = JSON.parse(stdout)
-        const responseText = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+        const payloads = result?.payloads || result?.result?.payloads || []
+        // Collect text from ALL payloads (not just first)
+        const responseText = payloads
+          .map((p: any) => p?.text || '')
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        if (!responseText) {
+          console.log(`[callAgent] ${agentId}: empty text from ${payloads.length} payloads, stdout=${stdout.slice(0, 200)}`)
+        }
         const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
 
         // Save session mapping if we got one
@@ -436,16 +444,15 @@ router.post('/communities/:name/messages', async (req, res) => {
   if (mentions && mentions.length > 0) {
     console.log(`[Group Chat] Calling ${mentions.length} agents for community "${decodedName}":`, mentions)
 
-    // Call agents in parallel — each gets its own session to avoid lock conflicts
-    Promise.all(
-      mentions.map(async (agentId) => {
+    // Call agents sequentially to avoid gateway contention
+    ;(async () => {
+      for (const agentId of mentions) {
         try {
           const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
           const response = await callAgent(agentId, content, agentSessionId)
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
-            // Add agent response to message history
             addMessage('community', decodedName, {
               from: agentId,
               content: response,
@@ -458,8 +465,8 @@ router.post('/communities/:name/messages', async (req, res) => {
         } catch (err) {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
         }
-      })
-    ).catch(err => console.error('[Group Chat] Error calling agents:', err))
+      }
+    })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
 })
 
@@ -495,9 +502,9 @@ router.post('/groups/:name/messages', async (req, res) => {
   if (mentions && mentions.length > 0) {
     console.log(`[Group Chat] Calling ${mentions.length} agents for group "${decodedName}":`, mentions)
 
-    // Call agents in parallel — each gets its own session to avoid lock conflicts
-    Promise.all(
-      mentions.map(async (agentId) => {
+    // Call agents sequentially to avoid gateway contention
+    ;(async () => {
+      for (const agentId of mentions) {
         try {
           const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
@@ -517,8 +524,8 @@ router.post('/groups/:name/messages', async (req, res) => {
         } catch (err) {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
         }
-      })
-    ).catch(err => console.error('[Group Chat] Error calling agents:', err))
+      }
+    })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
 })
 
