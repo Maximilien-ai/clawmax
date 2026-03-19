@@ -2582,14 +2582,23 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           className="absolute top-2 left-2 w-4 h-4 cursor-pointer z-10"
         />
       )}
-      {/* Line 1: Name */}
+      {/* Line 1: Name + chat icon */}
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
         {agent.tags.includes('built-in') && <span className="shrink-0" title="Built-in system agent">🤖</span>}
         {agent.archived && <span className="shrink-0">📦</span>}
+        {!agent.archived && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onChat(); }}
+            className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none shrink-0"
+            title="Chat"
+          >
+            💬
+          </button>
+        )}
       </div>
-      {/* Line 2: ID + chat + cost */}
+      {/* Line 2: ID + cost + file */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -2601,26 +2610,15 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               💲{metering.cost.toFixed(3)}
             </span>
           )}
-          <div className="flex flex-col items-center gap-0.5">
-            {!agent.archived && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onChat(); }}
-                className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
-                title="Chat"
-              >
-                💬
-              </button>
-            )}
-            {onViewDocs && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
-                className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
-                title="View docs"
-              >
-                📄
-              </button>
-            )}
-          </div>
+          {onViewDocs && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
+              title="View docs"
+            >
+              📄
+            </button>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2">
