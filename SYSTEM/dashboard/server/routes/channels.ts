@@ -170,7 +170,7 @@ async function callAgent(agentId: string, message: string, _sessionId: string): 
             if (fs.existsSync(sessionsPath)) {
               sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
             }
-            sessions[sessionId] = { sessionId: actualSessionId, updatedAt: Date.now() }
+            sessions[_sessionId] = { sessionId: actualSessionId, updatedAt: Date.now() }
             fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
             fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
           } catch (e) {
