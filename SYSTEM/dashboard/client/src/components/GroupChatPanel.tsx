@@ -117,7 +117,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     fetchArchivesList()
     fetchActiveWorkflows()
     // Poll for new messages every 2 seconds
-    const interval = setInterval(fetchMessages, 2000)
+    const interval = setInterval(fetchMessages, 3000)
     // Check for active workflows every 5 seconds
     const workflowInterval = setInterval(fetchActiveWorkflows, 5000)
 
