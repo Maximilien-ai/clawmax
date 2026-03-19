@@ -2,6 +2,27 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.1.5] - 2026-03-19
+
+### Features
+- **Opik Token Metering** — full pipeline: traces agent chats + workflow executions to Opik, metering dashboard on Activity page, per-agent cost breakdown
+- **Agent Cost Badges** — 💲 cost on grid cards + detail view with tooltip (calls, tokens, cost)
+- **Agent Cost Column** — sortable Cost column in agent table view (replaces WhatsApp)
+- **Workflow Cost Display** — cost shown on workflow cards and list view
+- **Unread Message Indicators** — red dot with count on Communication cards + nav sidebar badge
+- **@Mention Grouping** — role groups with Tab-to-expand for individual targeting
+- **Group Chat Markdown** — ReactMarkdown + brace-depth JSON/ANSI cleanup
+
+### Fixes
+- Sequential agent calls with 3s delay (gateway contention)
+- Agent pluralization fixed across all views
+- Grid card layout: name line + ID/cost/chat/file line
+- Communication card: trash bottom-right
+- Workflow card: file icon bottom-right
+- Template agent display names (title case)
+- CEO removed from Status group
+- Merged 3 agent PRs (#34 schema paths, #36 workflow schema, #37 template groups)
+
 ## [v1.1.4] - 2026-03-19
 
 ### Features
