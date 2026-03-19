@@ -881,6 +881,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 isSelected={selectedWorkflowIds.has(workflow.id)}
                 onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
                 isRunning={runningWorkflows.has(workflow.id)}
+                totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
               />
             ))}
           </div>
@@ -1663,7 +1664,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, totalCost }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
@@ -1672,6 +1673,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   isSelected?: boolean
   onToggleSelect?: () => void
   isRunning?: boolean
+  totalCost?: number
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
 
@@ -1730,10 +1732,10 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
               <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
             </>
           ) : null}
-          {(workflow as any).totalCost > 0 && (
+          {totalCost != null && totalCost > 0 && (
             <>
               <span>·</span>
-              <span className="text-emerald-600 dark:text-emerald-400">${(workflow as any).totalCost.toFixed(3)}</span>
+              <span className="text-emerald-600 dark:text-emerald-400">${totalCost.toFixed(3)}</span>
             </>
           )}
         </div>
