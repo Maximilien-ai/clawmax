@@ -1759,6 +1759,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
             📄
           </button>
         </div>
+      </div>
 
       {/* Actions Menu Dropdown - only show when not in selection mode */}
       {showMenu && !onToggleSelect && (
