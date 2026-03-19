@@ -366,8 +366,8 @@ export function copyAgentFilesToTemplate(
     // Create target directory
     fs.mkdirSync(targetDir, { recursive: true })
 
-    // Copy SOUL.md, TOOLS.md, IDENTITY.md
-    const files = ['SOUL.md', 'TOOLS.md', 'IDENTITY.md']
+    // Copy core agent files plus GROUPS.md and COMMUNITIES.md if they exist
+    const files = ['SOUL.md', 'TOOLS.md', 'IDENTITY.md', 'GROUPS.md', 'COMMUNITIES.md']
     for (const file of files) {
       const srcPath = path.join(agentDir, file)
       const dstPath = path.join(targetDir, file)
@@ -410,7 +410,8 @@ export function copyAgentFilesFromTemplate(
     fs.mkdirSync(targetAgentDir, { recursive: true })
 
     // Copy and transform files
-    const files = ['SOUL.md', 'TOOLS.md', 'IDENTITY.md']
+    // Include GROUPS.md and COMMUNITIES.md so pre-existing template files are preserved
+    const files = ['SOUL.md', 'TOOLS.md', 'IDENTITY.md', 'GROUPS.md', 'COMMUNITIES.md']
     for (const file of files) {
       const srcPath = path.join(templateAgentDir, file)
       const dstPath = path.join(targetAgentDir, file)
@@ -994,32 +995,43 @@ export function importOrganizationTemplate(
       }
 
       // Step 2: Create COMMUNITIES.md for agents with community memberships
+      // Always attempt creation for every agent that has community assignments,
+      // even if the file was already partially copied in Step 1.
       if (template.communities && template.communities.length > 0) {
         for (const templateAgent of agentsToCreate) {
           const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
           const agentCommunities = templateAgent.communities || []
 
           if (agentCommunities.length > 0) {
-            const agentDir = path.join(getAgentsDir(), targetAgentId)
-            const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
+            try {
+              const agentDir = path.join(getAgentsDir(), targetAgentId)
+              // Ensure agent directory exists (defensive — may differ from Step 1
+              // if getAgentsDir() resolved differently)
+              fs.mkdirSync(agentDir, { recursive: true })
+              const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
 
-            // Build COMMUNITIES.md content
-            const communitiesContent = template.communities
-              .filter(comm => agentCommunities.includes(comm.name))
-              .map(comm => {
-                let content = `## ${comm.name}\n\n`
-                if (comm.description) content += `${comm.description}\n\n`
-                if (comm.tags && comm.tags.length > 0) {
-                  content += `**Tags:** ${comm.tags.join(', ')}\n\n`
-                }
-                if (comm.channels && comm.channels.length > 0) {
-                  content += `**Channels:** ${comm.channels.join(', ')}\n\n`
-                }
-                return content
-              })
-              .join('\n---\n\n')
+              // Build COMMUNITIES.md content
+              const communitiesContent = template.communities
+                .filter(comm => agentCommunities.includes(comm.name))
+                .map(comm => {
+                  let content = `## ${comm.name}\n\n`
+                  if (comm.description) content += `${comm.description}\n\n`
+                  if (comm.tags && comm.tags.length > 0) {
+                    content += `**Tags:** ${comm.tags.join(', ')}\n\n`
+                  }
+                  if (comm.channels && comm.channels.length > 0) {
+                    content += `**Channels:** ${comm.channels.join(', ')}\n\n`
+                  }
+                  return content
+                })
+                .join('\n---\n\n')
 
-            fs.writeFileSync(communitiesPath, `# Communities\n\n${communitiesContent}`, 'utf-8')
+              if (communitiesContent.trim()) {
+                fs.writeFileSync(communitiesPath, `# Communities\n\n${communitiesContent}`, 'utf-8')
+              }
+            } catch (err) {
+              console.warn(`Failed to create COMMUNITIES.md for ${targetAgentId}:`, err)
+            }
           }
         }
       }
@@ -1031,27 +1043,35 @@ export function importOrganizationTemplate(
           const agentGroups = templateAgent.groups || []
 
           if (agentGroups.length > 0) {
-            const agentDir = path.join(getAgentsDir(), targetAgentId)
-            const groupsPath = path.join(agentDir, 'GROUPS.md')
+            try {
+              const agentDir = path.join(getAgentsDir(), targetAgentId)
+              // Ensure agent directory exists (defensive)
+              fs.mkdirSync(agentDir, { recursive: true })
+              const groupsPath = path.join(agentDir, 'GROUPS.md')
 
-            // Build GROUPS.md content
-            const groupsContent = template.groups
-              .filter(grp => agentGroups.includes(grp.name))
-              .map(grp => {
-                let content = `## ${grp.name}\n\n`
-                if (grp.description) content += `${grp.description}\n\n`
-                if (grp.community) content += `**Community:** ${grp.community}\n\n`
-                if (grp.tags && grp.tags.length > 0) {
-                  content += `**Tags:** ${grp.tags.join(', ')}\n\n`
-                }
-                if (grp.channels && grp.channels.length > 0) {
-                  content += `**Channels:** ${grp.channels.join(', ')}\n\n`
-                }
-                return content
-              })
-              .join('\n---\n\n')
+              // Build GROUPS.md content
+              const groupsContent = template.groups
+                .filter(grp => agentGroups.includes(grp.name))
+                .map(grp => {
+                  let content = `## ${grp.name}\n\n`
+                  if (grp.description) content += `${grp.description}\n\n`
+                  if (grp.community) content += `**Community:** ${grp.community}\n\n`
+                  if (grp.tags && grp.tags.length > 0) {
+                    content += `**Tags:** ${grp.tags.join(', ')}\n\n`
+                  }
+                  if (grp.channels && grp.channels.length > 0) {
+                    content += `**Channels:** ${grp.channels.join(', ')}\n\n`
+                  }
+                  return content
+                })
+                .join('\n---\n\n')
 
-            fs.writeFileSync(groupsPath, `# Groups\n\n${groupsContent}`, 'utf-8')
+              if (groupsContent.trim()) {
+                fs.writeFileSync(groupsPath, `# Groups\n\n${groupsContent}`, 'utf-8')
+              }
+            } catch (err) {
+              console.warn(`Failed to create GROUPS.md for ${targetAgentId}:`, err)
+            }
           }
         }
       }
