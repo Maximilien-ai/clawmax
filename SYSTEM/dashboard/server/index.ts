@@ -17,6 +17,7 @@ import workflowsRouter from './routes/workflows'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { initOpikTracing, shutdownOpik } from './lib/opik'
+import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
 
@@ -114,6 +115,16 @@ app.get('/api/system', requireAuth, (_req, res) => {
 app.get('/api/activity', requireAuth, (_req, res) => {
   const feed = getInstallationActivity()
   res.json({ feed })
+})
+
+// Metering data from Opik
+app.get('/api/metering', requireAuth, async (_req, res) => {
+  try {
+    const data = await getWorkspaceMetering()
+    res.json(data)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // System logs - SSE stream

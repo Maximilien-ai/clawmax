@@ -1,6 +1,30 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 
+interface MeteringData {
+  totalTraces: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalTokens: number
+  estimatedCostUsd: number
+  byAgent: Array<{
+    agentId: string
+    totalCalls: number
+    totalTokens: number
+    estimatedCostUsd: number
+    avgDurationMs: number
+    lastActivity: string
+    models: Record<string, number>
+  }>
+  byWorkflow: Array<{
+    workflowId: string
+    workflowName: string
+    totalRuns: number
+    totalTokens: number
+    estimatedCostUsd: number
+  }>
+}
+
 interface ActivityEntry {
   agentId: string
   file: string
@@ -69,6 +93,8 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [debugAgent, setDebugAgent] = useState<string | null>(null)
   const [showSystemLogs, setShowSystemLogs] = useState(false)
+  const [metering, setMetering] = useState<MeteringData | null>(null)
+  const [showMetering, setShowMetering] = useState(true)
 
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
@@ -86,6 +112,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
 
   useEffect(() => {
     fetchFeed()
+    fetch('/api/metering').then(r => r.json()).then(d => setMetering(d)).catch(() => {})
     const interval = setInterval(fetchFeed, 30000)
     return () => clearInterval(interval)
   }, [fetchFeed])
@@ -234,6 +261,68 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
           </button>
         </div>
       </div>
+
+      {/* Metering Stats */}
+      {metering && showMetering && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Token Metering</h2>
+            <button onClick={() => setShowMetering(false)} className="text-xs text-gray-400 hover:text-gray-600">Hide</button>
+          </div>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{metering.totalTraces}</div>
+              <div className="text-xs text-gray-500">Total Calls</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(metering.totalTokens / 1000).toFixed(1)}k</div>
+              <div className="text-xs text-gray-500">Total Tokens</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-green-600">${metering.estimatedCostUsd.toFixed(4)}</div>
+              <div className="text-xs text-gray-500">Est. Cost</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{metering.byAgent.length}</div>
+              <div className="text-xs text-gray-500">Active Agents</div>
+            </div>
+          </div>
+
+          {/* Per-agent breakdown */}
+          {metering.byAgent.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-900">
+                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Agent</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Calls</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Tokens</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Cost</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 hidden sm:table-cell">Avg Duration</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 hidden sm:table-cell">Model</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metering.byAgent.map(agent => (
+                    <tr key={agent.agentId} className="border-t border-gray-100 dark:border-gray-800">
+                      <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{(agent.totalTokens / 1000).toFixed(1)}k</td>
+                      <td className="px-3 py-2 text-right text-green-600">${agent.estimatedCostUsd.toFixed(4)}</td>
+                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell">{(agent.avgDurationMs / 1000).toFixed(1)}s</td>
+                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell font-mono">{Object.keys(agent.models)[0] || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      {!showMetering && metering && (
+        <button onClick={() => setShowMetering(true)} className="text-xs text-sky-600 hover:text-sky-700 mb-4">Show Token Metering</button>
+      )}
 
       {loading && <PageLoading text="Loading activity..." />}
 
