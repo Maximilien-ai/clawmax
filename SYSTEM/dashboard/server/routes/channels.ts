@@ -5,6 +5,7 @@ import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
+import { traceAgentChat } from '../lib/opik'
 
 const router = Router()
 
@@ -158,6 +159,18 @@ async function callAgent(agentId: string, message: string, _sessionId: string): 
           .join('\n\n')
         if (!responseText) {
           console.log(`[callAgent] ${agentId}: empty text from ${payloads.length} payloads, stdout=${stdout.slice(0, 200)}`)
+        } else {
+          // Trace to Opik
+          const meta = result?.result?.meta || result?.meta || {}
+          const agentMeta = meta.agentMeta || {}
+          traceAgentChat(agentId, message, responseText, {
+            model: agentMeta.model,
+            provider: agentMeta.provider,
+            inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
+            outputTokens: agentMeta.usage?.output,
+            cacheReadTokens: agentMeta.usage?.cacheRead,
+            durationMs: meta.durationMs,
+          })
         }
         const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
 

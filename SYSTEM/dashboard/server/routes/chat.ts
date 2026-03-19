@@ -3,6 +3,7 @@ import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
+import { traceAgentChat } from '../lib/opik'
 
 const router = Router()
 
@@ -147,6 +148,19 @@ router.post('/:id/chat', (req, res) => {
         if (text) {
           send('delta', { text })
           replied = true
+
+          // Trace to Opik
+          const meta = result.result?.meta || result.meta || {}
+          const agentMeta = meta.agentMeta || {}
+          traceAgentChat(id, message, text, {
+            model: agentMeta.model,
+            provider: agentMeta.provider,
+            inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
+            outputTokens: agentMeta.usage?.output,
+            cacheReadTokens: agentMeta.usage?.cacheRead,
+            durationMs: meta.durationMs,
+            sessionId: sessionId || agentMeta.sessionId,
+          })
         } else {
           console.log(`[Chat Route] Empty payloads for ${id}, status: ${result.status}, summary: ${result.summary}`)
         }
