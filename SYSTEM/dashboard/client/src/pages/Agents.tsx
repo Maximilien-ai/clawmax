@@ -2601,24 +2601,26 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               💲{metering.cost.toFixed(3)}
             </span>
           )}
-          {!agent.archived && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onChat(); }}
-              className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
-              title="Chat"
-            >
-              💬
-            </button>
-          )}
-          {onViewDocs && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
-              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
-              title="View docs"
-            >
-              📄
-            </button>
-          )}
+          <div className="flex flex-col items-center gap-0.5">
+            {!agent.archived && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onChat(); }}
+                className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none"
+                title="Chat"
+              >
+                💬
+              </button>
+            )}
+            {onViewDocs && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+                className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
+                title="View docs"
+              >
+                📄
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2">
