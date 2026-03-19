@@ -1,3 +1,5 @@
+NOTE: we might need to updat this since some of the tasks are done but not checkoff and still see old NOTE below
+
 # Week Plan: March 17-21, 2026 — AGGRESSIVE MODE 🔥
 
 **Work Schedule:** Monday-Friday, 8-10 hours/day (40-50 hours total)

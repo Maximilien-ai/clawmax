@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   id: string
@@ -38,22 +40,39 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-// Strip OpenClaw internal data from message content
+// Strip OpenClaw internal data from message content (line-by-line)
 function cleanContent(content: string): string {
   if (!content) return content
-  let cleaned = content.replace(/\x1b\[[0-9;]*m|\[[\d;]*m/g, '')
-  cleaned = cleaned.replace(/^\s*\{[\s\S]*?"(type|payloads|meta|runId|count|sessions|requester|entries)"[\s\S]*?\n\}\s*$/gm, '')
-  cleaned = cleaned.replace(/^\s*\{[^{}]*\}\s*$/gm, '')
-  cleaned = cleaned.replace(/^🦞 OpenClaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
-  cleaned = cleaned.replace(/^Usage:.*openclaw[\s\S]*?(?=\n\n[A-Z#*\-]|\n\n$|$)/gm, '')
-  cleaned = cleaned.replace(/^\s*\[[\d;]*m.*$/gm, '')
-  cleaned = cleaned.replace(/^Command still running.*$/gm, '')
-  cleaned = cleaned.replace(/^Process exited.*$/gm, '')
-  cleaned = cleaned.replace(/^Successfully wrote.*$/gm, '')
-  cleaned = cleaned.replace(/^store:.*auth-profiles\.json.*$/gm, '')
-  cleaned = cleaned.replace(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/gm, '')
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
-  return cleaned || content
+  const lines = content.split('\n')
+  const cleanedLines: string[] = []
+  let skipBlock = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (skipBlock) {
+      if (trimmed === '' || trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"') ||
+          trimmed.match(/^\[[\d;]*m/) || trimmed.startsWith('(Command') || trimmed.startsWith('Available') ||
+          trimmed.startsWith('Usage:') || trimmed.startsWith('Options:') || trimmed.startsWith('Commands:') ||
+          trimmed.startsWith('Examples:') || trimmed.startsWith('Docs:') || trimmed.startsWith('store:') ||
+          trimmed.match(/^\s+--/) || trimmed.match(/^\s+\[/)) {
+        continue
+      }
+      skipBlock = false
+    }
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[{')) { skipBlock = true; continue }
+    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
+    if (trimmed.startsWith('🦞 OpenClaw')) { skipBlock = true; continue }
+    if (trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) { skipBlock = true; continue }
+    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
+    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
+    if (trimmed.match(/^[}\]],?\s*$/)) continue
+
+    cleanedLines.push(line)
+  }
+
+  return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
 }
 
 export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent }: Props) {
@@ -626,7 +645,15 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.from !== 'User' ? cleanContent(msg.content) : msg.content}</p>
+              {msg.from !== 'User' ? (
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {cleanContent(msg.content)}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
+              )}
             </div>
           ))}
 
@@ -681,7 +708,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                     )}
                     {('isAll' in agent && agent.isAll) && (
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-                        {channel.members.length} agents
+                        {channel.members.length} agent{channel.members.length !== 1 ? 's' : ''}
                       </span>
                     )}
                   </button>
