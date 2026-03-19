@@ -92,6 +92,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionPosition, setMentionPosition] = useState(0)
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+  const [expandedMentionGroup, setExpandedMentionGroup] = useState<string | null>(null)
   const [typingAgents, setTypingAgents] = useState<Set<string>>(new Set())
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
@@ -386,6 +387,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     const after = input.substring(mentionPosition + mentionQuery.length + 1)
     setInput(`${before}@${agentName} ${after}`)
     setShowMentions(false)
+    setExpandedMentionGroup(null)
   }
 
   // Build mention list: @all first, then grouped by role, then individuals
@@ -414,19 +416,27 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         }
 
         // Add grouped entries (only group if 2+ agents share a role)
-        for (const [, group] of roleGroups) {
+        for (const [key, group] of roleGroups) {
           if (group.length > 1) {
             const baseName = (group[0].name || group[0].id).replace(/\s*\d+$/, '').trim()
-            mentions.push({
-              id: `group-${baseName.toLowerCase()}`,
-              name: baseName,
-              status: 'online',
-              isGroup: true,
-              count: group.length,
-              agentIds: group.map(a => a.id)
-            })
+            const groupId = `group-${baseName.toLowerCase()}`
+
+            if (expandedMentionGroup === groupId) {
+              // Show individual agents when expanded
+              for (const agent of group) {
+                mentions.push({ ...agent, isExpanded: true } as any)
+              }
+            } else {
+              mentions.push({
+                id: groupId,
+                name: baseName,
+                status: 'online',
+                isGroup: true,
+                count: group.length,
+                agentIds: group.map(a => a.id)
+              })
+            }
           } else {
-            // Single agent — show directly
             mentions.push(group[0])
           }
         }
@@ -468,12 +478,35 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setSelectedMentionIndex((prev) => prev > 0 ? prev - 1 : 0)
+      } else if (e.key === 'Tab') {
+        e.preventDefault()
+        const selected = filteredMentionAgents[selectedMentionIndex]
+        if (selected && 'isGroup' in selected && (selected as any).isGroup) {
+          // Expand group to show individual agents
+          setExpandedMentionGroup(selected.id)
+          setSelectedMentionIndex(0)
+        } else if (expandedMentionGroup) {
+          // Collapse back to grouped view
+          setExpandedMentionGroup(null)
+          setSelectedMentionIndex(0)
+        }
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        insertMention(filteredMentionAgents[selectedMentionIndex].name)
+        const selected = filteredMentionAgents[selectedMentionIndex]
+        if (selected && 'isGroup' in selected && (selected as any).isGroup) {
+          // Selecting a group inserts the role name (matches all agents with that role)
+          insertMention(selected.name)
+        } else {
+          insertMention(filteredMentionAgents[selectedMentionIndex].name)
+        }
+        setExpandedMentionGroup(null)
       } else if (e.key === 'Escape') {
         e.preventDefault()
-        setShowMentions(false)
+        if (expandedMentionGroup) {
+          setExpandedMentionGroup(null)
+        } else {
+          setShowMentions(false)
+        }
       }
     } else if (e.key === 'Enter') {
       e.preventDefault()
@@ -726,7 +759,16 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                   return (
                     <button
                       key={agent.id}
-                      onClick={() => insertMention(agent.name)}
+                      onClick={() => {
+                        if (isGroup) {
+                          // Tap on group: expand to show individuals
+                          setExpandedMentionGroup(agent.id)
+                          setSelectedMentionIndex(0)
+                        } else {
+                          insertMention(agent.name)
+                          setExpandedMentionGroup(null)
+                        }
+                      }}
                       className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
                         index === selectedMentionIndex
                           ? 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100'
@@ -741,9 +783,13 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                         {isAll ? '👥 @all' : `@${agent.name}`}
                       </span>
                       {isGroup && (
-                        <span className="text-xs text-sky-600 dark:text-sky-400 ml-auto">
+                        <span className="text-xs text-sky-600 dark:text-sky-400 ml-auto flex items-center gap-1">
                           {(agent as any).count} agent{(agent as any).count !== 1 ? 's' : ''}
+                          <span className="text-gray-400 text-[10px]">Tab ▸</span>
                         </span>
+                      )}
+                      {(agent as any).isExpanded && (
+                        <span className="text-xs text-gray-400 ml-auto">individual</span>
                       )}
                       {!isAll && !isGroup && (
                         <span className="text-xs text-gray-400 dark:text-gray-500">({agent.id})</span>
