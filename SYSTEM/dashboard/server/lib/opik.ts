@@ -1,22 +1,17 @@
 /**
- * Opik/OpenTelemetry integration for ClawMax agent tracing.
- * Tracks token usage, costs, and latency per agent and workflow execution.
- *
- * Uses OTLP HTTP exporter to send traces to Opik (Comet) platform,
- * following the same pattern as weave-cli.
+ * Opik tracing for ClawMax agent interactions.
+ * Uses Opik REST API (not OTLP) for trace logging.
+ * Tracks token usage, costs, and latency per agent and workflow.
  */
 
-import { trace, SpanStatusCode, Span, Tracer } from '@opentelemetry/api'
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
-import { resourceFromAttributes } from '@opentelemetry/resources'
+import https from 'https'
 
-let provider: NodeTracerProvider | null = null
-let tracer: Tracer | null = null
+let apiKey = ''
+let workspace = ''
+let projectName = ''
 let enabled = false
 
-// Estimated cost per 1K tokens (USD) — rough averages
+// Estimated cost per 1K tokens (USD)
 const COST_PER_1K: Record<string, { input: number; output: number }> = {
   'claude-opus-4-6': { input: 0.015, output: 0.075 },
   'claude-sonnet-4-6': { input: 0.003, output: 0.015 },
@@ -26,54 +21,84 @@ const COST_PER_1K: Record<string, { input: number; output: number }> = {
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  // Normalize model name
   const key = Object.keys(COST_PER_1K).find(k => model.includes(k)) || ''
   const rates = COST_PER_1K[key]
   if (!rates) return 0
   return (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output
 }
 
+/** Generate UUIDv7 (timestamp-based, required by Opik) */
+function uuidv7(): string {
+  const now = BigInt(Date.now())
+  const bytes = new Uint8Array(16)
+  // Fill with random
+  crypto.getRandomValues(bytes)
+  // Timestamp in first 48 bits (6 bytes)
+  const ts = now & BigInt('0xFFFFFFFFFFFF')
+  bytes[0] = Number((ts >> 40n) & 0xFFn)
+  bytes[1] = Number((ts >> 32n) & 0xFFn)
+  bytes[2] = Number((ts >> 24n) & 0xFFn)
+  bytes[3] = Number((ts >> 16n) & 0xFFn)
+  bytes[4] = Number((ts >> 8n) & 0xFFn)
+  bytes[5] = Number(ts & 0xFFn)
+  // Version 7
+  bytes[6] = (bytes[6] & 0x0f) | 0x70
+  // Variant
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
+}
+
+/** Send traces to Opik REST API */
+function sendTraces(traces: any[]): void {
+  if (!enabled || traces.length === 0) return
+
+  const body = JSON.stringify({
+    project_name: projectName,
+    traces,
+  })
+
+  const req = https.request({
+    hostname: 'www.comet.com',
+    path: '/opik/api/v1/private/traces/batch',
+    method: 'POST',
+    headers: {
+      'Authorization': apiKey,
+      'Comet-Workspace': workspace,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  }, (res) => {
+    if (res.statusCode && res.statusCode >= 400) {
+      let data = ''
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => {
+        console.error(`[Opik] Trace failed (${res.statusCode}):`, data.slice(0, 200))
+      })
+    }
+  })
+
+  req.on('error', (err) => {
+    console.error('[Opik] Request error:', err.message)
+  })
+
+  req.write(body)
+  req.end()
+}
+
 export function initOpikTracing(): boolean {
-  const apiKey = process.env.OPIK_API_KEY
-  const workspace = process.env.OPIK_WORKSPACE || 'default'
-  const projectName = process.env.OPIK_PROJECT_NAME || 'clawmax'
+  apiKey = (process.env.OPIK_API_KEY || '').replace(/"/g, '')
+  workspace = (process.env.OPIK_WORKSPACE || 'default').replace(/"/g, '')
+  projectName = (process.env.OPIK_PROJECT_NAME || 'clawmax').replace(/"/g, '')
 
   if (!apiKey) {
     console.log('[Opik] No OPIK_API_KEY — tracing disabled')
     return false
   }
 
-  try {
-    const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-      'https://www.comet.com/opik/api/v1/private/otel/v1/traces'
-
-    const exporter = new OTLPTraceExporter({
-      url: endpoint,
-      headers: {
-        'Authorization': apiKey,
-        'Comet-Workspace': workspace,
-        'projectName': projectName,
-      },
-    })
-
-    provider = new NodeTracerProvider({
-      resource: resourceFromAttributes({
-        'service.name': 'clawmax',
-        'service.version': '1.1.3',
-      }),
-      spanProcessors: [new SimpleSpanProcessor(exporter)],
-    })
-
-    provider.register()
-    tracer = trace.getTracer('clawmax', '1.1.3')
-    enabled = true
-
-    console.log(`[Opik] Tracing enabled — workspace: ${workspace}, project: ${projectName}`)
-    return true
-  } catch (err) {
-    console.error('[Opik] Failed to initialize:', err)
-    return false
-  }
+  enabled = true
+  console.log(`[Opik] Tracing enabled — workspace: ${workspace}, project: ${projectName}`)
+  return true
 }
 
 export function isOpikEnabled(): boolean {
@@ -97,30 +122,39 @@ export function traceAgentChat(
     sessionId?: string
   }
 ): void {
-  if (!tracer || !enabled) return
+  if (!enabled) return
 
-  const span = tracer.startSpan('agent.chat', {
-    attributes: {
-      'agent.id': agentId,
-      'agent.model': meta.model || 'unknown',
-      'agent.provider': meta.provider || 'unknown',
-      'chat.message': message.slice(0, 500),
-      'chat.response': response.slice(0, 500),
-      'chat.session_id': meta.sessionId || '',
-      'tokens.input': meta.inputTokens || 0,
-      'tokens.output': meta.outputTokens || 0,
-      'tokens.cache_read': meta.cacheReadTokens || 0,
-      'tokens.total': (meta.inputTokens || 0) + (meta.outputTokens || 0),
-      'duration_ms': meta.durationMs || 0,
-      'cost.estimated_usd': estimateCost(
-        meta.model || '',
-        meta.inputTokens || 0,
-        meta.outputTokens || 0
-      ),
+  const now = new Date().toISOString()
+  const startTime = meta.durationMs
+    ? new Date(Date.now() - meta.durationMs).toISOString()
+    : now
+
+  const cost = estimateCost(
+    meta.model || '',
+    meta.inputTokens || 0,
+    meta.outputTokens || 0
+  )
+
+  sendTraces([{
+    id: uuidv7(),
+    name: `agent.chat.${agentId}`,
+    start_time: startTime,
+    end_time: now,
+    input: { message: message.slice(0, 1000) },
+    output: { response: response.slice(0, 1000) },
+    metadata: {
+      agent_id: agentId,
+      model: meta.model || 'unknown',
+      provider: meta.provider || 'unknown',
+      tokens_input: meta.inputTokens || 0,
+      tokens_output: meta.outputTokens || 0,
+      tokens_cache_read: meta.cacheReadTokens || 0,
+      tokens_total: (meta.inputTokens || 0) + (meta.outputTokens || 0),
+      duration_ms: meta.durationMs || 0,
+      estimated_cost_usd: Math.round(cost * 10000) / 10000,
+      session_id: meta.sessionId || '',
     },
-  })
-  span.setStatus({ code: SpanStatusCode.OK })
-  span.end()
+  }])
 }
 
 /**
@@ -143,62 +177,39 @@ export function traceWorkflowExecution(
     status: string
   }
 ): void {
-  if (!tracer || !enabled) return
+  if (!enabled) return
 
-  const totalInputTokens = participants.reduce((s, p) => s + (p.inputTokens || 0), 0)
-  const totalOutputTokens = participants.reduce((s, p) => s + (p.outputTokens || 0), 0)
+  const now = new Date().toISOString()
+  const startTime = new Date(Date.now() - meta.totalDurationMs).toISOString()
 
-  const span = tracer.startSpan('workflow.execution', {
-    attributes: {
-      'workflow.id': workflowId,
-      'workflow.name': workflowName,
-      'workflow.trigger_type': meta.triggerType,
-      'workflow.status': meta.status,
-      'workflow.participant_count': participants.length,
-      'workflow.success_count': participants.filter(p => p.status === 'completed').length,
-      'workflow.failure_count': participants.filter(p => p.status === 'failed').length,
-      'tokens.input': totalInputTokens,
-      'tokens.output': totalOutputTokens,
-      'tokens.total': totalInputTokens + totalOutputTokens,
-      'duration_ms': meta.totalDurationMs,
+  const totalInput = participants.reduce((s, p) => s + (p.inputTokens || 0), 0)
+  const totalOutput = participants.reduce((s, p) => s + (p.outputTokens || 0), 0)
+
+  sendTraces([{
+    id: uuidv7(),
+    name: `workflow.${workflowId}`,
+    start_time: startTime,
+    end_time: now,
+    input: { workflow: workflowName, trigger: meta.triggerType },
+    output: {
+      status: meta.status,
+      participants: participants.length,
+      succeeded: participants.filter(p => p.status === 'completed').length,
     },
-  })
-
-  // Add per-participant child spans
-  for (const p of participants) {
-    const childSpan = tracer.startSpan(`agent.${p.agentId}`, {
-      attributes: {
-        'agent.id': p.agentId,
-        'agent.status': p.status,
-        'agent.model': p.model || 'unknown',
-        'tokens.input': p.inputTokens || 0,
-        'tokens.output': p.outputTokens || 0,
-        'duration_ms': p.durationMs || 0,
-        'cost.estimated_usd': estimateCost(
-          p.model || '',
-          p.inputTokens || 0,
-          p.outputTokens || 0
-        ),
-      },
-    })
-    childSpan.setStatus({
-      code: p.status === 'completed' ? SpanStatusCode.OK : SpanStatusCode.ERROR,
-    })
-    childSpan.end()
-  }
-
-  span.setStatus({
-    code: meta.status === 'completed' ? SpanStatusCode.OK : SpanStatusCode.ERROR,
-  })
-  span.end()
+    metadata: {
+      workflow_id: workflowId,
+      workflow_name: workflowName,
+      trigger_type: meta.triggerType,
+      participant_count: participants.length,
+      tokens_input: totalInput,
+      tokens_output: totalOutput,
+      tokens_total: totalInput + totalOutput,
+      duration_ms: meta.totalDurationMs,
+    },
+  }])
 }
 
-/**
- * Shutdown tracing (flush pending spans)
- */
 export async function shutdownOpik(): Promise<void> {
-  if (provider) {
-    await provider.shutdown()
-    console.log('[Opik] Tracing shutdown')
-  }
+  // No-op for REST API (no buffering)
+  console.log('[Opik] Shutdown')
 }
