@@ -1486,6 +1486,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onEdit={setEditTarget}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
+          metering={agentMetering}
         />
       )}
 
@@ -2772,6 +2773,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onEdit,
   onArchive,
   onUnarchive,
+  metering,
 }: {
   agents: Agent[]
   selectedAgent: Agent | null
@@ -2788,6 +2790,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onEdit?: (agent: Agent) => void
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
+  metering: Record<string, { calls: number; tokens: number; cost: number }>
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
 
@@ -2818,9 +2821,9 @@ const AgentTableView = React.memo(function AgentTableView({
           aVal = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0
           bVal = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0
           break
-        case 'whatsapp':
-          aVal = a.whatsapp || ''
-          bVal = b.whatsapp || ''
+        case 'cost':
+          aVal = metering[a.id]?.cost || 0
+          bVal = metering[b.id]?.cost || 0
           break
         case 'groups':
           aVal = a.groups.length
@@ -2884,7 +2887,7 @@ const AgentTableView = React.memo(function AgentTableView({
             <SortHeader column="name" label="Name" />
             <SortHeader column="status" label="Status" />
             <SortHeader column="heartbeat" label="Last Seen" />
-            <SortHeader column="whatsapp" label="WhatsApp" />
+            <SortHeader column="cost" label="Cost" />
             <SortHeader column="groups" label="Groups" />
             <SortHeader column="skills" label="Skills" />
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider dark:bg-gray-800">Tags</th>
@@ -2934,9 +2937,11 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                 {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
               </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                {agent.whatsapp ? (
-                  <span className="text-green-600 font-medium">✓ {agent.whatsapp}</span>
+              <td className="px-4 py-3 whitespace-nowrap text-sm">
+                {metering[agent.id] ? (
+                  <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${(metering[agent.id].tokens/1000).toFixed(1)}k tokens`}>
+                    ${metering[agent.id].cost.toFixed(4)}
+                  </span>
                 ) : (
                   <span className="text-gray-400">—</span>
                 )}
