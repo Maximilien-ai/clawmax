@@ -2122,7 +2122,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering,
 }: {
   agent: Agent
   selected: boolean
