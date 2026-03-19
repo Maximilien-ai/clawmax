@@ -93,6 +93,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [total, setTotal] = useState<number>(0)
   const PAGE_SIZE = 20
+  const [agentMetering, setAgentMetering] = useState<Record<string, { calls: number; tokens: number; cost: number }>>({})
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
     return (saved === 'list' || saved === 'grid' || saved === 'table') ? saved : 'grid'
@@ -168,6 +169,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         setLoadingMore(false)
       })
   }, [nextCursor, PAGE_SIZE])
+
+  // Fetch metering data
+  useEffect(() => {
+    fetch('/api/metering').then(r => r.json()).then(d => {
+      const map: Record<string, { calls: number; tokens: number; cost: number }> = {}
+      for (const a of d.byAgent || []) {
+        map[a.agentId] = { calls: a.totalCalls, tokens: a.totalTokens, cost: a.estimatedCostUsd }
+      }
+      setAgentMetering(map)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetchAgents()
@@ -1148,6 +1160,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       workflows={agentWorkflows.get(agent.id)}
                       isSelected={selectedAgentIds.has(agent.id)}
                       onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
+                      metering={agentMetering[agent.id]}
                       onUnlinkWa={() => {
                         fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                           .then(() => fetchAgents())
@@ -2139,6 +2152,7 @@ const AgentCard = React.memo(function AgentCard({
   workflows?: Workflow[]
   isSelected?: boolean
   onToggleSelect?: () => void
+  metering?: { calls: number; tokens: number; cost: number }
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -2173,6 +2187,14 @@ const AgentCard = React.memo(function AgentCard({
           ) : (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
               {agent.status}
+            </span>
+          )}
+          {metering && metering.calls > 0 && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
+              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
+            >
+              📊 ${metering.cost.toFixed(3)}
             </span>
           )}
         </div>
