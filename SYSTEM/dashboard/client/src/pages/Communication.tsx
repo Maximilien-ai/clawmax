@@ -1686,18 +1686,6 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
         >
           💬
         </button>
-        {onDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowDeleteConfirm(true)
-            }}
-            className="shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-white dark:bg-gray-800/50 rounded p-1 transition-colors"
-            title="Delete"
-          >
-            🗑️
-          </button>
-        )}
         {channel.channels.length > 0 && (
           <div className="flex gap-0.5">
             {channel.channels.map(ch => (
@@ -1712,7 +1700,8 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
           <span className="ml-1 text-green-600">· {onlineCount} online</span>
         )}
       </div>
-      <div className="mt-2 flex flex-wrap gap-0.5" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
+      <div className="mt-2 flex items-end gap-0.5">
+      <div className="flex flex-wrap gap-0.5 flex-1" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
         {channel.tags.length > 0 ? (
           <>
             {channel.tags.slice(0, 2).map(tag => {
@@ -1737,6 +1726,16 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
         ) : (
           <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer hover:text-sky-500 transition-colors">+ add tags</span>
         )}
+      </div>
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true) }}
+          className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-xs leading-none p-0.5"
+          title="Delete"
+        >
+          🗑️
+        </button>
+      )}
       </div>
 
       {/* Delete Confirmation Dialog */}
