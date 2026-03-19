@@ -2610,6 +2610,15 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               💬
             </button>
           )}
+          {onViewDocs && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
+              title="View docs"
+            >
+              📄
+            </button>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -2646,17 +2655,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
             {formatTokens(usage.totalTokens)} 🪙
           </div>
         )}
-        <div className="flex flex-col items-center shrink-0">
-          {onViewDocs && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
-              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none p-0.5 rounded hover:bg-purple-50"
-              aria-label="View documents"
-              title="View agent documents"
-            >
-              📄
-            </button>
-          )}
+        <div className="shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
             className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
