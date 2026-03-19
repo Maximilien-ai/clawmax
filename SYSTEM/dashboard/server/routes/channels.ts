@@ -434,15 +434,15 @@ router.post('/communities/:name/messages', async (req, res) => {
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    const sessionId = `community:${decodedName}:group-chat`
     console.log(`[Group Chat] Calling ${mentions.length} agents for community "${decodedName}":`, mentions)
 
-    // Call agents in parallel
+    // Call agents in parallel — each gets its own session to avoid lock conflicts
     Promise.all(
       mentions.map(async (agentId) => {
         try {
+          const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          const response = await callAgent(agentId, content, sessionId)
+          const response = await callAgent(agentId, content, agentSessionId)
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
             // Add agent response to message history
@@ -493,15 +493,15 @@ router.post('/groups/:name/messages', async (req, res) => {
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    const sessionId = `group:${decodedName}:group-chat`
     console.log(`[Group Chat] Calling ${mentions.length} agents for group "${decodedName}":`, mentions)
 
-    // Call agents in parallel
+    // Call agents in parallel — each gets its own session to avoid lock conflicts
     Promise.all(
       mentions.map(async (agentId) => {
         try {
+          const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          const response = await callAgent(agentId, content, sessionId)
+          const response = await callAgent(agentId, content, agentSessionId)
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
             // Add agent response to message history
