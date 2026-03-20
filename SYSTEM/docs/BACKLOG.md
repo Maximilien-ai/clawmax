@@ -1,56 +1,82 @@
 # Backlog
 
-> Last updated: March 19, 2026 (v1.1.5 release)
-> Completed items archived daily — see CHANGELOG.md for full history
+> Last updated: March 19, 2026 (post-board meeting)
+> Deadline: Cloud deployment by April 1st, dashboard ready by March 26
+> Completed items archived — see CHANGELOG.md for full history
+
+## CRITICAL — Dashboard Ready by March 26 (Wed)
+
+### Security (Sprint Priority #1)
+- [ ] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. Surface all issues and remediation plan.
+- [ ] **GitHub authentication** — OAuth login via GitHub. Protect all API routes. Session management.
+- [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
+- [ ] **API rate limiting** — prevent abuse of agent/workflow execution endpoints
+- [ ] **Input sanitization** — verify all user inputs sanitized (agent names, workflow content, chat messages)
+
+### Cost Management (Sprint Priority #2)
+- [ ] **Agent token limits + warnings** — per-agent token/cost limits, yellow at 80%, red when exceeded, auto-pause agent
+- [ ] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause via selection. Disabled agents excluded from workflows.
+- [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
+- [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
+
+### Backup & Restore (Sprint Priority #3)
+- [ ] **Workspace backup** — zip workspace + config, downloadable from UI. Trigger manually or schedule.
+- [ ] **Workspace restore** — upload zip to restore workspace state
+- [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
+
+### Agent Coordination (Sprint Priority #4)
+- [ ] **Blocking/waiting notifications** — system skills for agents to report "waiting on X" or "blocked by Y". Central notification hub visible to all agents and user.
+- [ ] **System skills** — built-in skills all agents get: notify-blocked, request-decision, escalate-to-human, update-status
+
+### Templates Library (Sprint Priority #5)
+- [ ] **Template categories** — Personal, Enterprise, Teams with 5-10 templates each
+- [ ] **Pre-built templates**: Job Search, Sales Lead, Deep Research, Customer Support, Content Creation, Legal Review, Student Study Group, Back Office, Retail Operations, Marketing Team
+- [ ] **Custom templates** — save current workspace as template (agents, groups, communities, workflows)
+- [ ] **Template sharing** — export/import via email (zip or JSON)
+- [ ] **Template skills audit** — role-appropriate skills per agent type
 
 ## High Priority (Bugs)
 
-- [ ] **Group chat: 2nd agent empty response** — @mentioning a role group only gets response from first agent. Workaround: use @all or Tab-expand to select individual agents.
-- [ ] Group chat jitter on mobile — improved (3s poll) but not eliminated
-- [ ] Template apply: agent GROUPS.md and COMMUNITIES.md not always created — intermittent
+- [ ] Group chat: 2nd agent empty response (workaround: @all or Tab-expand)
+- [ ] Group chat jitter on mobile (improved but not eliminated)
+- [ ] Template apply: GROUPS.md/COMMUNITIES.md intermittent
 
-## High Priority (GTC Demo Feedback)
+## High Priority (UX)
 
-- [ ] **Agent token limits + warnings** — per-agent token/cost limits, yellow at 80%, red when exceeded, auto-pause
-- [ ] **Template skills audit** — role-appropriate skills per agent
-- [ ] **Workflow table view** — sortable columns (name, schedule, cost, runs, status) like agent table view
+- [ ] **Workflow table view** — sortable columns like agent table view
+- [ ] **Templates list view** — with select/select-all/bulk-delete
+- [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents
 
-## High Priority (Features) — Next Sprint
+## High Priority (Features)
 
-- [ ] **System agent: workflow creator** — create workflows from natural language
-- [ ] **System agent: org creator** — create full orgs from natural language with domain knowledge
-- [ ] **More domain templates** — personal assistants, students, back office, legal, retail
-- [ ] **Agent/workflow logs filtering** — view logs from specific agent or by tag
-- [ ] **Workspace stats dashboard** — agent count, tokens consumed, costs. Pause/disable workspace.
+- [ ] **System agent: workflow creator** — NL to workflow
+- [ ] **System agent: org creator** — NL to full org with domain knowledge
+- [ ] **Agent/workflow logs filtering** — by agent or tag
+- [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
-## Medium Priority (UX)
+## Medium Priority
 
-- [ ] **Templates list view** — list view with select/select-all/bulk-delete (like Agents table). System templates read-only with badge. Include when building workflow table view.
-- [x] **Select All** — add "Select All" checkbox in Agents and Workflows selection mode header
-- [ ] **Pause/disable agent** — toggle agent enabled/disabled (orange badge like archived). Bulk pause via selection. Disabled agents excluded from workflows and don't consume tokens. Critical for cost management.
-- [ ] Template tag filtering (like agents, workflows)
+- [ ] Template tag filtering
 - [ ] Dark mode audit
-- [ ] Consolidate cron scheduling with OpenClaw's native cron
-- [ ] "Forward to group" — share 1:1 agent chat to a group
-- [ ] Workflow chaining — one workflow triggers others
-
-## Medium Priority (CI/CD)
-
-- [ ] CI needs proper `.env` handling for API keys or mock mode
-- [ ] Clean-room test — fresh install validation
+- [ ] Consolidate cron with OpenClaw native
+- [ ] "Forward to group" — share 1:1 chat to group
+- [ ] Workflow chaining — one triggers others
+- [ ] CI .env handling
 - [ ] Branch protection for main
 
-## Future (v1.2.0 / Cloud)
+## Cloud Deployment (April 1st — Separate Team)
 
-- [ ] Cloud deployment — hosted ClawMax with multi-tenant workspaces
-- [ ] Cloud management dashboard — consolidate instances (ClawMax.ai)
-- [ ] Cloud APIs — remote workspace management, health checks, billing
-- [ ] Template marketplace — community marketplace on ClawMax.ai
+- [ ] Cloud infrastructure setup
+- [ ] Multi-tenant workspace isolation
+- [ ] Cloud management dashboard (ClawMax.ai)
+- [ ] Cloud APIs for remote management
+- [ ] Billing integration
+- [ ] Template marketplace
 
-## Future (v1.3.0 / On-Premise)
+## On-Premise (v1.3.0 — Future)
 
-- [ ] Install agent on on-premise device
-- [ ] Remote setup, management, updates, health checks
+- [ ] Remote agent installation
+- [ ] Remote setup/management/updates
 - [ ] On-premise management dashboard
 - [ ] Docker/Kubernetes packaging
 
@@ -58,25 +84,16 @@
 
 ## Completed (v1.1.5 — March 19, 2026)
 
-- Opik token metering — traces to Opik, metering dashboard on Activity page
-- Agent cost badges on grid + detail cards with tooltip
-- Sortable Cost column in agent table view (replaces WhatsApp)
-- Workflow cost display on cards and list view
-- Workflow execution tracing to Opik
-- Unread message indicators (red dot) on Communication cards + nav badge
-- @mention grouping with Tab-to-expand for individual targeting
-- Group chat markdown rendering + brace-depth JSON cleanup
-- Agent PRs: merged #34 (schema paths), #36 (workflow schema), #37 (template groups)
-- Grid card layout: name line + ID/cost/chat/file line
-- Communication card: trash bottom-right, chat top-right
-- Workflow card: file icon bottom-right
-- Template agent display names consistent
-- Blog post archived, stale planning docs archived
+See CHANGELOG.md. Key: Opik metering, cost badges, unread indicators, @mention grouping, Select All, agent PRs merged, markdown chat, nav reorder.
 
-## Completed (v1.1.3-v1.1.4 — March 18, 2026)
+## Sprint Plan: March 20-26
 
-See CHANGELOG.md for full details.
-
-## Planning Notes
-
-Reserve ~1 hour per 10-hour sprint for bug fixes discovered during testing.
+| Day | Focus | Key Deliverables |
+|-----|-------|-----------------|
+| Thu 20 | Security audit + GitHub auth start | Audit report, OAuth scaffold |
+| Fri 21 | GitHub auth complete + cost limits | Login flow working, agent limits |
+| Sat 22 | Pause/disable agents + backup/restore | Bulk pause, zip backup |
+| Sun 23 | Templates library (5-10 templates) | Categories + pre-built |
+| Mon 24 | Agent coordination + custom templates | Blocking notifications, save-as-template |
+| Tue 25 | UI/UX polish + integration testing | End-to-end testing |
+| Wed 26 | Dashboard freeze + cloud handoff | Ready for cloud team |
