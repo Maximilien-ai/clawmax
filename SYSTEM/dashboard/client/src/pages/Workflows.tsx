@@ -799,6 +799,20 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             >
               <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
             </button>
+            {selectionMode && (
+              <button
+                onClick={() => {
+                  if (selectedWorkflowIds.size === filteredWorkflows.length) {
+                    setSelectedWorkflowIds(new Set())
+                  } else {
+                    setSelectedWorkflowIds(new Set(filteredWorkflows.map(w => w.id)))
+                  }
+                }}
+                className="px-3 py-2 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                {selectedWorkflowIds.size === filteredWorkflows.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
             <button
               onClick={() => setShowEditorDialog(true)}
               className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors"

@@ -944,6 +944,20 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             >
               <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
             </button>
+            {selectionMode && (
+              <button
+                onClick={() => {
+                  if (selectedAgentIds.size === filteredAgents.length) {
+                    setSelectedAgentIds(new Set())
+                  } else {
+                    setSelectedAgentIds(new Set(filteredAgents.map(a => a.id)))
+                  }
+                }}
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                {selectedAgentIds.size === filteredAgents.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
             <button
               onClick={() => setShowAddWizard(true)}
               className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
