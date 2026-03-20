@@ -33,8 +33,8 @@ interface NavItem {
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
-  { id: 'organizations', label: 'Organizations', icon: 'org' },
   { id: 'communication', label: 'Communication', icon: 'comms' },
+  { id: 'organizations', label: 'Organizations', icon: 'org' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   // System tabs below - separated by divider
   { id: 'workflows', label: 'Workflows', icon: 'workflows' },
