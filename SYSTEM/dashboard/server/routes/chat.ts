@@ -5,6 +5,7 @@ import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 import { traceAgentChat } from '../lib/opik'
 import { safeEnv } from '../lib/safe-env'
+import { checkBudgetBlock } from '../lib/budget'
 
 const router = Router()
 
@@ -78,6 +79,12 @@ router.post('/:id/chat', (req, res) => {
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required' })
+  }
+
+  // Check workspace budget
+  const budgetBlock = checkBudgetBlock()
+  if (budgetBlock) {
+    return res.status(402).json({ error: budgetBlock })
   }
 
   // Validate API keys exist before starting chat

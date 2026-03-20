@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
 import { traceAgentChat, traceWorkflowExecution } from './opik'
+import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 
 // Use dynamic workspace path to support multi-workspace
@@ -585,6 +586,12 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: { manual?: boolean }): { success: boolean; executionId?: string; error?: string } {
   try {
+    // Check workspace budget before executing
+    const budgetBlock = checkBudgetBlock()
+    if (budgetBlock) {
+      return { success: false, error: budgetBlock }
+    }
+
     // Check if workflow exists
     const workflow = getWorkflow(workflowId)
     if (!workflow) {

@@ -95,6 +95,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [showSystemLogs, setShowSystemLogs] = useState(false)
   const [metering, setMetering] = useState<MeteringData | null>(null)
   const [showMetering, setShowMetering] = useState(true)
+  const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
 
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
@@ -113,6 +116,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   useEffect(() => {
     fetchFeed()
     fetch('/api/metering').then(r => r.json()).then(d => setMetering(d)).catch(() => {})
+    fetch('/api/budget').then(r => r.json()).then(d => { setBudget(d); setBudgetInput(String(d.config.limitUsd)) }).catch(() => {})
     const interval = setInterval(fetchFeed, 30000)
     return () => clearInterval(interval)
   }, [fetchFeed])
@@ -139,6 +143,23 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       setSortCol(col)
       setSortDir('asc')
     }
+  }
+
+  const saveBudget = async (updates: Record<string, any>) => {
+    try {
+      const res = await fetch('/api/budget', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (res.ok) {
+        const refreshed = await fetch('/api/budget')
+        const data = await refreshed.json()
+        setBudget(data)
+        setBudgetInput(String(data.config.limitUsd))
+        setEditingBudget(false)
+      }
+    } catch {}
   }
 
   const rows = sortEntries(feed, sortCol, sortDir)
@@ -261,6 +282,78 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
           </button>
         </div>
       </div>
+
+      {/* Budget Bar */}
+      {budget && (
+        <div className={`mb-4 rounded-lg border p-4 ${
+          budget.level === 'exceeded' ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' :
+          budget.level === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700' :
+          'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+        }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Workspace Budget</span>
+              {budget.level === 'exceeded' && (
+                <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-full">EXCEEDED — agents paused</span>
+              )}
+              {budget.level === 'warning' && (
+                <span className="text-xs font-bold text-yellow-600 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-0.5 rounded-full">WARNING</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {editingBudget ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-500">$</span>
+                  <input
+                    type="number"
+                    value={budgetInput}
+                    onChange={e => setBudgetInput(e.target.value)}
+                    className="w-20 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 dark:bg-gray-700 dark:text-gray-200"
+                    min="0"
+                    step="1"
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') saveBudget({ limitUsd: parseFloat(budgetInput) || 10 })
+                      if (e.key === 'Escape') setEditingBudget(false)
+                    }}
+                  />
+                  <button onClick={() => saveBudget({ limitUsd: parseFloat(budgetInput) || 10 })} className="text-xs text-green-600 hover:text-green-700 font-medium">Save</button>
+                  <button onClick={() => setEditingBudget(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
+              ) : (
+                <button onClick={() => setEditingBudget(true)} className="text-xs text-sky-600 hover:text-sky-700">
+                  Limit: ${budget.config.limitUsd.toFixed(2)} — Edit
+                </button>
+              )}
+              <label className="flex items-center gap-1 text-xs text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={budget.config.enforced}
+                  onChange={e => saveBudget({ enforced: e.target.checked })}
+                  className="rounded"
+                />
+                Enforce
+              </label>
+            </div>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-1">
+            <div
+              className={`h-3 rounded-full transition-all ${
+                budget.level === 'exceeded' ? 'bg-red-500' :
+                budget.level === 'warning' ? 'bg-yellow-500' :
+                'bg-green-500'
+              }`}
+              style={{ width: `${Math.min(budget.usedPct, 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
+            <span>{budget.usedPct.toFixed(1)}% used</span>
+            <span>${budget.remainingUsd.toFixed(4)} remaining</span>
+          </div>
+        </div>
+      )}
 
       {/* Metering Stats */}
       {metering && showMetering && (

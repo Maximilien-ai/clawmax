@@ -23,6 +23,7 @@ import { validateCommunities, validateGroups, validateIdentity } from './lib/val
 import { requireAuth, verifyToken } from './lib/auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
+import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -137,6 +138,46 @@ app.get('/api/system', requireAuth, (_req, res) => {
 app.get('/api/activity', requireAuth, (_req, res) => {
   const feed = getInstallationActivity()
   res.json({ feed })
+})
+
+// Budget status
+app.get('/api/budget', requireAuth, async (_req, res) => {
+  try {
+    const status = await getBudgetStatus()
+    res.json(status)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Update budget config
+app.put('/api/budget', requireAuth, (req, res) => {
+  try {
+    const current = loadBudgetConfig()
+    const updates = req.body as Partial<BudgetConfig>
+
+    // Validate
+    if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || updates.limitUsd < 0)) {
+      res.status(400).json({ error: 'limitUsd must be a non-negative number' })
+      return
+    }
+    if (updates.warningPct !== undefined && (typeof updates.warningPct !== 'number' || updates.warningPct < 0 || updates.warningPct > 100)) {
+      res.status(400).json({ error: 'warningPct must be 0-100' })
+      return
+    }
+
+    const config: BudgetConfig = {
+      limitUsd: updates.limitUsd ?? current.limitUsd,
+      warningPct: updates.warningPct ?? current.warningPct,
+      enforced: updates.enforced ?? current.enforced,
+      paused: updates.paused ?? current.paused,
+    }
+
+    saveBudgetConfig(config)
+    res.json({ ok: true, config })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // Metering data from Opik

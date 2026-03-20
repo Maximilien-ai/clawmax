@@ -16,7 +16,9 @@
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
 
 ### Cost Management (Sprint Priority #2)
-- [ ] **Agent token limits + warnings** — per-agent token/cost limits, yellow at 80%, red when exceeded, auto-pause agent
+- [x] **Workspace cost budget** — per-workspace USD budget with progress bar, yellow at 80%, red when exceeded, auto-pause agents + block workflows
+- [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
+- [ ] **Per-agent cost limits** — individual agent limits (future, currently workspace-level)
 - [ ] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause via selection. Disabled agents excluded from workflows.
 - [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends

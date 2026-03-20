@@ -573,6 +573,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     setCommunityWorkflows={setCommunityWorkflows}
                     setGroupWorkflows={setGroupWorkflows}
                     onDelete={() => handleDeleteChannel(channel)}
+                    unreadCount={unreadCounts[`community:${channel.name}`] || 0}
                   />
                 ))}
               </div>
@@ -601,6 +602,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     setCommunityWorkflows={setCommunityWorkflows}
                     setGroupWorkflows={setGroupWorkflows}
                     onDelete={() => handleDeleteChannel(channel)}
+                    unreadCount={unreadCounts[`group:${channel.name}`] || 0}
                   />
                 ))}
               </div>
@@ -1049,7 +1051,7 @@ interface Message {
   mentions: string[]
 }
 
-function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onNavigateToWorkflow, onOpenChat, isHighlighted, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows, onDelete }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean; communityWorkflows: Map<string, Workflow[]>; groupWorkflows: Map<string, Workflow[]>; setCommunityWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; setGroupWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; onDelete?: () => void }) {
+function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onManageMembers, onNavigateToAgent, onNavigateToWorkflow, onOpenChat, isHighlighted, communityWorkflows, groupWorkflows, setCommunityWorkflows, setGroupWorkflows, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onOpenChat?: () => void; isHighlighted?: boolean; communityWorkflows: Map<string, Workflow[]>; groupWorkflows: Map<string, Workflow[]>; setCommunityWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; setGroupWorkflows: React.Dispatch<React.SetStateAction<Map<string, Workflow[]>>>; onDelete?: () => void; unreadCount?: number }) {
   const [expanded, setExpanded] = useState(false)
   const [loadingWorkflows, setLoadingWorkflows] = useState(false)
   const [messageText, setMessageText] = useState('')
@@ -1247,6 +1249,11 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <h3 className="font-semibold text-gray-900 text-sm truncate dark:text-gray-100">{channel.name}</h3>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
             {channel.channels.length > 0 && (
               <div className="flex gap-1">
                 {channel.channels.map(ch => (
