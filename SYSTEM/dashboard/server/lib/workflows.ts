@@ -3,6 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
+import { safeEnv } from './safe-env'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
@@ -118,7 +119,7 @@ function runCronCmd(args: string[]): { ok: boolean; output: string; error?: stri
     const output = execSync(`openclaw cron ${args.join(' ')}`, {
       encoding: 'utf-8',
       timeout: 15000,
-      env: { ...process.env }
+      env: safeEnv()
     }).trim()
     return { ok: true, output }
   } catch (err: any) {
@@ -663,7 +664,7 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
-            const proc = spawn('openclaw', args, { env: process.env })
+            const proc = spawn('openclaw', args, { env: safeEnv() })
             let stdout = ''
             let stderr = ''
             const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min

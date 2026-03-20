@@ -2,6 +2,20 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.1.6] - 2026-03-20
+
+### Security
+- **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars (27 issues identified, critical/high remediated)
+- **Auth enabled by default** — `DASHBOARD_AUTH_DISABLED` now defaults to `false`; `.env.example` provided with placeholder values
+- **Rate limiting** — `express-rate-limit` middleware: 200 req/min global, 10 req/min on auth endpoints
+- **Audit logging** — all API requests logged to `server/logs/audit.log` (timestamp, method, path, status, token hash, duration)
+- **Env var whitelisting** — child processes (openclaw CLI) receive only whitelisted env vars via `safeEnv()` instead of full `process.env`
+- **Port validation** — numeric validation before shell exec in agent restart (`kill -9`) and PID validation on lsof output
+- **Path traversal fix** — `readWorkspaceFile`/`writeWorkspaceFile` now resolve symlinks before prefix check
+- **GitHub URL validation** — strict HTTPS-only regex for skill import git clone (prevents command injection)
+- **CORS configurable** — origin now reads from `CORS_ORIGIN` env var (was hardcoded to localhost:5173)
+- **Gitignore hardened** — `.dashboard-token` and `server/logs/` added to `.gitignore`
+
 ## [v1.1.5] - 2026-03-19
 
 ### Features

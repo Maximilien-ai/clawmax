@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -20,6 +21,8 @@ import { initOpikTracing, shutdownOpik } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
+import { safeEnv } from './lib/safe-env'
+import { auditLog } from './lib/audit'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -75,8 +78,27 @@ process.on('SIGTERM', () => {
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 
-app.use(cors({ origin: 'http://localhost:5173' }))
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }))
 app.use(express.json())
+
+// Rate limiting — global: 200 req/min, auth: 10 req/min
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+})
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth attempts' },
+})
+app.use('/api', globalLimiter)
+app.use('/api/auth', authLimiter)
+app.use('/api', auditLog)
 
 // Health (public)
 app.get('/api/health', (_req, res) => {
@@ -139,7 +161,7 @@ app.get('/api/system/logs', requireAuth, (_req, res) => {
   })
 
   const child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
-    env: process.env,
+    env: safeEnv(),
   })
 
   child.stdout.on('data', (data: Buffer) => {

@@ -8,6 +8,7 @@ import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getGatewayClient } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
+import { safeEnv, validatePort } from '../lib/safe-env'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -385,7 +386,7 @@ router.post('/provision', (req, res) => {
 
   const child = spawn('openclaw', args, {
     cwd: getWorkspacePath(),
-    env: { ...process.env, TERM: 'dumb' },
+    env: safeEnv({ TERM: 'dumb' }),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -782,14 +783,14 @@ router.post('/:id/restart', async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Gateway config not found' })
     }
 
-    const port = gatewayConfig.port || 18889
+    const port = validatePort(gatewayConfig.port || 18889)
 
     // Kill existing process on this port
     const { execSync } = require('child_process')
     try {
-      // Find and kill process on port
+      // Find and kill process on port (port validated as numeric above)
       const pid = execSync(`lsof -ti:${port}`, { encoding: 'utf-8' }).trim()
-      if (pid) {
+      if (pid && /^\d+(\n\d+)*$/.test(pid)) {
         execSync(`kill -9 ${pid}`)
       }
     } catch (err) {
@@ -811,10 +812,7 @@ router.post('/:id/restart', async (req, res) => {
     const profileFlag = isProfile ? ['--profile', id] : []
     const child = spawn('openclaw', [...profileFlag, 'gateway', 'install'], {
       cwd: agent.workspacePath,
-      env: {
-        ...process.env,
-        OPENCLAW_STATE_DIR: stateDir,
-      },
+      env: safeEnv({ OPENCLAW_STATE_DIR: stateDir }),
       detached: true,
       stdio: 'ignore',
     })
@@ -934,7 +932,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
 
   const child = spawn('node', [scriptPath, phone, credsDir, baileys, boom], {
     cwd: getWorkspacePath(),
-    env: { ...process.env, TERM: 'dumb' },
+    env: safeEnv({ TERM: 'dumb' }),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -994,7 +992,7 @@ function callGatewayRpc(_port: number, _token: string, method: string, params: u
     if (params && Object.keys(params as object).length > 0) {
       args.push('--params', JSON.stringify(params))
     }
-    const proc = spawn('openclaw', args, { env: process.env })
+    const proc = spawn('openclaw', args, { env: safeEnv() })
     let stdout = ''
     let stderr = ''
     const timer = setTimeout(() => { proc.kill(); reject(new Error('gateway timeout')) }, 10000)
@@ -1172,7 +1170,7 @@ router.post('/:id/chat/messages', async (req, res) => {
 
     // Run the agent turn with the message
     const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json']
-    const proc = spawn('openclaw', args, { env: process.env })
+    const proc = spawn('openclaw', args, { env: safeEnv() })
 
     let stdout = ''
     let stderr = ''
@@ -1851,7 +1849,7 @@ router.get('/:id/logs', (req, res) => {
 
   const profileFlag = isProfile ? ['--profile', id] : []
   const child = spawn('openclaw', [...profileFlag, 'logs', '--follow', '--limit', '200'], {
-    env: process.env,
+    env: safeEnv(),
   })
 
   child.stdout.on('data', (data) => {
@@ -1888,9 +1886,11 @@ router.get('/:id/health', async (req, res) => {
   try {
     const profileFlag = isProfile ? ['--profile', id] : []
     const { execSync } = require('child_process')
-    const result = execSync(`openclaw ${profileFlag.join(' ')} health --json`, {
+    const args = [...profileFlag, 'health', '--json']
+    const result = execSync(['openclaw', ...args].join(' '), {
       encoding: 'utf-8',
       timeout: 10000,
+      env: safeEnv(),
     })
     const health = JSON.parse(result)
     res.json(health)
@@ -1902,6 +1902,11 @@ router.get('/:id/health', async (req, res) => {
 // GET /api/agents/:id/gateway-status — Get gateway status
 router.get('/:id/gateway-status', async (req, res) => {
   const { id } = req.params
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
   const agents = listAgents()
   const agent = agents.find(a => a.id === id)
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
@@ -1913,9 +1918,11 @@ router.get('/:id/gateway-status', async (req, res) => {
   try {
     const profileFlag = isProfile ? ['--profile', id] : []
     const { execSync } = require('child_process')
-    const result = execSync(`openclaw ${profileFlag.join(' ')} gateway status`, {
+    const args = [...profileFlag, 'gateway', 'status']
+    const result = execSync(['openclaw', ...args].join(' '), {
       encoding: 'utf-8',
       timeout: 10000,
+      env: safeEnv(),
     })
     res.json({ status: result })
   } catch (err: any) {

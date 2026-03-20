@@ -114,13 +114,29 @@ export function listMarkdownFiles(): DocEntry[] {
   })
 }
 
+/** Validate a workspace path is inside the workspace and is a .md file */
+function isPathSafe(full: string, workspacePath: string): boolean {
+  if (!full.endsWith('.md')) return false
+  // Resolve symlinks to prevent traversal via symlinks
+  let realFull: string
+  let realWorkspace: string
+  try {
+    realWorkspace = fs.realpathSync(workspacePath)
+    // For reads, the file must exist for realpath; for writes, check parent
+    realFull = fs.existsSync(full) ? fs.realpathSync(full) : fs.realpathSync(path.dirname(full)) + path.sep + path.basename(full)
+  } catch {
+    // If parent dir doesn't exist, fall back to resolved path check
+    realFull = full
+    realWorkspace = workspacePath
+  }
+  return realFull.startsWith(realWorkspace + path.sep) || realFull === realWorkspace
+}
+
 /** Read a workspace .md file by relative path. Returns null if outside workspace or not found */
 export function readWorkspaceFile(relPath: string): string | null {
   const workspacePath = getWorkspacePath()
   const full = path.resolve(workspacePath, relPath)
-  // Security: ensure it stays inside workspace
-  if (!full.startsWith(workspacePath + path.sep) && full !== workspacePath) return null
-  if (!full.endsWith('.md')) return null
+  if (!isPathSafe(full, workspacePath)) return null
   try {
     return fs.readFileSync(full, 'utf-8')
   } catch {
@@ -132,8 +148,7 @@ export function readWorkspaceFile(relPath: string): string | null {
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()
   const full = path.resolve(workspacePath, relPath)
-  if (!full.startsWith(workspacePath + path.sep) && full !== workspacePath) return false
-  if (!full.endsWith('.md')) return false
+  if (!isPathSafe(full, workspacePath)) return false
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, content, 'utf-8')
@@ -1377,8 +1392,9 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
 
     // No port in config — probe both common ports
     const { execSync } = require('child_process')
-    for (const port of [18789, 18889]) {
+    for (const port of [18789, 18889] as const) {
       try {
+        // port is a hardcoded numeric constant — safe for interpolation
         execSync(`lsof -ti:${port}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 1000 })
         return { port, token }
       } catch {}

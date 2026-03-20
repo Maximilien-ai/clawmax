@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
+import { safeEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
@@ -162,7 +163,7 @@ async function callAgent(agentId: string, message: string, _sessionId: string): 
   return new Promise((resolve, reject) => {
     // Use --local to bypass gateway (avoids empty payload issues with some agents)
     const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
-    const proc = spawn('openclaw', args, { env: process.env })
+    const proc = spawn('openclaw', args, { env: safeEnv() })
 
     let stdout = ''
     let stderr = ''

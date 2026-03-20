@@ -1,17 +1,19 @@
 # Backlog
 
-> Last updated: March 19, 2026 (post-board meeting)
+> Last updated: March 20, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
 ## CRITICAL — Dashboard Ready by March 26 (Wed)
 
 ### Security (Sprint Priority #1)
-- [ ] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. Surface all issues and remediation plan.
+- [x] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. 27 issues found, critical/high fixed in v1.1.6.
+- [x] **API rate limiting** — express-rate-limit: 200 req/min global, 10 req/min auth
+- [x] **Input sanitization** — port validation, agent ID validation, GitHub URL validation, path traversal fix
+- [x] **Audit logging** — all API requests logged with timestamp, method, path, status, token hash, duration
+- [x] **Env var whitelisting** — child processes receive only whitelisted env vars
 - [ ] **GitHub authentication** — OAuth login via GitHub. Protect all API routes. Session management.
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
-- [ ] **API rate limiting** — prevent abuse of agent/workflow execution endpoints
-- [ ] **Input sanitization** — verify all user inputs sanitized (agent names, workflow content, chat messages)
 
 ### Cost Management (Sprint Priority #2)
 - [ ] **Agent token limits + warnings** — per-agent token/cost limits, yellow at 80%, red when exceeded, auto-pause agent
@@ -43,6 +45,8 @@
 
 ## High Priority (UX)
 
+- [ ] **Agent list pagination** — paginate agent list/table views (10 per page) to handle growing rosters
+- [ ] **Activity metering loading state** — show placeholder message while Opik data loads (e.g., "Fetching metering data…") so users don't think it's broken on cold start
 - [ ] **Workflow table view** — sortable columns like agent table view
 - [ ] **Templates list view** — with select/select-all/bulk-delete
 - [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents

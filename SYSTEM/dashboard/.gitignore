@@ -1,4 +1,6 @@
 node_modules/
 dist/
 .env
+.dashboard-token
+server/logs/
 TEMPLATES/

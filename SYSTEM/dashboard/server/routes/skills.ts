@@ -203,9 +203,9 @@ router.post('/import-github', async (req, res) => {
       return res.status(400).json({ error: 'githubUrl is required' })
     }
 
-    // Validate GitHub URL format
-    if (!githubUrl.includes('github.com')) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' })
+    // Validate GitHub URL format — strict HTTPS-only check to prevent command injection
+    if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/.test(githubUrl)) {
+      return res.status(400).json({ error: 'Only HTTPS GitHub URLs are allowed (https://github.com/user/repo)' })
     }
 
     // Extract repo name from URL (e.g., https://github.com/user/repo -> repo)

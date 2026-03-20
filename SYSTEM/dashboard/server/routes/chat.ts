@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 import { traceAgentChat } from '../lib/opik'
+import { safeEnv } from '../lib/safe-env'
 
 const router = Router()
 
@@ -111,7 +112,7 @@ router.post('/:id/chat', (req, res) => {
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   const proc = spawn('openclaw', args, {
-    env: { ...process.env },
+    env: safeEnv(),
     stdio: ['pipe', 'pipe', 'pipe']
   })
 
