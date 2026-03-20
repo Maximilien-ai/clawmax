@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
 
 const PRESET_COLORS = [
@@ -24,6 +24,23 @@ export function WorkspaceEditDialog({
   const [selectedColor, setSelectedColor] = useState(workspace.color || PRESET_COLORS[0].value)
   const [tags, setTags] = useState(workspace.tags?.join(', ') || '')
   const [updating, setUpdating] = useState(false)
+  const [budgetLimit, setBudgetLimit] = useState('10')
+  const [budgetEnforced, setBudgetEnforced] = useState(true)
+  const [budgetSpend, setBudgetSpend] = useState(0)
+  const [budgetPct, setBudgetPct] = useState(0)
+  const [budgetLevel, setBudgetLevel] = useState<'ok' | 'warning' | 'exceeded'>('ok')
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/budget').then(r => r.json()).then(d => {
+        setBudgetLimit(String(d.config.limitUsd))
+        setBudgetEnforced(d.config.enforced)
+        setBudgetSpend(d.currentSpendUsd)
+        setBudgetPct(d.usedPct)
+        setBudgetLevel(d.level)
+      }).catch(() => {})
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -47,6 +64,18 @@ export function WorkspaceEditDialog({
         color: selectedColor,
         tags: parsedTags
       })
+
+      // Save budget config
+      try {
+        await fetch('/api/budget', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            limitUsd: parseFloat(budgetLimit) || 10,
+            enforced: budgetEnforced,
+          }),
+        })
+      } catch {}
 
       onClose()
     } catch (err) {
@@ -118,6 +147,57 @@ export function WorkspaceEditDialog({
                 />
               ))}
             </div>
+          </div>
+
+          {/* Cost Budget */}
+          <div>
+            <label htmlFor="workspace-budget" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
+              Cost Budget (USD)
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 flex-1">
+                <span className="text-sm text-gray-500">$</span>
+                <input
+                  id="workspace-budget"
+                  type="number"
+                  value={budgetLimit}
+                  onChange={(e) => setBudgetLimit(e.target.value)}
+                  placeholder="10.00"
+                  min="0"
+                  step="1"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={budgetEnforced}
+                  onChange={(e) => setBudgetEnforced(e.target.checked)}
+                  className="rounded"
+                />
+                Enforce limit
+              </label>
+            </div>
+            {/* Mini progress bar */}
+            <div className="mt-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${
+                    budgetLevel === 'exceeded' ? 'bg-red-500' :
+                    budgetLevel === 'warning' ? 'bg-yellow-500' :
+                    'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(budgetPct, 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>${budgetSpend.toFixed(4)} spent</span>
+                <span>{budgetPct.toFixed(1)}%</span>
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Agents pause automatically when budget is exceeded. Warning at 80%.
+            </p>
           </div>
 
           {/* Path info (read-only) */}
