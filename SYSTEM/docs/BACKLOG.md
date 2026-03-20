@@ -26,7 +26,8 @@
 ## Medium Priority (UX)
 
 - [ ] **Templates list view** — list view with select/select-all/bulk-delete (like Agents table). System templates read-only with badge. Include when building workflow table view.
-- [ ] **Select All** — add "Select All" checkbox in Agents, Workflows, and Templates selection mode header
+- [x] **Select All** — add "Select All" checkbox in Agents and Workflows selection mode header
+- [ ] **Pause/disable agent** — toggle agent enabled/disabled (orange badge like archived). Bulk pause via selection. Disabled agents excluded from workflows and don't consume tokens. Critical for cost management.
 - [ ] Template tag filtering (like agents, workflows)
 - [ ] Dark mode audit
 - [ ] Consolidate cron scheduling with OpenClaw's native cron
