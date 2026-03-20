@@ -33,19 +33,19 @@ interface NavItem {
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
+  { id: 'workflows', label: 'Workflows', icon: 'workflows' },
   { id: 'communication', label: 'Communication', icon: 'comms' },
-  { id: 'organizations', label: 'Organizations', icon: 'org' },
+  { id: 'organizations', label: 'Organization', icon: 'org' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   // System tabs below - separated by divider
-  { id: 'workflows', label: 'Workflows', icon: 'workflows' },
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
   { id: 'logs', label: 'Logs', icon: 'logs' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
 ]
 
-// User tabs that can be rearranged (first 4)
-const USER_TABS_COUNT = 4
+// User tabs that can be rearranged (first 5)
+const USER_TABS_COUNT = 5
 
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
