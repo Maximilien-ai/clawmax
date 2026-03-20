@@ -82,17 +82,17 @@ const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }))
 app.use(express.json())
 
-// Rate limiting — global: 200 req/min, auth: 10 req/min
+// Rate limiting — global: 1000 req/min, auth: 20 req/min
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 })
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many auth attempts' },

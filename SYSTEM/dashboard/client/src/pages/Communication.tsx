@@ -199,7 +199,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   // Build channels list from agents (exclude archived agents from channels)
   const allChannels = useMemo(() => {
     const channelMap = new Map<string, Channel>()
-    const activeAgents = agents.filter(a => !a.archived)
+    const activeAgents = (agents || []).filter(a => !a.archived)
 
     // Add communities
     for (const agent of activeAgents) {
