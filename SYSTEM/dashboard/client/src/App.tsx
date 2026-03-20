@@ -12,6 +12,8 @@ import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { WorkspaceProvider } from './contexts/WorkspaceContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 
@@ -46,6 +48,55 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
 
 // User tabs that can be rearranged (first 5)
 const USER_TABS_COUNT = 5
+
+/** Sidebar user badge with avatar and logout */
+function UserBadge({ collapsed }: { collapsed: boolean }) {
+  const { user, logout, config } = useAuth()
+  if (!user || config?.authDisabled) return null
+
+  if (collapsed) {
+    return (
+      <div className="border-t border-gray-700 px-2 py-2 flex justify-center">
+        <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" title={`${user.login} — click to logout`} onClick={logout} style={{ cursor: 'pointer' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-t border-gray-700 px-4 py-2 flex items-center gap-2">
+      <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" />
+      <span className="text-xs text-gray-300 truncate flex-1">{user.name || user.login}</span>
+      <button onClick={logout} className="text-xs text-gray-500 hover:text-gray-300" title="Sign out">
+        Logout
+      </button>
+    </div>
+  )
+}
+
+/** Gate that shows login page when auth is required and user is not logged in */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading, config } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+      </div>
+    )
+  }
+
+  // If auth is disabled, skip login
+  if (config?.authDisabled) {
+    return <>{children}</>
+  }
+
+  // If GitHub is configured and user isn't logged in, show login
+  if (config?.githubEnabled && !user) {
+    return <Login />
+  }
+
+  return <>{children}</>
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
@@ -179,7 +230,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ToastProvider>
+      <AuthProvider>
+        <AuthGate>
+        <ToastProvider>
         <WorkspaceProvider>
           <ConnectionStatus />
           <WorkspaceDialog
@@ -240,6 +293,9 @@ export default function App() {
                 </React.Fragment>
               ))}
             </nav>
+
+            {/* User info */}
+            <UserBadge collapsed={navCollapsed} />
 
             {/* Footer / collapse toggle */}
             <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
@@ -324,6 +380,8 @@ export default function App() {
           </div>
         </WorkspaceProvider>
       </ToastProvider>
+        </AuthGate>
+      </AuthProvider>
     </ErrorBoundary>
   )
 }

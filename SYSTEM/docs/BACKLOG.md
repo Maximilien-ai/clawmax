@@ -12,7 +12,7 @@
 - [x] **Input sanitization** — port validation, agent ID validation, GitHub URL validation, path traversal fix
 - [x] **Audit logging** — all API requests logged with timestamp, method, path, status, token hash, duration
 - [x] **Env var whitelisting** — child processes receive only whitelisted env vars
-- [ ] **GitHub authentication** — OAuth login via GitHub. Protect all API routes. Session management.
+- [x] **GitHub authentication** — OAuth login via GitHub. JWT sessions, login page, user avatar, logout, allowed-user whitelist.
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
 
 ### Cost Management (Sprint Priority #2)

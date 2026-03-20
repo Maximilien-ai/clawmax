@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
 import path from 'path'
 import fs from 'fs'
@@ -21,6 +22,7 @@ import { initOpikTracing, shutdownOpik } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
+import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
@@ -79,8 +81,12 @@ process.on('SIGTERM', () => {
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }))
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}))
 app.use(express.json())
+app.use(cookieParser())
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const globalLimiter = rateLimit({
@@ -110,11 +116,25 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-// Auth verification (public)
+// Auth verification (public, legacy)
 app.post('/api/auth/verify', verifyToken)
 
+// GitHub OAuth routes (public)
+app.use('/api/auth', createAuthRouter())
+
+// Auth config info (public — so login page knows what's available)
+app.get('/api/auth/config', (_req, res) => {
+  res.json({
+    githubEnabled: isGitHubAuthConfigured(),
+    authDisabled: process.env.DASHBOARD_AUTH_DISABLED === 'true',
+  })
+})
+
+// Use GitHub auth for all protected routes (falls back to dashboard token)
+const protect = requireGitHubAuth
+
 // Workspace system info — installation identity card
-app.get('/api/system', requireAuth, (_req, res) => {
+app.get('/api/system', protect, (_req, res) => {
   const workspacePath = getWorkspacePath()
   let gitBranch = 'unknown'
   try {
@@ -135,13 +155,13 @@ app.get('/api/system', requireAuth, (_req, res) => {
 })
 
 // Installation-wide activity feed
-app.get('/api/activity', requireAuth, (_req, res) => {
+app.get('/api/activity', protect, (_req, res) => {
   const feed = getInstallationActivity()
   res.json({ feed })
 })
 
 // Budget status
-app.get('/api/budget', requireAuth, async (_req, res) => {
+app.get('/api/budget', protect, async (_req, res) => {
   try {
     const status = await getBudgetStatus()
     res.json(status)
@@ -151,7 +171,7 @@ app.get('/api/budget', requireAuth, async (_req, res) => {
 })
 
 // Update budget config
-app.put('/api/budget', requireAuth, (req, res) => {
+app.put('/api/budget', protect, (req, res) => {
   try {
     const current = loadBudgetConfig()
     const updates = req.body as Partial<BudgetConfig>
@@ -181,7 +201,7 @@ app.put('/api/budget', requireAuth, (req, res) => {
 })
 
 // Metering data from Opik
-app.get('/api/metering', requireAuth, async (_req, res) => {
+app.get('/api/metering', protect, async (_req, res) => {
   try {
     const data = await getWorkspaceMetering()
     res.json(data)
@@ -191,7 +211,7 @@ app.get('/api/metering', requireAuth, async (_req, res) => {
 })
 
 // System logs - SSE stream
-app.get('/api/system/logs', requireAuth, (_req, res) => {
+app.get('/api/system/logs', protect, (_req, res) => {
   const { spawn } = require('child_process')
 
   // Set up SSE headers
@@ -226,7 +246,7 @@ app.get('/api/system/logs', requireAuth, (_req, res) => {
 })
 
 // Save a workspace doc file
-app.post('/api/docs/content', requireAuth, async (req, res) => {
+app.post('/api/docs/content', protect, async (req, res) => {
   const { path: relPath, content } = req.body as { path?: string; content?: string }
   if (!relPath || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'Missing path or content' })
@@ -352,15 +372,15 @@ app.post('/api/docs/content', requireAuth, async (req, res) => {
 })
 
 // API routes (all protected with auth)
-app.use('/api/docs', requireAuth, docsRouter)
-app.use('/api/agents', requireAuth, agentsRouter)
-app.use('/api/agents', requireAuth, chatRouter)
-app.use('/api/agents', requireAuth, logsRouter)
-app.use('/api/templates', requireAuth, templatesRouter)
-app.use('/api/skills', requireAuth, skillsRouter)
-app.use('/api/workflows', requireAuth, workflowsRouter)
-app.use('/api/workspaces', requireAuth, workspacesRouter)
-app.use('/api', requireAuth, channelsRouter)
+app.use('/api/docs', protect, docsRouter)
+app.use('/api/agents', protect, agentsRouter)
+app.use('/api/agents', protect, chatRouter)
+app.use('/api/agents', protect, logsRouter)
+app.use('/api/templates', protect, templatesRouter)
+app.use('/api/skills', protect, skillsRouter)
+app.use('/api/workflows', protect, workflowsRouter)
+app.use('/api/workspaces', protect, workspacesRouter)
+app.use('/api', protect, channelsRouter)
 
 // Serve built client in production
 const clientDist = path.join(__dirname, '..', '..', 'dist', 'client')
