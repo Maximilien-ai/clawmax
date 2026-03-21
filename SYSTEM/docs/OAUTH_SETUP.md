@@ -51,7 +51,12 @@ Recommended local values:
 DASHBOARD_PORT=3001
 
 # Frontend origin allowed by CORS. Defaults to Vite on 5173.
+# Multiple origins can be comma-separated if needed.
 CORS_ORIGIN=http://localhost:5173
+
+# Optional but recommended when running behind a proxy/tunnel.
+# Forces OAuth callback/session origin instead of relying on forwarded headers.
+# DASHBOARD_PUBLIC_URL=http://localhost:3001
 ```
 
 Notes:
@@ -99,9 +104,11 @@ Example:
 ```bash
 DASHBOARD_PORT=3001
 CORS_ORIGIN=https://dashboard.example.com
+DASHBOARD_PUBLIC_URL=https://dashboard.example.com
+# DASHBOARD_TRUST_PROXY=true
 ```
 
-If GitHub redirects to the wrong host, check forwarded headers and the externally visible server origin. The callback URL is built from the incoming request host/protocol.
+If GitHub redirects to the wrong host, set `DASHBOARD_PUBLIC_URL` explicitly. Only enable `DASHBOARD_TRUST_PROXY=true` when you are behind a trusted reverse proxy that sets forwarded headers correctly.
 
 ## Troubleshooting
 

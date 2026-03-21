@@ -7,6 +7,7 @@ import { Request, Response, NextFunction, Router } from 'express'
 import https from 'https'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
+import type { CookieOptions } from 'express'
 
 // ============================================================================
 // Configuration
@@ -17,6 +18,7 @@ const GITHUB_CLIENT_SECRET = () => process.env.GITHUB_CLIENT_SECRET || ''
 const JWT_SECRET = () => process.env.JWT_SECRET || getOrCreateJwtSecret()
 const SESSION_DURATION = '7d'
 const COOKIE_NAME = 'clawmax_session'
+const STATE_COOKIE_NAME = 'oauth_state'
 
 let _jwtSecret: string | null = null
 
@@ -156,6 +158,35 @@ function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
+function isSecureRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === 'production') return true
+  const forwardedProto = req.headers['x-forwarded-proto']
+  if (typeof forwardedProto === 'string') {
+    return forwardedProto.split(',')[0].trim() === 'https'
+  }
+  return req.secure
+}
+
+function getStateCookieOptions(req: Request): CookieOptions {
+  return {
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000,
+    sameSite: 'lax',
+    secure: isSecureRequest(req),
+    path: '/api/auth',
+  }
+}
+
+function getSessionCookieOptions(req: Request): CookieOptions {
+  return {
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    secure: isSecureRequest(req),
+    path: '/',
+  }
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -175,11 +206,7 @@ export function createAuthRouter(): Router {
     const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email&state=${state}`
 
     // Store state in cookie for CSRF validation
-    res.cookie('oauth_state', state, {
-      httpOnly: true,
-      maxAge: 10 * 60 * 1000, // 10 minutes
-      sameSite: 'lax',
-    })
+    res.cookie(STATE_COOKIE_NAME, state, getStateCookieOptions(_req))
 
     res.redirect(url)
   })
@@ -187,13 +214,19 @@ export function createAuthRouter(): Router {
   // GET /api/auth/github/callback — handle OAuth callback
   router.get('/github/callback', async (req, res) => {
     const { code, state } = req.query as { code?: string; state?: string }
-    const savedState = req.cookies?.oauth_state
+    const savedState = req.cookies?.[STATE_COOKIE_NAME]
+
+    const clearStateCookie = () => {
+      res.clearCookie(STATE_COOKIE_NAME, getStateCookieOptions(req))
+    }
 
     if (!code) {
+      clearStateCookie()
       return res.redirect('/?auth_error=no_code')
     }
 
-    if (state && savedState && state !== savedState) {
+    if (!state || !savedState || state !== savedState) {
+      clearStateCookie()
       return res.redirect('/?auth_error=state_mismatch')
     }
 
@@ -211,21 +244,17 @@ export function createAuthRouter(): Router {
       const sessionToken = createSessionToken(user)
 
       // Set session cookie
-      res.cookie(COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-      })
+      res.cookie(COOKIE_NAME, sessionToken, getSessionCookieOptions(req))
 
       // Clear OAuth state cookie
-      res.clearCookie('oauth_state')
+      clearStateCookie()
 
       console.log(`[Auth] GitHub login: ${user.login} (${user.name || 'no name'})`)
 
       // Redirect to dashboard
       res.redirect('/')
     } catch (err: any) {
+      clearStateCookie()
       console.error('[Auth] GitHub OAuth error:', err.message)
       res.redirect(`/?auth_error=${encodeURIComponent(err.message)}`)
     }
@@ -233,6 +262,7 @@ export function createAuthRouter(): Router {
 
   // GET /api/auth/me — get current user
   router.get('/me', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
     const session = getSessionFromRequest(req)
     if (!session) {
       return res.json({ authenticated: false })
@@ -249,8 +279,8 @@ export function createAuthRouter(): Router {
   })
 
   // POST /api/auth/logout — clear session
-  router.post('/logout', (_req, res) => {
-    res.clearCookie(COOKIE_NAME)
+  router.post('/logout', (req, res) => {
+    res.clearCookie(COOKIE_NAME, getSessionCookieOptions(req))
     res.json({ ok: true })
   })
 
@@ -262,6 +292,10 @@ export function createAuthRouter(): Router {
 // ============================================================================
 
 function getBaseUrl(req: Request): string {
+  const configuredBaseUrl = process.env.DASHBOARD_PUBLIC_URL?.trim()
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, '')
+  }
   const proto = req.headers['x-forwarded-proto'] || 'http'
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001'
   return `${proto}://${host}`

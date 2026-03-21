@@ -81,9 +81,21 @@ process.on('SIGTERM', () => {
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
+app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
+
+const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedCorsOrigins.includes(origin)) {
+      callback(null, true)
+      return
+    }
+    callback(new Error(`CORS origin not allowed: ${origin}`))
+  },
   credentials: true,
 }))
 app.use(express.json())
@@ -125,6 +137,7 @@ app.use('/api/auth', createAuthRouter())
 
 // Auth config info (public — so login page knows what's available)
 app.get('/api/auth/config', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     authDisabled: process.env.DASHBOARD_AUTH_DISABLED === 'true',
