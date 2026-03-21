@@ -194,6 +194,12 @@ export default function AgentDetailPanel({
               </span>
             </div>
             <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
+            {activity?.liveConfig?.model && (
+              <span className="block text-xs text-gray-400 mt-0.5">
+                model
+                <span className="ml-1.5 text-gray-300 font-mono">{activity.liveConfig.model}</span>
+              </span>
+            )}
             {agent.whatsapp && (
               <span className="block text-xs text-gray-400 mt-0.5">
                 +{agent.whatsapp}

@@ -1868,6 +1868,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [identity, setIdentity] = React.useState('')
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
+  const [model, setModel] = React.useState('')
+  const [availableModels, setAvailableModels] = React.useState<string[]>([])
+  const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1880,15 +1883,27 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setError(null)
     setWarnings([])
     setValidationErrors([])
-    fetch(`/api/agents/${agent.id}/config`)
-      .then(r => {
+    Promise.all([
+      fetch(`/api/agents/${agent.id}/config`).then(r => {
         if (!r.ok) throw new Error('Failed to load config')
         return r.json()
-      })
-      .then(data => {
-        setIdentity(data.identity || '')
-        setSoul(data.soul || '')
-        setTools(data.tools || '')
+      }),
+      fetch(`/api/agents/${agent.id}/identity`).then(r => {
+        if (!r.ok) throw new Error('Failed to load identity metadata')
+        return r.json()
+      }),
+      fetch('/api/agents/models').then(r => {
+        if (!r.ok) throw new Error('Failed to load models')
+        return r.json()
+      }),
+    ])
+      .then(([configData, identityData, modelsData]) => {
+        setIdentity(configData.identity || '')
+        setSoul(configData.soul || '')
+        setTools(configData.tools || '')
+        setModel(identityData?.liveConfig?.model || identityData?.metadata?.model || '')
+        setAvailableModels(Array.isArray(modelsData.models) ? modelsData.models : [])
+        setModelsByProvider(modelsData.modelsByProvider || {})
         setLoading(false)
       })
       .catch(err => {
@@ -1910,7 +1925,10 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           body: JSON.stringify({ identity, soul, tools, expectedId: agent.id }),
           signal: controller.signal,
         })
-        if (!res.ok) throw new Error('Failed to validate config')
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to validate config')
+        }
         const data = await res.json()
         setValidationErrors(Array.isArray(data.errors) ? data.errors : [])
         setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
@@ -1940,14 +1958,25 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setSaving(true)
     setError(null)
     try {
+      if (model) {
+        const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model }),
+        })
+        if (!modelRes.ok) {
+          const data = await modelRes.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to save model')
+        }
+      }
+
       const res = await fetch(`/api/agents/${agent.id}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identity, soul, tools }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        // Show detailed validation errors if available
         if (data.details && Array.isArray(data.details)) {
           throw new Error(data.details.join('\n'))
         }
@@ -2017,6 +2046,30 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
 
           {!loading && (
             <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
+                <select
+                  value={model}
+                  onChange={e => setModel(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  {!model && <option value="">Select a model</option>}
+                  {Object.keys(modelsByProvider).length > 0 ? (
+                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                      <optgroup key={providerId} label={provider.name || providerId}>
+                        {provider.models.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </optgroup>
+                    ))
+                  ) : (
+                    availableModels.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">This updates the agent model directly without requiring manual markdown edits.</p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>
                 <textarea

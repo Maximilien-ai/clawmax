@@ -68,8 +68,8 @@ function validateIdentityMarkdown(content: string, expectedId?: string): AgentCo
     }
   }
 
-  if (!creature) errors.push('IDENTITY.md is missing a **Creature:** field')
-  if (!vibe) errors.push('IDENTITY.md is missing a **Vibe:** field')
+  if (!creature) warnings.push('IDENTITY.md is missing a **Creature:** field')
+  if (!vibe) warnings.push('IDENTITY.md is missing a **Vibe:** field')
   if (!emoji) warnings.push('IDENTITY.md is missing an **Emoji:** field')
 
   if (whatsapp && !PHONE_REGEX.test(whatsapp)) {
