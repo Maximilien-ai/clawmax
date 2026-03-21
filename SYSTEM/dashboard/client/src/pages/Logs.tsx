@@ -149,18 +149,18 @@ export default function Logs() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 px-4 sm:px-6 py-4 dark:border-gray-700">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Live streaming logs from OpenClaw
-              {connected && <span className="ml-2 text-green-600">● Connected</span>}
-              {error && <span className="ml-2 text-red-600">● {error}</span>}
-            </p>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Live streaming logs from OpenClaw
+            {connected && <span className="ml-2 text-green-600">● Connected</span>}
+            {error && <span className="ml-2 text-red-600">● {error}</span>}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLogs([])}
@@ -195,42 +195,42 @@ export default function Logs() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <input
-            type="text"
-            placeholder="Search logs..."
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
-          />
-          <select
-            value={agentFilter}
-            onChange={(e) => setAgentFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
-          >
-            <option value="">All Agents</option>
-            {uniqueAgents.map(agent => (
-              <option key={agent} value={agent}>{agent}</option>
-            ))}
-          </select>
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
-          >
-            <option value="">All Levels</option>
-            <option value="ERROR">ERROR</option>
-            <option value="WARN">WARN</option>
-            <option value="INFO">INFO</option>
-            <option value="DEBUG">DEBUG</option>
-          </select>
-        </div>
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Search logs..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+        />
+        <select
+          value={agentFilter}
+          onChange={(e) => setAgentFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+        >
+          <option value="">All Agents</option>
+          {uniqueAgents.map(agent => (
+            <option key={agent} value={agent}>{agent}</option>
+          ))}
+        </select>
+        <select
+          value={levelFilter}
+          onChange={(e) => setLevelFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+        >
+          <option value="">All Levels</option>
+          <option value="ERROR">ERROR</option>
+          <option value="WARN">WARN</option>
+          <option value="INFO">INFO</option>
+          <option value="DEBUG">DEBUG</option>
+        </select>
       </div>
 
       {/* Logs display */}
-      <div ref={logsContainerRef} className="flex-1 overflow-auto bg-gray-900 text-gray-100 font-mono text-xs">
+      <div ref={logsContainerRef} className="flex-1 min-h-[420px] overflow-auto bg-gray-900 text-gray-100 font-mono text-xs rounded-lg border border-gray-800">
         <div className="p-4">
           {filteredLogs.length === 0 && (
             <div className="text-center text-gray-500 py-8">
@@ -254,7 +254,7 @@ export default function Logs() {
       </div>
 
       {/* Footer stats */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-2 text-xs text-gray-500 dark:border-gray-700">
+      <div className="mt-3 px-1 text-xs text-gray-500 dark:text-gray-400">
         {filteredLogs.length} / {logs.length} logs
         {paused && pausedLogsBufferRef.current.length > 0 && (
           <span className="ml-4 text-amber-600">

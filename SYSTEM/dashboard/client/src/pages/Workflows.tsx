@@ -723,16 +723,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }, [workflows, searchQuery, selectedTags])
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Workflows</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Scheduled tasks and multi-agent coordination
-            </p>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Workflows</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Scheduled tasks and multi-agent coordination
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             {selectionMode && selectedWorkflowIds.size > 0 && (
               <>
@@ -821,29 +821,29 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="mt-4 relative">
-          <input
-            type="text"
-            placeholder="Search workflows..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              ×
-            </button>
-          )}
-        </div>
+      {/* Search */}
+      <div className="mb-6 relative">
+        <input
+          type="text"
+          placeholder="Search workflows..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div>
         {/* Tag filters */}
         {allTags.length > 0 && (
           <div className="mb-6">
