@@ -10,6 +10,7 @@ import { getGatewayClient } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
+import { updateAgentModelInConfigFile } from '../lib/agent-model'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -130,6 +131,14 @@ function buildModelsResponse(): {
     })
 
   return { models, modelsByProvider: sortedProviders }
+}
+
+function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean; error?: string } {
+  const HOME = process.env.HOME || ''
+  const profileConfigPath = path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
+  const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
+  const configPath = fs.existsSync(profileConfigPath) ? profileConfigPath : defaultConfigPath
+  return updateAgentModelInConfigFile(configPath, agentId, model)
 }
 
 /**
@@ -1386,6 +1395,11 @@ router.patch('/:id/model', (req, res) => {
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
+    const configUpdate = updateAgentModelInConfig(id, model)
+    if (!configUpdate.ok) {
+      return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
+    }
+
     const content = fs.readFileSync(identityPath, 'utf-8')
     let updatedContent = content
 

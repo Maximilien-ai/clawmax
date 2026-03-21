@@ -221,6 +221,15 @@ if grep -q "All tests passed" /tmp/clawmax-agent-config-validation.out; then
 else
   fail "Agent config validation unit tests"
 fi
+
+echo ""
+echo -e "${YELLOW}→ Running Agent model unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/agent-model.test.ts > /tmp/clawmax-agent-model.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-model.out; then
+  pass "Agent model unit tests (3 tests)"
+else
+  fail "Agent model unit tests"
+fi
 cd ..
 echo ""
 

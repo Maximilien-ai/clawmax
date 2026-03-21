@@ -831,6 +831,9 @@ export function parseIdentity(content: string): any {
   const emojiMatch = content.match(/\*\*Emoji:\*\*\s*([^\n]+)/i)
   if (emojiMatch) identity.emoji = emojiMatch[1].trim()
 
+  const modelMatch = content.match(/\*\*Model:\*\*\s*([^\n]+)/i)
+  if (modelMatch) identity.model = modelMatch[1].trim()
+
   const whatsappMatch = content.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
     const value = (whatsappMatch[1] || '').trim()
@@ -878,6 +881,8 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
   // Get live configuration from openclaw.json if agentId provided
   let liveConfig: { model: string; workspace: string; agentDir: string } | undefined
   let skills: string[] | undefined
+  const identityContent = readFile('IDENTITY.md')
+  const parsedIdentity = identityContent ? parseIdentity(identityContent) : {}
   if (agentId) {
     try {
       const HOME = process.env.HOME || ''
@@ -887,7 +892,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
       const liveAgent = agentList.find((a: any) => a.id === agentId)
       if (liveAgent) {
         // Get model from agent config or defaults
-        const model = liveAgent.model || config?.agents?.defaults?.model?.primary || 'unknown'
+        const model = liveAgent.model || parsedIdentity.model || config?.agents?.defaults?.model?.primary || 'unknown'
         liveConfig = {
           model,
           workspace: liveAgent.workspace || agentDir,
@@ -905,7 +910,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
     recentFiles,
     todos: readFile('TODOs.md'),
     completed: readFile('COMPLETED.md'),
-    identity: readFile('IDENTITY.md'),
+    identity: identityContent,
     skills,
     liveConfig,
   }
