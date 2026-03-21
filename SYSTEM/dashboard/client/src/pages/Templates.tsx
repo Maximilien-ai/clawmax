@@ -408,13 +408,12 @@ export default function Templates() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Templates</h1>
-            <p className="text-sm text-gray-500 mt-1">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Templates</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
               {searchQuery ? (
                 <>
                   {totalFiltered} of {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
@@ -431,7 +430,8 @@ export default function Templates() {
                 </>
               )}
             </p>
-          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex gap-2">
             <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
@@ -496,38 +496,39 @@ export default function Templates() {
             )}
             <button
               onClick={fetchTemplates}
-              className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300"
+              className="text-sm font-medium transition-colors text-sky-600 hover:text-sky-800"
             >
               ↻ Refresh
             </button>
           </div>
         </div>
 
-        {/* Search bar */}
-        <div className="mt-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search templates by name, description, tags, or agents..."
-              className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+      </div>
+
+      {/* Search bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search templates by name, description, tags, or agents..."
+            className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div>
         {totalTemplates === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">📑</div>
@@ -863,7 +864,6 @@ function TemplatesTable({
             })}
           </tbody>
         </table>
-      </div>
     </div>
   )
 }
