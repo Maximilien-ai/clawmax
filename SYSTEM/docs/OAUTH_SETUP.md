@@ -1,21 +1,23 @@
 # OAuth Authentication Setup
 
-ClawMax Dashboard supports OAuth authentication to protect all API routes and the dashboard UI. Multiple providers can be configured.
+ClawMax Dashboard currently supports GitHub OAuth for the dashboard UI and API. Google and Apple are not implemented.
 
-## How It Works
+## Current Auth Behavior
 
-- When OAuth is configured and `DASHBOARD_AUTH_DISABLED=false`, users see a login page
-- After login, a JWT session cookie is set (7-day expiry, httpOnly)
-- All API routes require a valid session or legacy dashboard token
-- Optional: restrict access to specific users via allowlist
+- When `DASHBOARD_AUTH_DISABLED=false`, the UI checks `/api/auth/config` and shows the login page if GitHub OAuth is configured.
+- Successful login creates a 7-day JWT session in the `clawmax_session` httpOnly cookie.
+- Protected API routes accept either:
+  - a valid GitHub session cookie or session bearer token
+  - the legacy dashboard bearer token from `.dashboard-token`
+- Access can optionally be restricted with `GITHUB_ALLOWED_USERS`.
 
-## GitHub
+## GitHub Setup
 
 ### 1. Create a GitHub OAuth App
 
-1. Go to [GitHub Developer Settings > OAuth Apps](https://github.com/settings/developers)
-2. Click **New OAuth App**
-3. Fill in:
+1. Go to [GitHub Developer Settings > OAuth Apps](https://github.com/settings/developers).
+2. Click **New OAuth App**.
+3. Use these local development values:
 
 | Field | Value |
 |-------|-------|
@@ -23,90 +25,136 @@ ClawMax Dashboard supports OAuth authentication to protect all API routes and th
 | Homepage URL | `http://localhost:5173` |
 | Authorization callback URL | `http://localhost:3001/api/auth/github/callback` |
 
-4. Click **Register application**
-5. Copy the **Client ID**
-6. Click **Generate a new client secret** and copy it
+4. Click **Register application**.
+5. Copy the **Client ID**.
+6. Generate and copy the **Client Secret**.
 
-### 2. Configure Environment
+### 2. Configure `SYSTEM/dashboard/.env`
 
-Add to `SYSTEM/dashboard/.env`:
+Minimum required values:
 
 ```bash
-GITHUB_CLIENT_ID=your_client_id_here
-GITHUB_CLIENT_SECRET=your_client_secret_here
+NODE_ENV=development
 DASHBOARD_AUTH_DISABLED=false
 
-# Optional: restrict to specific GitHub users (comma-separated, lowercase)
-# GITHUB_ALLOWED_USERS=yourgithublogin,teammate1,teammate2
+GITHUB_CLIENT_ID=your_client_id_here
+GITHUB_CLIENT_SECRET=your_client_secret_here
+
+# Optional: restrict to specific GitHub logins (comma-separated, lowercase)
+# GITHUB_ALLOWED_USERS=yourgithublogin,teammate1
 ```
 
-### 3. Restart Dashboard
+Recommended local values:
 
 ```bash
-# If using npm run dev
-# Ctrl+C to stop, then:
+# Dashboard API server port. Defaults to 3001.
+DASHBOARD_PORT=3001
+
+# Frontend origin allowed by CORS. Defaults to Vite on 5173.
+CORS_ORIGIN=http://localhost:5173
+```
+
+Notes:
+
+- Put these values in `SYSTEM/dashboard/.env`.
+- The server reads `DASHBOARD_PORT`, not `PORT`.
+- The GitHub callback must point to the server origin (`3001` by default), not the Vite dev server.
+
+### 3. Start the Dashboard
+
+From `SYSTEM/dashboard`:
+
+```bash
 npm run dev
 ```
 
-You should see the login page with **Sign in with GitHub**.
+This starts:
 
-### Production / Ngrok
+- Vite client at `http://localhost:5173`
+- Express API server at `http://localhost:3001`
 
-If using ngrok or a custom domain, update the callback URL:
+### 4. Verify the Flow
 
-- GitHub OAuth App callback: `https://yourdomain.com/api/auth/github/callback`
-- Set `CORS_ORIGIN=https://yourdomain.com` in `.env`
+1. Open `http://localhost:5173`.
+2. You should see the login page instead of the dashboard.
+3. Click **Sign in with GitHub**.
+4. After GitHub redirects back, you should land on `/` and the dashboard should load.
+5. `GET /api/auth/me` should return `authenticated: true`.
 
-## Google (Planned)
+Quick checks if something looks wrong:
 
-Google OAuth support is planned for a future release.
+- `GET http://localhost:3001/api/auth/config` should show `githubEnabled: true` and `authDisabled: false`.
+- If `githubEnabled` is `false`, `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` is missing or not being loaded from `SYSTEM/dashboard/.env`.
 
-### Expected Setup
+## Production / Tunnel Setup
 
-1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable the **Google+ API** or **People API**
-3. Create OAuth 2.0 credentials (Web application)
-4. Set authorized redirect URI: `http://localhost:3001/api/auth/google/callback`
-5. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env`
+If you run the dashboard behind ngrok or a real domain:
 
-## Apple (Planned)
+- Set the GitHub OAuth callback to `https://your-server-origin/api/auth/github/callback`.
+- Set `CORS_ORIGIN` to the frontend origin that loads the dashboard UI.
+- If Express is not on port `3001`, also set `DASHBOARD_PORT` accordingly.
 
-Apple Sign In support is planned for a future release.
+Example:
+
+```bash
+DASHBOARD_PORT=3001
+CORS_ORIGIN=https://dashboard.example.com
+```
+
+If GitHub redirects to the wrong host, check forwarded headers and the externally visible server origin. The callback URL is built from the incoming request host/protocol.
 
 ## Troubleshooting
 
 ### "GitHub OAuth is not configured"
-The login page shows this when `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` is missing from `.env`. Add both and restart.
+
+`GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` is missing from `SYSTEM/dashboard/.env`, or the server was not restarted after adding them.
 
 ### "Access denied for GitHub user"
-The user's GitHub login is not in the `GITHUB_ALLOWED_USERS` list. Either add them or remove the restriction (comment out `GITHUB_ALLOWED_USERS`).
 
-### Dashboard works without login
-`DASHBOARD_AUTH_DISABLED=true` is set in `.env`. Change to `false` to require authentication.
+The authenticated GitHub login is not present in `GITHUB_ALLOWED_USERS`. Add the login in lowercase or remove the allowlist.
+
+### Dashboard still works without login
+
+`DASHBOARD_AUTH_DISABLED=true` is set. Change it to `false` and restart the server.
 
 ### Callback URL mismatch
-The callback URL in your GitHub OAuth App must exactly match what the server sends. For local dev: `http://localhost:3001/api/auth/github/callback`.
 
-## Architecture
+The callback URL in GitHub must exactly match the server callback. Local default:
 
-```
-Browser                    Server                     GitHub
-  |                          |                          |
-  |-- GET /api/auth/github ->|                          |
-  |<- 302 redirect ---------|                          |
-  |-- GET github.com/login/oauth/authorize ----------->|
-  |<- 302 with ?code= --------------------------------|
-  |-- GET /api/auth/github/callback?code= ->|          |
-  |                          |-- POST /login/oauth/access_token ->|
-  |                          |<- access_token ---------|
-  |                          |-- GET /user ------------>|
-  |                          |<- user profile ---------|
-  |                          |                          |
-  |<- Set-Cookie: session ---|                          |
-  |<- 302 redirect to / ----|                          |
+```text
+http://localhost:3001/api/auth/github/callback
 ```
 
-- Sessions: JWT in httpOnly cookie (`clawmax_session`)
-- Expiry: 7 days
-- Secret: derived from `.dashboard-token` or `JWT_SECRET` env var
-- Fallback: legacy `Authorization: Bearer <dashboard-token>` still works for API clients
+### API works with bearer token but browser login fails
+
+That usually means the legacy token path still works, but GitHub OAuth is misconfigured. Check:
+
+- `/api/auth/config`
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- callback URL in GitHub
+- browser redirect target
+
+## Flow Summary
+
+```text
+Browser                    Dashboard Server            GitHub
+  |                               |                      |
+  |-- GET /api/auth/github ------>|                      |
+  |<- 302 to GitHub -------------|                      |
+  |-- authorize ------------------------------->        |
+  |<- 302 with code/state ----------------------        |
+  |-- GET /api/auth/github/callback ----------->|       |
+  |                               |-- token exchange -->|
+  |                               |<- access token -----|
+  |                               |-- GET /user ------->|
+  |                               |<- user profile -----|
+  |<- Set-Cookie: clawmax_session |                      |
+  |<- 302 to / -------------------|                      |
+```
+
+- Session cookie: `clawmax_session`
+- State cookie: `oauth_state`
+- Session expiry: 7 days
+- JWT secret: `JWT_SECRET` if set, otherwise derived from `.dashboard-token`
+- Backward compatibility: `Authorization: Bearer <dashboard-token>` still works for API clients

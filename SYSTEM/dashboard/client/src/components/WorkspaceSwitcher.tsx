@@ -4,8 +4,9 @@ import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
 
 export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) {
-  const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace } = useWorkspace()
+  const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace, reorderWorkspaces } = useWorkspace()
   const [isOpen, setIsOpen] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
     id: string
     name: string
@@ -13,6 +14,21 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   } | null>(null)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+    reorderWorkspaces(draggedIndex, index)
+    setDraggedIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
 
   const handleDeleteClick = async (workspace: { id: string; name: string; path: string }) => {
     const consequences: string[] = []
@@ -105,63 +121,91 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       {/* Dropdown menu */}
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700">
+          <div className="px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            Drag to reorder
+          </div>
           {/* Workspace list */}
           <div className="max-h-80 overflow-y-auto">
-            {workspaces.map((workspace) => (
-              <div key={workspace.id} className="group relative">
-                <button
-                  onClick={() => {
-                    if (workspace.id !== activeWorkspace.id) {
-                      switchWorkspace(workspace.id)
-                    }
-                    setIsOpen(false)
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+            {workspaces.map((workspace, index) => (
+              <div
+                key={workspace.id}
+                className={`group relative ${
+                  draggedIndex === index ? 'z-10' : ''
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-3 px-4 py-2.5 pr-16 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                     workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
-                  <div
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: workspace.color || '#3B82F6' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-medium text-sm ${
-                        workspace.id === activeWorkspace.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
-                      }`}>
-                        {workspace.name}
-                      </span>
-                      {workspace.id === activeWorkspace.id && (
-                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {workspace.tags && workspace.tags.length > 0 && (
-                        <div className="flex gap-1">
-                          {workspace.tags.slice(0, 2).map((tag) => (
-                            <span
-                              key={tag}
-                              className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {workspace.agentCount !== undefined && (
-                        <span className="text-xs text-gray-500">
-                          {workspace.agentCount} agent{workspace.agentCount !== 1 ? 's' : ''}
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0 cursor-move rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    title={`Reorder ${workspace.name}`}
+                    aria-label={`Reorder ${workspace.name}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (workspace.id !== activeWorkspace.id) {
+                        switchWorkspace(workspace.id)
+                      }
+                      setIsOpen(false)
+                    }}
+                    className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: workspace.color || '#3B82F6' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium text-sm ${
+                          workspace.id === activeWorkspace.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                        }`}>
+                          {workspace.name}
                         </span>
-                      )}
+                        {workspace.id === activeWorkspace.id && (
+                          <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {workspace.tags && workspace.tags.length > 0 && (
+                          <div className="flex gap-1">
+                            {workspace.tags.slice(0, 2).map((tag) => (
+                              <span
+                                key={tag}
+                                className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {workspace.agentCount !== undefined && (
+                          <span className="text-xs text-gray-500">
+                            {workspace.agentCount} agent{workspace.agentCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
                 {/* Action buttons */}
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {/* Edit button */}

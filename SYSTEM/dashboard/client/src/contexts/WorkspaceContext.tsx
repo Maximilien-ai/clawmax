@@ -18,6 +18,7 @@ interface WorkspaceContextValue {
   loading: boolean
 
   // Actions
+  reorderWorkspaces: (fromIndex: number, toIndex: number) => void
   switchWorkspace: (id: string) => Promise<void>
   createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[] }) => Promise<Workspace>
   updateWorkspace: (id: string, updates: { name?: string; color?: string; tags?: string[] }) => Promise<void>
@@ -26,6 +27,46 @@ interface WorkspaceContextValue {
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
+const WORKSPACE_ORDER_STORAGE_KEY = 'workspace-order'
+
+function sortWorkspacesBySavedOrder(workspaces: Workspace[]): Workspace[] {
+  if (typeof window === 'undefined') {
+    return workspaces
+  }
+
+  const saved = localStorage.getItem(WORKSPACE_ORDER_STORAGE_KEY)
+  if (!saved) {
+    return workspaces
+  }
+
+  try {
+    const order = JSON.parse(saved) as string[]
+    const orderMap = new Map(order.map((id, index) => [id, index]))
+
+    return [...workspaces].sort((a, b) => {
+      const aIndex = orderMap.get(a.id)
+      const bIndex = orderMap.get(b.id)
+
+      if (aIndex === undefined && bIndex === undefined) return 0
+      if (aIndex === undefined) return 1
+      if (bIndex === undefined) return -1
+      return aIndex - bIndex
+    })
+  } catch {
+    return workspaces
+  }
+}
+
+function saveWorkspaceOrder(workspaces: Workspace[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  localStorage.setItem(
+    WORKSPACE_ORDER_STORAGE_KEY,
+    JSON.stringify(workspaces.map(workspace => workspace.id))
+  )
+}
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const { showSuccess, showError } = useToast()
@@ -44,8 +85,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const workspacesData = await workspacesRes.json()
         const activeData = await activeRes.json()
 
-        setWorkspaces(workspacesData.workspaces || [])
+        const nextWorkspaces = sortWorkspacesBySavedOrder(workspacesData.workspaces || [])
+        setWorkspaces(nextWorkspaces)
         setActiveWorkspace(activeData.workspace || null)
+        saveWorkspaceOrder(nextWorkspaces)
       }
     } catch (err) {
       console.error('Failed to load workspaces:', err)
@@ -153,10 +196,31 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshWorkspaces, showSuccess, showError])
 
+  const reorderWorkspaces = useCallback((fromIndex: number, toIndex: number) => {
+    setWorkspaces(current => {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= current.length ||
+        toIndex >= current.length ||
+        fromIndex === toIndex
+      ) {
+        return current
+      }
+
+      const next = [...current]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      saveWorkspaceOrder(next)
+      return next
+    })
+  }, [])
+
   const value: WorkspaceContextValue = {
     workspaces,
     activeWorkspace,
     loading,
+    reorderWorkspaces,
     switchWorkspace,
     createWorkspace,
     updateWorkspace,
