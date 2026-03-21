@@ -98,6 +98,26 @@ test('validateAgentConfigSections rejects duplicate tags and bad WhatsApp', () =
   assertIncludes(result.errors, 'E.164')
 })
 
+test('validateAgentConfigSections allows empty WhatsApp without swallowing following tags', () => {
+  const result = validateAgentConfigSections({
+    identity: `# Identity: CEO
+
+**Agent ID:** ceo
+**Name:** CEO
+**Creature:** Chief Executive Officer
+**Role:** Executive Leadership
+**WhatsApp:**
+- **Tags:** leadership, executive
+`,
+    soul: validSoul,
+    tools: validTools,
+  }, 'ceo')
+
+  assert(result.valid, 'Expected empty WhatsApp to remain valid')
+  assert(!result.errors.some(error => error.includes('E.164')), 'Expected no WhatsApp format error for empty field')
+  assert(result.warnings.some(warning => warning.includes('**Vibe:**')), 'Expected legacy role-based identity to warn for missing vibe')
+})
+
 test('validateAgentConfigSections warns on weak SOUL.md and TOOLS.md structure', () => {
   const result = validateAgentConfigSections({
     identity: validIdentity,

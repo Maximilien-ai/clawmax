@@ -80,6 +80,21 @@ test('parseIdentity extracts model from markdown', () => {
   assert(identity.model === 'openai/gpt-4.1', 'Expected parseIdentity to extract model')
 })
 
+test('parseIdentity extracts model from legacy bullet format and keeps empty WhatsApp null', () => {
+  const identity = parseIdentity(`# Identity: CEO
+
+- **Agent ID:** ceo
+- **Name:** CEO
+- **WhatsApp:**
+- **Model:** openai/gpt-4.1
+- **Tags:** leadership, executive
+`)
+
+  assert(identity.model === 'openai/gpt-4.1', 'Expected parseIdentity to extract bullet-list model')
+  assert(identity.whatsapp === null, 'Expected empty WhatsApp to normalize to null')
+  assert(Array.isArray(identity.tags) && identity.tags.includes('leadership'), 'Expected tags to still parse after empty WhatsApp')
+})
+
 setTimeout(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
