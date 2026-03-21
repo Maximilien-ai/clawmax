@@ -1877,12 +1877,14 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
+  const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     setLoading(true)
     setError(null)
     setWarnings([])
     setValidationErrors([])
+    setValidationRequestError(null)
     Promise.all([
       fetch(`/api/agents/${agent.id}/config`).then(r => {
         if (!r.ok) throw new Error('Failed to load config')
@@ -1926,15 +1928,24 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           signal: controller.signal,
         })
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          throw new Error(data.error || 'Failed to validate config')
+          const raw = await res.text()
+          let message = 'Failed to validate config'
+          try {
+            const data = raw ? JSON.parse(raw) : {}
+            message = data.error || data.details?.join('\n') || raw || message
+          } catch {
+            message = raw || message
+          }
+          throw new Error(message)
         }
         const data = await res.json()
         setValidationErrors(Array.isArray(data.errors) ? data.errors : [])
         setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+        setValidationRequestError(null)
       } catch (err: any) {
         if (err.name !== 'AbortError') {
-          setError(err.message || 'Failed to validate config')
+          setValidationRequestError(err.message || 'Failed to validate config')
+          setValidationErrors([])
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -2019,6 +2030,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
               {error}
+            </div>
+          )}
+
+          {!loading && validationRequestError && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300 whitespace-pre-line">
+              <div className="font-medium mb-1">Validation service warning</div>
+              {validationRequestError}
             </div>
           )}
 
