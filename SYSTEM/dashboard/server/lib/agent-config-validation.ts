@@ -33,7 +33,7 @@ function unique<T>(values: T[]): T[] {
 }
 
 function extractIdentityField(content: string, field: string): string | null {
-  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*\\s*([^\\n]*)`, 'i'))
+  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
   if (!match) return null
   return match[1].trim()
 }

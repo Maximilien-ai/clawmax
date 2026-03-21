@@ -8,11 +8,15 @@ import {
   listTemplates,
   getTemplate,
   validateTemplate,
+  validateAgentTemplateFiles,
   createOrganizationTemplate,
   slugify,
   type OrganizationTemplate,
   type AgentTemplate
 } from './templates'
+import fs from 'fs'
+import path from 'path'
+import { REPO_ROOT } from './paths'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -269,6 +273,28 @@ test('createOrganizationTemplate() filters archived agents', () => {
   } else {
     console.log(`  Template creation returned: ${result.error || 'unknown'}`)
   }
+})
+
+// Test 15: System agent templates have valid template.json and markdown files
+test('System agent templates pass audit checks', () => {
+  const templatesRoot = path.join(REPO_ROOT, 'TEMPLATES', 'agents')
+  const templateDirs = fs.readdirSync(templatesRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+
+  assert(templateDirs.length > 0, 'Should find system agent templates')
+
+  for (const slug of templateDirs) {
+    const templateJsonPath = path.join(templatesRoot, slug, 'template.json')
+    const template = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8')) as AgentTemplate
+    const schemaResult = validateTemplate(template)
+    assert(schemaResult.valid, `Template ${slug} failed schema validation: ${schemaResult.errors?.join(', ')}`)
+
+    const fileResult = validateAgentTemplateFiles(path.join(templatesRoot, slug), template.agents[0].id)
+    assert(fileResult.valid, `Template ${slug} failed markdown validation: ${fileResult.errors.join(', ')}`)
+  }
+
+  console.log(`  Audited ${templateDirs.length} system agent templates`)
 })
 
 // Test 15: Workflow targeting structure

@@ -5,6 +5,7 @@ import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { listWorkflows, createWorkflow } from './workflows'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
+import { validateAgentConfigSections } from './agent-config-validation'
 
 // Template storage paths (dynamic functions)
 
@@ -169,6 +170,24 @@ export function validateTemplate(template: any): { valid: boolean; errors?: stri
     return { valid: false, errors: ['Template type must be "agent" or "organization"'] }
   }
   return { valid: true }
+}
+
+export function validateAgentTemplateFiles(templateDir: string, expectedAgentId: string): { valid: boolean; errors: string[]; warnings: string[] } {
+  const identityPath = path.join(templateDir, 'IDENTITY.md')
+  const soulPath = path.join(templateDir, 'SOUL.md')
+  const toolsPath = path.join(templateDir, 'TOOLS.md')
+
+  const result = validateAgentConfigSections({
+    identity: fs.existsSync(identityPath) ? fs.readFileSync(identityPath, 'utf-8') : '',
+    soul: fs.existsSync(soulPath) ? fs.readFileSync(soulPath, 'utf-8') : '',
+    tools: fs.existsSync(toolsPath) ? fs.readFileSync(toolsPath, 'utf-8') : '',
+  }, expectedAgentId)
+
+  return {
+    valid: result.valid,
+    errors: result.errors,
+    warnings: result.warnings,
+  }
 }
 
 // ============================================================================
@@ -501,6 +520,11 @@ export function importAgentFromTemplate(
 
     const sourceAgent = template.agents[0]
     const targetAgentId = options.newAgentId || sourceAgent.id
+
+    const fileValidation = validateAgentTemplateFiles(templateDir, sourceAgent.id)
+    if (!fileValidation.valid) {
+      return { ok: false, error: `Template files are invalid: ${fileValidation.errors.join(', ')}` }
+    }
 
     // Validate target agent ID
     if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {

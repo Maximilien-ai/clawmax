@@ -59,6 +59,79 @@ function getAvailableModels(): string[] {
   return availableModels
 }
 
+function buildModelsResponse(): {
+  models: string[]
+  modelsByProvider: Record<string, { name: string; models: string[] }>
+} {
+  const models: string[] = []
+  const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
+
+  try {
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const providers = config?.models?.providers || {}
+
+      for (const [providerId, providerConfig] of Object.entries(providers) as [string, any][]) {
+        if (providerConfig.models && Array.isArray(providerConfig.models)) {
+          const providerModels = providerConfig.models.map((m: any) => {
+            if (typeof m === 'string') return m
+            if (m.id) return m.id
+            return m
+          })
+          models.push(...providerModels)
+          modelsByProvider[providerId] = {
+            name: providerConfig.name || providerId,
+            models: providerModels,
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load models from openclaw.json:', err)
+  }
+
+  if (process.env.ANTHROPIC_API_KEY && !modelsByProvider['anthropic']) {
+    const anthropicModels = [
+      'anthropic/claude-3-haiku-20240307',
+      'anthropic/claude-3-5-sonnet-20241022',
+      'anthropic/claude-3-5-haiku-20241022'
+    ]
+    models.push(...anthropicModels)
+    modelsByProvider['anthropic'] = {
+      name: 'Anthropic',
+      models: anthropicModels,
+    }
+  }
+
+  if (process.env.OPENAI_API_KEY && !modelsByProvider['openai']) {
+    const openaiModels = [
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+      'openai/gpt-4.1',
+      'openai/o1',
+      'openai/o1-mini'
+    ]
+    models.push(...openaiModels)
+    modelsByProvider['openai'] = {
+      name: 'OpenAI',
+      models: openaiModels,
+    }
+  }
+
+  const sortedProviders: Record<string, { name: string; models: string[] }> = {}
+  Object.keys(modelsByProvider)
+    .sort((a, b) => a.localeCompare(b))
+    .forEach(key => {
+      sortedProviders[key] = {
+        name: modelsByProvider[key].name,
+        models: modelsByProvider[key].models.sort((a, b) => a.localeCompare(b))
+      }
+    })
+
+  return { models, modelsByProvider: sortedProviders }
+}
+
 /**
  * Register a new agent via Gateway RPC
  *
@@ -261,6 +334,12 @@ router.post('/validate-provision', (req, res) => {
     availableModels: getAvailableModels(),
   })
   res.json(result)
+})
+
+// GET /api/agents/models — available models from openclaw.json and environment
+// Must be defined before /:id routes.
+router.get('/models', (_req, res) => {
+  res.json(buildModelsResponse())
 })
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
@@ -594,83 +673,6 @@ router.get('/:id/impact', (req, res) => {
   res.json(impact)
 })
 
-// GET /api/agents/models — available models from openclaw.json and environment
-router.get('/models', (req, res) => {
-  const models: string[] = []
-  const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
-
-  try {
-    // Read models from openclaw.json config
-    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      const providers = config?.models?.providers || {}
-
-      // Collect models from each provider
-      for (const [providerId, providerConfig] of Object.entries(providers) as [string, any][]) {
-        if (providerConfig.models && Array.isArray(providerConfig.models)) {
-          // Extract model IDs (handle both string IDs and model objects)
-          const providerModels = providerConfig.models.map((m: any) => {
-            if (typeof m === 'string') return m
-            if (m.id) return m.id
-            return m
-          })
-          models.push(...providerModels)
-
-          // Group by provider for frontend
-          modelsByProvider[providerId] = {
-            name: providerConfig.name || providerId,
-            models: providerModels
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load models from openclaw.json:', err)
-  }
-
-  // Always add models from environment variables (in addition to openclaw.json providers)
-  if (process.env.ANTHROPIC_API_KEY && !modelsByProvider['anthropic']) {
-    const anthropicModels = [
-      'anthropic/claude-3-haiku-20240307',
-      'anthropic/claude-3-5-sonnet-20241022',
-      'anthropic/claude-3-5-haiku-20241022'
-    ]
-    models.push(...anthropicModels)
-    modelsByProvider['anthropic'] = {
-      name: 'Anthropic',
-      models: anthropicModels
-    }
-  }
-  if (process.env.OPENAI_API_KEY && !modelsByProvider['openai']) {
-    const openaiModels = [
-      'openai/gpt-4o',
-      'openai/gpt-4o-mini',
-      'openai/gpt-4.1',
-      'openai/o1',
-      'openai/o1-mini'
-    ]
-    models.push(...openaiModels)
-    modelsByProvider['openai'] = {
-      name: 'OpenAI',
-      models: openaiModels
-    }
-  }
-
-  // Sort providers alphabetically
-  const sortedProviders: Record<string, { name: string; models: string[] }> = {}
-  Object.keys(modelsByProvider)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach(key => {
-      // Sort models within each provider alphabetically
-      sortedProviders[key] = {
-        name: modelsByProvider[key].name,
-        models: modelsByProvider[key].models.sort((a, b) => a.localeCompare(b))
-      }
-    })
-
-  res.json({ models, modelsByProvider: sortedProviders })
-})
 
 // GET /api/agents/usage — get token usage for all agents
 router.get('/usage', async (req, res) => {
