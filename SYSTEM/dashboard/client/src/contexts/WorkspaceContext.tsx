@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useToast } from '../components/Toast'
+import { applyWorkspaceOrder, reorderWorkspaceList, serializeWorkspaceOrder } from '../lib/workspace-order'
 
 export interface Workspace {
   id: string
@@ -29,31 +30,20 @@ interface WorkspaceContextValue {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 const WORKSPACE_ORDER_STORAGE_KEY = 'workspace-order'
 
-function sortWorkspacesBySavedOrder(workspaces: Workspace[]): Workspace[] {
+function getSavedWorkspaceOrder(): string[] {
   if (typeof window === 'undefined') {
-    return workspaces
+    return []
   }
 
   const saved = localStorage.getItem(WORKSPACE_ORDER_STORAGE_KEY)
   if (!saved) {
-    return workspaces
+    return []
   }
 
   try {
-    const order = JSON.parse(saved) as string[]
-    const orderMap = new Map(order.map((id, index) => [id, index]))
-
-    return [...workspaces].sort((a, b) => {
-      const aIndex = orderMap.get(a.id)
-      const bIndex = orderMap.get(b.id)
-
-      if (aIndex === undefined && bIndex === undefined) return 0
-      if (aIndex === undefined) return 1
-      if (bIndex === undefined) return -1
-      return aIndex - bIndex
-    })
+    return JSON.parse(saved) as string[]
   } catch {
-    return workspaces
+    return []
   }
 }
 
@@ -62,10 +52,7 @@ function saveWorkspaceOrder(workspaces: Workspace[]) {
     return
   }
 
-  localStorage.setItem(
-    WORKSPACE_ORDER_STORAGE_KEY,
-    JSON.stringify(workspaces.map(workspace => workspace.id))
-  )
+  localStorage.setItem(WORKSPACE_ORDER_STORAGE_KEY, JSON.stringify(serializeWorkspaceOrder(workspaces)))
 }
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
@@ -85,7 +72,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const workspacesData = await workspacesRes.json()
         const activeData = await activeRes.json()
 
-        const nextWorkspaces = sortWorkspacesBySavedOrder(workspacesData.workspaces || [])
+        const nextWorkspaces = applyWorkspaceOrder(workspacesData.workspaces || [], getSavedWorkspaceOrder())
         setWorkspaces(nextWorkspaces)
         setActiveWorkspace(activeData.workspace || null)
         saveWorkspaceOrder(nextWorkspaces)
@@ -208,9 +195,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return current
       }
 
-      const next = [...current]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
+      const next = reorderWorkspaceList(current, fromIndex, toIndex)
       saveWorkspaceOrder(next)
       return next
     })

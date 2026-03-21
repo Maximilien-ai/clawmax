@@ -203,6 +203,15 @@ if grep -q "All tests passed" /tmp/clawmax-templates.out; then
 else
   fail "Templates API unit tests"
 fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workspace order unit tests...${NC}"
+npx ts-node --transpileOnly test/workspace-order.test.ts > /tmp/clawmax-workspace-order.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-order.out; then
+  pass "Workspace order unit tests (6 tests)"
+else
+  fail "Workspace order unit tests"
+fi
 cd ..
 echo ""
 
