@@ -38,7 +38,7 @@ function assertIncludes(values: string[], expected: string, message?: string) {
 
 const validIdentity = `# IDENTITY.md - Who Am I?
 
-- **Name:** engineer1
+- **Name:** Engineer One
 - **Creature:** software engineer
 - **Vibe:** calm
 - **Emoji:** 🤖
@@ -74,15 +74,14 @@ test('validateAgentConfigSections accepts valid config', () => {
   assert(result.errors.length === 0, 'Expected no validation errors')
 })
 
-test('validateAgentConfigSections rejects mismatched identity name', () => {
+test('validateAgentConfigSections allows human-readable identity name', () => {
   const result = validateAgentConfigSections({
-    identity: validIdentity.replace('engineer1', 'designer1'),
+    identity: validIdentity.replace('Engineer One', 'CEO'),
     soul: validSoul,
     tools: validTools,
   }, 'engineer1')
 
-  assert(!result.valid, 'Expected config to be invalid')
-  assertIncludes(result.errors, 'must match the agent ID "engineer1"')
+  assert(result.valid, 'Expected human-readable identity names to remain valid')
 })
 
 test('validateAgentConfigSections rejects duplicate tags and bad WhatsApp', () => {

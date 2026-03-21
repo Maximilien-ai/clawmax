@@ -38,7 +38,7 @@ function extractIdentityField(content: string, field: string): string | null {
   return match[1].trim()
 }
 
-function validateIdentityMarkdown(content: string, expectedId?: string): AgentConfigValidationResult {
+function validateIdentityMarkdown(content: string, _expectedId?: string): AgentConfigValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -59,13 +59,8 @@ function validateIdentityMarkdown(content: string, expectedId?: string): AgentCo
 
   if (!name) {
     errors.push('IDENTITY.md is missing a **Name:** field')
-  } else {
-    if (!AGENT_ID_REGEX.test(name)) {
-      errors.push(`Name "${name}" must be lowercase alphanumeric with dashes/underscores only`)
-    }
-    if (expectedId && name !== expectedId) {
-      errors.push(`Name "${name}" must match the agent ID "${expectedId}"`)
-    }
+  } else if (!name.trim()) {
+    errors.push('IDENTITY.md **Name:** cannot be empty')
   }
 
   if (!creature) warnings.push('IDENTITY.md is missing a **Creature:** field')

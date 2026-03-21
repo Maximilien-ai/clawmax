@@ -171,7 +171,7 @@ export default function AgentDetailPanel({
   return (
     <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose}>
       {/* Panel */}
-      <aside className="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <aside className="fixed top-0 right-0 h-full w-[30rem] max-w-[92vw] bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <div>
