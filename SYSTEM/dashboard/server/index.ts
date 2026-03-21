@@ -80,6 +80,7 @@ process.on('SIGTERM', () => {
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
+const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -382,16 +383,36 @@ app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
 app.use('/api', protect, channelsRouter)
 
-// Serve built client in production
-const clientDist = path.join(__dirname, '..', '..', 'dist', 'client')
-if (fs.existsSync(clientDist)) {
+function resolveClientDist(): string | null {
+  const candidates = [
+    path.join(__dirname, '..', '..', 'dist', 'client'),
+    path.join(process.cwd(), 'dist', 'client'),
+    path.join(process.cwd(), 'SYSTEM', 'dashboard', 'dist', 'client'),
+  ]
+
+  for (const candidate of candidates) {
+    const indexFile = path.join(candidate, 'index.html')
+    if (fs.existsSync(indexFile)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+// Serve built client in production / containerized deployments
+const clientDist = resolveClientDist()
+if (clientDist) {
+  console.log(`[Static] Serving dashboard client from ${clientDist}`)
   app.use(express.static(clientDist))
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'))
   })
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('[Static] No built dashboard client found. Root route will not serve the UI.')
 }
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, HOST, () => {
   console.log(`ClawMax Dashboard server running at http://localhost:${PORT}`)
   console.log(`Workspace: ${WORKSPACE}`)
   logToFile(`Server started successfully on port ${PORT}`)

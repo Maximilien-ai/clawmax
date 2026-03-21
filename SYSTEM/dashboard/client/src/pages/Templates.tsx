@@ -57,6 +57,39 @@ interface WorkflowTemplate {
 }
 
 type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
+type TemplateViewMode = 'grid' | 'list'
+type TemplateSortColumn = 'name' | 'type' | 'agents' | 'groups' | 'workflows' | 'version' | 'author'
+
+interface TemplateRow {
+  key: string
+  name: string
+  type: Template['type']
+  agentCount: number
+  groupCount: number
+  workflowCount: number
+  version: string
+  author: string
+  tags: string[]
+  template: Template
+}
+
+function getTemplateRow(template: Template): TemplateRow {
+  const isOrg = template.type === 'organization'
+  const isWorkflow = template.type === 'workflow'
+
+  return {
+    key: template.type === 'workflow' ? `workflow:${template.id}` : `${template.type}:${template.name}`,
+    name: template.name,
+    type: template.type,
+    agentCount: isWorkflow ? template.targeting.agents.length : template.agents.length,
+    groupCount: isOrg ? (template.groups?.length || 0) : isWorkflow ? template.targeting.groups.length : 0,
+    workflowCount: isOrg ? (template.workflows?.length || 0) : isWorkflow ? 1 : 0,
+    version: isWorkflow ? 'workflow' : template.version,
+    author: template.author || '—',
+    tags: isWorkflow ? [] : (template.tags || []),
+    template,
+  }
+}
 
 export default function Templates() {
   const { showSuccess, showError } = useToast()
@@ -67,6 +100,11 @@ export default function Templates() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<TemplateViewMode>('list')
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
+  const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -199,6 +237,39 @@ export default function Templates() {
   }, [workflowTemplates, searchQuery])
 
   const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length + filteredWorkflowTemplates.length
+  const templateRows = React.useMemo(
+    () => [...filteredAgentTemplates, ...filteredOrgTemplates, ...filteredWorkflowTemplates].map(getTemplateRow),
+    [filteredAgentTemplates, filteredOrgTemplates, filteredWorkflowTemplates]
+  )
+
+  const sortedTemplateRows = React.useMemo(() => {
+    const rows = [...templateRows]
+
+    rows.sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1
+
+      switch (sortColumn) {
+        case 'name':
+          return a.name.localeCompare(b.name) * direction
+        case 'type':
+          return a.type.localeCompare(b.type) * direction
+        case 'agents':
+          return (a.agentCount - b.agentCount) * direction
+        case 'groups':
+          return (a.groupCount - b.groupCount) * direction
+        case 'workflows':
+          return (a.workflowCount - b.workflowCount) * direction
+        case 'version':
+          return a.version.localeCompare(b.version) * direction
+        case 'author':
+          return a.author.localeCompare(b.author) * direction
+        default:
+          return 0
+      }
+    })
+
+    return rows
+  }, [templateRows, sortColumn, sortDirection])
 
   if (loading) {
     return (
@@ -209,6 +280,58 @@ export default function Templates() {
   }
 
   const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+
+  const toggleTemplateSelection = (key: string) => {
+    setSelectedTemplateKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const handleSort = (column: TemplateSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedTemplateKeys.size === 0) return
+
+    const rowsToDelete = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
+    if (!confirm(`Delete ${rowsToDelete.length} template${rowsToDelete.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await Promise.all(rowsToDelete.map(async ({ template }) => {
+        if (template.type === 'workflow') {
+          const resp = await fetch(`/api/workflows/${template.id}`, { method: 'DELETE' })
+          if (!resp.ok) throw new Error(`Failed to delete workflow ${template.name}`)
+          return
+        }
+
+        const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const typeParam = template.type === 'agent' ? 'agents' : 'organizations'
+        const resp = await fetch(`/api/templates/${typeParam}/${slug}`, { method: 'DELETE' })
+        if (!resp.ok) throw new Error(`Failed to delete template ${template.name}`)
+      }))
+
+      showSuccess(`Deleted ${rowsToDelete.length} template${rowsToDelete.length !== 1 ? 's' : ''}`)
+      setSelectedTemplateKeys(new Set())
+      setSelectionMode(false)
+      fetchTemplates()
+      if (selectedTemplate && rowsToDelete.some(row => row.key === getTemplateRow(selectedTemplate).key)) {
+        setSelectedTemplate(null)
+      }
+    } catch (err) {
+      showError('Failed to delete selected templates')
+    }
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -236,6 +359,59 @@ export default function Templates() {
             </p>
           </div>
           <div className="flex gap-2">
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+              <button
+                onClick={() => setViewMode('grid')}
+                title="Grid view"
+                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              >
+                ⊞
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                title="List view"
+                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              >
+                ☰
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode)
+                if (selectionMode) {
+                  setSelectedTemplateKeys(new Set())
+                }
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                selectionMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+              }`}
+            >
+              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+            {selectionMode && (
+              <button
+                onClick={() => {
+                  if (selectedTemplateKeys.size === sortedTemplateRows.length) {
+                    setSelectedTemplateKeys(new Set())
+                  } else {
+                    setSelectedTemplateKeys(new Set(sortedTemplateRows.map(row => row.key)))
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                {selectedTemplateKeys.size === sortedTemplateRows.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
+            {selectionMode && selectedTemplateKeys.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                Delete Selected ({selectedTemplateKeys.size})
+              </button>
+            )}
             <button
               onClick={fetchTemplates}
               className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300"
@@ -296,6 +472,7 @@ export default function Templates() {
             </button>
           </div>
         ) : (
+          viewMode === 'grid' ? (
           <div className="space-y-8">
             {/* Agent Templates */}
             {filteredAgentTemplates.length > 0 && (
@@ -359,6 +536,24 @@ export default function Templates() {
               </section>
             )}
           </div>
+          ) : (
+          <TemplatesTable
+            rows={sortedTemplateRows}
+            selectionMode={selectionMode}
+            selectedTemplateKeys={selectedTemplateKeys}
+            selectedTemplate={selectedTemplate}
+            onSort={handleSort}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onToggleSelect={toggleTemplateSelection}
+            onOpenTemplate={setSelectedTemplate}
+            onDeleteTemplate={(template) => handleDelete(
+              template.type,
+              template.name,
+              template.type === 'workflow' ? template.id : undefined
+            )}
+          />
+          )
         )}
       </div>
 
@@ -394,6 +589,126 @@ export default function Templates() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+function TemplatesTable({
+  rows,
+  selectionMode,
+  selectedTemplateKeys,
+  selectedTemplate,
+  onSort,
+  sortColumn,
+  sortDirection,
+  onToggleSelect,
+  onOpenTemplate,
+  onDeleteTemplate,
+}: {
+  rows: TemplateRow[]
+  selectionMode: boolean
+  selectedTemplateKeys: Set<string>
+  selectedTemplate: Template | null
+  onSort: (column: TemplateSortColumn) => void
+  sortColumn: TemplateSortColumn
+  sortDirection: 'asc' | 'desc'
+  onToggleSelect: (key: string) => void
+  onOpenTemplate: (template: Template) => void
+  onDeleteTemplate: (template: Template) => void
+}) {
+  const SortHeader = ({ column, label }: { column: TemplateSortColumn; label: string }) => (
+    <button
+      onClick={() => onSort(column)}
+      className="flex items-center gap-1 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+    >
+      {label}
+      {sortColumn === column && (
+        <span className="text-sky-600 dark:text-sky-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+      )}
+    </button>
+  )
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+            <tr>
+              {selectionMode && <th className="px-4 py-3 text-left w-10"></th>}
+              <th className="px-4 py-3 text-left"><SortHeader column="name" label="Template" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="type" label="Type" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="agents" label="Agents" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="groups" label="Groups" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="workflows" label="Workflows" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="version" label="Version" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="author" label="Author" /></th>
+              <th className="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              const isSelected = selectedTemplateKeys.has(row.key)
+              const isActive = selectedTemplate && getTemplateRow(selectedTemplate).key === row.key
+
+              return (
+                <tr
+                  key={row.key}
+                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40 ${
+                    isActive ? 'bg-sky-50 dark:bg-sky-900/20' : ''
+                  }`}
+                >
+                  {selectionMode && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelect(row.key)}
+                        className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                      />
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <button onClick={() => onOpenTemplate(row.template)} className="text-left">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
+                      {row.tags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {row.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="text-[11px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{row.type}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.agentCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.groupCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.workflowCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.version}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.author}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => onOpenTemplate(row.template)}
+                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => onDeleteTemplate(row.template)}
+                        className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

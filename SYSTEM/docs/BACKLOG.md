@@ -58,7 +58,7 @@
 - [ ] **Agent list pagination** — paginate agent list/table views (10 per page) to handle growing rosters
 - [ ] **Activity metering loading state** — show placeholder message while Opik data loads (e.g., "Fetching metering data…") so users don't think it's broken on cold start
 - [ ] **Workflow table view** — sortable columns like agent table view
-- [ ] **Issue #31** Templates list view — with select/select-all/bulk-delete
+- [x] **Issue #31** Templates list view — with select/select-all/bulk-delete
 - [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents
 
 ## High Priority (Features)
@@ -68,6 +68,10 @@
 - [ ] **System agent: org creator** — NL to full org with domain knowledge
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
+
+## Next Sprint Candidates
+
+- [ ] **Community rules and constraints** — define reusable rules/constraints at the community level and inherit them into all groups in that community. Example: engineering community security constraints applied consistently across engineering groups/workflows.
 
 ## Medium Priority
 
