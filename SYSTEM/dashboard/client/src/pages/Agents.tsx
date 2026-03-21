@@ -1871,10 +1871,15 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [warnings, setWarnings] = React.useState<string[]>([])
+  const [validationErrors, setValidationErrors] = React.useState<string[]>([])
+  const [validating, setValidating] = React.useState(false)
 
   React.useEffect(() => {
     setLoading(true)
     setError(null)
+    setWarnings([])
+    setValidationErrors([])
     fetch(`/api/agents/${agent.id}/config`)
       .then(r => {
         if (!r.ok) throw new Error('Failed to load config')
@@ -1892,7 +1897,46 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       })
   }, [agent.id])
 
+  React.useEffect(() => {
+    if (loading) return
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setValidating(true)
+      try {
+        const res = await fetch('/api/agents/validate-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identity, soul, tools, expectedId: agent.id }),
+          signal: controller.signal,
+        })
+        if (!res.ok) throw new Error('Failed to validate config')
+        const data = await res.json()
+        setValidationErrors(Array.isArray(data.errors) ? data.errors : [])
+        setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setError(err.message || 'Failed to validate config')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setValidating(false)
+        }
+      }
+    }, 250)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [identity, soul, tools, agent.id, loading])
+
   const handleSave = async () => {
+    if (validationErrors.length > 0) {
+      setError(validationErrors.join('\n'))
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -1909,6 +1953,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         }
         throw new Error(data.error || 'Failed to save config')
       }
+      setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
       onSaved()
     } catch (err: any) {
       setError(err.message || 'Failed to save config')
@@ -1945,6 +1990,28 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
               {error}
+            </div>
+          )}
+
+          {!loading && validationErrors.length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              <div className="font-medium mb-1">Validation errors</div>
+              <ul className="list-disc pl-5 space-y-1">
+                {validationErrors.map((issue, index) => (
+                  <li key={`${issue}-${index}`}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!loading && warnings.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+              <div className="font-medium mb-1">Warnings</div>
+              <ul className="list-disc pl-5 space-y-1">
+                {warnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`}>{warning}</li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -1994,14 +2061,14 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           </button>
           <button
             onClick={handleSave}
-            disabled={loading || saving}
+            disabled={loading || saving || validating || validationErrors.length > 0}
             className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${
-              loading || saving
+              loading || saving || validating || validationErrors.length > 0
                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                 : 'bg-sky-600 text-white hover:bg-sky-700'
             }`}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : validating ? 'Validating...' : 'Save'}
           </button>
         </div>
       </div>

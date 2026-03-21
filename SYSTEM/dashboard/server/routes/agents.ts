@@ -9,6 +9,7 @@ import { importAgentFromTemplate } from '../lib/templates'
 import { getGatewayClient } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
+import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -41,6 +42,21 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
     if (baileys && boom) return { baileys, boom }
   }
   return { baileys: null, boom: null }
+}
+
+function getAvailableModels(): string[] {
+  const availableModels: string[] = []
+  if (process.env.ANTHROPIC_API_KEY) {
+    availableModels.push('claude-3-haiku-20240307')
+    availableModels.push('anthropic/claude-3-haiku-20240307')
+  }
+  if (process.env.OPENAI_API_KEY) {
+    availableModels.push('openai/gpt-4o')
+    availableModels.push('openai/gpt-4o-mini')
+    availableModels.push('gpt-4o')
+    availableModels.push('gpt-4o-mini')
+  }
+  return availableModels
 }
 
 /**
@@ -238,6 +254,15 @@ router.post('/generate', async (req, res) => {
   }
 })
 
+// POST /api/agents/validate-provision — validate add-agent inputs before provisioning
+router.post('/validate-provision', (req, res) => {
+  const result = validateProvisionInput(req.body || {}, {
+    existingAgentIds: listAgents().map(agent => agent.id),
+    availableModels: getAvailableModels(),
+  })
+  res.json(result)
+})
+
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
   const { name, model, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription } = req.body as {
@@ -253,10 +278,22 @@ router.post('/provision', (req, res) => {
     aiDescription?: string
   }
 
-  if (!name || !/^[a-z][a-z0-9_-]*$/.test(name)) {
-    res.status(400).json({ error: 'Invalid agent name' })
+  const inputValidation = validateProvisionInput(req.body || {}, {
+    existingAgentIds: listAgents().map(agent => agent.id),
+    availableModels: getAvailableModels(),
+  })
+
+  if (!inputValidation.valid) {
+    res.status(400).json({
+      error: 'Validation failed',
+      details: inputValidation.errors,
+      warnings: inputValidation.warnings,
+    })
     return
   }
+
+  const validatedName = name!
+  const validatedModel = model!
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
@@ -270,7 +307,7 @@ router.post('/provision', (req, res) => {
 
   // Write AI-generated files before provisioning
   if (generatedFiles) {
-    const dstPath = path.join(getAgentsDir(), name)
+    const dstPath = path.join(getAgentsDir(), validatedName)
     fs.mkdirSync(dstPath, { recursive: true })
 
     fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), generatedFiles.identity)
@@ -283,8 +320,8 @@ router.post('/provision', (req, res) => {
   // Import from template if specified
   if (templateSlug) {
     const result = importAgentFromTemplate(templateSlug, {
-      newAgentId: name,
-      model,
+      newAgentId: validatedName,
+      model: validatedModel,
       port,
       whatsapp
     })
@@ -300,8 +337,8 @@ router.post('/provision', (req, res) => {
   // Clone source agent files before provisioning
   else if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
     const srcPath = path.join(getAgentsDir(), cloneFrom)
-    const dstPath = path.join(getAgentsDir(), name)
-    const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, name)
+    const dstPath = path.join(getAgentsDir(), validatedName)
+    const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, validatedName)
     if (copied.length > 0) {
       send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
     }
@@ -314,20 +351,20 @@ router.post('/provision', (req, res) => {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     const agentList = config?.agents?.list || []
-    isRegistered = agentList.some((a: any) => a.id === name)
+    isRegistered = agentList.some((a: any) => a.id === validatedName)
   } catch {}
 
   if (isRegistered) {
     // Agent already registered - skip openclaw agents add
-    send('log', `Agent "${name}" is already registered\n`)
+    send('log', `Agent "${validatedName}" is already registered\n`)
     send('done', 'ok')
     res.end()
     return
   }
 
   // Build openclaw agents add command
-  const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', name)
-  const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', name, 'agent')
+  const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', validatedName)
+  const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', validatedName, 'agent')
 
   // Ensure workspace directory exists before registering agent
   try {
@@ -340,31 +377,21 @@ router.post('/provision', (req, res) => {
   }
 
   // Get available models based on API keys
-  const availableModels: string[] = []
-  if (process.env.ANTHROPIC_API_KEY) {
-    availableModels.push('claude-3-haiku-20240307')
-    availableModels.push('anthropic/claude-3-haiku-20240307')
-  }
-  if (process.env.OPENAI_API_KEY) {
-    availableModels.push('openai/gpt-4o')
-    availableModels.push('openai/gpt-4o-mini')
-    availableModels.push('gpt-4o')
-    availableModels.push('gpt-4o-mini')
-  }
+  const availableModels = getAvailableModels()
 
   // Normalize model name - ensure it has a provider prefix
-  let normalizedModel = model
-  if (model && !model.includes('/')) {
+  let normalizedModel = validatedModel
+  if (validatedModel && !validatedModel.includes('/')) {
     // Detect provider based on model name
-    if (model.startsWith('claude-') || model.startsWith('anthropic-')) {
-      normalizedModel = `anthropic/${model}`
-    } else if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('openai-')) {
-      normalizedModel = `openai/${model}`
+    if (validatedModel.startsWith('claude-') || validatedModel.startsWith('anthropic-')) {
+      normalizedModel = `anthropic/${validatedModel}`
+    } else if (validatedModel.startsWith('gpt-') || validatedModel.startsWith('o1-') || validatedModel.startsWith('openai-')) {
+      normalizedModel = `openai/${validatedModel}`
     } else {
       // Default to openai for unknown models
-      normalizedModel = `openai/${model}`
+      normalizedModel = `openai/${validatedModel}`
     }
-    send('log', `Normalized model from "${model}" to "${normalizedModel}"\n`)
+    send('log', `Normalized model from "${validatedModel}" to "${normalizedModel}"\n`)
   }
 
   // Validate model is available - if not, use first available model
@@ -375,13 +402,13 @@ router.post('/provision', (req, res) => {
     normalizedModel = fallbackModel
   }
 
-  const args: string[] = ['agents', 'add', name, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
+  const args: string[] = ['agents', 'add', validatedName, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
   if (normalizedModel) args.push('--model', normalizedModel)
   if (whatsapp) args.push('--whatsapp', whatsapp)
   // --port is not supported by openclaw agents add command
   // Profile support removed - not currently used
 
-  send('start', `Creating agent: ${name}`)
+  send('start', `Creating agent: ${validatedName}`)
   send('log', `Command: openclaw ${args.join(' ')}\n`)
 
   const child = spawn('openclaw', args, {
@@ -403,11 +430,11 @@ router.post('/provision', (req, res) => {
   child.on('close', (code, signal) => {
     cleanup()
     if (code === 0) {
-      send('log', `Agent ${name} created successfully\n`)
+      send('log', `Agent ${validatedName} created successfully\n`)
 
       // Save creation metadata to IDENTITY.md
       try {
-        const identityPath = path.join(getAgentsDir(), name, 'IDENTITY.md')
+        const identityPath = path.join(getAgentsDir(), validatedName, 'IDENTITY.md')
         let identityContent = fs.readFileSync(identityPath, 'utf-8')
 
         // Check if Creation Metadata already exists
@@ -1283,52 +1310,22 @@ router.get('/:id/config', (req, res) => {
   })
 })
 
-// Parse structured fields from IDENTITY.md markdown format
-function parseIdentityMd(content: string): { errors: string[] } {
-  const errors: string[] = []
-
-  // Extract Name field
-  const nameMatch = content.match(/\*\*Name:\*\*\s*(.+)/i)
-  if (nameMatch) {
-    const name = nameMatch[1].trim()
-    if (name && !/^[a-z][a-z0-9_-]*$/.test(name)) {
-      errors.push(`Name "${name}" must be lowercase alphanumeric with dashes/underscores only`)
-    }
+// POST /api/agents/validate-config — validate editable config sections before save
+router.post('/validate-config', (req, res) => {
+  const { identity, soul, tools, expectedId } = req.body as {
+    identity?: string
+    soul?: string
+    tools?: string
+    expectedId?: string
   }
 
-  // Extract Tags field — validate each tag
-  const tagsMatch = content.match(/\*\*Tags:\*\*\s*(.+)/i)
-  if (tagsMatch) {
-    const tagsStr = tagsMatch[1].trim()
-    if (tagsStr) {
-      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean)
-      for (const tag of tags) {
-        if (!/^[a-z][a-z0-9_-]*$/.test(tag)) {
-          errors.push(`Tag "${tag}" must be lowercase alphanumeric with dashes/underscores only (no spaces)`)
-        }
-      }
-      // Check for duplicates
-      const seen = new Set<string>()
-      for (const tag of tags) {
-        if (seen.has(tag)) {
-          errors.push(`Duplicate tag: "${tag}"`)
-        }
-        seen.add(tag)
-      }
-    }
+  if (expectedId && !/^[a-z][a-z0-9_-]*$/.test(expectedId)) {
+    return res.status(400).json({ error: 'Invalid expected agent id' })
   }
 
-  // Extract WhatsApp field
-  const waMatch = content.match(/\*\*WhatsApp:\*\*\s*(.+)/i)
-  if (waMatch) {
-    const wa = waMatch[1].trim()
-    if (wa && !/^\+?[1-9]\d{1,14}$/.test(wa)) {
-      errors.push(`WhatsApp number "${wa}" must be in E.164 format (e.g., +14155551234)`)
-    }
-  }
-
-  return { errors }
-}
+  const result = validateAgentConfigSections({ identity, soul, tools }, expectedId)
+  res.json(result)
+})
 
 // PUT /api/agents/:id/config — update agent config files
 router.put('/:id/config', (req, res) => {
@@ -1344,15 +1341,13 @@ router.put('/:id/config', (req, res) => {
     return res.status(404).json({ error: 'Agent not found' })
   }
 
-  // Validate IDENTITY.md content before saving
-  if (typeof identity === 'string') {
-    const validation = parseIdentityMd(identity)
-    if (validation.errors.length > 0) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.errors
-      })
-    }
+  const validation = validateAgentConfigSections({ identity, soul, tools }, id)
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: validation.errors,
+      warnings: validation.warnings,
+    })
   }
 
   try {
@@ -1365,7 +1360,7 @@ router.put('/:id/config', (req, res) => {
     if (typeof tools === 'string') {
       fs.writeFileSync(path.join(agentDir, 'TOOLS.md'), tools, 'utf-8')
     }
-    res.json({ ok: true })
+    res.json({ ok: true, warnings: validation.warnings })
   } catch (err) {
     console.error('Failed to update agent config:', err)
     res.status(500).json({ error: 'Failed to update agent config' })

@@ -36,6 +36,12 @@ interface GeneratedFiles {
   tools: string
 }
 
+interface ValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+}
+
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: WizardProps) {
   const [step, setStep] = useState<Step>(1)
   const [form, setForm] = useState<FormState>({
@@ -72,6 +78,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [preFilled, setPreFilled] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([])
+  const [validatingProvision, setValidatingProvision] = useState(false)
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
@@ -259,6 +268,40 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
   }
 
   async function provision() {
+    setValidatingProvision(true)
+    setProvError(null)
+
+    try {
+      const validationResp = await fetch('/api/agents/validate-provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          model: form.model,
+          cloneFrom: form.cloneFrom || undefined,
+          templateSlug: form.templateSlug || undefined,
+          whatsapp: form.whatsapp || undefined,
+          port: form.port || undefined,
+          tags: form.tags,
+          generatedFiles: generatedFiles || undefined,
+        }),
+      })
+      const validation = await validationResp.json() as ValidationResult
+      setValidationErrors(Array.isArray(validation.errors) ? validation.errors : [])
+      setValidationWarnings(Array.isArray(validation.warnings) ? validation.warnings : [])
+
+      if (!validationResp.ok || !validation.valid) {
+        setProvError((validation.errors || []).join('\n') || 'Validation failed')
+        setValidatingProvision(false)
+        return
+      }
+    } catch (e) {
+      setProvError(`Failed to validate agent config: ${String(e)}`)
+      setValidatingProvision(false)
+      return
+    }
+
+    setValidatingProvision(false)
     setProvisioning(true)
     setProvError(null)
     setLogs([])
@@ -688,6 +731,20 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
                 </>
               )}
 
+              {validationErrors.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 whitespace-pre-line">
+                  <div className="font-medium mb-1">Validation errors</div>
+                  {validationErrors.join('\n')}
+                </div>
+              )}
+
+              {validationWarnings.length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 whitespace-pre-line">
+                  <div className="font-medium mb-1">Warnings</div>
+                  {validationWarnings.join('\n')}
+                </div>
+              )}
+
               {/* Log stream */}
               {(provisioning || logs.length > 0) && (
                 <div
@@ -735,12 +792,12 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
             {step === 5 && !done && (
               <button
                 onClick={provision}
-                disabled={provisioning}
+                disabled={provisioning || validatingProvision}
                 className={`text-sm px-4 py-1.5 rounded font-medium transition-colors ${
-                  provisioning ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  provisioning || validatingProvision ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 }`}
               >
-                {provisioning ? 'Provisioning…' : 'Provision'}
+                {provisioning ? 'Provisioning…' : validatingProvision ? 'Validating…' : 'Provision'}
               </button>
             )}
             {done && (
