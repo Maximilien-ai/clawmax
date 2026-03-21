@@ -864,6 +864,7 @@ function TemplatesTable({
             })}
           </tbody>
         </table>
+      </div>
     </div>
   )
 }
