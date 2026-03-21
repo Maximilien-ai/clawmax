@@ -72,7 +72,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const workspacesData = await workspacesRes.json()
         const activeData = await activeRes.json()
 
-        const nextWorkspaces = applyWorkspaceOrder(workspacesData.workspaces || [], getSavedWorkspaceOrder())
+        const nextWorkspaces = applyWorkspaceOrder<Workspace>(workspacesData.workspaces || [], getSavedWorkspaceOrder())
         setWorkspaces(nextWorkspaces)
         setActiveWorkspace(activeData.workspace || null)
         saveWorkspaceOrder(nextWorkspaces)

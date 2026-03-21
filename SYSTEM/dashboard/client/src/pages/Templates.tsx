@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
+import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
+import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 
 interface AgentTemplate {
   name: string
   type: 'agent'
+  source?: 'system' | 'workspace'
+  slug?: string
   version: string
   description?: string
   author?: string
@@ -25,6 +29,8 @@ interface AgentTemplate {
 interface OrganizationTemplate {
   name: string
   type: 'organization'
+  source?: 'system' | 'workspace'
+  slug?: string
   version: string
   description?: string
   author?: string
@@ -39,6 +45,8 @@ interface WorkflowTemplate {
   id: string
   name: string
   type: 'workflow'
+  source?: 'workspace'
+  slug?: string
   description: string
   schedule: string
   enabled: boolean
@@ -64,6 +72,7 @@ interface TemplateRow {
   key: string
   name: string
   type: Template['type']
+  source: 'system' | 'workspace'
   agentCount: number
   groupCount: number
   workflowCount: number
@@ -81,6 +90,7 @@ function getTemplateRow(template: Template): TemplateRow {
     key: template.type === 'workflow' ? `workflow:${template.id}` : `${template.type}:${template.name}`,
     name: template.name,
     type: template.type,
+    source: template.type === 'workflow' ? 'workspace' : (template.source || 'workspace'),
     agentCount: isWorkflow ? template.targeting.agents.length : template.agents.length,
     groupCount: isOrg ? (template.groups?.length || 0) : isWorkflow ? template.targeting.groups.length : 0,
     workflowCount: isOrg ? (template.workflows?.length || 0) : isWorkflow ? 1 : 0,
@@ -99,12 +109,18 @@ export default function Templates() {
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
+  const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<TemplateViewMode>('list')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [deleteDialog, setDeleteDialog] = useState<{
+    itemName: string
+    consequences: string[]
+    onConfirm: () => Promise<void>
+  } | null>(null)
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -135,6 +151,17 @@ export default function Templates() {
   }, [])
 
   const handleDelete = async (type: 'agent' | 'organization' | 'workflow', name: string, id?: string) => {
+    const targetTemplate = type === 'workflow'
+      ? workflowTemplates.find(template => template.id === id)
+      : type === 'agent'
+        ? agentTemplates.find(template => template.name === name)
+        : orgTemplates.find(template => template.name === name)
+
+    if (targetTemplate && targetTemplate.type !== 'workflow' && targetTemplate.source === 'system') {
+      showError('System templates cannot be deleted from the dashboard')
+      return
+    }
+
     if (type === 'workflow') {
       if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return
 
@@ -152,7 +179,7 @@ export default function Templates() {
         showError('Failed to delete workflow')
       }
     } else {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const slug = targetTemplate?.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       const typeParam = type === 'agent' ? 'agents' : 'organizations'
 
       if (!confirm(`Delete template "${name}"?`)) return
@@ -280,6 +307,18 @@ export default function Templates() {
   }
 
   const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const selectedRows = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
+  const canApplySelected = selectedRows.length === 1 && selectedRows[0].template.type !== 'workflow'
+
+  const openApplyForTemplate = (template: Template) => {
+    if (template.type === 'organization') {
+      setApplyingTemplate(template)
+      return
+    }
+    if (template.type === 'agent') {
+      setApplyingAgentTemplate(template)
+    }
+  }
 
   const toggleTemplateSelection = (key: string) => {
     setSelectedTemplateKeys(prev => {
@@ -302,35 +341,70 @@ export default function Templates() {
   const handleBulkDelete = async () => {
     if (selectedTemplateKeys.size === 0) return
 
-    const rowsToDelete = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
-    if (!confirm(`Delete ${rowsToDelete.length} template${rowsToDelete.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
+    const rowsToDelete = selectedRows.filter(row => row.source !== 'system')
+    if (rowsToDelete.length === 0) {
+      showError('Only workspace templates can be deleted')
       return
     }
 
-    try {
-      await Promise.all(rowsToDelete.map(async ({ template }) => {
-        if (template.type === 'workflow') {
-          const resp = await fetch(`/api/workflows/${template.id}`, { method: 'DELETE' })
-          if (!resp.ok) throw new Error(`Failed to delete workflow ${template.name}`)
-          return
+    setDeleteDialog({
+      itemName: `${rowsToDelete.length} templates`,
+      consequences: rowsToDelete.map(row => `${row.name} (${row.type})`),
+      onConfirm: async () => {
+        try {
+          await Promise.all(rowsToDelete.map(async ({ template }) => {
+            if (template.type === 'workflow') {
+              const resp = await fetch(`/api/workflows/${template.id}`, { method: 'DELETE' })
+              if (!resp.ok) throw new Error(`Failed to delete workflow ${template.name}`)
+              return
+            }
+
+            const slug = template.slug || template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+            const typeParam = template.type === 'agent' ? 'agents' : 'organizations'
+            const resp = await fetch(`/api/templates/${typeParam}/${slug}`, { method: 'DELETE' })
+            if (!resp.ok) throw new Error(`Failed to delete template ${template.name}`)
+          }))
+
+          showSuccess(`Deleted ${rowsToDelete.length} template${rowsToDelete.length !== 1 ? 's' : ''}`)
+          setSelectedTemplateKeys(new Set())
+          setSelectionMode(false)
+          fetchTemplates()
+          if (selectedTemplate && rowsToDelete.some(row => row.key === getTemplateRow(selectedTemplate).key)) {
+            setSelectedTemplate(null)
+          }
+          setDeleteDialog(null)
+        } catch {
+          showError('Failed to delete selected templates')
         }
-
-        const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-        const typeParam = template.type === 'agent' ? 'agents' : 'organizations'
-        const resp = await fetch(`/api/templates/${typeParam}/${slug}`, { method: 'DELETE' })
-        if (!resp.ok) throw new Error(`Failed to delete template ${template.name}`)
-      }))
-
-      showSuccess(`Deleted ${rowsToDelete.length} template${rowsToDelete.length !== 1 ? 's' : ''}`)
-      setSelectedTemplateKeys(new Set())
-      setSelectionMode(false)
-      fetchTemplates()
-      if (selectedTemplate && rowsToDelete.some(row => row.key === getTemplateRow(selectedTemplate).key)) {
-        setSelectedTemplate(null)
       }
-    } catch (err) {
-      showError('Failed to delete selected templates')
+    })
+  }
+
+  const handleApplySelected = () => {
+    if (!canApplySelected) {
+      showError('Apply Selected currently supports one agent or organization template at a time')
+      return
     }
+    openApplyForTemplate(selectedRows[0].template)
+  }
+
+  const toggleSectionSelection = (rows: TemplateRow[]) => {
+    const rowKeys = rows.map(row => row.key)
+    const allSelected = rowKeys.every(key => selectedTemplateKeys.has(key))
+    if (allSelected) {
+      setSelectedTemplateKeys(prev => {
+        const next = new Set(prev)
+        rowKeys.forEach(key => next.delete(key))
+        return next
+      })
+      return
+    }
+
+    setSelectedTemplateKeys(prev => {
+      const next = new Set(prev)
+      rowKeys.forEach(key => next.add(key))
+      return next
+    })
   }
 
   return (
@@ -402,6 +476,14 @@ export default function Templates() {
                 className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
                 {selectedTemplateKeys.size === sortedTemplateRows.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
+            {selectionMode && selectedTemplateKeys.size > 0 && (
+              <button
+                onClick={handleApplySelected}
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+              >
+                Apply Selected
               </button>
             )}
             {selectionMode && selectedTemplateKeys.size > 0 && (
@@ -480,6 +562,14 @@ export default function Templates() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>🤖 Agent Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
+                  {selectionMode && (
+                    <button
+                      onClick={() => toggleSectionSelection(filteredAgentTemplates.map(getTemplateRow))}
+                      className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      {filteredAgentTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Agents' : 'Select All Agents'}
+                    </button>
+                  )}
                 </h2>
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredAgentTemplates.map((template, idx) => (
@@ -487,8 +577,12 @@ export default function Templates() {
                       key={idx}
                       template={template}
                       onDelete={() => handleDelete('agent', template.name)}
+                      onApply={() => openApplyForTemplate(template)}
                       onClick={() => setSelectedTemplate(template)}
                       selected={selectedTemplate?.name === template.name}
+                      selectionMode={selectionMode}
+                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
                     />
                   ))}
                 </div>
@@ -501,6 +595,14 @@ export default function Templates() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>🏢 Organization Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
+                  {selectionMode && (
+                    <button
+                      onClick={() => toggleSectionSelection(filteredOrgTemplates.map(getTemplateRow))}
+                      className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      {filteredOrgTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Orgs' : 'Select All Orgs'}
+                    </button>
+                  )}
                 </h2>
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredOrgTemplates.map((template, idx) => (
@@ -508,8 +610,12 @@ export default function Templates() {
                       key={idx}
                       template={template}
                       onDelete={() => handleDelete('organization', template.name)}
+                      onApply={() => openApplyForTemplate(template)}
                       onClick={() => setSelectedTemplate(template)}
                       selected={selectedTemplate?.name === template.name}
+                      selectionMode={selectionMode}
+                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
                     />
                   ))}
                 </div>
@@ -522,6 +628,14 @@ export default function Templates() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>⚡ Workflow Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
+                  {selectionMode && (
+                    <button
+                      onClick={() => toggleSectionSelection(filteredWorkflowTemplates.map(getTemplateRow))}
+                      className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      {filteredWorkflowTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Workflows' : 'Select All Workflows'}
+                    </button>
+                  )}
                 </h2>
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredWorkflowTemplates.map((template, idx) => (
@@ -530,6 +644,9 @@ export default function Templates() {
                       template={template}
                       onClick={() => setSelectedTemplate(template)}
                       selected={selectedTemplate?.name === template.name}
+                      selectionMode={selectionMode}
+                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
                     />
                   ))}
                 </div>
@@ -552,6 +669,7 @@ export default function Templates() {
               template.name,
               template.type === 'workflow' ? template.id : undefined
             )}
+            onApplyTemplate={openApplyForTemplate}
           />
           )
         )}
@@ -567,8 +685,8 @@ export default function Templates() {
             selectedTemplate.name,
             selectedTemplate.type === 'workflow' ? selectedTemplate.id : undefined
           )}
-          onApply={selectedTemplate.type === 'organization' ? () => {
-            setApplyingTemplate(selectedTemplate as OrganizationTemplate)
+          onApply={selectedTemplate.type !== 'workflow' ? () => {
+            openApplyForTemplate(selectedTemplate)
             setSelectedTemplate(null)
           } : undefined}
           onEdit={selectedTemplate.type === 'workflow' ? () => handleEditWorkflow(selectedTemplate.id) : undefined}
@@ -584,11 +702,36 @@ export default function Templates() {
           onSuccess={() => {
             setApplyingTemplate(null)
             showSuccess('Organization template applied successfully! Refreshing...')
-            // Refresh to show new agents, groups, communities, and workflows
-            setTimeout(() => window.location.reload(), 500)
+            fetchTemplates()
+            window.dispatchEvent(new CustomEvent('agents-updated'))
           }}
         />
       )}
+
+      {applyingAgentTemplate && (
+        <ApplyAgentTemplateModal
+          template={applyingAgentTemplate}
+          onClose={() => setApplyingAgentTemplate(null)}
+          onSuccess={() => {
+            setApplyingAgentTemplate(null)
+            window.dispatchEvent(new CustomEvent('agents-updated'))
+          }}
+        />
+      )}
+
+      <ConfirmDeleteDialog
+        isOpen={deleteDialog !== null}
+        itemName={deleteDialog?.itemName || ''}
+        itemType="templates"
+        warningMessage="Selected workspace templates will be permanently deleted. System templates are protected and cannot be deleted here."
+        consequences={deleteDialog?.consequences}
+        onConfirm={async () => {
+          if (deleteDialog) {
+            await deleteDialog.onConfirm()
+          }
+        }}
+        onCancel={() => setDeleteDialog(null)}
+      />
     </div>
   )
 }
@@ -604,6 +747,7 @@ function TemplatesTable({
   onToggleSelect,
   onOpenTemplate,
   onDeleteTemplate,
+  onApplyTemplate,
 }: {
   rows: TemplateRow[]
   selectionMode: boolean
@@ -615,6 +759,7 @@ function TemplatesTable({
   onToggleSelect: (key: string) => void
   onOpenTemplate: (template: Template) => void
   onDeleteTemplate: (template: Template) => void
+  onApplyTemplate: (template: Template) => void
 }) {
   const SortHeader = ({ column, label }: { column: TemplateSortColumn; label: string }) => (
     <button
@@ -695,12 +840,22 @@ function TemplatesTable({
                       >
                         View
                       </button>
-                      <button
-                        onClick={() => onDeleteTemplate(row.template)}
-                        className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
-                      >
-                        Delete
-                      </button>
+                      {row.template.type !== 'workflow' && (
+                        <button
+                          onClick={() => onApplyTemplate(row.template)}
+                          className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                        >
+                          Apply
+                        </button>
+                      )}
+                      {row.source === 'workspace' && (
+                        <button
+                          onClick={() => onDeleteTemplate(row.template)}
+                          className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -713,36 +868,65 @@ function TemplatesTable({
   )
 }
 
-function TemplateCard({ template, onDelete, onClick, selected }: {
-  template: Template
+function TemplateCard({ template, onDelete, onApply, onClick, selected, selectionMode, isSelected, onToggleSelect }: {
+  template: AgentTemplate | OrganizationTemplate
   onDelete: () => void
+  onApply: () => void
   onClick: () => void
   selected: boolean
+  selectionMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }) {
   const isOrg = template.type === 'organization'
   const agentCount = template.agents.length
   const communityCount = isOrg && template.communities ? template.communities.length : 0
   const groupCount = isOrg && template.groups ? template.groups.length : 0
   const workflowCount = isOrg && (template as any).workflows ? (template as any).workflows.length : 0
+  const canDelete = template.source !== 'system'
 
   return (
     <div
       onClick={onClick}
-      className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+      className={`relative bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 dark:border-gray-700'
       }`}
     >
+      {selectionMode && onToggleSelect && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+          className={`absolute top-3 right-3 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect template' : 'Select template'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
+      )}
       <div className="flex items-start justify-between mb-2">
         <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 dark:text-gray-100">
           {template.name}
         </h3>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="text-gray-300 hover:text-red-500 transition-colors text-xs p-1"
-          title="Delete template"
-        >
-          🗑
-        </button>
+        <div className="flex items-center gap-1 pr-7">
+          <button
+            onClick={(e) => { e.stopPropagation(); onApply(); }}
+            className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1"
+            title="Apply template"
+          >
+            ⚡
+          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="text-gray-300 hover:text-red-500 transition-colors text-xs p-1"
+              title="Delete template"
+            >
+              🗑
+            </button>
+          )}
+        </div>
       </div>
 
       {template.description && (
@@ -773,7 +957,7 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
 
       {template.tags && template.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {template.tags.slice(0, 3).map(tag => (
+          {template.tags.slice(0, 3).map((tag: string) => (
             <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">
               {tag}
             </span>
@@ -786,7 +970,10 @@ function TemplateCard({ template, onDelete, onClick, selected }: {
 
       <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
         <span>v{template.version}</span>
-        {template.author && <span>by {template.author}</span>}
+        <div className="flex items-center gap-2">
+          {template.source === 'system' && <span className="text-amber-500">System</span>}
+          {template.author && <span>by {template.author}</span>}
+        </div>
       </div>
     </div>
   )
@@ -802,6 +989,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
 }) {
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
+  const canDelete = template.type === 'workflow' || template.source !== 'system'
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -1017,7 +1205,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           )}
 
           {/* Metadata (for agent templates) */}
-          {!isOrg && template.metadata && (
+          {!isOrg && !isWorkflow && template.metadata && (
             <div className="bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded p-3 text-xs space-y-1">
               <div className="font-semibold text-sky-700 dark:text-sky-400">Template Metadata</div>
               {template.metadata.model && (
@@ -1031,7 +1219,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            {isOrg && onApply && (
+            {!isWorkflow && onApply && (
               <button
                 onClick={onApply}
                 className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm font-medium"
@@ -1055,12 +1243,14 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
                 ✏️ Edit Workflow
               </button>
             )}
-            <button
-              onClick={onDelete}
-              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
-            >
-              {isWorkflow ? 'Delete Workflow' : 'Delete Template'}
-            </button>
+            {canDelete && (
+              <button
+                onClick={onDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
+              >
+                {isWorkflow ? 'Delete Workflow' : 'Delete Template'}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm dark:bg-gray-800 dark:text-gray-300"
@@ -1074,7 +1264,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
   )
 }
 
-function WorkflowTemplateCard({ template, onClick, selected }: { template: WorkflowTemplate; onClick: () => void; selected: boolean }) {
+function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSelected, onToggleSelect }: { template: WorkflowTemplate; onClick: () => void; selected: boolean; selectionMode?: boolean; isSelected?: boolean; onToggleSelect?: () => void }) {
   const targetingCount =
     template.targeting.communities.length +
     template.targeting.groups.length +
@@ -1084,10 +1274,23 @@ function WorkflowTemplateCard({ template, onClick, selected }: { template: Workf
   return (
     <div
       onClick={onClick}
-      className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+      className={`relative bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 dark:border-gray-700'
       }`}
     >
+      {selectionMode && onToggleSelect && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+          className={`absolute top-3 right-3 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect template' : 'Select template'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
+      )}
       <div className="flex items-start justify-between mb-2">
         <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 dark:text-gray-100">
           {template.name}

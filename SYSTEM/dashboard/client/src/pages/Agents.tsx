@@ -616,6 +616,21 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     setSelectedAgentIds(next)
   }
 
+  const toggleAgentSectionSelection = (agentsList: Agent[]) => {
+    const ids = agentsList.map(agent => agent.id)
+    const allSelected = ids.every(id => selectedAgentIds.has(id))
+
+    setSelectedAgentIds(prev => {
+      const next = new Set(prev)
+      if (allSelected) {
+        ids.forEach(id => next.delete(id))
+      } else {
+        ids.forEach(id => next.add(id))
+      }
+      return next
+    })
+  }
+
   const fetchWorkflows = useCallback(async (agentId: string) => {
     // Skip if already fetched
     if (agentWorkflows.has(agentId)) return
@@ -1136,11 +1151,19 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             const renderAgentCards = (agents: Agent[], title?: string) => (
               <>
                 {title && (
-                  <div className="mb-4">
+                  <div className="mb-4 flex items-center gap-3">
                     <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
                       {title.includes('Built-in') && <span>🤖</span>}
                       {title}
                     </h2>
+                    {selectionMode && (
+                      <button
+                        onClick={() => toggleAgentSectionSelection(agents)}
+                        className="text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        {agents.every(agent => selectedAgentIds.has(agent.id)) ? 'Deselect Section' : 'Select Section'}
+                      </button>
+                    )}
                   </div>
                 )}
                 <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
@@ -1262,12 +1285,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
               return (
                 <div key={tag}>
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
-                    {tag === '__untagged__' ? 'Untagged' : tag}
-                    <span className="ml-2 text-xs font-normal text-gray-400">
-                      {primaryAgents.length} agent{primaryAgents.length !== 1 ? 's' : ''}
-                    </span>
-                  </h2>
+                  <div className="mb-3 px-1 flex items-center gap-3">
+                    <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {tag === '__untagged__' ? 'Untagged' : tag}
+                      <span className="ml-2 text-xs font-normal text-gray-400">
+                        {primaryAgents.length} agent{primaryAgents.length !== 1 ? 's' : ''}
+                      </span>
+                    </h2>
+                    {selectionMode && primaryAgents.length > 0 && (
+                      <button
+                        onClick={() => toggleAgentSectionSelection(primaryAgents)}
+                        className="text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        {primaryAgents.every(agent => selectedAgentIds.has(agent.id)) ? 'Deselect Group' : 'Select Group'}
+                      </button>
+                    )}
+                  </div>
                   <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                     {primaryAgents.map(agent => (
                       <AgentGridCard
@@ -1398,8 +1431,16 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {userAgents.length > 0 && (
                   <>
                     {userAgents.length > 0 && builtInAgents.length > 0 && (
-                      <div className="mb-4">
+                      <div className="mb-4 flex items-center gap-3">
                         <h2 className="text-base font-bold text-gray-800 dark:text-gray-200">Your Agents ({userAgents.length})</h2>
+                        {selectionMode && (
+                          <button
+                            onClick={() => toggleAgentSectionSelection(userAgents)}
+                            className="text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          >
+                            {userAgents.every(agent => selectedAgentIds.has(agent.id)) ? 'Deselect Section' : 'Select Section'}
+                          </button>
+                        )}
                       </div>
                     )}
                     <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -1435,10 +1476,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {/* Built-in System Agents */}
                 {builtInAgents.length > 0 && (
                   <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200 dark:border-gray-700" : ""}>
-                    <div className="mb-4">
+                    <div className="mb-4 flex items-center gap-3">
                       <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
                         <span>🤖</span> Built-in System Agents ({builtInAgents.length})
                       </h2>
+                      {selectionMode && (
+                        <button
+                          onClick={() => toggleAgentSectionSelection(builtInAgents)}
+                          className="text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        >
+                          {builtInAgents.every(agent => selectedAgentIds.has(agent.id)) ? 'Deselect Section' : 'Select Section'}
+                        </button>
+                      )}
                     </div>
                     <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                       {builtInAgents.map(agent => (
@@ -2162,7 +2211,7 @@ const AgentCard = React.memo(function AgentCard({
   onManageTags: () => void
   onManageCommunities: () => void
   onNavigateToGroup?: (groupName: string) => void
-  onNavigateToSkills?: () => void
+  onNavigateToSkills?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onRestart: () => void
   onRename: () => void
@@ -2182,21 +2231,23 @@ const AgentCard = React.memo(function AgentCard({
         selected ? 'border-sky-400 ring-2 ring-sky-100' : isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 dark:border-gray-700 hover:shadow-md'
       }`}
     >
-      {/* Selection checkbox overlay */}
+      {/* Selection control */}
       {onToggleSelect && (
-        <div className="absolute top-2 left-2 z-10">
-          <input
-            type="checkbox"
-            checked={isSelected || false}
-            onChange={e => { e.stopPropagation(); onToggleSelect() }}
-            onClick={e => e.stopPropagation()}
-            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer dark:border-gray-600"
-          />
-        </div>
+        <button
+          onClick={e => { e.stopPropagation(); onToggleSelect() }}
+          className={`absolute top-3 right-3 z-10 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect agent' : 'Select agent'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
       )}
       {/* Card header — always visible */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
-        <div className="flex items-center gap-2 min-w-0" style={onToggleSelect ? { paddingLeft: '1.5rem' } : {}}>
+        <div className="flex items-center gap-2 min-w-0 pr-8">
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">{agent.name}</h3>
           {agent.archived ? (
@@ -2589,13 +2640,17 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       }`}
     >
       {onToggleSelect && (
-        <input
-          type="checkbox"
-          checked={isSelected || false}
-          onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-2 left-2 w-4 h-4 cursor-pointer z-10"
-        />
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+          className={`absolute top-3 right-3 z-10 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect agent' : 'Select agent'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
       )}
       {/* Line 1: Name + chat icon */}
       <div className="flex items-center gap-1.5 mb-1">

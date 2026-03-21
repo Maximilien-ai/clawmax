@@ -14,6 +14,7 @@ interface Agent {
   id: string
   name: string
   status: 'online' | 'offline' | 'unknown'
+  archived?: boolean
   communities: GroupEntry[]
   groups: GroupEntry[]
 }

@@ -60,6 +60,8 @@ export interface AgentTemplateAgent {
 export interface AgentTemplate {
   name: string
   type: 'agent'
+  source?: 'system' | 'workspace'
+  slug?: string
   version: string
   description?: string
   author?: string
@@ -116,6 +118,8 @@ export interface Workflow {
 export interface OrganizationTemplate {
   name: string
   type: 'organization'
+  source?: 'system' | 'workspace'
+  slug?: string
   version: string
   description?: string
   author?: string
@@ -218,65 +222,65 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
  */
 export function listTemplates(type?: 'agent' | 'organization'): Template[] {
   ensureTemplateDirs()
-  const templates: Template[] = []
-  const seen = new Set<string>() // Track by name to avoid duplicates
-
-  const dirs = []
+  const templates = new Map<string, Template>()
+  const dirs: Array<{ dir: string; source: 'system' | 'workspace'; slug: string }> = []
 
   // Collect templates from both global and workspace directories
   if (!type || type === 'agent') {
-    // Global agent templates (system)
-    try {
-      const globalAgentDirs = fs.readdirSync(getGlobalAgentTemplatesDir(), { withFileTypes: true })
-        .filter(d => d.isDirectory())
-        .map(d => path.join(getGlobalAgentTemplatesDir(), d.name))
-      dirs.push(...globalAgentDirs)
-    } catch {}
-
     // Workspace agent templates (user-created)
     try {
       const agentDirs = fs.readdirSync(getAgentTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
-        .map(d => path.join(getAgentTemplatesDir(), d.name))
+        .map(d => ({ dir: path.join(getAgentTemplatesDir(), d.name), source: 'workspace' as const, slug: d.name }))
       dirs.push(...agentDirs)
+    } catch {}
+
+    // Global agent templates (system)
+    try {
+      const globalAgentDirs = fs.readdirSync(getGlobalAgentTemplatesDir(), { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => ({ dir: path.join(getGlobalAgentTemplatesDir(), d.name), source: 'system' as const, slug: d.name }))
+      dirs.push(...globalAgentDirs)
     } catch {}
   }
 
   if (!type || type === 'organization') {
-    // Global org templates (system)
-    try {
-      const globalOrgDirs = fs.readdirSync(getGlobalOrgTemplatesDir(), { withFileTypes: true })
-        .filter(d => d.isDirectory())
-        .map(d => path.join(getGlobalOrgTemplatesDir(), d.name))
-      dirs.push(...globalOrgDirs)
-    } catch {}
-
     // Workspace org templates (user-created)
     try {
       const orgDirs = fs.readdirSync(getOrgTemplatesDir(), { withFileTypes: true })
         .filter(d => d.isDirectory())
-        .map(d => path.join(getOrgTemplatesDir(), d.name))
+        .map(d => ({ dir: path.join(getOrgTemplatesDir(), d.name), source: 'workspace' as const, slug: d.name }))
       dirs.push(...orgDirs)
+    } catch {}
+
+    // Global org templates (system)
+    try {
+      const globalOrgDirs = fs.readdirSync(getGlobalOrgTemplatesDir(), { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => ({ dir: path.join(getGlobalOrgTemplatesDir(), d.name), source: 'system' as const, slug: d.name }))
+      dirs.push(...globalOrgDirs)
     } catch {}
   }
 
-  for (const dir of dirs) {
+  for (const entry of dirs) {
     try {
-      const templateJsonPath = path.join(dir, 'template.json')
+      const templateJsonPath = path.join(entry.dir, 'template.json')
       if (fs.existsSync(templateJsonPath)) {
         const template = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-        // Avoid duplicates (workspace templates override global)
-        if (!seen.has(template.name)) {
-          seen.add(template.name)
-          templates.push(template)
+        if (!templates.has(template.name)) {
+          templates.set(template.name, {
+            ...template,
+            source: entry.source,
+            slug: entry.slug,
+          })
         }
       }
     } catch (err) {
-      console.error(`Failed to read template at ${dir}:`, err)
+      console.error(`Failed to read template at ${entry.dir}:`, err)
     }
   }
 
-  return templates
+  return Array.from(templates.values())
 }
 
 /**
@@ -294,7 +298,11 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
   const workspaceTemplatePath = path.join(workspaceTemplateDir, 'template.json')
   if (fs.existsSync(workspaceTemplatePath)) {
     try {
-      return JSON.parse(fs.readFileSync(workspaceTemplatePath, 'utf-8'))
+      return {
+        ...JSON.parse(fs.readFileSync(workspaceTemplatePath, 'utf-8')),
+        source: 'workspace',
+        slug,
+      }
     } catch {}
   }
 
@@ -306,7 +314,11 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
   const globalTemplatePath = path.join(globalTemplateDir, 'template.json')
   if (fs.existsSync(globalTemplatePath)) {
     try {
-      return JSON.parse(fs.readFileSync(globalTemplatePath, 'utf-8'))
+      return {
+        ...JSON.parse(fs.readFileSync(globalTemplatePath, 'utf-8')),
+        source: 'system',
+        slug,
+      }
     } catch {}
   }
 
@@ -322,15 +334,27 @@ export function deleteTemplate(type: 'agent' | 'organization', slug: string): { 
       ? path.join(getAgentTemplatesDir(), slug)
       : path.join(getOrgTemplatesDir(), slug)
 
+    if (fs.existsSync(templateDir)) {
+      fs.rmSync(templateDir, { recursive: true, force: true })
+      return { ok: true }
+    }
+
+    const globalTemplateDir = type === 'agent'
+      ? path.join(getGlobalAgentTemplatesDir(), slug)
+      : path.join(getGlobalOrgTemplatesDir(), slug)
+
+    if (fs.existsSync(globalTemplateDir)) {
+      return { ok: false, error: 'System templates cannot be deleted from the dashboard' }
+    }
+
     if (!fs.existsSync(templateDir)) {
       return { ok: false, error: 'Template not found' }
     }
-
-    fs.rmSync(templateDir, { recursive: true, force: true })
-    return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
+
+  return { ok: false, error: 'Template not found' }
 }
 
 // ============================================================================
