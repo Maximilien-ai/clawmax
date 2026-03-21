@@ -1385,15 +1385,26 @@ router.patch('/:id/model', (req, res) => {
 
   try {
     const content = fs.readFileSync(identityPath, 'utf-8')
-    const updatedContent = /^-\s+\*\*Model:\*\*\s+.+$/m.test(content)
-      ? content.replace(
-          /^-\s+\*\*Model:\*\*\s+.+$/m,
-          `- **Model:** ${model}`
-        )
-      : content.replace(
-          /^-\s+\*\*WhatsApp:\*\*.*$/m,
-          `- **Model:** ${model}\n$&`
-        )
+    let updatedContent = content
+
+    if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
+      updatedContent = content.replace(
+        /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
+        `- **Model:** ${model}`
+      )
+    } else if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
+      updatedContent = content.replace(
+        /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
+        `- **Model:** ${model}\n$&`
+      )
+    } else if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
+      updatedContent = content.replace(
+        /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
+        `$&\n- **Model:** ${model}`
+      )
+    } else {
+      updatedContent = `${content.trimEnd()}\n\n- **Model:** ${model}\n`
+    }
 
     fs.writeFileSync(identityPath, updatedContent, 'utf-8')
     res.json({ ok: true, model })
