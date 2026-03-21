@@ -297,7 +297,36 @@ test('System agent templates pass audit checks', () => {
   console.log(`  Audited ${templateDirs.length} system agent templates`)
 })
 
-// Test 15: Workflow targeting structure
+// Test 16: System organization templates have valid template.json files
+test('System organization templates pass audit checks', () => {
+  const templatesRoot = path.join(REPO_ROOT, 'TEMPLATES', 'organizations')
+  const templateDirs = fs.readdirSync(templatesRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+
+  assert(templateDirs.length > 0, 'Should find system organization templates')
+
+  for (const slug of templateDirs) {
+    const templateJsonPath = path.join(templatesRoot, slug, 'template.json')
+    assert(fs.existsSync(templateJsonPath), `Organization template ${slug} is missing template.json`)
+
+    const template = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8')) as OrganizationTemplate
+    const schemaResult = validateTemplate(template)
+    assert(schemaResult.valid, `Organization template ${slug} failed schema validation: ${schemaResult.errors?.join(', ')}`)
+
+    if (template.workflows) {
+      template.workflows.forEach(workflow => {
+        assert(typeof workflow.id === 'string' && workflow.id.length > 0, `Workflow in ${slug} must have an id`)
+        assert(typeof workflow.name === 'string' && workflow.name.length > 0, `Workflow in ${slug} must have a name`)
+        assert(typeof workflow.content === 'string' && workflow.content.length > 0, `Workflow in ${slug} must have content`)
+      })
+    }
+  }
+
+  console.log(`  Audited ${templateDirs.length} system organization templates`)
+})
+
+// Test 17: Workflow targeting structure
 test('Workflows have complete targeting structure', () => {
   const templates = listTemplates('organization') as OrganizationTemplate[]
   const templatesWithWorkflows = templates.filter(t => t.workflows && t.workflows.length > 0)
