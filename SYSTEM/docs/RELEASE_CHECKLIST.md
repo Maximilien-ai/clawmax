@@ -67,6 +67,10 @@ wait about one minute for the auth rate limiter window to reset.
 - Workspaces
   - reorder workspaces
   - confirm active workspace stays selected
+- BYOK preview
+  - verify the `BYOK Preview` button is visible after login
+  - verify the modal explains system keys vs user keys
+  - verify masked OpenAI / Anthropic keys can be saved locally for dev flow testing
 
 ## 5. Release Messaging
 

@@ -10,6 +10,16 @@ export interface AuthUser {
 interface AuthConfig {
   githubEnabled: boolean
   authDisabled: boolean
+  systemKeyDefaults?: {
+    openai: boolean
+    anthropic: boolean
+    nebius: boolean
+  }
+  userKeyDefaults?: {
+    openai: boolean
+    anthropic: boolean
+    nebius: boolean
+  }
 }
 
 interface AuthContextValue {

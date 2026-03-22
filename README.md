@@ -134,6 +134,7 @@ Current release direction:
 - system keys live in `SYSTEM/dashboard/.env`
 - user keys should be separate from system keys
 - if user keys are not preconfigured in env, the dashboard should prompt for them after login in the BYOK flow
+- the current BYOK wizard is a dev preview for flow testing, not final secure per-user secret storage
 
 Today, add at least one system provider key to `SYSTEM/dashboard/.env`:
 

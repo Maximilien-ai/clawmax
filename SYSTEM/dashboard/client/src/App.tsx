@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
+import { ByokWizard } from './components/ByokWizard'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'logs'
 
@@ -460,6 +461,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex items-center gap-3">
+        <ByokWizard />
         {user && !config?.authDisabled && (
           <div className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
             <img src={user.avatar} alt={user.login} className="w-5 h-5 rounded-full shrink-0" />

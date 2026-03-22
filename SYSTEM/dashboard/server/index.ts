@@ -142,6 +142,16 @@ app.get('/api/auth/config', (_req, res) => {
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     authDisabled: process.env.DASHBOARD_AUTH_DISABLED === 'true',
+    systemKeyDefaults: {
+      openai: !!process.env.OPENAI_API_KEY,
+      anthropic: !!process.env.ANTHROPIC_API_KEY,
+      nebius: !!process.env.NEBIUS_API_KEY,
+    },
+    userKeyDefaults: {
+      openai: !!process.env.USER_OPENAI_API_KEY,
+      anthropic: !!process.env.USER_ANTHROPIC_API_KEY,
+      nebius: !!process.env.USER_NEBIUS_API_KEY,
+    },
   })
 })
 
