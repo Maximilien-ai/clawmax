@@ -4,11 +4,23 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches-ignore: [main]
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      OPENCLAW_WORKSPACE: ${{ github.workspace }}/WORKSPACES/default
+      DASHBOARD_AUTH_DISABLED: "true"
+      DASHBOARD_PORT: "3001"
+      CORS_ORIGIN: http://localhost:5173
 
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +54,20 @@ jobs:
       - name: Run setup
         run: ./setup.sh < /dev/null
 
+      - name: Prepare dashboard env
+        run: |
+          cat > SYSTEM/dashboard/.env <<EOF
+          OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+          DASHBOARD_AUTH_DISABLED=${DASHBOARD_AUTH_DISABLED}
+          DASHBOARD_PORT=${DASHBOARD_PORT}
+          CORS_ORIGIN=${CORS_ORIGIN}
+          NODE_ENV=test
+          EOF
+
       - name: Start dashboard server
         run: |
-          export OPENCLAW_WORKSPACE="$GITHUB_WORKSPACE/WORKSPACES/default"
-          export DASHBOARD_AUTH_DISABLED=true
           cd SYSTEM/dashboard
-          npx ts-node server/index.ts &
+          npx ts-node server/index.ts > /tmp/clawmax-ci-dashboard.log 2>&1 &
           # Wait for server to be ready
           for i in $(seq 1 30); do
             if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
@@ -56,6 +76,11 @@ jobs:
             fi
             sleep 1
           done
+          curl -sf http://localhost:3001/api/health > /dev/null 2>&1 || {
+            echo "::error::Dashboard server failed to start"
+            cat /tmp/clawmax-ci-dashboard.log
+            exit 1
+          }
 
       - name: Run tests
         run: ./SYSTEM/test.sh
