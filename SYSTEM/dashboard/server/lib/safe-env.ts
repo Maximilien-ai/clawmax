@@ -1,6 +1,7 @@
 /**
  * Security helpers for child process spawning and input validation.
  */
+import { type ProviderKeys, resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
 
 /**
  * Returns a whitelisted subset of process.env for child processes.
@@ -16,32 +17,27 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     LANG: process.env.LANG,
     // OpenClaw needs these
     OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
-    OPENAI_API_KEY: process.env.USER_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-    ANTHROPIC_API_KEY: process.env.USER_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY,
-    NEBIUS_API_KEY: process.env.USER_NEBIUS_API_KEY || process.env.NEBIUS_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
   }
 
   return { ...base, ...extras }
 }
 
-export function providerKeyOverrides(overrides?: {
-  openai?: string
-  anthropic?: string
-  nebius?: string
-}): Record<string, string> | undefined {
-  if (!overrides) return undefined
-
-  const hasAnyOverride = [overrides.openai, overrides.anthropic, overrides.nebius]
-    .some(value => typeof value === 'string' && value.trim().length > 0)
-
-  if (!hasAnyOverride) return undefined
-
+function providerKeysToEnv(providerKeys: ProviderKeys): Record<string, string> | undefined {
+  if (!providerKeys.openai && !providerKeys.anthropic && !providerKeys.nebius) return undefined
   return {
-    OPENAI_API_KEY: overrides.openai?.trim() || '',
-    ANTHROPIC_API_KEY: overrides.anthropic?.trim() || '',
-    NEBIUS_API_KEY: overrides.nebius?.trim() || '',
+    OPENAI_API_KEY: providerKeys.openai || '',
+    ANTHROPIC_API_KEY: providerKeys.anthropic || '',
+    NEBIUS_API_KEY: providerKeys.nebius || '',
   }
+}
+
+export function userExecutionEnv(byokOverrides?: ProviderKeys): NodeJS.ProcessEnv {
+  return safeEnv(providerKeysToEnv(resolveUserExecutionProviderKeys(undefined, byokOverrides)))
+}
+
+export function systemExecutionEnv(): NodeJS.ProcessEnv {
+  return safeEnv(providerKeysToEnv(resolveSystemExecutionProviderKeys()))
 }
 
 /**

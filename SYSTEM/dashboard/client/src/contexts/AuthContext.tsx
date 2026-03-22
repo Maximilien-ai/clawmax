@@ -10,6 +10,7 @@ export interface AuthUser {
 interface AuthConfig {
   githubEnabled: boolean
   authDisabled: boolean
+  allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
     openai: boolean
     anthropic: boolean

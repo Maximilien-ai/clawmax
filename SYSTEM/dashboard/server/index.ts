@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import './lib/dashboard-env'
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -26,6 +26,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured } from './l
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys } from './lib/dashboard-env'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -139,19 +140,22 @@ app.use('/api/auth', createAuthRouter())
 // Auth config info (public — so login page knows what's available)
 app.get('/api/auth/config', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
+  const systemKeys = getSystemProviderKeys()
+  const userKeys = getUserDefaultProviderKeys()
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     authDisabled: process.env.DASHBOARD_AUTH_DISABLED === 'true',
     systemKeyDefaults: {
-      openai: !!process.env.OPENAI_API_KEY,
-      anthropic: !!process.env.ANTHROPIC_API_KEY,
-      nebius: !!process.env.NEBIUS_API_KEY,
+      openai: !!systemKeys.openai,
+      anthropic: !!systemKeys.anthropic,
+      nebius: !!systemKeys.nebius,
     },
     userKeyDefaults: {
-      openai: !!process.env.USER_OPENAI_API_KEY,
-      anthropic: !!process.env.USER_ANTHROPIC_API_KEY,
-      nebius: !!process.env.USER_NEBIUS_API_KEY,
+      openai: !!userKeys.openai,
+      anthropic: !!userKeys.anthropic,
+      nebius: !!userKeys.nebius,
     },
+    allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
   })
 })
 

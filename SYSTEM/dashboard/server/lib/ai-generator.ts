@@ -1,8 +1,11 @@
 import OpenAI from 'openai'
+import { resolveSystemExecutionProviderKeys } from './dashboard-env'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-})
+function getSystemOpenAiClient(): OpenAI {
+  return new OpenAI({
+    apiKey: resolveSystemExecutionProviderKeys().openai || '',
+  })
+}
 
 interface GenerateAgentFilesInput {
   description: string
@@ -91,7 +94,7 @@ Add whatever helps you do your job. This is your cheat sheet.
 `
 
 async function generateIdentity(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await openai.chat.completions.create({
+  const completion = await getSystemOpenAiClient().chat.completions.create({
     model: 'gpt-4',
     messages: [
       {
@@ -124,7 +127,7 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
 }
 
 async function generateSoul(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await openai.chat.completions.create({
+  const completion = await getSystemOpenAiClient().chat.completions.create({
     model: 'gpt-4',
     messages: [
       {
@@ -155,7 +158,7 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
 }
 
 async function generateTools(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await openai.chat.completions.create({
+  const completion = await getSystemOpenAiClient().chat.completions.create({
     model: 'gpt-4',
     messages: [
       {
@@ -214,7 +217,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
   })()
 
   // Only use LLM if API key is available
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = resolveSystemExecutionProviderKeys().openai
   if (!apiKey || apiKey.trim() === '') {
     return fallbackTitle
   }
@@ -223,7 +226,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
   const contextMessages = messages.slice(0, 5).map(m => `${m.role}: ${m.content}`).join('\n')
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getSystemOpenAiClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -252,13 +255,13 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
  * Returns the cron expression and a human-readable confirmation.
  */
 export async function generateCronFromText(text: string): Promise<{ cron: string; explanation: string; error?: string }> {
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = resolveSystemExecutionProviderKeys().openai
   if (!apiKey || apiKey.trim() === '') {
     return { cron: '', explanation: '', error: 'No OpenAI API key configured' }
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getSystemOpenAiClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {

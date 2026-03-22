@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 import { traceAgentChat } from '../lib/opik'
-import { providerKeyOverrides, safeEnv } from '../lib/safe-env'
+import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 
 const router = Router()
@@ -91,8 +91,7 @@ router.post('/:id/chat', (req, res) => {
     return res.status(402).json({ error: budgetBlock })
   }
 
-  const envOverrides = providerKeyOverrides(byok)
-  const executionEnv = safeEnv(envOverrides)
+  const executionEnv = userExecutionEnv(byok)
 
   // Validate API keys exist before starting chat
   if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY && !executionEnv.NEBIUS_API_KEY) {

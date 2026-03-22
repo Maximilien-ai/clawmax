@@ -11,6 +11,7 @@ import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { updateAgentModelInConfigFile } from '../lib/agent-model'
+import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -47,11 +48,13 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
 
 function getAvailableModels(): string[] {
   const availableModels: string[] = []
-  if (process.env.ANTHROPIC_API_KEY || process.env.USER_ANTHROPIC_API_KEY) {
+  const systemKeys = getSystemProviderKeys()
+  const userKeys = getUserDefaultProviderKeys()
+  if (systemKeys.anthropic || userKeys.anthropic) {
     availableModels.push('claude-3-haiku-20240307')
     availableModels.push('anthropic/claude-3-haiku-20240307')
   }
-  if (process.env.OPENAI_API_KEY || process.env.USER_OPENAI_API_KEY) {
+  if (systemKeys.openai || userKeys.openai) {
     availableModels.push('openai/gpt-4o')
     availableModels.push('openai/gpt-4o-mini')
     availableModels.push('gpt-4o')
@@ -66,6 +69,8 @@ function buildModelsResponse(): {
 } {
   const models: string[] = []
   const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
+  const systemKeys = getSystemProviderKeys()
+  const userKeys = getUserDefaultProviderKeys()
 
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
@@ -92,7 +97,7 @@ function buildModelsResponse(): {
     console.error('Failed to load models from openclaw.json:', err)
   }
 
-  if ((process.env.ANTHROPIC_API_KEY || process.env.USER_ANTHROPIC_API_KEY) && !modelsByProvider['anthropic']) {
+  if ((systemKeys.anthropic || userKeys.anthropic) && !modelsByProvider['anthropic']) {
     const anthropicModels = [
       'anthropic/claude-3-haiku-20240307',
       'anthropic/claude-3-5-sonnet-20241022',
@@ -105,7 +110,7 @@ function buildModelsResponse(): {
     }
   }
 
-  if ((process.env.OPENAI_API_KEY || process.env.USER_OPENAI_API_KEY) && !modelsByProvider['openai']) {
+  if ((systemKeys.openai || userKeys.openai) && !modelsByProvider['openai']) {
     const openaiModels = [
       'openai/gpt-4o',
       'openai/gpt-4o-mini',

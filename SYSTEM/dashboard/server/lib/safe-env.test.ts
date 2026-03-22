@@ -4,7 +4,12 @@
  * Run with: npx ts-node --transpileOnly server/lib/safe-env.test.ts
  */
 
-import { providerKeyOverrides, safeEnv } from './safe-env'
+import {
+  allowSystemKeysForUserExecution,
+  resolveSystemExecutionProviderKeys,
+  resolveUserExecutionProviderKeys,
+} from './dashboard-env'
+import { safeEnv, systemExecutionEnv, userExecutionEnv } from './safe-env'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -34,9 +39,6 @@ const originalEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   NEBIUS_API_KEY: process.env.NEBIUS_API_KEY,
-  USER_OPENAI_API_KEY: process.env.USER_OPENAI_API_KEY,
-  USER_ANTHROPIC_API_KEY: process.env.USER_ANTHROPIC_API_KEY,
-  USER_NEBIUS_API_KEY: process.env.USER_NEBIUS_API_KEY,
 }
 
 function restoreEnv() {
@@ -48,41 +50,82 @@ function restoreEnv() {
 
 console.log(`\n${YELLOW}=== Safe Env Test Suite ===${RESET}\n`)
 
-test('safeEnv prefers USER_* execution keys over system keys', () => {
+test('safeEnv never forwards ambient shell provider keys by default', () => {
   process.env.OPENAI_API_KEY = 'system-openai'
-  process.env.USER_OPENAI_API_KEY = 'user-openai'
   process.env.ANTHROPIC_API_KEY = 'system-anthropic'
-  process.env.USER_ANTHROPIC_API_KEY = 'user-anthropic'
 
   const env = safeEnv()
 
-  assert(env.OPENAI_API_KEY === 'user-openai', 'Expected USER_OPENAI_API_KEY to win')
-  assert(env.ANTHROPIC_API_KEY === 'user-anthropic', 'Expected USER_ANTHROPIC_API_KEY to win')
+  assert(typeof env.OPENAI_API_KEY === 'undefined', 'Expected ambient OpenAI key to stay out of child env')
+  assert(typeof env.ANTHROPIC_API_KEY === 'undefined', 'Expected ambient Anthropic key to stay out of child env')
 })
 
-test('providerKeyOverrides returns undefined when no preview keys are present', () => {
-  const overrides = providerKeyOverrides({ openai: '   ', anthropic: '', nebius: undefined })
-  assert(typeof overrides === 'undefined', 'Expected no overrides when preview keys are empty')
+test('user execution prefers BYOK request keys over env defaults', () => {
+  const keys = resolveUserExecutionProviderKeys(
+    {
+      USER_OPENAI_API_KEY: 'env-user-openai',
+      USER_ANTHROPIC_API_KEY: 'env-user-anthropic',
+    },
+    { openai: 'preview-openai' }
+  )
+
+  assert(keys.openai === 'preview-openai', 'Expected request BYOK OpenAI key to win')
+  assert(typeof keys.anthropic === 'undefined', 'Expected non-selected provider to remain unset')
 })
 
-test('providerKeyOverrides blanks non-configured providers when preview keys are present', () => {
-  const overrides = providerKeyOverrides({ openai: 'preview-openai' })
+test('user execution uses env user defaults before any system fallback', () => {
+  const keys = resolveUserExecutionProviderKeys({
+    USER_OPENAI_API_KEY: 'env-user-openai',
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+  })
 
-  assert(overrides?.OPENAI_API_KEY === 'preview-openai', 'Expected explicit OpenAI preview key')
-  assert(overrides?.ANTHROPIC_API_KEY === '', 'Expected Anthropic to be blanked for preview execution')
-  assert(overrides?.NEBIUS_API_KEY === '', 'Expected Nebius to be blanked for preview execution')
+  assert(keys.openai === 'env-user-openai', 'Expected user default key to win for user execution')
 })
 
-test('safeEnv applies BYOK preview overrides over env defaults', () => {
-  process.env.OPENAI_API_KEY = 'system-openai'
-  process.env.USER_OPENAI_API_KEY = 'user-openai'
-  process.env.ANTHROPIC_API_KEY = 'system-anthropic'
-  process.env.USER_ANTHROPIC_API_KEY = 'user-anthropic'
+test('system fallback for user execution is opt-in only', () => {
+  const disabled = resolveUserExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+  })
+  const enabled = resolveUserExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+    ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true',
+  })
 
-  const env = safeEnv(providerKeyOverrides({ openai: 'preview-openai' }))
+  assert(typeof disabled.openai === 'undefined', 'Expected no system fallback when flag is disabled')
+  assert(enabled.openai === 'env-system-openai', 'Expected system fallback only when flag is enabled')
+  assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }), 'Expected explicit true flag')
+})
 
-  assert(env.OPENAI_API_KEY === 'preview-openai', 'Expected preview OpenAI key to override env defaults')
-  assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic to stay blank during preview OpenAI execution')
+test('system execution uses system keys and falls back to user defaults only when system keys are absent', () => {
+  const systemFirst = resolveSystemExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+    USER_OPENAI_API_KEY: 'env-user-openai',
+  })
+  const fallback = resolveSystemExecutionProviderKeys({
+    USER_OPENAI_API_KEY: 'env-user-openai',
+  })
+
+  assert(systemFirst.openai === 'env-system-openai', 'Expected system key to power system execution')
+  assert(fallback.openai === 'env-user-openai', 'Expected user key fallback when no system key exists')
+})
+
+test('resolution helpers ignore ambient shell provider exports when raw dashboard env is empty', () => {
+  process.env.OPENAI_API_KEY = 'shell-openai'
+  const keys = resolveSystemExecutionProviderKeys({})
+  assert(typeof keys.openai === 'undefined', 'Expected empty dashboard env to ignore shell OpenAI export')
+})
+
+test('userExecutionEnv blanks non-selected providers during BYOK execution', () => {
+  const env = userExecutionEnv({ openai: 'preview-openai' })
+
+  assert(env.OPENAI_API_KEY === 'preview-openai', 'Expected BYOK OpenAI key in child env')
+  assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic to be blanked during BYOK OpenAI execution')
+  assert(env.NEBIUS_API_KEY === '', 'Expected Nebius to be blanked during BYOK OpenAI execution')
+})
+
+test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
+  const env = systemExecutionEnv()
+  assert(env.PATH === process.env.PATH, 'Expected safe base env to retain PATH')
 })
 
 setTimeout(() => {

@@ -14,6 +14,7 @@ All notable changes to ClawMax are documented here.
 - **OAuth redirect flow** — login and logout now return to the dashboard app origin instead of dropping users on the raw API server.
 - **Login page refresh** — hero background and login shell now match the ClawMax.ai marketing visual treatment more closely.
 - **Logout stability** — auth teardown no longer crashes protected pages during repeated login/logout cycles; top-bar user info and logout are visible.
+- **Provider key isolation and precedence** — user agent/workflow execution now prefers BYOK then `USER_*` defaults, system execution now prefers dashboard-local system keys, and shell exports no longer implicitly drive provider policy.
 - **Production root route** — dashboard serving is more robust and avoids `Cannot GET /` when client assets are present or dev redirects are needed.
 - **Release readiness** — `npm run build` works again with `tsconfig.server.json`; README, OAuth docs, env examples, and release checklist were updated.
 - **Mobile agent details** — wider responsive slide-over, improved wrapping for long values, and better touch targets on small screens.

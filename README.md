@@ -85,9 +85,9 @@ cd SYSTEM/dashboard && npm install && cd ../..
 # Set up workspace directories
 mkdir -p AGENTS WORKFLOWS GROUPS COMMUNITIES
 
-# Configure API keys (add to ~/.openclaw/openclaw.json or export)
-export ANTHROPIC_API_KEY='your-key-here'
-export OPENAI_API_KEY='your-key-here'
+# Configure dashboard-local env
+cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
+# Then edit SYSTEM/dashboard/.env with your GitHub OAuth values and provider keys
 
 # Start the dashboard
 ./SYSTEM/start.sh
@@ -123,32 +123,42 @@ export OPENAI_API_KEY='your-key-here'
 
 ## 🔑 API Key Configuration
 
-ClawMax has two key scopes:
+ClawMax has two key scopes and one explicit precedence policy:
 
 - `SYSTEM/dashboard/.env` system keys:
   used by dashboard-owned features such as agent generation, workflow generation, cron/system agents, and future platform automations.
-- user BYOK keys:
-  used by the logged-in user's own agents by default.
+- user BYOK/default user keys:
+  used by the logged-in user's own agents and workflows by default.
 
-Current release direction:
-- system keys live in `SYSTEM/dashboard/.env`
-- user keys should be separate from system keys
-- if user keys are not preconfigured in env, the dashboard should prompt for them after login in the BYOK flow
-- the current BYOK wizard is a dev preview for flow testing, not final secure per-user secret storage
+Important:
+- provider keys are resolved from `SYSTEM/dashboard/.env` policy, not from shell exports like `~/.zshrc`
+- user execution precedence is:
+  1. BYOK keys provided in-app
+  2. `USER_*` defaults from `SYSTEM/dashboard/.env`
+  3. system keys only if `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true`
+- system/dashboard-owned execution precedence is:
+  1. `SYSTEM_*` keys from `SYSTEM/dashboard/.env`
+  2. `USER_*` fallback only if no system key is configured
 
-Today, add at least one system provider key to `SYSTEM/dashboard/.env`:
+Recommended `SYSTEM/dashboard/.env` setup:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-your-system-key
-OPENAI_API_KEY=sk-your-system-key
+SYSTEM_ANTHROPIC_API_KEY=sk-ant-your-system-key
+SYSTEM_OPENAI_API_KEY=sk-your-system-key
+# Optional default user keys
+# USER_ANTHROPIC_API_KEY=sk-ant-your-user-key
+# USER_OPENAI_API_KEY=sk-your-user-key
+# Optional temporary fallback for user execution
+# ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=false
 ```
 
 | Variable | Provider | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic system key | At least one system key |
-| `OPENAI_API_KEY` | OpenAI system key | At least one system key |
+| `SYSTEM_ANTHROPIC_API_KEY` | Anthropic system key | At least one system key |
+| `SYSTEM_OPENAI_API_KEY` | OpenAI system key | At least one system key |
 | `USER_ANTHROPIC_API_KEY` | Optional default user Anthropic key | Optional |
 | `USER_OPENAI_API_KEY` | Optional default user OpenAI key | Optional |
+| `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION` | Lets user agents/workflows fall back to system keys | Optional, defaults to `false` |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for login |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for login |
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |

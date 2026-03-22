@@ -9,8 +9,12 @@ Use this as the final pass before the next dashboard release.
 - Confirm `DASHBOARD_APP_URL=http://localhost:5173` if you want explicit post-login/logout redirects
 - Confirm `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are present
 - Confirm at least one system model key is set:
-  - `OPENAI_API_KEY`
-  - or `ANTHROPIC_API_KEY`
+  - `SYSTEM_OPENAI_API_KEY`
+  - or `SYSTEM_ANTHROPIC_API_KEY`
+- Confirm provider-key policy is intentional:
+  - `USER_*` keys are set if you want default user execution without BYOK entry
+  - `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=false` unless you explicitly want user agents/workflows to fall back to system keys
+- Confirm provider keys are defined in `SYSTEM/dashboard/.env`, not only in shell exports like `~/.zshrc`
 - Run from `SYSTEM/dashboard`:
 
 ```bash
@@ -77,6 +81,7 @@ wait about one minute for the auth rate limiter window to reset.
 - README reflects:
   - GitHub OAuth setup
   - system keys vs user/BYOK keys
+  - provider-key precedence and shell-env isolation
   - build command
 - OAuth doc reflects:
   - callback on `3001`

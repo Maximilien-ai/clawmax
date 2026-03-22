@@ -3,7 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
-import { providerKeyOverrides, safeEnv } from './safe-env'
+import { safeEnv, userExecutionEnv } from './safe-env'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
@@ -665,7 +665,7 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Run workflow by calling each participant agent directly
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
-      const executionEnv = safeEnv(providerKeyOverrides(options?.byok))
+      const executionEnv = userExecutionEnv(options?.byok)
 
       for (const participant of executionParticipants) {
         try {
