@@ -395,6 +395,8 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   darkMode?: boolean
   onToggleDarkMode?: () => void
 }) {
+  const { user, logout, config } = useAuth()
+
   if (!system) return <div className="h-9 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700" />
   const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
 
@@ -458,6 +460,21 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex items-center gap-3">
+        {user && !config?.authDisabled && (
+          <div className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
+            <img src={user.avatar} alt={user.login} className="w-5 h-5 rounded-full shrink-0" />
+            <span className="hidden sm:inline text-xs text-gray-600 dark:text-gray-300 max-w-[140px] truncate">
+              {user.name || user.login}
+            </span>
+            <button
+              onClick={logout}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              title="Sign out"
+            >
+              Logout
+            </button>
+          </div>
+        )}
         {/* Dark mode toggle */}
         {onToggleDarkMode && (
           <button
