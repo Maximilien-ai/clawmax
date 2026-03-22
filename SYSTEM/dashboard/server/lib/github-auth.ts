@@ -222,12 +222,12 @@ export function createAuthRouter(): Router {
 
     if (!code) {
       clearStateCookie()
-      return res.redirect('/?auth_error=no_code')
+      return res.redirect(`${getAppUrl(req)}/?auth_error=no_code`)
     }
 
     if (!state || !savedState || state !== savedState) {
       clearStateCookie()
-      return res.redirect('/?auth_error=state_mismatch')
+      return res.redirect(`${getAppUrl(req)}/?auth_error=state_mismatch`)
     }
 
     try {
@@ -237,7 +237,7 @@ export function createAuthRouter(): Router {
       // Check if user is allowed
       const allowed = getAllowedLogins()
       if (allowed.length > 0 && !allowed.includes(user.login.toLowerCase())) {
-        return res.redirect(`/?auth_error=not_allowed&login=${user.login}`)
+        return res.redirect(`${getAppUrl(req)}/?auth_error=not_allowed&login=${encodeURIComponent(user.login)}`)
       }
 
       // Create session
@@ -252,11 +252,11 @@ export function createAuthRouter(): Router {
       console.log(`[Auth] GitHub login: ${user.login} (${user.name || 'no name'})`)
 
       // Redirect to dashboard
-      res.redirect('/')
+      res.redirect(`${getAppUrl(req)}/`)
     } catch (err: any) {
       clearStateCookie()
       console.error('[Auth] GitHub OAuth error:', err.message)
-      res.redirect(`/?auth_error=${encodeURIComponent(err.message)}`)
+      res.redirect(`${getAppUrl(req)}/?auth_error=${encodeURIComponent(err.message)}`)
     }
   })
 
@@ -299,6 +299,24 @@ function getBaseUrl(req: Request): string {
   const proto = req.headers['x-forwarded-proto'] || 'http'
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001'
   return `${proto}://${host}`
+}
+
+function getAppUrl(req: Request): string {
+  const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()
+  if (configuredAppUrl) {
+    return configuredAppUrl.replace(/\/+$/, '')
+  }
+
+  const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+
+  if (allowedOrigins.length > 0) {
+    return allowedOrigins[0].replace(/\/+$/, '')
+  }
+
+  return getBaseUrl(req)
 }
 
 function getSessionFromRequest(req: Request): SessionPayload | null {

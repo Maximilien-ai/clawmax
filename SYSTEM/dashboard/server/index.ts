@@ -87,6 +87,7 @@ const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean)
+const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -423,6 +424,10 @@ if (clientDist) {
   })
 } else if (process.env.NODE_ENV === 'production') {
   console.warn('[Static] No built dashboard client found. Root route will not serve the UI.')
+} else {
+  app.get('/', (_req, res) => {
+    res.redirect(primaryAppOrigin)
+  })
 }
 
 app.listen(PORT, HOST, () => {
