@@ -139,87 +139,91 @@ router.post('/:id/chat', (req, res) => {
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     nebius: executionEnv.NEBIUS_API_KEY,
   }, resolvedAgent.provider, async () => {
-    const spawned = spawn('openclaw', args, {
-      env: executionEnv,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-    proc = spawned
+    await new Promise<void>((resolve) => {
+      const spawned = spawn('openclaw', args, {
+        env: executionEnv,
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+      proc = spawned
 
-    send('start', { sessionId: sessionId || `cli-${Date.now()}` })
-    invalidateAgentStatusCache(id)
+      send('start', { sessionId: sessionId || `cli-${Date.now()}` })
+      invalidateAgentStatusCache(id)
 
-    spawned.stdout.on('data', (chunk: Buffer) => {
-      fullOutput += chunk.toString()
-    })
+      spawned.stdout.on('data', (chunk: Buffer) => {
+        fullOutput += chunk.toString()
+      })
 
-    spawned.stderr.on('data', (chunk: Buffer) => {
-      stderrOutput += chunk.toString()
-    })
+      spawned.stderr.on('data', (chunk: Buffer) => {
+        stderrOutput += chunk.toString()
+      })
 
-    spawned.on('exit', () => { procExited = true })
+      spawned.on('exit', () => { procExited = true })
 
-    spawned.on('close', (code) => {
-    console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
-    clearInterval(keepalive)
+      spawned.on('close', (code) => {
+        console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
+        clearInterval(keepalive)
 
-    if (stderrOutput) {
-      console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
-    }
-
-    // Try to parse --json output
-    let replied = false
-    if (fullOutput.trim()) {
-      try {
-        const result = JSON.parse(fullOutput)
-        console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
-        const payloads = result.result?.payloads || result.payloads || []
-        const text = payloads.map((p: any) => p.text).join('\n') || ''
-        if (text) {
-          send('delta', { text })
-          replied = true
-
-          // Trace to Opik
-          const meta = result.result?.meta || result.meta || {}
-          const agentMeta = meta.agentMeta || {}
-          traceAgentChat(id, message, text, {
-            model: agentMeta.model,
-            provider: agentMeta.provider,
-            inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
-            outputTokens: agentMeta.usage?.output,
-            cacheReadTokens: agentMeta.usage?.cacheRead,
-            durationMs: meta.durationMs,
-            sessionId: sessionId || agentMeta.sessionId,
-          })
-        } else {
-          console.log(`[Chat Route] Empty payloads for ${id}, status: ${result.status}, summary: ${result.summary}`)
+        if (stderrOutput) {
+          console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
         }
-      } catch (err) {
-        console.log(`[Chat Route] JSON parse error for ${id}:`, err)
-        // Not JSON — send as plain text
-        const text = fullOutput.trim()
-        if (text) {
-          send('delta', { text })
-          replied = true
+
+        // Try to parse --json output
+        let replied = false
+        if (fullOutput.trim()) {
+          try {
+            const result = JSON.parse(fullOutput)
+            console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
+            const payloads = result.result?.payloads || result.payloads || []
+            const text = payloads.map((p: any) => p.text).join('\n') || ''
+            if (text) {
+              send('delta', { text })
+              replied = true
+
+              // Trace to Opik
+              const meta = result.result?.meta || result.meta || {}
+              const agentMeta = meta.agentMeta || {}
+              traceAgentChat(id, message, text, {
+                model: agentMeta.model,
+                provider: agentMeta.provider,
+                inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
+                outputTokens: agentMeta.usage?.output,
+                cacheReadTokens: agentMeta.usage?.cacheRead,
+                durationMs: meta.durationMs,
+                sessionId: sessionId || agentMeta.sessionId,
+              })
+            } else {
+              console.log(`[Chat Route] Empty payloads for ${id}, status: ${result.status}, summary: ${result.summary}`)
+            }
+          } catch (err) {
+            console.log(`[Chat Route] JSON parse error for ${id}:`, err)
+            // Not JSON — send as plain text
+            const text = fullOutput.trim()
+            if (text) {
+              send('delta', { text })
+              replied = true
+            }
+          }
         }
-      }
-    }
 
-    if (!replied && code !== 0) {
-      send('error', `Agent failed. Check that API keys are configured.`)
-    }
-    send('complete', {})
-    if (!res.writableEnded) {
-      res.end()
-    }
-  })
+        if (!replied && code !== 0) {
+          send('error', stderrOutput.slice(0, 300) || 'Agent failed. Check that API keys are configured.')
+        }
+        send('complete', {})
+        if (!res.writableEnded) {
+          res.end()
+        }
+        resolve()
+      })
 
-    spawned.on('error', (err) => {
-    console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
-    clearInterval(keepalive)
-    send('error', `Failed to start agent: ${err.message}`)
-    if (!res.writableEnded) {
-      res.end()
-    }
+      spawned.on('error', (err) => {
+        console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
+        clearInterval(keepalive)
+        send('error', `Failed to start agent: ${err.message}`)
+        if (!res.writableEnded) {
+          res.end()
+        }
+        resolve()
+      })
     })
   }).catch((err) => {
     console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
