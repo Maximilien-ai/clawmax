@@ -54,6 +54,10 @@ DASHBOARD_PORT=3001
 # Multiple origins can be comma-separated if needed.
 CORS_ORIGIN=http://localhost:5173
 
+# Recommended: explicit app redirect target after login/logout.
+# In local dev this should be the Vite app origin, not the API server.
+# DASHBOARD_APP_URL=http://localhost:5173
+
 # Optional but recommended when running behind a proxy/tunnel.
 # Forces OAuth callback/session origin instead of relying on forwarded headers.
 # DASHBOARD_PUBLIC_URL=http://localhost:3001
@@ -64,6 +68,7 @@ Notes:
 - Put these values in `SYSTEM/dashboard/.env`.
 - The server reads `DASHBOARD_PORT`, not `PORT`.
 - The GitHub callback must point to the server origin (`3001` by default), not the Vite dev server.
+- The post-login and post-logout destination should be the app origin (`5173` in local dev), not `3001`.
 
 ### 3. Start the Dashboard
 
@@ -83,8 +88,9 @@ This starts:
 1. Open `http://localhost:5173`.
 2. You should see the login page instead of the dashboard.
 3. Click **Sign in with GitHub**.
-4. After GitHub redirects back, you should land on `/` and the dashboard should load.
+4. After GitHub redirects back, you should land on `http://localhost:5173/` and the dashboard should load.
 5. `GET /api/auth/me` should return `authenticated: true`.
+6. The authenticated user avatar/name and `Logout` should be visible in the dashboard chrome.
 
 Quick checks if something looks wrong:
 
@@ -120,6 +126,10 @@ If GitHub redirects to the wrong host, set `DASHBOARD_PUBLIC_URL` explicitly. On
 
 The authenticated GitHub login is not present in `GITHUB_ALLOWED_USERS`. Add the login in lowercase or remove the allowlist.
 
+### `{"error":"Too many auth attempts"}`
+
+The auth rate limiter is active on `/api/auth/*`. Wait about one minute and try again, or restart your test flow more slowly while iterating on login/logout behavior.
+
 ### Dashboard still works without login
 
 `DASHBOARD_AUTH_DISABLED=true` is set. Change it to `false` and restart the server.
@@ -141,6 +151,8 @@ That usually means the legacy token path still works, but GitHub OAuth is miscon
 - `GITHUB_CLIENT_SECRET`
 - callback URL in GitHub
 - browser redirect target
+- `CORS_ORIGIN`
+- `DASHBOARD_APP_URL`
 
 ## Flow Summary
 
@@ -157,7 +169,7 @@ Browser                    Dashboard Server            GitHub
   |                               |-- GET /user ------->|
   |                               |<- user profile -----|
   |<- Set-Cookie: clawmax_session |                      |
-  |<- 302 to / -------------------|                      |
+  |<- 302 to app origin ----------|                      |
 ```
 
 - Session cookie: `clawmax_session`

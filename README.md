@@ -188,6 +188,7 @@ Detailed setup and troubleshooting:
 
 ### User Guides
 - **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Running tests and validation
+- **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation
 - **[Workflows Guide](SYSTEM/docs/WORKFLOWS.md)** - Creating and managing workflows
 - **[Security Guide](SYSTEM/docs/SECURITY.md)** - Security best practices
 
