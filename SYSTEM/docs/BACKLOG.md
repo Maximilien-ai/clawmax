@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 21, 2026
+> Last updated: March 22, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -8,7 +8,7 @@
 
 ### Immediate Demo / Release Blockers
 - [x] **Issue #38: production root route returns `Cannot GET /`** — fix static client serving / SPA fallback in production container
-- [ ] **OAuth verification + clean-room auth test** — verify GitHub OAuth end-to-end on a fresh machine/config and document exact setup failures
+- [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 
 ### Security (Sprint Priority #1)
@@ -47,7 +47,7 @@
 ## High Priority (Bugs)
 
 - [x] **Issue #28** Agent config editor: validate all sections against schema before saving
-- [ ] **Issue #30** Mobile: Agents detail view responsive audit
+- [x] **Issue #30** Mobile: Agents detail view responsive audit
 - [ ] **Issue #8** Anthropic per-agent auth store issue (needs decision)
 - [ ] Group chat: 2nd agent empty response (workaround: @all or Tab-expand)
 - [ ] Group chat jitter on mobile (improved but not eliminated)
@@ -63,7 +63,7 @@
 ## High Priority (Quality / Test Automation)
 
 - [ ] **Dashboard regression automation** — add coverage for OAuth/auth flows, agent edit/model save, template apply, workspace switching, and production route regressions so fewer manual checks are needed before each push
-- [ ] **System template contract tests** — keep `TEMPLATES/*` under strict validation in CI and extend coverage to template apply paths
+- [x] **System template contract tests** — keep `TEMPLATES/*` under strict validation in CI and extend coverage to template apply paths
 - [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows before release candidates
 
 ## High Priority (Features)
@@ -123,7 +123,7 @@ See CHANGELOG.md. Key: Opik metering, cost badges, unread indicators, @mention g
 
 ### Sunday (4h)
 - [x] Fix **Issue #28** agent config validation before save
-- [ ] Fix **Issue #30** agents detail mobile responsive audit
+- [x] Fix **Issue #30** agents detail mobile responsive audit
 - [ ] If time remains: Activity metering loading state or workflow table polish
 
 ### Monday (10h)

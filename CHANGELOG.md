@@ -2,6 +2,27 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.1.7] - 2026-03-22
+
+### Features
+- **Workspace Reordering** — drag to reorder workspaces in the switcher, with persisted local order and stable active-workspace selection.
+- **Scalable Templates and Communication Views** — sortable list/table modes, selection, select-all, bulk actions, and bulk delete flows for large collections.
+- **Agent Config Validation** — pre-save validation on add/edit flows with advisory warnings for legacy content and stricter blocking for malformed config.
+- **BYOK Preview Wizard** — top-bar `BYOK Preview` flow for dev testing with masked OpenAI/Anthropic inputs, system-vs-user key messaging, and local browser persistence.
+
+### Fixes
+- **OAuth redirect flow** — login and logout now return to the dashboard app origin instead of dropping users on the raw API server.
+- **Login page refresh** — hero background and login shell now match the ClawMax.ai marketing visual treatment more closely.
+- **Logout stability** — auth teardown no longer crashes protected pages during repeated login/logout cycles; top-bar user info and logout are visible.
+- **Production root route** — dashboard serving is more robust and avoids `Cannot GET /` when client assets are present or dev redirects are needed.
+- **Release readiness** — `npm run build` works again with `tsconfig.server.json`; README, OAuth docs, env examples, and release checklist were updated.
+- **Mobile agent details** — wider responsive slide-over, improved wrapping for long values, and better touch targets on small screens.
+
+### Testing
+- **System template audits** — strict tests now validate shipped `TEMPLATES/*` content.
+- **Agent model/config regression coverage** — added tests for legacy identity formats, model parsing, and live model updates.
+- **Dashboard test harness auth fix** — `SYSTEM/test.sh` now prefers the live server token and can authenticate protected API checks again.
+
 ## [v1.1.6] - 2026-03-20
 
 ### Features
