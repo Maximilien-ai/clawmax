@@ -123,20 +123,64 @@ export OPENAI_API_KEY='your-key-here'
 
 ## 🔑 API Key Configuration
 
-ClawMax requires API keys for agent creation and AI model access. Add at least one to `SYSTEM/dashboard/.env`:
+ClawMax has two key scopes:
+
+- `SYSTEM/dashboard/.env` system keys:
+  used by dashboard-owned features such as agent generation, workflow generation, cron/system agents, and future platform automations.
+- user BYOK keys:
+  used by the logged-in user's own agents by default.
+
+Current release direction:
+- system keys live in `SYSTEM/dashboard/.env`
+- user keys should be separate from system keys
+- if user keys are not preconfigured in env, the dashboard should prompt for them after login in the BYOK flow
+
+Today, add at least one system provider key to `SYSTEM/dashboard/.env`:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-your-system-key
+OPENAI_API_KEY=sk-your-system-key
 ```
 
 | Variable | Provider | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic (Claude) | At least one key |
-| `OPENAI_API_KEY` | OpenAI (GPT) | At least one key |
-| `GOOGLE_API_KEY` | Google (Gemini) | Optional |
+| `ANTHROPIC_API_KEY` | Anthropic system key | At least one system key |
+| `OPENAI_API_KEY` | OpenAI system key | At least one system key |
+| `USER_ANTHROPIC_API_KEY` | Optional default user Anthropic key | Optional |
+| `USER_OPENAI_API_KEY` | Optional default user OpenAI key | Optional |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for login |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for login |
+| `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
+| `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
 
-Without API keys, the dashboard will run but agent creation and model selection will be unavailable.
+Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
+
+## 🔐 GitHub OAuth Setup
+
+GitHub OAuth is now the primary dashboard login path.
+
+Minimum local setup in `SYSTEM/dashboard/.env`:
+
+```env
+CORS_ORIGIN=http://localhost:5173
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+```
+
+Recommended when you want redirects to be explicit:
+
+```env
+DASHBOARD_PORT=3001
+DASHBOARD_APP_URL=http://localhost:5173
+# DASHBOARD_PUBLIC_URL=http://localhost:3001
+```
+
+GitHub OAuth app values:
+- Homepage URL: `http://localhost:5173`
+- Callback URL: `http://localhost:3001/api/auth/github/callback`
+
+Detailed setup and troubleshooting:
+- [SYSTEM/docs/OAUTH_SETUP.md](SYSTEM/docs/OAUTH_SETUP.md)
 
 ---
 
@@ -239,6 +283,10 @@ clawmax/                        # ClawMax repo root
 
 # Run tests
 ./SYSTEM/test.sh
+
+# Build the dashboard bundle
+cd SYSTEM/dashboard
+npm run build
 ```
 
 ### Tech Stack

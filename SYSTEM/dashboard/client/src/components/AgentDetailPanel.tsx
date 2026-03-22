@@ -169,15 +169,15 @@ export default function AgentDetailPanel({
   const relDir = agent.workspacePath.split('/').slice(-2).join('/')
 
   return (
-    <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
       {/* Panel */}
-      <aside className="fixed top-0 right-0 h-full w-[30rem] max-w-[92vw] bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <aside className="fixed top-0 right-0 h-full w-full sm:w-[30rem] lg:w-[36rem] max-w-full bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <div>
+        <div className="flex items-start justify-between gap-3 px-4 py-4 border-b border-gray-100 shrink-0 sm:px-5">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h2
-                className="font-bold text-gray-900 text-base flex items-center gap-1.5 dark:text-gray-100 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors group"
+                className="min-w-0 font-bold text-gray-900 text-base flex items-center gap-1.5 dark:text-gray-100 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors group"
                 onClick={() => {
                   setNewName(agent.name)
                   setShowRenameDialog(true)
@@ -185,7 +185,7 @@ export default function AgentDetailPanel({
                 title="Click to rename"
               >
                 {agent.tags.includes('built-in') && <span>🤖</span>}
-                {agent.name}
+                <span className="truncate">{agent.name}</span>
                 <span className="text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✏️</span>
               </h2>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_TEXT[agent.status]}`}>
@@ -193,25 +193,25 @@ export default function AgentDetailPanel({
                 {agent.status}
               </span>
             </div>
-            <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
+            <span className="block text-xs text-gray-400 font-mono break-all">{agent.id}</span>
             {activity?.liveConfig?.model && (
-              <span className="block text-xs text-gray-400 mt-0.5">
+              <span className="block text-xs text-gray-400 mt-0.5 break-all">
                 model
                 <span className="ml-1.5 text-gray-300 font-mono">{activity.liveConfig.model}</span>
               </span>
             )}
             {agent.whatsapp && (
-              <span className="block text-xs text-gray-400 mt-0.5">
+              <span className="block text-xs text-gray-400 mt-0.5 break-all">
                 +{agent.whatsapp}
                 <span className="ml-1.5 text-gray-300 font-mono">· IDENTITY.md</span>
               </span>
             )}
             <span className="block text-xs text-gray-300 mt-1">refreshed {refreshedLabel}</span>
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5 shrink-0">
             <button
               onClick={onChat}
-              className="text-sm font-medium text-sky-500 hover:text-sky-700 transition-colors"
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sm font-medium text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
               aria-label="Chat with agent"
               title="Chat with agent"
             >
@@ -220,7 +220,7 @@ export default function AgentDetailPanel({
             {onClone && (
               <button
                 onClick={onClone}
-                className="text-sm font-medium text-purple-500 hover:text-purple-700 transition-colors"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sm font-medium text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 aria-label="Clone agent"
                 title="Clone agent"
               >
@@ -230,8 +230,8 @@ export default function AgentDetailPanel({
             <button
               onClick={handleRefresh}
               disabled={cooling}
-              className={`text-sm font-medium transition-colors ${
-                cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-500 hover:text-sky-700'
+              className={`h-9 w-9 inline-flex items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30'
               }`}
               aria-label="Refresh"
             >
@@ -239,7 +239,7 @@ export default function AgentDetailPanel({
             </button>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
               aria-label="Close"
             >
               ✕
@@ -248,7 +248,7 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
           {loading && (
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
@@ -293,17 +293,17 @@ export default function AgentDetailPanel({
               {activity.liveConfig && (
                 <Section title="Live Configuration" source="openclaw.json">
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <span className="text-gray-400">Model</span>
-                      <span className="text-gray-700 font-mono text-right dark:text-gray-300">{activity.liveConfig.model}</span>
+                      <span className="text-gray-700 font-mono text-right break-all dark:text-gray-300">{activity.liveConfig.model}</span>
                     </div>
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <span className="text-gray-400">Workspace</span>
                       <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all dark:text-gray-300">
                         {activity.liveConfig.workspace.replace(/^\/Users\/[^/]+/, '~')}
                       </span>
                     </div>
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <span className="text-gray-400">Agent Dir</span>
                       <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all dark:text-gray-300">
                         {activity.liveConfig.agentDir.replace(/^\/Users\/[^/]+/, '~')}
@@ -399,8 +399,8 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Footer path */}
-        <div className="px-5 py-3 border-t border-gray-100 shrink-0">
-          <span className="text-xs text-gray-300 font-mono truncate block">
+        <div className="px-4 py-3 border-t border-gray-100 shrink-0 sm:px-5">
+          <span className="text-xs text-gray-300 font-mono break-all block">
             {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
           </span>
         </div>
@@ -408,8 +408,8 @@ export default function AgentDetailPanel({
 
       {/* Rename Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setShowRenameDialog(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setShowRenameDialog(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename Agent</h3>
             <input
               type="text"
