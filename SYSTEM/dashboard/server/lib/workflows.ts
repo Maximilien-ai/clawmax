@@ -682,31 +682,38 @@ export function triggerWorkflow(workflowId: string, options?: {
               anthropic: executionEnv.ANTHROPIC_API_KEY,
               nebius: executionEnv.NEBIUS_API_KEY,
             }, resolvedAgent.model, resolvedAgent.provider, async () => {
-              const proc = spawn('openclaw', args, { env: executionEnv })
-              let stdout = ''
-              let stderr = ''
-              const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
+              await new Promise<void>((innerResolve) => {
+                const proc = spawn('openclaw', args, { env: executionEnv })
+                let stdout = ''
+                let stderr = ''
+                const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
 
-              proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-              proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-              proc.on('close', (code: number) => {
-                clearTimeout(timer)
-                if (code !== 0 && !stdout) {
-                  reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
-                  return
-                }
-                try {
-                  const result = JSON.parse(stdout)
-                  const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                  // Extract meta for tracing
-                  const meta = result?.result?.meta || result?.meta || {}
-                  const agentMeta = meta.agentMeta || {}
-                  resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
-                } catch {
-                  resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
-                }
+                proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+                proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+                proc.on('close', (code: number) => {
+                  clearTimeout(timer)
+                  if (code !== 0 && !stdout) {
+                    reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                    innerResolve()
+                    return
+                  }
+                  try {
+                    const result = JSON.parse(stdout)
+                    const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                    // Extract meta for tracing
+                    const meta = result?.result?.meta || result?.meta || {}
+                    const agentMeta = meta.agentMeta || {}
+                    resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                  } catch {
+                    resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
+                  }
+                  innerResolve()
+                })
+                proc.on('error', (err) => {
+                  reject(err)
+                  innerResolve()
+                })
               })
-              proc.on('error', reject)
             }).catch(reject)
           })
 
