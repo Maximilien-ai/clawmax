@@ -17,7 +17,7 @@ interface AuthContextValue {
   loading: boolean
   config: AuthConfig | null
   login: () => void
-  logout: () => Promise<void>
+  logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -48,16 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => {
     setLoading(true)
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-    } catch (err) {
-      console.error('[Auth] Logout request failed:', err)
-    } finally {
-      setUser(null)
-      window.location.replace(`${window.location.origin}/`)
-    }
+    setUser(null)
+    const returnTo = encodeURIComponent(window.location.origin)
+    window.location.replace(`/api/auth/logout?return_to=${returnTo}`)
   }, [])
 
   // Check URL for auth errors

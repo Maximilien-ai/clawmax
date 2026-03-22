@@ -299,6 +299,13 @@ export function createAuthRouter(): Router {
     res.json({ ok: true })
   })
 
+  // GET /api/auth/logout — clear session and redirect back to the app origin
+  router.get('/logout', (req, res) => {
+    const returnTo = normalizeReturnTo((req.query.return_to as string | undefined) || '', req)
+    res.clearCookie(COOKIE_NAME, getSessionCookieOptions(req))
+    res.redirect(`${returnTo}/`)
+  })
+
   return router
 }
 
