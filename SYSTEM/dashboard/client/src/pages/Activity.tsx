@@ -99,6 +99,16 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
 
+  const isBudgetResponse = (value: any): value is {
+    config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }
+    currentSpendUsd: number
+    remainingUsd: number
+    usedPct: number
+    level: 'ok' | 'warning' | 'exceeded'
+  } => {
+    return !!value && typeof value === 'object' && !!value.config && typeof value.config.limitUsd === 'number'
+  }
+
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
       .then(r => r.json())
@@ -116,7 +126,17 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   useEffect(() => {
     fetchFeed()
     fetch('/api/metering').then(r => r.json()).then(d => setMetering(d)).catch(() => {})
-    fetch('/api/budget').then(r => r.json()).then(d => { setBudget(d); setBudgetInput(String(d.config.limitUsd)) }).catch(() => {})
+    fetch('/api/budget')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (isBudgetResponse(d)) {
+          setBudget(d)
+          setBudgetInput(String(d.config.limitUsd))
+        } else {
+          setBudget(null)
+        }
+      })
+      .catch(() => {})
     const interval = setInterval(fetchFeed, 30000)
     return () => clearInterval(interval)
   }, [fetchFeed])
@@ -154,10 +174,12 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       })
       if (res.ok) {
         const refreshed = await fetch('/api/budget')
-        const data = await refreshed.json()
-        setBudget(data)
-        setBudgetInput(String(data.config.limitUsd))
-        setEditingBudget(false)
+        const data = refreshed.ok ? await refreshed.json() : null
+        if (isBudgetResponse(data)) {
+          setBudget(data)
+          setBudgetInput(String(data.config.limitUsd))
+          setEditingBudget(false)
+        }
       }
     } catch {}
   }
