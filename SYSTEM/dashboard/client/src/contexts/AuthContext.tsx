@@ -49,13 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    setLoading(true)
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     } catch (err) {
       console.error('[Auth] Logout request failed:', err)
     } finally {
       setUser(null)
-      window.location.assign(`${window.location.origin}/`)
+      window.location.replace(`${window.location.origin}/`)
     }
   }, [])
 
