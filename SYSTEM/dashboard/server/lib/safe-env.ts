@@ -16,13 +16,32 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     LANG: process.env.LANG,
     // OpenClaw needs these
     OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    NEBIUS_API_KEY: process.env.NEBIUS_API_KEY,
+    OPENAI_API_KEY: process.env.USER_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+    ANTHROPIC_API_KEY: process.env.USER_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY,
+    NEBIUS_API_KEY: process.env.USER_NEBIUS_API_KEY || process.env.NEBIUS_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
   }
 
   return { ...base, ...extras }
+}
+
+export function providerKeyOverrides(overrides?: {
+  openai?: string
+  anthropic?: string
+  nebius?: string
+}): Record<string, string> | undefined {
+  if (!overrides) return undefined
+
+  const hasAnyOverride = [overrides.openai, overrides.anthropic, overrides.nebius]
+    .some(value => typeof value === 'string' && value.trim().length > 0)
+
+  if (!hasAnyOverride) return undefined
+
+  return {
+    OPENAI_API_KEY: overrides.openai?.trim() || '',
+    ANTHROPIC_API_KEY: overrides.anthropic?.trim() || '',
+    NEBIUS_API_KEY: overrides.nebius?.trim() || '',
+  }
 }
 
 /**

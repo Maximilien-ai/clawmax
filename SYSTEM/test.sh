@@ -250,6 +250,15 @@ if grep -q "All tests passed" /tmp/clawmax-agent-model.out; then
 else
   fail "Agent model unit tests"
 fi
+
+echo ""
+echo -e "${YELLOW}→ Running Safe env / BYOK unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/safe-env.test.ts > /tmp/clawmax-safe-env.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-safe-env.out; then
+  pass "Safe env / BYOK unit tests (4 tests)"
+else
+  fail "Safe env / BYOK unit tests"
+fi
 cd ..
 echo ""
 

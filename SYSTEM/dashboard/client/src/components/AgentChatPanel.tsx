@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { readStoredByokKeys } from '../lib/byok'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -267,7 +268,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend, sessionId }),
+        body: JSON.stringify({ message: textToSend, sessionId, byok: readStoredByokKeys() }),
         signal: abortControllerRef.current.signal
       })
 

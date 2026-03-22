@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
+import { readStoredByokKeys } from '../lib/byok'
 
 interface AgentTargeting {
   communities: string[]
@@ -1000,7 +1001,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     try {
                       console.log('[Workflow Toast] Triggering workflow:', selectedWorkflow.id, selectedWorkflow.name)
                       const resp = await fetch(`/api/workflows/${selectedWorkflow.id}/trigger`, {
-                        method: 'POST'
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ byok: readStoredByokKeys() }),
                       })
                       if (!resp.ok) throw new Error('Failed to trigger workflow')
                       const data = await resp.json()

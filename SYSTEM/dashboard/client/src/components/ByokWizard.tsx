@@ -1,22 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-
-const STORAGE_KEY = 'clawmax-byok-preview'
-const DISMISS_KEY = 'clawmax-byok-preview-dismissed'
-
-interface StoredByokKeys {
-  openai?: string
-  anthropic?: string
-}
-
-function readStoredKeys(): StoredByokKeys {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
+import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
 
 function maskKey(value: string) {
   if (value.length <= 8) return 'configured'
@@ -33,10 +18,10 @@ export function ByokWizard() {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    const stored = readStoredKeys()
+    const stored = readStoredByokKeys()
     setOpenaiKey(stored.openai || '')
     setAnthropicKey(stored.anthropic || '')
-    setDismissed(localStorage.getItem(DISMISS_KEY) === 'true')
+    setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
     setHydrated(true)
   }, [])
 
@@ -64,18 +49,18 @@ export function ByokWizard() {
   if (!user || config?.authDisabled || !hydrated) return null
 
   const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    writeStoredByokKeys({
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
-    }))
-    localStorage.removeItem(DISMISS_KEY)
+    })
+    localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
     showSuccess('BYOK preview keys saved locally for this browser')
   }
 
   const handleSkip = () => {
-    localStorage.setItem(DISMISS_KEY, 'true')
+    localStorage.setItem(getByokDismissKey(), 'true')
     setDismissed(true)
     setOpen(false)
     showInfo('BYOK preview skipped for now')

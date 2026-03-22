@@ -47,11 +47,11 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
 
 function getAvailableModels(): string[] {
   const availableModels: string[] = []
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.ANTHROPIC_API_KEY || process.env.USER_ANTHROPIC_API_KEY) {
     availableModels.push('claude-3-haiku-20240307')
     availableModels.push('anthropic/claude-3-haiku-20240307')
   }
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.OPENAI_API_KEY || process.env.USER_OPENAI_API_KEY) {
     availableModels.push('openai/gpt-4o')
     availableModels.push('openai/gpt-4o-mini')
     availableModels.push('gpt-4o')
@@ -92,7 +92,7 @@ function buildModelsResponse(): {
     console.error('Failed to load models from openclaw.json:', err)
   }
 
-  if (process.env.ANTHROPIC_API_KEY && !modelsByProvider['anthropic']) {
+  if ((process.env.ANTHROPIC_API_KEY || process.env.USER_ANTHROPIC_API_KEY) && !modelsByProvider['anthropic']) {
     const anthropicModels = [
       'anthropic/claude-3-haiku-20240307',
       'anthropic/claude-3-5-sonnet-20241022',
@@ -105,7 +105,7 @@ function buildModelsResponse(): {
     }
   }
 
-  if (process.env.OPENAI_API_KEY && !modelsByProvider['openai']) {
+  if ((process.env.OPENAI_API_KEY || process.env.USER_OPENAI_API_KEY) && !modelsByProvider['openai']) {
     const openaiModels = [
       'openai/gpt-4o',
       'openai/gpt-4o-mini',

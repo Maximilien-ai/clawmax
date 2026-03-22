@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 import { traceAgentChat } from '../lib/opik'
-import { safeEnv } from '../lib/safe-env'
+import { providerKeyOverrides, safeEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 
 const router = Router()
@@ -71,7 +71,11 @@ router.get('/:id/gateway', (req, res) => {
  */
 router.post('/:id/chat', (req, res) => {
   const { id } = req.params
-  const { message, sessionId } = req.body as { message?: string; sessionId?: string }
+  const { message, sessionId, byok } = req.body as {
+    message?: string
+    sessionId?: string
+    byok?: { openai?: string; anthropic?: string; nebius?: string }
+  }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
@@ -87,10 +91,13 @@ router.post('/:id/chat', (req, res) => {
     return res.status(402).json({ error: budgetBlock })
   }
 
+  const envOverrides = providerKeyOverrides(byok)
+  const executionEnv = safeEnv(envOverrides)
+
   // Validate API keys exist before starting chat
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+  if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY && !executionEnv.NEBIUS_API_KEY) {
     return res.status(400).json({
-      error: 'No API keys configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in SYSTEM/dashboard/.env'
+      error: 'No execution API keys configured. Add USER_* defaults in SYSTEM/dashboard/.env or configure BYOK preview keys.'
     })
   }
 
@@ -119,7 +126,7 @@ router.post('/:id/chat', (req, res) => {
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   const proc = spawn('openclaw', args, {
-    env: safeEnv(),
+    env: executionEnv,
     stdio: ['pipe', 'pipe', 'pipe']
   })
 

@@ -3,7 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
-import { safeEnv } from './safe-env'
+import { providerKeyOverrides, safeEnv } from './safe-env'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
@@ -584,7 +584,10 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 }
 
 // Trigger workflow manually
-export function triggerWorkflow(workflowId: string, options?: { manual?: boolean }): { success: boolean; executionId?: string; error?: string } {
+export function triggerWorkflow(workflowId: string, options?: {
+  manual?: boolean
+  byok?: { openai?: string; anthropic?: string; nebius?: string }
+}): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
     const budgetBlock = checkBudgetBlock()
@@ -662,6 +665,7 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
     // Run workflow by calling each participant agent directly
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
+      const executionEnv = safeEnv(providerKeyOverrides(options?.byok))
 
       for (const participant of executionParticipants) {
         try {
@@ -671,7 +675,7 @@ export function triggerWorkflow(workflowId: string, options?: { manual?: boolean
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
-            const proc = spawn('openclaw', args, { env: safeEnv() })
+            const proc = spawn('openclaw', args, { env: executionEnv })
             let stdout = ''
             let stderr = ''
             const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
