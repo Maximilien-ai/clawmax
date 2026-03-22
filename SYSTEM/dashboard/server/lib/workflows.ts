@@ -10,6 +10,7 @@ import { addMessage } from './messages'
 import { traceAgentChat, traceWorkflowExecution } from './opik'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
+import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -674,31 +675,42 @@ export function triggerWorkflow(workflowId: string, options?: {
 
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
+            const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
-            const proc = spawn('openclaw', args, { env: executionEnv })
-            let stdout = ''
-            let stderr = ''
-            const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
+            if (resolvedAgent.model) {
+              args.push('--model', resolvedAgent.model)
+            }
+            withTemporaryAgentAuthProfiles(participant.agentId, {
+              openai: executionEnv.OPENAI_API_KEY,
+              anthropic: executionEnv.ANTHROPIC_API_KEY,
+              nebius: executionEnv.NEBIUS_API_KEY,
+            }, resolvedAgent.provider, async () => {
+              const proc = spawn('openclaw', args, { env: executionEnv })
+              let stdout = ''
+              let stderr = ''
+              const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
 
-            proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-            proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-            proc.on('close', (code: number) => {
-              clearTimeout(timer)
-              if (code !== 0 && !stdout) {
-                reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
-                return
-              }
-              try {
-                const result = JSON.parse(stdout)
-                const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                // Extract meta for tracing
-                const meta = result?.result?.meta || result?.meta || {}
-                const agentMeta = meta.agentMeta || {}
-                resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
-              } catch {
-                resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
-              }
-            })
+              proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+              proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+              proc.on('close', (code: number) => {
+                clearTimeout(timer)
+                if (code !== 0 && !stdout) {
+                  reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                  return
+                }
+                try {
+                  const result = JSON.parse(stdout)
+                  const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                  // Extract meta for tracing
+                  const meta = result?.result?.meta || result?.meta || {}
+                  const agentMeta = meta.agentMeta || {}
+                  resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                } catch {
+                  resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
+                }
+              })
+              proc.on('error', reject)
+            }).catch(reject)
           })
 
           const agentResult = agentResponse as any

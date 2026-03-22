@@ -6,6 +6,7 @@ import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/worksp
 import { traceAgentChat } from '../lib/opik'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
+import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 
 const router = Router()
 
@@ -92,6 +93,7 @@ router.post('/:id/chat', (req, res) => {
   }
 
   const executionEnv = userExecutionEnv(byok)
+  const resolvedAgent = resolveAgentExecutionConfig(id)
 
   // Validate API keys exist before starting chat
   if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY && !executionEnv.NEBIUS_API_KEY) {
@@ -122,28 +124,41 @@ router.post('/:id/chat', (req, res) => {
 
   // Spawn openclaw agent CLI
   const args = ['agent', '--agent', id, '--message', message, '--json']
+  if (resolvedAgent.model) {
+    args.push('--model', resolvedAgent.model)
+  }
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
-  const proc = spawn('openclaw', args, {
-    env: executionEnv,
-    stdio: ['pipe', 'pipe', 'pipe']
-  })
-
-  send('start', { sessionId: sessionId || `cli-${Date.now()}` })
-  invalidateAgentStatusCache(id)
-
+  let procExited = false
+  let proc: ReturnType<typeof spawn> | null = null
   let fullOutput = ''
   let stderrOutput = ''
 
-  proc.stdout.on('data', (chunk: Buffer) => {
-    fullOutput += chunk.toString()
-  })
+  withTemporaryAgentAuthProfiles(id, {
+    openai: executionEnv.OPENAI_API_KEY,
+    anthropic: executionEnv.ANTHROPIC_API_KEY,
+    nebius: executionEnv.NEBIUS_API_KEY,
+  }, resolvedAgent.provider, async () => {
+    const spawned = spawn('openclaw', args, {
+      env: executionEnv,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    proc = spawned
 
-  proc.stderr.on('data', (chunk: Buffer) => {
-    stderrOutput += chunk.toString()
-  })
+    send('start', { sessionId: sessionId || `cli-${Date.now()}` })
+    invalidateAgentStatusCache(id)
 
-  proc.on('close', (code) => {
+    spawned.stdout.on('data', (chunk: Buffer) => {
+      fullOutput += chunk.toString()
+    })
+
+    spawned.stderr.on('data', (chunk: Buffer) => {
+      stderrOutput += chunk.toString()
+    })
+
+    spawned.on('exit', () => { procExited = true })
+
+    spawned.on('close', (code) => {
     console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
     clearInterval(keepalive)
 
@@ -198,10 +213,18 @@ router.post('/:id/chat', (req, res) => {
     }
   })
 
-  proc.on('error', (err) => {
+    spawned.on('error', (err) => {
     console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
     clearInterval(keepalive)
     send('error', `Failed to start agent: ${err.message}`)
+    if (!res.writableEnded) {
+      res.end()
+    }
+    })
+  }).catch((err) => {
+    console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+    clearInterval(keepalive)
+    send('error', `Failed to prepare agent execution: ${err.message}`)
     if (!res.writableEnded) {
       res.end()
     }
@@ -209,7 +232,7 @@ router.post('/:id/chat', (req, res) => {
 
   const timeout = setTimeout(() => {
     clearInterval(keepalive)
-    proc.kill()
+    proc?.kill()
     send('error', 'Agent timeout (3 minutes)')
     if (!res.writableEnded) {
       res.end()
@@ -217,9 +240,6 @@ router.post('/:id/chat', (req, res) => {
   }, 180000) // 3 minutes to handle cold starts
 
   // Handle client disconnect — only kill if process hasn't exited yet
-  let procExited = false
-  proc.on('exit', () => { procExited = true })
-
   req.on('close', () => {
     console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}`)
     clearTimeout(timeout)
@@ -230,7 +250,7 @@ router.post('/:id/chat', (req, res) => {
       setTimeout(() => {
         if (!procExited) {
           console.log(`[Chat Route] Killing agent process for ${id} after grace period`)
-          proc.kill()
+          proc?.kill()
         }
       }, 30000) // 30s grace period
     }
