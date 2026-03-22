@@ -677,14 +677,11 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
-            if (resolvedAgent.model) {
-              args.push('--model', resolvedAgent.model)
-            }
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
               nebius: executionEnv.NEBIUS_API_KEY,
-            }, resolvedAgent.provider, async () => {
+            }, resolvedAgent.model, resolvedAgent.provider, async () => {
               const proc = spawn('openclaw', args, { env: executionEnv })
               let stdout = ''
               let stderr = ''

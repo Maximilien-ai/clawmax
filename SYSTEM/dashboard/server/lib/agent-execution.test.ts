@@ -68,9 +68,10 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
   fs.mkdirSync(agentDir, { recursive: true })
   fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
-  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+  fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [
         { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir }
@@ -87,16 +88,20 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
 
   process.env.HOME = home
 
-  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai', async () => {
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
     const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     assert(current.profiles['openai-key']?.key === 'fresh-openai', 'Expected temporary OpenAI profile')
     assert(!current.profiles['anthropic-key'], 'Expected stale Anthropic profile to be absent during execution')
     assert(current.lastGood?.openai === 'openai-key', 'Expected OpenAI marked lastGood during execution')
+    assert(currentConfig.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected temporary model override in openclaw.json')
   })
 
   const restored = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(restored.profiles['anthropic-key']?.key === 'stale-anthropic', 'Expected previous auth profile restored')
   assert(restored.lastGood?.anthropic === 'anthropic-key', 'Expected previous lastGood restored')
+  assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
 })
 
 setTimeout(() => {

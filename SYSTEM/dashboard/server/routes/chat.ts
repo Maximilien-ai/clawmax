@@ -124,9 +124,6 @@ router.post('/:id/chat', (req, res) => {
 
   // Spawn openclaw agent CLI
   const args = ['agent', '--agent', id, '--message', message, '--json']
-  if (resolvedAgent.model) {
-    args.push('--model', resolvedAgent.model)
-  }
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   let procExited = false
@@ -138,7 +135,7 @@ router.post('/:id/chat', (req, res) => {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     nebius: executionEnv.NEBIUS_API_KEY,
-  }, resolvedAgent.provider, async () => {
+  }, resolvedAgent.model, resolvedAgent.provider, async () => {
     await new Promise<void>((resolve) => {
       const spawned = spawn('openclaw', args, {
         env: executionEnv,

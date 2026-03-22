@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
+import { updateAgentModelInConfigFile } from './agent-model'
 
 interface OpenClawAgentRecord {
   id: string
@@ -89,23 +90,36 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'open
 export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
+  preferredModel: string | undefined,
   preferredProvider: 'openai' | 'anthropic' | 'nebius' | null | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
   const execution = resolveAgentExecutionConfig(agentId)
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   fs.mkdirSync(agentDir, { recursive: true })
 
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
+  const hadConfig = fs.existsSync(configPath)
+  const previousConfig = hadConfig ? fs.readFileSync(configPath, 'utf-8') : null
   const nextAuthProfiles = buildAuthProfiles(providerKeys, preferredProvider)
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
+  if (preferredModel && hadConfig) {
+    const update = updateAgentModelInConfigFile(configPath, agentId, preferredModel)
+    if (!update.ok) {
+      throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
+    }
+  }
 
   try {
     return await fn()
   } finally {
+    if (previousConfig !== null) {
+      fs.writeFileSync(configPath, previousConfig, 'utf-8')
+    }
     if (previous !== null) {
       fs.writeFileSync(authProfilePath, previous, 'utf-8')
     } else if (fs.existsSync(authProfilePath)) {
