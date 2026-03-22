@@ -30,15 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check auth config and current session on mount
   useEffect(() => {
     Promise.all([
-      fetch('/api/auth/config').then(r => r.ok ? r.json() : null),
-      fetch('/api/auth/me').then(r => r.ok ? r.json() : null),
+      fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+      fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
     ]).then(([cfg, me]) => {
-      setConfig(cfg)
+      setConfig(cfg ?? { githubEnabled: true, authDisabled: false })
       if (me?.authenticated) {
         setUser(me.user)
+      } else {
+        setUser(null)
       }
       setLoading(false)
     }).catch(() => {
+      setConfig({ githubEnabled: true, authDisabled: false })
+      setUser(null)
       setLoading(false)
     })
   }, [])
