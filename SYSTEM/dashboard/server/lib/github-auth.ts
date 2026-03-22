@@ -19,6 +19,7 @@ const JWT_SECRET = () => process.env.JWT_SECRET || getOrCreateJwtSecret()
 const SESSION_DURATION = '7d'
 const COOKIE_NAME = 'clawmax_session'
 const STATE_COOKIE_NAME = 'oauth_state'
+const RETURN_TO_COOKIE_NAME = 'oauth_return_to'
 
 let _jwtSecret: string | null = null
 
@@ -187,6 +188,16 @@ function getSessionCookieOptions(req: Request): CookieOptions {
   }
 }
 
+function getReturnToCookieOptions(req: Request): CookieOptions {
+  return {
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000,
+    sameSite: 'lax',
+    secure: isSecureRequest(req),
+    path: '/api/auth',
+  }
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -204,9 +215,11 @@ export function createAuthRouter(): Router {
     const state = crypto.randomBytes(16).toString('hex')
     const redirectUri = `${getBaseUrl(_req)}/api/auth/github/callback`
     const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email&state=${state}`
+    const returnTo = normalizeReturnTo((_req.query.return_to as string | undefined) || '', _req)
 
     // Store state in cookie for CSRF validation
     res.cookie(STATE_COOKIE_NAME, state, getStateCookieOptions(_req))
+    res.cookie(RETURN_TO_COOKIE_NAME, returnTo, getReturnToCookieOptions(_req))
 
     res.redirect(url)
   })
@@ -215,19 +228,21 @@ export function createAuthRouter(): Router {
   router.get('/github/callback', async (req, res) => {
     const { code, state } = req.query as { code?: string; state?: string }
     const savedState = req.cookies?.[STATE_COOKIE_NAME]
+    const savedReturnTo = req.cookies?.[RETURN_TO_COOKIE_NAME]
 
     const clearStateCookie = () => {
       res.clearCookie(STATE_COOKIE_NAME, getStateCookieOptions(req))
+      res.clearCookie(RETURN_TO_COOKIE_NAME, getReturnToCookieOptions(req))
     }
 
     if (!code) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req)}/?auth_error=no_code`)
+      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=no_code`)
     }
 
     if (!state || !savedState || state !== savedState) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req)}/?auth_error=state_mismatch`)
+      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=state_mismatch`)
     }
 
     try {
@@ -237,7 +252,7 @@ export function createAuthRouter(): Router {
       // Check if user is allowed
       const allowed = getAllowedLogins()
       if (allowed.length > 0 && !allowed.includes(user.login.toLowerCase())) {
-        return res.redirect(`${getAppUrl(req)}/?auth_error=not_allowed&login=${encodeURIComponent(user.login)}`)
+        return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=not_allowed&login=${encodeURIComponent(user.login)}`)
       }
 
       // Create session
@@ -252,11 +267,11 @@ export function createAuthRouter(): Router {
       console.log(`[Auth] GitHub login: ${user.login} (${user.name || 'no name'})`)
 
       // Redirect to dashboard
-      res.redirect(`${getAppUrl(req)}/`)
+      res.redirect(`${getAppUrl(req, savedReturnTo)}/`)
     } catch (err: any) {
       clearStateCookie()
       console.error('[Auth] GitHub OAuth error:', err.message)
-      res.redirect(`${getAppUrl(req)}/?auth_error=${encodeURIComponent(err.message)}`)
+      res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=${encodeURIComponent(err.message)}`)
     }
   })
 
@@ -301,7 +316,11 @@ function getBaseUrl(req: Request): string {
   return `${proto}://${host}`
 }
 
-function getAppUrl(req: Request): string {
+function getAppUrl(req: Request, savedReturnTo?: string): string {
+  if (savedReturnTo) {
+    return normalizeReturnTo(savedReturnTo, req)
+  }
+
   const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()
   if (configuredAppUrl) {
     return configuredAppUrl.replace(/\/+$/, '')
@@ -312,6 +331,49 @@ function getAppUrl(req: Request): string {
     .map(origin => origin.trim())
     .filter(Boolean)
 
+  if (allowedOrigins.length > 0) {
+    return allowedOrigins[0].replace(/\/+$/, '')
+  }
+
+  return getBaseUrl(req)
+}
+
+function normalizeReturnTo(raw: string, req: Request): string {
+  const fallback = getBaseUrl(req)
+  if (!raw) return getAppUrl(req)
+
+  try {
+    const url = new URL(raw)
+    const candidate = url.origin.replace(/\/+$/, '')
+    const allowedOrigins = (process.env.CORS_ORIGIN || '')
+      .split(',')
+      .map(origin => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean)
+    const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()?.replace(/\/+$/, '')
+
+    if (configuredAppUrl && candidate === configuredAppUrl) {
+      return candidate
+    }
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(candidate)) {
+      return candidate
+    }
+  } catch {
+    // Ignore invalid return_to and fall back below.
+  }
+
+  return configuredAppUrlOrAllowedOrigin(req) || fallback
+}
+
+function configuredAppUrlOrAllowedOrigin(req: Request): string | null {
+  const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()
+  if (configuredAppUrl) {
+    return configuredAppUrl.replace(/\/+$/, '')
+  }
+
+  const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
   if (allowedOrigins.length > 0) {
     return allowedOrigins[0].replace(/\/+$/, '')
   }

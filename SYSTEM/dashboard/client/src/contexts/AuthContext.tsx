@@ -44,7 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = useCallback(() => {
-    window.location.href = '/api/auth/github'
+    const returnTo = encodeURIComponent(window.location.origin)
+    window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
 
   const logout = useCallback(async () => {
