@@ -8,9 +8,11 @@ All notable changes to ClawMax are documented here.
 - **BYOK execution correctness** — direct agent chat and manual workflow execution now use the resolved BYOK/user/system key policy instead of drifting to stale per-agent auth history.
 - **Runtime auth-state override** — agent runs temporarily patch `auth-profiles.json` and agent model state for the duration of execution, then restore prior state afterward.
 - **Dashboard env isolation** — provider keys now come from `SYSTEM/dashboard/.env` policy instead of ambient shell exports, with explicit precedence for system vs user execution.
+- **Clean-room CI stabilization** — GitHub Actions now runs on `main`/tags, setup avoids non-interactive terminal failures, skills discovery is deterministic in CI, and the system test suite no longer hard-fails just because a fresh workspace lacks seeded demo data.
 
 ### Testing
 - **Execution-state regression coverage** — added unit tests for temporary auth-profile/model overrides during runtime execution.
+- **Skills test isolation** — workspace skill import tests now run in an isolated temp workspace instead of relying on real `~/.openclaw` state.
 
 ## [v1.1.7] - 2026-03-22
 

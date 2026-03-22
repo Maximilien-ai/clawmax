@@ -1,97 +1,71 @@
-# ClawMax Status & Planning
+# ClawMax Status
 
-**Current Version**: v1.1.3
-**Last Updated**: March 18, 2026 (end of day)
-**Status**: Active Development — GTC Demo Sprint
-
----
-
-## Today's Session: March 18, 2026
-
-### Shipped (22 commits, 30 total including docs/fixes)
-
-**Mobile Responsiveness**
-- All chat panels (1:1, agent, group) full-width on mobile
-- All modal dialogs (15+ components) responsive
-- All page layouts with proper mobile padding
-- Toolbar overflow fixed (wraps on mobile)
-- DocHub file tree mobile toggle
-- TopBar compact on small screens
-- Group chat scroll fix (no more input disruption)
-- Group chat flicker eliminated
-
-**Chat Improvements**
-- 1:1 chat polling (3s) — agent-initiated messages now visible
-- API key validation before chat (clear error vs timeout)
-- Chat timeout increased to 3min for cold starts
-- Group chat "responding" indicator auto-clears at 30s
-
-**Workflow System**
-- Built-in cron scheduler (node-cron) — workflows run on schedule
-- Run limits (maxRuns) with auto-disable
-- AI cron generator — natural language to cron expression
-- Workflow detail pane shows resolved target agents with names
-- Run count and human-readable schedule in workflow cards
-- OpenClaw cron integration explored (auth challenges documented)
-
-**Templates**
-- Small Startup Team: 6 agents (CEO, PM, 2 engineers, QA, release)
-- Engineering Team: 4 agents (2 engineers, QA, release)
-- Test Template: auto-running status check workflow (5 runs)
-- Parameterized agent counts in Apply wizard (+/- controls)
-- Apply progress toasts
-- Auth profiles created for imported agents
-- Template detail popup shows workflows with schedules
-- Small Startup template: 7 workflows (standup, status, triage, PR review, coding, merge, release)
-
-**Workflow Execution**
-- Built-in node-cron scheduler — workflows run on schedule automatically
-- Run limits (maxRuns) with auto-disable — persisted and displayed
-- Run count displayed in cards and detail pane ("2 runs completed · Unlimited" or "Run 2 of 5")
-- Human-readable schedule shown everywhere ("Every 5 minutes")
-- Resolved target agents shown in detail pane with clickable badges
-- Workflow editor sends maxRuns to API, preserves on edit
-
-**Quality**
-- Agent config schema validation (tags, name, whatsapp)
-- CI fix — resilient to upstream OpenClaw changes
-- PR review: merged #19, #20; closed #21-25 (empty commits)
-
-### Known Issues
-
-- Template apply doesn't always create agent GROUPS.md/COMMUNITIES.md (intermittent)
-- Cron scheduler uses node-cron (interim) — should consolidate with OpenClaw cron
-- Agent auth-profiles.json needed for gateway-based cron execution
+**Current Version**: v1.1.8
+**Last Updated**: March 22, 2026
+**Status**: Release shipped, CI stabilization in progress, next sprint queued
 
 ---
 
-## Key Demos
+## Current State
 
-- **March 17 (Mon)**: GTC evening — discovered mobile issues
-- **March 18 (Tue)**: GTC evening — mobile fixed, cron working
-- **March 27 (Thu)**: Presentation demo
-- **March 28 (Fri)**: Hackathon demo
+- `v1.1.8` is released and pushed to GitHub
+- BYOK preview is in the dashboard and runtime execution now follows the intended user/system key policy
+- GitHub OAuth is working locally, including redirect back to the dashboard app
+- Local `./SYSTEM/test.sh` is passing again
+- GitHub Actions now runs on `main` pushes and `v*` tags
+- Latest follow-up work is focused on making clean-room CI deterministic
 
----
+## Shipped Recently
 
-## Project Health
+### Auth, BYOK, and Release Readiness
+- GitHub OAuth login/logout flow
+- dashboard login hero refresh and post-auth redirect fixes
+- visible user info + logout in the top bar
+- BYOK preview wizard for OpenAI/Anthropic keys
+- strict provider key precedence:
+  - user agent/workflow execution prefers BYOK, then `USER_*`
+  - system/dashboard-owned execution prefers `SYSTEM_*`
+  - shell exports no longer implicitly control dashboard provider policy
+- release checklist, OAuth docs, and env example refresh
 
-| Metric | Status |
-|--------|--------|
-| Tests | 95 passing (100%) |
-| CI | Fixed — resilient |
-| Mobile | All pages responsive |
-| Dark mode | Mostly complete (audit needed) |
-| Cron | Working via node-cron |
-| Templates | 3 org templates, 5 agent templates |
+### Dashboard UX and Scale
+- workspace drag reordering
+- templates table/list mode with sorting, select-all, bulk delete, and apply flows
+- communication table/list mode with sorting and bulk actions
+- agent config validation before save
+- improved mobile agent detail panel
+- templates/workflows/logs page shell alignment
 
----
+### Quality and Contracts
+- strict system template contract tests for `TEMPLATES/*`
+- regression tests for:
+  - workspace ordering
+  - agent config validation
+  - agent model parsing and persistence
+  - runtime auth/model override execution
+  - safe env / BYOK precedence
+- CI now triggers on `main` and release tags
 
-## Architecture Notes
+## Active Risks
 
-### Cron Scheduling (Technical Debt)
-ClawMax currently uses `node-cron` for workflow scheduling. OpenClaw has its own cron system (`openclaw cron`) that runs through the gateway. We chose node-cron because bridging OpenClaw cron output back to ClawMax's execution/chat system was complex (auth profile format, delivery channel requirements). Future consolidation should either:
-1. Use OpenClaw cron with a callback webhook to ClawMax trigger API
-2. Or register ClawMax workflows as OpenClaw cron jobs that POST to `/api/workflows/:id/trigger`
+- GitHub Actions on `main` is still being stabilized for true clean-room runs
+- live GitHub issue list is stale and includes items already fixed in code
+- secure multi-user BYOK storage is still deferred; current flow is intentionally a preview/dev slice
+- OAuth still needs one clean-room test pass on a fresh machine/config, even though local dev flow is working
 
-See commit `4247024` for full documentation of this decision.
+## Recommended Next Work
+
+1. Finish CI clean-room stabilization and confirm a green `main` run on GitHub
+2. Close or archive stale GitHub issues already fixed in code (`#38`, `#31`, `#30`, `#28`)
+3. Build workflow table view for large-scale workflow management
+4. Decide the next security/product slice:
+   - secure per-user BYOK storage
+   - `#29` Forward to group
+   - workflow cron reliability (`#14`)
+
+## Tomorrow Start Here
+
+1. Check the latest GitHub Actions run on `main`
+2. If green, do issue cleanup and start workflow table view
+3. If red, fix the remaining clean-room failure before any feature work
+4. Keep BYOK secure-storage work deferred until CI and workflow scale UX are in better shape

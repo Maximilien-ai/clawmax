@@ -10,6 +10,7 @@
 - [x] **Issue #38: production root route returns `Cannot GET /`** — fix static client serving / SPA fallback in production container
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
+- [ ] **CI green on `main`** — latest clean-room CI stabilization is in flight; do not assume release automation is healthy until GitHub Actions is green on `main`
 
 ### Security (Sprint Priority #1)
 - [x] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. 27 issues found, critical/high fixed in v1.1.6.
@@ -48,7 +49,7 @@
 
 - [x] **Issue #28** Agent config editor: validate all sections against schema before saving
 - [x] **Issue #30** Mobile: Agents detail view responsive audit
-- [ ] **Issue #8** Anthropic per-agent auth store issue (needs decision)
+- [x] **Issue #8** Anthropic per-agent auth store issue (resolved by runtime auth/model override plus BYOK/system env precedence fixes in v1.1.8)
 - [ ] Group chat: 2nd agent empty response (workaround: @all or Tab-expand)
 - [ ] Group chat jitter on mobile (improved but not eliminated)
 - [ ] Template apply: GROUPS.md/COMMUNITIES.md intermittent
@@ -65,6 +66,7 @@
 - [ ] **Dashboard regression automation** — add coverage for OAuth/auth flows, agent edit/model save, template apply, workspace switching, and production route regressions so fewer manual checks are needed before each push
 - [x] **System template contract tests** — keep `TEMPLATES/*` under strict validation in CI and extend coverage to template apply paths
 - [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows before release candidates
+- [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic in empty/default workspaces and ensure GitHub Actions is trustworthy on `main`
 
 ## High Priority (Features)
 
@@ -134,6 +136,6 @@ See CHANGELOG.md. Key: Opik metering, cost badges, unread indicators, @mention g
 
 ## Notes
 
-- 18 hours is enough to finish a strong top slice, not the full March 26 backlog.
-- Recommended order: **#38 production route**, OAuth/security verification, **#28 validation**, **#30 mobile**, then one larger Monday feature.
-- Google/Apple auth should stay deferred until after GitHub auth is verified in production-like conditions.
+- Main next step is no longer release packaging; it is CI trust plus backlog cleanup.
+- Tomorrow recommended order: **CI green on `main`**, close stale fixed issues, then **Workflow table view**.
+- Secure multi-user BYOK storage should wait until CI and workflow scale UX are in better shape.
