@@ -75,6 +75,8 @@ wait about one minute for the auth rate limiter window to reset.
   - verify the `BYOK Preview` button is visible after login
   - verify the modal explains system keys vs user keys
   - verify masked OpenAI / Anthropic keys can be saved locally for dev flow testing
+  - verify direct agent chat uses the BYOK-selected provider
+  - verify manual workflow execution posts the same provider-correct responses into targeted groups/communities
 
 ## 5. Release Messaging
 
