@@ -18,6 +18,7 @@ jobs:
       contents: read
     env:
       OPENCLAW_WORKSPACE: ${{ github.workspace }}/WORKSPACES/default
+      OPENCLAW_SKILLS_DIR: /tmp/openclaw/skills
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
       CORS_ORIGIN: http://localhost:5173
@@ -58,6 +59,7 @@ jobs:
         run: |
           cat > SYSTEM/dashboard/.env <<EOF
           OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
+          OPENCLAW_SKILLS_DIR=${OPENCLAW_SKILLS_DIR}
           DASHBOARD_AUTH_DISABLED=${DASHBOARD_AUTH_DISABLED}
           DASHBOARD_PORT=${DASHBOARD_PORT}
           CORS_ORIGIN=${CORS_ORIGIN}

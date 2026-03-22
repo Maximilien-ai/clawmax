@@ -1,10 +1,54 @@
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
+import type { OpenClawSkill, SkillInstallOption } from './skills'
+
 /**
  * Skills API Test Suite
  *
  * Run with: npx ts-node server/lib/skills.test.ts
  */
 
-import {
+function setupTestWorkspace() {
+  const originalHome = os.homedir()
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-skills-home-'))
+  const tempWorkspace = path.join(tempHome, '.openclaw', 'workspace')
+  const registryPath = path.join(tempHome, '.openclaw', 'dashboard-workspaces.json')
+  const openClawConfigPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+
+  fs.mkdirSync(path.join(tempWorkspace, 'SKILLS', 'custom'), { recursive: true })
+  fs.writeFileSync(openClawConfigPath, JSON.stringify({ agents: { list: [] } }, null, 2))
+  fs.writeFileSync(registryPath, JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'default',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: tempWorkspace,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  if (!process.env.OPENCLAW_SKILLS_DIR) {
+    const fallbackSkillsDir = path.join(originalHome, 'github/maximilien/openclaw/skills')
+    if (fs.existsSync(fallbackSkillsDir)) {
+      process.env.OPENCLAW_SKILLS_DIR = fallbackSkillsDir
+    }
+  }
+  resetWorkspaceManagerForTests()
+
+  return { tempHome, tempWorkspace }
+}
+
+const testEnv = setupTestWorkspace()
+
+const {
   listAvailableSkills,
   getSkillById,
   getAgentSkills,
@@ -13,10 +57,7 @@ import {
   importWorkspaceSkill,
   deleteWorkspaceSkill,
   getWorkspaceSkillsDir
-} from './skills'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
+} = require('./skills')
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -156,7 +197,7 @@ test('listAvailableSkills() returns sorted skills', () => {
     assert(prev.localeCompare(curr) <= 0, `Skills should be sorted: ${prev} should come before ${curr}`)
   }
 
-  console.log(`  First 3: ${skills.slice(0, 3).map(s => s.name).join(', ')}`)
+  console.log(`  First 3: ${skills.slice(0, 3).map((s: OpenClawSkill) => s.name).join(', ')}`)
 })
 
 // Test 11: GitHub skill has install options
@@ -167,11 +208,11 @@ test('GitHub skill has install options', () => {
   assert(Array.isArray(skill!.install), 'Should have install array')
   assert((skill!.install?.length || 0) > 0, 'Should have at least one install option')
 
-  const brewInstall = skill!.install?.find(i => i.kind === 'brew')
+  const brewInstall = skill!.install?.find((i: SkillInstallOption) => i.kind === 'brew')
   assert(brewInstall !== undefined, 'Should have brew install option')
   assertEqual(brewInstall!.formula, 'gh', 'Brew formula should be "gh"')
 
-  console.log(`  Install options: ${skill!.install?.map(i => i.kind).join(', ')}`)
+  console.log(`  Install options: ${skill!.install?.map((i: SkillInstallOption) => i.kind).join(', ')}`)
 })
 
 // Test 12: GitHub skill has requirements
@@ -189,7 +230,7 @@ test('GitHub skill requires gh binary', () => {
 // Test 13: Skills have unique names
 test('All skills have unique names', () => {
   const skills = listAvailableSkills()
-  const names = skills.map(s => s.name)
+  const names = skills.map((s: OpenClawSkill) => s.name)
   const uniqueNames = new Set(names)
 
   assertEqual(names.length, uniqueNames.size, 'All skill names should be unique')
@@ -199,7 +240,7 @@ test('All skills have unique names', () => {
 // Test 14: Bundled skills are from OpenClaw repo
 test('Bundled skills have correct file path', () => {
   const skills = listAvailableSkills()
-  const bundledSkills = skills.filter(s => s.bundled)
+  const bundledSkills = skills.filter((s: OpenClawSkill) => s.bundled)
 
   assert(bundledSkills.length > 0, 'Should have bundled skills')
 
@@ -350,6 +391,7 @@ This is a test skill.`
 setTimeout(() => {
   console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)
   console.log(`${GREEN}Passed: ${testsPassed}${RESET}`)
+  fs.rmSync(testEnv.tempHome, { recursive: true, force: true })
 
   if (testsFailed > 0) {
     console.log(`${RED}Failed: ${testsFailed}${RESET}`)

@@ -262,3 +262,7 @@ export function getWorkspaceManager(): WorkspaceManager {
   }
   return workspaceManagerInstance
 }
+
+export function resetWorkspaceManagerForTests(): void {
+  workspaceManagerInstance = null
+}

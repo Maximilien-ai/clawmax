@@ -46,6 +46,10 @@ function findOpenClawSkillsDir(): string {
   const home = os.homedir()
   const candidates: string[] = []
 
+  if (process.env.OPENCLAW_SKILLS_DIR) {
+    candidates.push(process.env.OPENCLAW_SKILLS_DIR)
+  }
+
   // 1. pnpm global install (macOS / Linux)
   const pnpmDir = path.join(home, 'Library/pnpm/global/5/.pnpm')
   if (fs.existsSync(pnpmDir)) {
@@ -137,7 +141,9 @@ export function listAvailableSkills(): OpenClawSkill[] {
       for (const dir of dirs) {
         if (!dir.isDirectory() || dir.name.startsWith('.')) continue
 
-        const skillPath = path.join(workspaceSkillsDir, dir.name, 'skill.md')
+        const uppercaseSkillPath = path.join(workspaceSkillsDir, dir.name, 'SKILL.md')
+        const lowercaseSkillPath = path.join(workspaceSkillsDir, dir.name, 'skill.md')
+        const skillPath = fs.existsSync(uppercaseSkillPath) ? uppercaseSkillPath : lowercaseSkillPath
         if (fs.existsSync(skillPath)) {
           const skill = parseWorkspaceSkillFile(skillPath, dir.name)
           if (skill) skills.push(skill)
