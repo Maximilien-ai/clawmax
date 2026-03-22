@@ -18,8 +18,8 @@ CURL_OPTS="--connect-timeout 5 --max-time 10"
 
 # Load dashboard auth token
 TOKEN_CANDIDATES=(
-  "$(pwd)/dashboard/.dashboard-token"
   "$(pwd)/dashboard/server/.dashboard-token"
+  "$(pwd)/dashboard/.dashboard-token"
   "$HOME/.openclaw/.dashboard-token"
 )
 
