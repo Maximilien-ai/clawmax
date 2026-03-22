@@ -17,10 +17,23 @@ API_BASE="http://localhost:3001"
 CURL_OPTS="--connect-timeout 5 --max-time 10"
 
 # Load dashboard auth token
-TOKEN_FILE="$(pwd)/dashboard/.dashboard-token"
+TOKEN_CANDIDATES=(
+  "$(pwd)/dashboard/.dashboard-token"
+  "$(pwd)/dashboard/server/.dashboard-token"
+  "$HOME/.openclaw/.dashboard-token"
+)
+
+TOKEN_FILE=""
+for candidate in "${TOKEN_CANDIDATES[@]}"; do
+  if [ -f "$candidate" ]; then
+    TOKEN_FILE="$candidate"
+    break
+  fi
+done
+
 if [ -n "$DASHBOARD_TOKEN" ]; then
   DASHBOARD_AUTH="$DASHBOARD_TOKEN"
-elif [ -f "$TOKEN_FILE" ]; then
+elif [ -n "$TOKEN_FILE" ] && [ -f "$TOKEN_FILE" ]; then
   DASHBOARD_AUTH="$(cat "$TOKEN_FILE")"
 else
   DASHBOARD_AUTH=""
@@ -92,6 +105,13 @@ if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null
   preflight_ok=false
 else
   echo -e "  ${GREEN}✓${NC} Dashboard server running on $API_BASE"
+fi
+
+if [ -n "$DASHBOARD_AUTH" ]; then
+  echo -e "  ${GREEN}✓${NC} Dashboard auth token available"
+else
+  warn_msg="No dashboard auth token found. Protected API sections may return 401."
+  echo -e "  ${YELLOW}⚠${NC} $warn_msg"
 fi
 
 if [ "$preflight_ok" = false ]; then
