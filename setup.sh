@@ -40,7 +40,9 @@ print_info() {
 }
 
 # Welcome message
-clear
+if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+    clear
+fi
 echo -e "${BLUE}"
 cat << "EOF"
    ____ _               __  __
