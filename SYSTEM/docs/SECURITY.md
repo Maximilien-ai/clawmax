@@ -4,12 +4,9 @@
 
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
-**Last Updated:** 2026-03-03
-**Dashboard Version:** v1.1.0
+**Last Updated:** 2026-03-23
+**Dashboard Version:** v1.1.8
 **OpenClaw Protocol:** Version 3
-
-NOTE: avoid duplication with other docs unless on purpose for adding context of keeping track of work done.
-NOTE: very important document since security is the issue that will be asked for the most by users and eventually clients of ClawMax.ai
 
 ---
 
@@ -154,12 +151,12 @@ None currently identified.
 - **Status:** Should implement redaction for production use
 - **Tracking:** [Issue #3](https://github.com/OpenClaw/clawmax-dashboard/issues/3) (to be created)
 
-#### 4. No Rate Limiting
-- **Issue:** No rate limiting on chat or API endpoints
-- **Impact:** Possible DoS via rapid requests
-- **Mitigation:** Localhost-only access limits attack surface
-- **Status:** Low priority for local development
-- **Tracking:** [Issue #4](https://github.com/OpenClaw/clawmax-dashboard/issues/4) (to be created)
+#### 4. Rate Limiting Coverage
+- **Issue:** Basic dashboard rate limiting exists, but production-style coverage should still be reviewed as auth and deployment paths expand
+- **Impact:** Gaps could still allow overly aggressive request patterns
+- **Mitigation:** Dashboard already enforces global and auth-specific limits
+- **Status:** Needs follow-through review, not greenfield implementation
+- **Tracking:** backlog security follow-through
 
 #### 5. Stream Completion Detection
 - **Issue:** Using 2-second timeout to detect stream completion
@@ -177,8 +174,6 @@ None currently identified.
 - **Status:** Consider for future remote access
 - **Tracking:** [Issue #5](https://github.com/OpenClaw/clawmax-dashboard/issues/5) (to be created)
 
-
-NOTE: make sure to update this if / when we update SECURITY_ISSUES.md
 
 ---
 
@@ -255,8 +250,6 @@ ClawMax Dashboard implements OpenClaw Gateway Protocol Version 3:
 - Message type validation
 - Protocol version negotiation
 
-NOTE: love this can we include a sentence summarizing this in blog in the security section since we will include limitations but we want to make sure reader knows that we want to and are practicing good security higiene.
-
 ---
 
 ## Upgrading OpenClaw for Security
@@ -325,8 +318,6 @@ Dashboard currently requires Protocol v3. If OpenClaw upgrades to v4:
 - [ ] Log all security-relevant events
 - [ ] Regular security audits
 - [ ] Keep OpenClaw updated
-
-NOTE: is this part of our plan to address. Should we have a FAQ.md to include these and other FAQ?
 
 ---
 

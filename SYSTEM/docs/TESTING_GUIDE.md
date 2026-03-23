@@ -1,6 +1,6 @@
 # ClawMax Testing Guide
 
-> Last updated: March 17, 2026 (v1.1.0)
+> Last updated: March 23, 2026 (v1.1.8)
 
 ## Prerequisites
 
@@ -10,9 +10,9 @@ Before running tests, complete setup:
 # 1. Install dependencies (continues even without OpenClaw)
 ./setup.sh
 
-# 2. Add API keys to SYSTEM/dashboard/.env
-#    ANTHROPIC_API_KEY=sk-ant-...
-#    OPENAI_API_KEY=sk-...
+# 2. Add provider keys to SYSTEM/dashboard/.env
+#    SYSTEM_ANTHROPIC_API_KEY=sk-ant-...
+#    SYSTEM_OPENAI_API_KEY=sk-...
 
 # 3. Start the dashboard
 ./SYSTEM/start.sh
@@ -34,7 +34,7 @@ If any check fails, it exits with instructions.
 
 ## Test Suite
 
-**90 tests** across 17 sections:
+The suite combines TypeScript checks, unit tests, and API/integration checks across 17 sections:
 
 | Section | Tests | Description |
 |---|---|---|
@@ -74,7 +74,10 @@ npx ts-node --transpileOnly server/lib/templates.test.ts  # 15 tests
 
 ## CI/CD
 
-GitHub Actions runs on every PR to `main` and every push to non-main branches.
+GitHub Actions runs on:
+- every PR to `main`
+- every push to `main`
+- every tag matching `v*`
 
 Workflow: `.github/workflows/ci.yml`
 
@@ -82,12 +85,12 @@ Steps:
 1. Setup Node.js 20 + Go (for OpenClaw CLI)
 2. Install OpenClaw CLI from source
 3. Run `./setup.sh`
-4. Start dashboard with `DASHBOARD_AUTH_DISABLED=true`
+4. Start dashboard with CI-safe env and a clean-room workspace
 5. Run `./SYSTEM/test.sh`
 
 ## Auth
 
-The test suite uses an `apicurl` wrapper that automatically includes the dashboard auth token from `SYSTEM/dashboard/.dashboard-token`. For local dev, set `DASHBOARD_AUTH_DISABLED=true` in `.env`.
+The test suite uses an `apicurl` wrapper that automatically includes the live dashboard auth token file when auth is enabled. CI may also run with `DASHBOARD_AUTH_DISABLED=true`.
 
 ## Troubleshooting
 

@@ -11,10 +11,10 @@ This document tracks current known issues, limitations, and the intended next mo
 
 ### 1. GitHub Actions clean-room stability
 **Severity**: High
-**Status**: In progress
+**Status**: Recently improved; monitor for regressions
 
 **Description**:
-CI now runs on `main`, but the clean-room path is still being normalized so it does not assume seeded demo agents, activity, or docs.
+CI now runs on `main` and the clean-room path is much healthier, but it should still be treated as an actively monitored area rather than permanently solved.
 
 **Current direction**:
 - isolate filesystem-sensitive unit tests

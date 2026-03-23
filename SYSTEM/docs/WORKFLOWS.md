@@ -6,8 +6,6 @@
 
 ---
 
-NOTE: love this but please add section on Worflow optimizer system agents and pre-built templates.
-
 ## Purpose
 
 Workflows enable scheduled, recurring tasks to be executed across one or more agents in an organization. Examples include:
@@ -28,6 +26,14 @@ Workflows enable scheduled, recurring tasks to be executed across one or more ag
 4. **Cron-based scheduling** - Standard cron syntax for scheduling
 5. **Execution engine with agent ownership** - Workflows can have an agent owner responsible for execution management, OR be fully automated
 6. **Execution logging** - Track / monitor execution, history, traces, success/failure for all workflow runs
+
+### Related Product Directions
+
+This workflow model also supports two newer product directions:
+- **pre-built workflow templates** shipped inside org/system templates
+- **workflow optimizer / creator system agents** that generate or refine workflows from natural language
+
+Those features should stay compatible with the same underlying workflow file model and validation rules documented here.
 
 ---
 
@@ -657,8 +663,6 @@ POST /api/workflows/:id/execute
 - File path validation (prevent directory traversal)
 - Cron injection prevention
 
-NOTE: can we make sure all these items are in plan or if done marked so?
-
 ---
 
 ## UI Mockups (Text)
@@ -784,8 +788,6 @@ Common presets for CronScheduleBuilder:
 - Prevent directory traversal: No `..`, `/`, `\` in IDs
 - Limit filename length to 100 characters
 
-NOTE: can we make sure we have tests for workflow APIs and contraints?
-
 ---
 
 ## Error Handling
@@ -855,8 +857,6 @@ NOTE: can we make sure we have tests for workflow APIs and contraints?
 - Multi-step workflows (sequence of tasks)
 - Workflow analytics (execution stats)
 
-NOTE: can we annotate status on what is done and not and in planned?
-
 ---
 
 ## Testing Strategy
@@ -888,8 +888,6 @@ NOTE: can we annotate status on what is done and not and in planned?
 5. Delete workflow → verify file removed
 6. Import org template with workflows → verify workflows created
 
-NOTE: good how much of this have we in the SYSTEM/test.sh?
-
 ---
 
 ## Dependencies
@@ -916,8 +914,6 @@ NOTE: good how much of this have we in the SYSTEM/test.sh?
    - Should workflows have owner/creator permissions?
    - **Decision:** No permissions in v0.9.0. Single-user system.
 
-NOTE: once we have RBAC and login let's revisit this
-
 3. **Workflow Versioning:**
    - Should we track workflow edit history?
    - **Decision:** No versioning in v0.9.0. Git handles this.
@@ -925,8 +921,6 @@ NOTE: once we have RBAC and login let's revisit this
 4. **Agent Offline Handling:**
    - What happens if targeted agent is offline during execution?
    - **Decision:** Execution waits/retries for offline agents. Configurable timeout per workflow.
-
-NOTE: we now have agent auto-start when communicated to so hopefully targetted agents will be restarted and take part of workflow execution. This is key.
 
 5. **Execution Logging:**
    - How do we track execution history and agent responses?

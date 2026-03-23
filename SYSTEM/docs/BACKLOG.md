@@ -1,5 +1,3 @@
-NOTE: update and archive completed items since starting a new week and sprint.
-
 # Backlog
 
 > Last updated: March 23, 2026

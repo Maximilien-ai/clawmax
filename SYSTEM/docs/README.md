@@ -9,6 +9,7 @@
 - [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) — current risks and limitations
 - [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) — release smoke path
 - [OAUTH_SETUP.md](./OAUTH_SETUP.md) — dashboard GitHub OAuth and env setup
+- monitoring, budget, and BYOK details are primarily documented from the product-level [../README.md](../README.md)
 
 ## Core References
 

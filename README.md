@@ -5,8 +5,8 @@
 ClawMax provides a powerful web-based interface to manage, monitor, and orchestrate OpenClaw AI agents. Build teams of specialized agents, assign skills, create workflows, and track activity across your entire agent ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/Maximilien-ai/clawmax)
-[![Tests](https://img.shields.io/badge/tests-89%2F89-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.1.8-green.svg)](https://github.com/Maximilien-ai/clawmax)
+[![Tests](https://img.shields.io/badge/tests-local%20and%20CI-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
@@ -14,16 +14,22 @@ ClawMax provides a powerful web-based interface to manage, monitor, and orchestr
 
 ### Agent Management
 - **Visual Agent Roster** - View all agents with status, tags, and activity
-- **Agent Creation** - Bootstrap new agents from templates
-- **Organization Templates** - Import pre-configured agent teams
-- **Skills Assignment** - Assign 50+ built-in skills to agents
+- **Agent Creation** - Bootstrap new agents from templates or use built-in system agents to generate your agents passing description
+- **Organization Templates** - Import pre-configured agent teams or organizations
+- **Skills Assignment** - Assign 50+ built-in skills to agents or import your own skill and assign
 - **Tag-based Filtering** - Organize agents by role, project, or capability
 
 ### Communication & Monitoring
 - **Real-time Chat** - Interactive chat with any agent via CLI proxy
-- **Group Conversations** - Multi-agent group chats and communities
+- **Group Conversations** - Multiagent group chats and communities
 - **Activity Feed** - Track agent actions, file changes, and workflow executions
-- **Status Dashboard** - System health, agent count, and workspace metrics
+- **Status Dashboard** - System health, agent count, workspace metrics, and optionally costs and budget via Opik (requires Comet Opik service)
+- **Budget Controls** - Workspace-level budget visibility and enforcement to pause costly execution before spend drifts
+
+### Authentication & Keys
+- **GitHub OAuth Login** - GitHub is the primary dashboard login path
+- **BYOK Preview** - Users can provide their own model keys for their agents and workflows
+- **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
 
 ### Workflows & Automation
 - **Workflow Designer** - Create scheduled or manual workflows
@@ -255,8 +261,6 @@ clawmax/                        # ClawMax repo root
 │   │   ├── WORKFLOWS/          # Workflow definitions
 │   │   ├── ORG/                # Organization files
 │   │   └── TEMPLATES/          # Workspace-local templates (optional)
-│   ├── demo/                   # Demo workspace
-│   ├── test/                   # Test workspace
 │   └── TEMPLATES/              # Shared workspace templates
 ├── TEMPLATES/                  # Global system templates (shared across all workspaces)
 │   ├── agents/                 # System agent templates
@@ -329,7 +333,7 @@ ClawMax follows security best practices:
 
 ## 🐛 Known Issues
 
-ClawMax v1.0.0 has some known limitations:
+Current known limitations include:
 
 1. **Legacy Agent Compatibility** - Agents created before v1.0.0 may show "missing module" errors. **Workaround**: Delete and recreate from templates.
 
@@ -340,30 +344,11 @@ ClawMax v1.0.0 has some known limitations:
 **For full issue list and workarounds**, see [BUGS.md](SYSTEM/docs/BUGS.md).
 
 ---
-
 ## 🗺️ Roadmap
 
-### v1.0.0 (Current)
-- ✅ Agent management and organization
-- ✅ Skills assignment (50+ built-in skills)
-- ✅ Real-time agent chat
-- ✅ Workflow creation and scheduling
-- ✅ Multi-workspace support
-- ✅ Template system for agents and orgs
-- ✅ Activity feed and monitoring
-
-### v1.1.0 (Q2 2026)
-- 🔄 Agent performance analytics
-- 🔄 Bulk agent operations
-- 🔄 Advanced workflow conditions
-- 🔄 Custom skill creation UI
-- 🔄 Export/import workspace configs
-
-### v2.0.0 (Q3 2026)
-- 🔄 Distributed agent deployment
-- 🔄 Team collaboration features
-- 🔄 Advanced monitoring and alerts
-- 🔄 Plugin system for extensions
+- **Now** - workflow scale UX, bulk agent pause, workshop readiness, and issue cleanup
+- **Next** - secure multi-user BYOK storage, forward-to-group, and workflow cron reliability
+- **Later** - richer templates, community rules, and packaging for cloud/on-prem deployments
 
 **For detailed roadmap**, see [ROADMAP.md](SYSTEM/docs/ROADMAP.md).
 

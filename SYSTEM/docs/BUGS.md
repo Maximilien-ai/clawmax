@@ -1,6 +1,8 @@
 # Known Bugs
 
-## Old Agents - Missing Module Error
+This file tracks active or still-actionable bugs. Older historical issues should stay in `archive/` once they are clearly no longer useful to current operators.
+
+## Legacy Agents - Missing Module Error
 
 **Severity:** Medium
 **Status:** Open
@@ -41,7 +43,7 @@ Newly created agents work correctly. To fix an affected agent:
 ### Next Steps
 - Monitor if OpenClaw releases a fix for the missing module issue
 - Consider bulk recreation of old agents from templates if needed
-- Document agent recreation process for users
+- Keep this here only while it is still being seen in active dev/test environments
 
 ### Related
 - OpenClaw gateway integration (agents.ts:1073, chat.ts:68)
