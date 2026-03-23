@@ -25,8 +25,8 @@
 - [x] **Workspace cost budget** — per-workspace USD budget with progress bar, yellow at 80%, red when exceeded, auto-pause agents + block workflows
 - [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
 - [ ] **Per-agent cost limits** — individual agent limits (future, currently workspace-level)
-- [ ] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause via selection. Disabled agents excluded from workflows.
-- [ ] **Bulk pause agents** — selection-mode action to pause/stop many agents safely without deleting them. Workflows should either skip paused agents cleanly or allow in-flight runs to finish without corrupting state.
+- [x] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause/resume via selection. Paused agents show badge & block new interactions.
+- [x] **Bulk pause agents** — selection-mode action to pause/resume many agents safely without deleting them. Workflows can finish before new interactions resume.
 - [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
 
@@ -89,7 +89,7 @@
 ### Must Land Before Workshop
 - [ ] **Workflow table view**
 - [ ] **Workflow next-run visibility**
-- [ ] **Bulk pause agents**
+- [x] **Bulk pause agents**
 - [ ] **Close stale fixed GitHub issues and keep docs aligned with shipped behavior**
 
 ### Strong Next Slice If Time Allows

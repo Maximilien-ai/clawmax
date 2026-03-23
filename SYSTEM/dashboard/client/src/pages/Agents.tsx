@@ -51,6 +51,7 @@ interface Agent {
   validationWarnings?: string[]
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
+  paused?: boolean
 }
 
 const STATUS_COLORS = {
@@ -64,6 +65,8 @@ const STATUS_TEXT = {
   offline: 'text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30',
   unknown: 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800',
 }
+
+const PAUSED_BADGE = 'ml-2 px-2 py-0.5 text-[11px] font-semibold rounded-full text-gray-200 bg-gray-800/80 dark:bg-gray-600/80 dark:text-gray-100'
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never'
@@ -606,6 +609,48 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     } catch (err) {
       console.error('Bulk delete failed:', err)
       showError('Bulk delete operation failed')
+    }
+  }
+
+  const handleBulkPause = async (agentIds: string[]) => {
+    try {
+      const resp = await fetch('/api/agents/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentIds }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        throw new Error(data?.error || 'Failed to pause agents')
+      }
+      showSuccess(`Paused ${agentIds.length} agent${agentIds.length !== 1 ? 's' : ''}`)
+      fetchAgents()
+      setSelectionMode(false)
+      setSelectedAgentIds(new Set())
+    } catch (err) {
+      console.error('Bulk pause failed:', err)
+      showError(err instanceof Error ? err.message : 'Failed to pause agents')
+    }
+  }
+
+  const handleBulkResume = async (agentIds: string[]) => {
+    try {
+      const resp = await fetch('/api/agents/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentIds }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        throw new Error(data?.error || 'Failed to resume agents')
+      }
+      showSuccess(`Resumed ${agentIds.length} agent${agentIds.length !== 1 ? 's' : ''}`)
+      fetchAgents()
+      setSelectionMode(false)
+      setSelectedAgentIds(new Set())
+    } catch (err) {
+      console.error('Bulk resume failed:', err)
+      showError(err instanceof Error ? err.message : 'Failed to resume agents')
     }
   }
 
@@ -1829,18 +1874,20 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {/* Bulk Operations Panel */}
       {showBulkOperations && (
-        <BulkOperationsPanel
-          selectedAgents={agents.filter(a => selectedAgentIds.has(a.id) && a.archived === (archiveTab === 'archived'))}
-          allCommunities={allCommunities}
-          allGroups={allGroups}
-          onClose={() => setShowBulkOperations(false)}
-          onAddToCommunities={handleBulkAddToCommunities}
-          onAddToGroups={handleBulkAddToGroups}
-          onArchive={handleBulkArchive}
-          onUnarchive={handleBulkUnarchive}
-          onDelete={handleBulkDelete}
-          onChat={handleBulkChat}
-        />
+          <BulkOperationsPanel
+            selectedAgents={agents.filter(a => selectedAgentIds.has(a.id) && a.archived === (archiveTab === 'archived'))}
+            allCommunities={allCommunities}
+            allGroups={allGroups}
+            onClose={() => setShowBulkOperations(false)}
+            onAddToCommunities={handleBulkAddToCommunities}
+            onAddToGroups={handleBulkAddToGroups}
+            onArchive={handleBulkArchive}
+            onUnarchive={handleBulkUnarchive}
+            onPause={handleBulkPause}
+            onResume={handleBulkResume}
+            onDelete={handleBulkDelete}
+            onChat={handleBulkChat}
+          />
       )}
 
       {/* Bulk Chat Panel */}
@@ -2395,6 +2442,11 @@ const AgentCard = React.memo(function AgentCard({
           ) : (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
               {agent.status}
+            </span>
+          )}
+          {agent.paused && !agent.archived && (
+            <span className={PAUSED_BADGE} title="Agent is paused">
+              Paused
             </span>
           )}
           {metering && metering.calls > 0 && (
@@ -3153,6 +3205,11 @@ const AgentTableView = React.memo(function AgentTableView({
                   <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
                   {agent.status}
                 </span>
+                {agent.paused && (
+                  <span className={PAUSED_BADGE} title="Agent is paused and will not be sent messages">
+                    Paused
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                 {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}

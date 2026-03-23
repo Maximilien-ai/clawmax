@@ -12,6 +12,7 @@ import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { updateAgentModelInConfigFile } from '../lib/agent-model'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
+import { getPausedAgents, pauseAgents, resumeAgents } from '../lib/agent-state'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -1180,6 +1181,11 @@ router.post('/:id/chat/messages', async (req, res) => {
     return res.status(400).json({ error: 'message is required' })
   }
 
+  const paused = getPausedAgents()
+  if (paused.has(id)) {
+    return res.status(423).json({ error: 'Agent is paused — resume it before sending messages' })
+  }
+
   const sessionKey = `agent:${id}:dashboard-chat`
 
   try {
@@ -1262,6 +1268,24 @@ router.post('/:id/chat/messages', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
+})
+
+router.post('/pause', (req, res) => {
+  const { agentIds } = req.body as { agentIds?: string[] }
+  if (!Array.isArray(agentIds) || agentIds.some(id => typeof id !== 'string')) {
+    return res.status(400).json({ error: 'agentIds must be an array of strings' })
+  }
+  const paused = pauseAgents(agentIds)
+  res.json({ paused: Array.from(paused) })
+})
+
+router.post('/resume', (req, res) => {
+  const { agentIds } = req.body as { agentIds?: string[] }
+  if (!Array.isArray(agentIds) || agentIds.some(id => typeof id !== 'string')) {
+    return res.status(400).json({ error: 'agentIds must be an array of strings' })
+  }
+  const paused = resumeAgents(agentIds)
+  res.json({ paused: Array.from(paused) })
 })
 
 // PATCH /api/agents/:id/tags — update agent tags in IDENTITY.md

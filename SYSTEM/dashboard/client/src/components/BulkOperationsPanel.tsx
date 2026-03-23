@@ -15,6 +15,8 @@ interface BulkOperationsPanelProps {
   onAddToGroups: (agentIds: string[], groups: string[]) => Promise<void>
   onArchive: (agentIds: string[]) => Promise<void>
   onUnarchive: (agentIds: string[]) => Promise<void>
+  onPause?: (agentIds: string[]) => Promise<void>
+  onResume?: (agentIds: string[]) => Promise<void>
   onDelete?: (agents: Array<{ id: string; archived?: boolean }>) => Promise<void>
   onChat?: (agentIds: string[]) => void
 }
@@ -31,7 +33,7 @@ export default function BulkOperationsPanel({
   onDelete,
   onChat,
 }: BulkOperationsPanelProps) {
-  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'delete' | null>(null)
+  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState(false)
@@ -81,6 +83,10 @@ export default function BulkOperationsPanel({
         await onArchive(agentIds)
       } else if (operation === 'unarchive') {
         await onUnarchive(agentIds)
+      } else if (operation === 'pause' && onPause) {
+        await onPause(agentIds)
+      } else if (operation === 'resume' && onResume) {
+        await onResume(agentIds)
       } else if (operation === 'delete' && onDelete) {
         const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
         await onDelete(agents)
@@ -188,8 +194,8 @@ export default function BulkOperationsPanel({
                 </button>
 
                 {activeCount > 0 && (
-                  <button
-                    onClick={() => setOperation('archive')}
+                <button
+                  onClick={() => setOperation('archive')}
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'archive'
                         ? 'border-orange-500 bg-orange-50'
@@ -198,6 +204,38 @@ export default function BulkOperationsPanel({
                   >
                     <div className="font-medium text-gray-900 dark:text-gray-100">Archive Agents</div>
                     <div className="text-sm text-gray-500">Archive {activeCount} active agent{activeCount !== 1 ? 's' : ''}</div>
+                  </button>
+               )}
+
+                {operation !== 'pause' && onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
+                  <button
+                    onClick={() => setOperation('pause')}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'pause'
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 bg-white dark:bg-gray-800'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Pause Agents</div>
+                    <div className="text-sm text-gray-500">
+                      Pause {selectedAgents.filter(a => !a.paused && !a.archived).length} active agent{selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}
+                    </div>
+                  </button>
+                )}
+
+                {operation !== 'resume' && onResume && selectedAgents.some(a => a.paused) && (
+                  <button
+                    onClick={() => setOperation('resume')}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'resume'
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Resume Agents</div>
+                    <div className="text-sm text-gray-500">
+                      Resume {selectedAgents.filter(a => a.paused).length} paused agent{selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}
+                    </div>
                   </button>
                 )}
 
@@ -324,6 +362,8 @@ export default function BulkOperationsPanel({
                     {operation === 'groups' && `Add to ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`}
                     {operation === 'archive' && `Archive ${activeCount} agent${activeCount !== 1 ? 's' : ''}`}
                     {operation === 'unarchive' && `Unarchive ${archivedCount} agent${archivedCount !== 1 ? 's' : ''}`}
+                    {operation === 'pause' && `Pause ${selectedAgents.filter(a => !a.paused && !a.archived).length} agent${selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}`}
+                    {operation === 'resume' && `Resume ${selectedAgents.filter(a => a.paused).length} agent${selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}`}
                   </div>
                 </div>
 

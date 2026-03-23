@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import net from 'net'
 import { getWorkspaceManager } from './workspace-manager'
+import { getPausedAgents } from './agent-state'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -532,6 +533,7 @@ export interface AgentInfo {
   validationWarnings?: string[] // Warnings from schema validation
   archived?: boolean // Derived from tags (true if 'archived' tag present)
   archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
+  paused?: boolean
 }
 
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
@@ -1127,6 +1129,10 @@ export function listAgents(): AgentInfo[] {
     }
   } catch {}
 
+  const pausedSet = getPausedAgents()
+  for (const agent of agents) {
+    agent.paused = pausedSet.has(agent.id)
+  }
   return agents.sort((a, b) => a.id.localeCompare(b.id))
 }
 
