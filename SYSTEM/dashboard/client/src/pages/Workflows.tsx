@@ -1842,20 +1842,25 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
         : isRunning ? 'border-blue-400 dark:border-blue-500 shadow-sm shadow-blue-200 dark:shadow-blue-900'
         : 'border-gray-200 dark:border-gray-700'
     }`}>
+      {onToggleSelect && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleSelect()
+          }}
+          className={`absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect workflow' : 'Select workflow'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
+      )}
       <div onClick={onToggleSelect || onClick}>
         <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {onToggleSelect && (
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => {
-                  e.stopPropagation()
-                  onToggleSelect()
-                }}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
-              />
-            )}
+          <div className="flex items-center gap-2 pr-8">
             <h3 className="font-semibold text-gray-900 text-sm dark:text-gray-100">{workflow.name}</h3>
             {isRunning && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
