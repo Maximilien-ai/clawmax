@@ -121,6 +121,40 @@ function formatNextRunRelative(nextRunAt?: string | null): string {
   return `In ${diffDays}d`
 }
 
+function getWorkflowStatusLabel(state: WorkflowHealthState): string {
+  switch (state) {
+    case 'running':
+      return 'Running'
+    case 'failed':
+      return 'Failed'
+    case 'paused':
+      return 'Paused'
+    case 'disabled':
+      return 'Disabled'
+    case 'enabled':
+    default:
+      return 'Ready'
+  }
+}
+
+function getWorkflowStatusHelp(state: WorkflowHealthState, nextRunAt?: string | null): string {
+  switch (state) {
+    case 'running':
+      return 'Workflow is actively executing now.'
+    case 'failed':
+      return 'Latest execution failed. Open the workflow for execution details.'
+    case 'paused':
+      return 'Workflow is paused and will not schedule new runs until resumed.'
+    case 'disabled':
+      return 'Workflow is disabled and will not run automatically.'
+    case 'enabled':
+    default:
+      return nextRunAt
+        ? `Workflow is enabled. Next run ${formatNextRun(nextRunAt)}.`
+        : 'Workflow is enabled and waiting for the next valid scheduled run.'
+  }
+}
+
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
@@ -1777,22 +1811,23 @@ function WorkflowsTable({
           <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>
               {selectionMode && <th className="px-4 py-3 text-left w-10"></th>}
-              <th className="px-4 py-3 text-left"><SortHeader column="name" label="Workflow" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="status" label="Status" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="participants" label="Agents" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="schedule" label="Schedule" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="mode" label="Mode" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="runs" label="Runs" /></th>
-              <th className="px-4 py-3 text-left"><SortHeader column="updated" label="Updated" /></th>
+              <th className="px-4 py-3 text-left min-w-[280px]"><SortHeader column="name" label="Workflow" /></th>
+              <th className="px-4 py-3 text-left w-[140px]"><SortHeader column="status" label="Status" /></th>
+              <th className="px-4 py-3 text-left w-[80px]"><SortHeader column="participants" label="Agents" /></th>
+              <th className="px-4 py-3 text-left min-w-[260px]"><SortHeader column="schedule" label="Schedule" /></th>
+              <th className="px-4 py-3 text-left w-[120px]"><SortHeader column="mode" label="Mode" /></th>
+              <th className="px-4 py-3 text-left w-[110px]"><SortHeader column="runs" label="Runs" /></th>
+              <th className="px-4 py-3 text-left w-[110px]"><SortHeader column="updated" label="Updated" /></th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {workflows.map(workflow => {
               const isRunning = runningWorkflows.has(workflow.id)
-              const statusLabel = isRunning ? 'Running' : workflow.enabled ? 'Enabled' : 'Disabled'
               const healthState = getWorkflowHealthState(workflow, isRunning, latestExecutionStatuses[workflow.id])
               const statusDotClass = getWorkflowHealthDotClass(healthState)
+              const statusLabel = getWorkflowStatusLabel(healthState)
+              const statusHelp = getWorkflowStatusHelp(healthState, workflow.nextRunAt)
 
               return (
                 <tr key={workflow.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40">
@@ -1810,27 +1845,41 @@ function WorkflowsTable({
                     <button onClick={() => onOpenWorkflow(workflow.id)} className="text-left">
                       <div className="flex items-center gap-2">
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[260px]">{workflow.name}</div>
                       </div>
                       <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{workflow.description}</div>
                     </button>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                      isRunning
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        : workflow.enabled
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    <div
+                      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                        healthState === 'running'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+                          : healthState === 'failed'
+                            ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                            : healthState === 'paused'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
+                              : healthState === 'disabled'
+                                ? 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800'
                     }`}>
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${statusDotClass}`} />
                       {statusLabel}
-                    </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 truncate" title={statusHelp}>
+                      {statusHelp}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{workflow.participantCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{workflow.participantCount}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                    <div>{workflow.scheduleHuman || workflow.schedule || 'Manual'}</div>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Next: {formatNextRun(workflow.nextRunAt)} · {formatNextRunRelative(workflow.nextRunAt)}
+                    <div className="leading-snug truncate" title={workflow.scheduleHuman || workflow.schedule || 'Manual'}>
+                      {workflow.scheduleHuman || workflow.schedule || 'Manual'}
+                    </div>
+                    <div className="mt-1 text-xs text-sky-600 dark:text-sky-400 truncate" title={`Next run ${formatNextRun(workflow.nextRunAt)}`}>
+                      {workflow.nextRunAt ? `Next ${formatNextRunRelative(workflow.nextRunAt)}` : 'No upcoming run'}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                      {workflow.nextRunAt ? formatNextRun(workflow.nextRunAt) : 'Enable this workflow to schedule runs'}
                     </div>
                   </td>
                   <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{workflow.executionMode}</td>
