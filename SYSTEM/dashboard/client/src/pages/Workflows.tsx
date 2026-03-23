@@ -1830,19 +1830,33 @@ function WorkflowsTable({
               const statusHelp = getWorkflowStatusHelp(healthState, workflow.nextRunAt)
 
               return (
-                <tr key={workflow.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                <tr
+                  key={workflow.id}
+                  onClick={() => onOpenWorkflow(workflow.id)}
+                  className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer"
+                >
                   {selectionMode && (
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
                         checked={selectedWorkflowIds.has(workflow.id)}
-                        onChange={() => onToggleSelect(workflow.id)}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          onToggleSelect(workflow.id)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
                       />
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <button onClick={() => onOpenWorkflow(workflow.id)} className="text-left">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenWorkflow(workflow.id)
+                      }}
+                      className="text-left"
+                    >
                       <div className="flex items-center gap-2">
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
                         <div className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[260px]">{workflow.name}</div>
@@ -1897,19 +1911,28 @@ function WorkflowsTable({
                         </span>
                       )}
                       <button
-                        onClick={() => onToggleEnabled(workflow.id, workflow.enabled)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggleEnabled(workflow.id, workflow.enabled)
+                        }}
                         className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
                       >
                         {workflow.enabled ? 'Disable' : 'Enable'}
                       </button>
                       <button
-                        onClick={() => onOpenFile(workflow.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenFile(workflow.id)
+                        }}
                         className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
                       >
                         File
                       </button>
                       <button
-                        onClick={() => onDelete(workflow.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(workflow.id)
+                        }}
                         className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
                       >
                         Delete
