@@ -867,6 +867,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const selectedEnabledCount = selectedWorkflows.filter(workflow => workflow.enabled).length
   const selectedDisabledCount = selectedWorkflows.filter(workflow => !workflow.enabled).length
 
+  const selectVisibleWorkflows = () => {
+    setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
+  }
+
+  const deselectVisibleWorkflows = () => {
+    setSelectedWorkflowIds(new Set())
+  }
+
   const handleSort = (column: WorkflowSortColumn) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -925,9 +933,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <button
                 onClick={() => {
                   if (allVisibleSelected) {
-                    setSelectedWorkflowIds(new Set())
+                    deselectVisibleWorkflows()
                   } else {
-                    setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
+                    selectVisibleWorkflows()
                   }
                 }}
                 className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
@@ -1060,6 +1068,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             runningWorkflows={runningWorkflows}
             latestExecutionStatuses={latestExecutionStatuses}
             totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+            allVisibleSelected={allVisibleSelected}
+            onSelectVisible={selectVisibleWorkflows}
+            onDeselectVisible={deselectVisibleWorkflows}
           />
         )}
       </div>
@@ -1776,6 +1787,9 @@ function WorkflowsTable({
   runningWorkflows,
   latestExecutionStatuses,
   totalCost,
+  allVisibleSelected,
+  onSelectVisible,
+  onDeselectVisible,
 }: {
   workflows: Workflow[]
   selectionMode: boolean
@@ -1791,6 +1805,9 @@ function WorkflowsTable({
   runningWorkflows: Set<string>
   latestExecutionStatuses: Record<string, WorkflowExecution['status'] | undefined>
   totalCost: number
+  allVisibleSelected: boolean
+  onSelectVisible: () => void
+  onDeselectVisible: () => void
 }) {
   const SortHeader = ({ column, label }: { column: WorkflowSortColumn; label: string }) => (
     <button
