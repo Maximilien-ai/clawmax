@@ -1810,7 +1810,25 @@ function WorkflowsTable({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              {selectionMode && <th className="px-4 py-3 text-left w-10"></th>}
+              {selectionMode && (
+                <th className="px-4 py-3 text-left w-12">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (allVisibleSelected) setSelectedWorkflowIds(new Set())
+                      else setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
+                    }}
+                    title={allVisibleSelected ? 'Deselect all visible workflows' : 'Select all visible workflows'}
+                    className={`flex h-6 w-6 items-center justify-center rounded border ${
+                      allVisibleSelected
+                        ? 'bg-sky-600 border-sky-600 text-white'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                    } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                  >
+                    {allVisibleSelected ? '✓' : '□'}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-3 text-left min-w-[280px]"><SortHeader column="name" label="Workflow" /></th>
               <th className="px-4 py-3 text-left w-[140px]"><SortHeader column="status" label="Status" /></th>
               <th className="px-4 py-3 text-left w-[80px]"><SortHeader column="participants" label="Agents" /></th>
@@ -1837,16 +1855,20 @@ function WorkflowsTable({
                 >
                   {selectionMode && (
                     <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedWorkflowIds.has(workflow.id)}
-                        onChange={(e) => {
+                      <button
+                        onClick={(e) => {
                           e.stopPropagation()
                           onToggleSelect(workflow.id)
                         }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
-                      />
+                        className={`h-6 w-6 flex items-center justify-center rounded border ${
+                          selectedWorkflowIds.has(workflow.id)
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                        } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                        title={selectedWorkflowIds.has(workflow.id) ? 'Deselect workflow' : 'Select workflow'}
+                      >
+                        {selectedWorkflowIds.has(workflow.id) ? '✓' : '□'}
+                      </button>
                     </td>
                   )}
                   <td className="px-4 py-3">
