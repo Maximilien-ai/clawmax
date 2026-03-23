@@ -767,8 +767,12 @@ test_json_field "Agent skills objects" "/api/skills/agent/engineer" ".skills"
 if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.skills != null)' > /dev/null 2>&1; then
   pass "Agents have skills field"
 else
-  # If no agent has skills yet, just check the field exists (can be null)
-  test_json_field "Agents have skills field" "/api/agents" ".agents[0] | has(\"skills\")"
+  if [ "$agent_count" -gt 0 ]; then
+    # If no agent has skills yet, just check the field exists (can be null)
+    test_json_field "Agents have skills field" "/api/agents" ".agents[0] | has(\"skills\")"
+  else
+    warn "No agents found - skipping skills field check"
+  fi
 fi
 
 # Test skill validation
