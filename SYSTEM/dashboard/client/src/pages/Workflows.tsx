@@ -67,6 +67,8 @@ interface WorkflowExecutionDetails {
   logs: string[]
 }
 
+type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
+
 interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToGroup?: (groupName: string) => void
@@ -106,6 +108,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [executionsPage, setExecutionsPage] = useState(1)
   const executionsPerPage = 5
   const [showArchivedModal, setShowArchivedModal] = useState(false)
@@ -723,6 +727,49 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     return filtered
   }, [workflows, searchQuery, selectedTags])
 
+  const sortedWorkflows = React.useMemo(() => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+    const rows = [...filteredWorkflows]
+
+    rows.sort((a, b) => {
+      switch (sortColumn) {
+        case 'status': {
+          const aRunning = runningWorkflows.has(a.id) ? 2 : a.enabled ? 1 : 0
+          const bRunning = runningWorkflows.has(b.id) ? 2 : b.enabled ? 1 : 0
+          return (aRunning - bRunning) * direction
+        }
+        case 'participants':
+          return (a.participantCount - b.participantCount) * direction
+        case 'schedule':
+          return (a.scheduleHuman || a.schedule || '').localeCompare(b.scheduleHuman || b.schedule || '') * direction
+        case 'mode':
+          return a.executionMode.localeCompare(b.executionMode) * direction
+        case 'runs': {
+          const aRuns = a.maxRuns && a.maxRuns > 0 ? `${String(a.runCount || 0).padStart(6, '0')}/${String(a.maxRuns).padStart(6, '0')}` : '999999/unlimited'
+          const bRuns = b.maxRuns && b.maxRuns > 0 ? `${String(b.runCount || 0).padStart(6, '0')}/${String(b.maxRuns).padStart(6, '0')}` : '999999/unlimited'
+          return aRuns.localeCompare(bRuns) * direction
+        }
+        case 'updated':
+          return (new Date(a.modified).getTime() - new Date(b.modified).getTime()) * direction
+        case 'name':
+        default:
+          return a.name.localeCompare(b.name) * direction
+      }
+    })
+
+    return rows
+  }, [filteredWorkflows, sortColumn, sortDirection, runningWorkflows])
+
+  const handleSort = (column: WorkflowSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection('asc')
+  }
+
   return (
     <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Header */}
@@ -803,15 +850,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             {selectionMode && (
               <button
                 onClick={() => {
-                  if (selectedWorkflowIds.size === filteredWorkflows.length) {
+                  if (selectedWorkflowIds.size === sortedWorkflows.length) {
                     setSelectedWorkflowIds(new Set())
                   } else {
-                    setSelectedWorkflowIds(new Set(filteredWorkflows.map(w => w.id)))
+                    setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
                   }
                 }}
                 className="px-3 py-2 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
-                {selectedWorkflowIds.size === filteredWorkflows.length ? 'Deselect All' : 'Select All'}
+                {selectedWorkflowIds.size === sortedWorkflows.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
             <button
@@ -879,13 +926,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
         {loading ? (
           <div className="text-center text-gray-500 py-12">Loading workflows...</div>
-        ) : filteredWorkflows.length === 0 ? (
+        ) : sortedWorkflows.length === 0 ? (
           <div className="text-center text-gray-500 py-12">
             {searchQuery ? 'No workflows match your search' : 'No workflows yet'}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredWorkflows.map(workflow => (
+            {sortedWorkflows.map(workflow => (
               <WorkflowCard
                 key={workflow.id}
                 workflow={workflow}
@@ -901,83 +948,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             ))}
           </div>
         ) : (
-          <div className="space-y-2">
-            {filteredWorkflows.map(workflow => (
-              <div
-                key={workflow.id}
-                className="bg-white dark:bg-gray-800 border border-gray-200 rounded-lg hover:border-sky-300 transition-colors dark:border-gray-700"
-              >
-                <div className="px-4 py-3 flex items-center gap-4">
-                  {selectionMode && (
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkflowIds.has(workflow.id)}
-                      onChange={() => toggleWorkflowSelection(workflow.id)}
-                      className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => fetchWorkflowDetails(workflow.id)}>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate dark:text-gray-100">{workflow.name}</h3>
-                      {runningWorkflows.has(workflow.id) && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded animate-pulse">
-                          Running
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                        workflow.enabled
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {workflow.enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">{workflow.description}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
-                    <span>{workflow.participantCount} agent{workflow.participantCount !== 1 ? 's' : ''}</span>
-                    <span>·</span>
-                    <span>{workflow.scheduleHuman || workflow.schedule || 'Manual'}</span>
-                    {workflow.maxRuns && workflow.maxRuns > 0 ? (
-                      <>
-                        <span>·</span>
-                        <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
-                      </>
-                    ) : null}
-                    {Object.keys(agentCosts).length > 0 && (
-                      <>
-                        <span>·</span>
-                        <span className="text-emerald-600 dark:text-emerald-400">${Object.values(agentCosts).reduce((s, c) => s + c, 0).toFixed(3)}</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleToggleEnabled(workflow.id, !workflow.enabled)}
-                      className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
-                      title={workflow.enabled ? 'Disable workflow' : 'Enable workflow'}
-                    >
-                      {workflow.enabled ? '⏸' : '▶'}
-                    </button>
-                    <button
-                      onClick={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
-                      className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
-                      title="Open file"
-                    >
-                      📄
-                    </button>
-                    <button
-                      onClick={() => handleDelete(workflow.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title="Delete workflow"
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <WorkflowsTable
+            workflows={sortedWorkflows}
+            selectionMode={selectionMode}
+            selectedWorkflowIds={selectedWorkflowIds}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onToggleSelect={toggleWorkflowSelection}
+            onOpenWorkflow={fetchWorkflowDetails}
+            onToggleEnabled={handleToggleEnabled}
+            onDelete={handleDelete}
+            onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
+            runningWorkflows={runningWorkflows}
+            totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+          />
         )}
       </div>
 
@@ -1677,6 +1662,144 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function WorkflowsTable({
+  workflows,
+  selectionMode,
+  selectedWorkflowIds,
+  sortColumn,
+  sortDirection,
+  onSort,
+  onToggleSelect,
+  onOpenWorkflow,
+  onToggleEnabled,
+  onDelete,
+  onOpenFile,
+  runningWorkflows,
+  totalCost,
+}: {
+  workflows: Workflow[]
+  selectionMode: boolean
+  selectedWorkflowIds: Set<string>
+  sortColumn: WorkflowSortColumn
+  sortDirection: 'asc' | 'desc'
+  onSort: (column: WorkflowSortColumn) => void
+  onToggleSelect: (workflowId: string) => void
+  onOpenWorkflow: (workflowId: string) => void
+  onToggleEnabled: (workflowId: string, enabled: boolean) => void
+  onDelete: (workflowId: string) => void
+  onOpenFile: (workflowId: string) => void
+  runningWorkflows: Set<string>
+  totalCost: number
+}) {
+  const SortHeader = ({ column, label }: { column: WorkflowSortColumn; label: string }) => (
+    <button
+      onClick={() => onSort(column)}
+      className="flex items-center gap-1 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+    >
+      {label}
+      {sortColumn === column && (
+        <span className="text-sky-600 dark:text-sky-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+      )}
+    </button>
+  )
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+            <tr>
+              {selectionMode && <th className="px-4 py-3 text-left w-10"></th>}
+              <th className="px-4 py-3 text-left"><SortHeader column="name" label="Workflow" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="status" label="Status" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="participants" label="Agents" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="schedule" label="Schedule" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="mode" label="Mode" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="runs" label="Runs" /></th>
+              <th className="px-4 py-3 text-left"><SortHeader column="updated" label="Updated" /></th>
+              <th className="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workflows.map(workflow => {
+              const isRunning = runningWorkflows.has(workflow.id)
+              const statusLabel = isRunning ? 'Running' : workflow.enabled ? 'Enabled' : 'Disabled'
+
+              return (
+                <tr key={workflow.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                  {selectionMode && (
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedWorkflowIds.has(workflow.id)}
+                        onChange={() => onToggleSelect(workflow.id)}
+                        className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                      />
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <button onClick={() => onOpenWorkflow(workflow.id)} className="text-left">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{workflow.description}</div>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                      isRunning
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : workflow.enabled
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {statusLabel}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{workflow.participantCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{workflow.scheduleHuman || workflow.schedule || 'Manual'}</td>
+                  <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{workflow.executionMode}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                    {workflow.maxRuns && workflow.maxRuns > 0
+                      ? `${workflow.runCount || 0}/${workflow.maxRuns}`
+                      : 'Unlimited'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{new Date(workflow.modified).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      {totalCost > 0 && (
+                        <span className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+                          ${totalCost.toFixed(3)}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => onToggleEnabled(workflow.id, workflow.enabled)}
+                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        {workflow.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        onClick={() => onOpenFile(workflow.id)}
+                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        File
+                      </button>
+                      <button
+                        onClick={() => onDelete(workflow.id)}
+                        className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
