@@ -1,6 +1,8 @@
+NOTE: update and archive completed items since starting a new week and sprint.
+
 # Backlog
 
-> Last updated: March 22, 2026
+> Last updated: March 23, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -10,7 +12,7 @@
 - [x] **Issue #38: production root route returns `Cannot GET /`** — fix static client serving / SPA fallback in production container
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
-- [ ] **CI green on `main`** — latest clean-room CI stabilization is in flight; do not assume release automation is healthy until GitHub Actions is green on `main`
+- [x] **CI green on `main`** — clean-room CI is passing again on GitHub Actions
 
 ### Security (Sprint Priority #1)
 - [x] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. 27 issues found, critical/high fixed in v1.1.6.
@@ -26,6 +28,7 @@
 - [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
 - [ ] **Per-agent cost limits** — individual agent limits (future, currently workspace-level)
 - [ ] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause via selection. Disabled agents excluded from workflows.
+- [ ] **Bulk pause agents** — selection-mode action to pause/stop many agents safely without deleting them. Workflows should either skip paused agents cleanly or allow in-flight runs to finish without corrupting state.
 - [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
 
@@ -41,6 +44,7 @@
 ### Templates Library (Sprint Priority #5)
 - [ ] **Template categories** — Personal, Enterprise, Teams with 5-10 templates each
 - [ ] **Pre-built templates**: Job Search, Sales Lead, Deep Research, Customer Support, Content Creation, Legal Review, Student Study Group, Back Office, Retail Operations, Marketing Team
+- [ ] **Non-engineering org and agent examples** — expand system templates beyond software engineering with strong examples for operations, support, sales, marketing, research, legal, education, and back office use cases
 - [ ] **Custom templates** — save current workspace as template (agents, groups, communities, workflows)
 - [ ] **Template sharing** — export/import via email (zip or JSON)
 - [ ] **Template skills audit** — role-appropriate skills per agent type
@@ -59,6 +63,7 @@
 - [ ] **Agent list pagination** — paginate agent list/table views (10 per page) to handle growing rosters
 - [ ] **Activity metering loading state** — show placeholder message while Opik data loads (e.g., "Fetching metering data…") so users don't think it's broken on cold start
 - [x] **Issue #31** Templates list view — with select/select-all/bulk-delete
+- [ ] **Workflow next-run visibility** — show next scheduled run and a compact “coming up / running now / next in queue” view so users can understand dozens of workflows at a glance
 - [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents
 
 ## High Priority (Quality / Test Automation)
@@ -80,6 +85,23 @@
 
 - [ ] **Community rules and constraints** — define reusable rules/constraints at the community level and inherit them into all groups in that community. Example: engineering community security constraints applied consistently across engineering groups/workflows.
 - [ ] **Workflow table view** — sortable columns like agent table view, but defer until after release blockers
+
+## Sprint: March 23-31
+
+### Must Land Before Workshop
+- [ ] **Workflow table view**
+- [ ] **Workflow next-run visibility**
+- [ ] **Bulk pause agents**
+- [ ] **Close stale fixed GitHub issues and keep docs aligned with shipped behavior**
+
+### Strong Next Slice If Time Allows
+- [ ] **Community rules and constraints**
+- [ ] **Non-engineering org and agent examples**
+- [ ] **OAuth clean-room auth test**
+
+### Defer Until After Workshop Unless Blocking
+- [ ] **Secure multi-user BYOK storage**
+- [ ] **Google/Apple auth**
 
 ## Medium Priority
 
@@ -116,26 +138,8 @@
 
 See CHANGELOG.md. Key: Opik metering, cost badges, unread indicators, @mention grouping, Select All, agent PRs merged, markdown chat, nav reorder.
 
-## Revised Weekend + Monday Cut
-
-### Saturday (4h)
-- [x] Fix **Issue #38** production root route / SPA fallback
-- [ ] Run GitHub OAuth end-to-end locally with final env values
-- [ ] Do auth/security verification pass on protected routes and session behavior
-
-### Sunday (4h)
-- [x] Fix **Issue #28** agent config validation before save
-- [x] Fix **Issue #30** agents detail mobile responsive audit
-- [ ] If time remains: Activity metering loading state or workflow table polish
-
-### Monday (10h)
-- [ ] Decide and execute one larger feature: **Issue #29 Forward to group** or **Pause/disable agents**
-- [ ] Address one operational blocker: **Issue #14** workflow cron scheduler or **Issue #11** clean-room setup flow
-- [ ] Integration test pass across auth, workspace switching, agent flows, mobile views, and model/template regressions
-- [ ] Backlog/docs cleanup and close completed issues
-
 ## Notes
 
-- Main next step is no longer release packaging; it is CI trust plus backlog cleanup.
-- Tomorrow recommended order: **CI green on `main`**, close stale fixed issues, then **Workflow table view**.
-- Secure multi-user BYOK storage should wait until CI and workflow scale UX are in better shape.
+- Best pre-workshop order is: **workflow table view**, **workflow next-run visibility**, **bulk pause agents**, then **community rules**.
+- `Community rules` is strategically important, but it is less immediately demo-visible than workflow scale management and budget-control actions.
+- Secure multi-user BYOK storage should remain deferred until after workflow scale UX and workshop readiness.
