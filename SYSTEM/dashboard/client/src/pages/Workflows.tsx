@@ -69,6 +69,7 @@ interface WorkflowExecutionDetails {
 }
 
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
+type WorkflowHealthState = 'running' | 'enabled' | 'failed' | 'paused' | 'disabled'
 
 interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
@@ -104,6 +105,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<Set<string>>(new Set())
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
+  const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
@@ -196,6 +198,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         )
 
         const running = new Set(checks.filter(c => c.isRunning).map(c => c.id))
+        const latestStatuses = Object.fromEntries(
+          checks.map(check => [check.id, check.execution?.status as WorkflowExecution['status'] | undefined])
+        )
+        setLatestExecutionStatuses(latestStatuses)
 
         // Check for completion transitions and show toasts
         // IMPORTANT: Do this BEFORE setState so toastQueue is populated synchronously
@@ -968,6 +974,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 isSelected={selectedWorkflowIds.has(workflow.id)}
                 onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
                 isRunning={runningWorkflows.has(workflow.id)}
+                healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
                 totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
               />
             ))}
@@ -986,6 +993,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             onDelete={handleDelete}
             onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
             runningWorkflows={runningWorkflows}
+            latestExecutionStatuses={latestExecutionStatuses}
             totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
           />
         )}
@@ -1698,6 +1706,7 @@ function WorkflowsTable({
   onDelete,
   onOpenFile,
   runningWorkflows,
+  latestExecutionStatuses,
   totalCost,
 }: {
   workflows: Workflow[]
@@ -1712,6 +1721,7 @@ function WorkflowsTable({
   onDelete: (workflowId: string) => void
   onOpenFile: (workflowId: string) => void
   runningWorkflows: Set<string>
+  latestExecutionStatuses: Record<string, WorkflowExecution['status'] | undefined>
   totalCost: number
 }) {
   const SortHeader = ({ column, label }: { column: WorkflowSortColumn; label: string }) => (
@@ -1747,6 +1757,8 @@ function WorkflowsTable({
             {workflows.map(workflow => {
               const isRunning = runningWorkflows.has(workflow.id)
               const statusLabel = isRunning ? 'Running' : workflow.enabled ? 'Enabled' : 'Disabled'
+              const healthState = getWorkflowHealthState(workflow, isRunning, latestExecutionStatuses[workflow.id])
+              const statusDotClass = getWorkflowHealthDotClass(healthState)
 
               return (
                 <tr key={workflow.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40">
@@ -1762,7 +1774,10 @@ function WorkflowsTable({
                   )}
                   <td className="px-4 py-3">
                     <button onClick={() => onOpenWorkflow(workflow.id)} className="text-left">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      </div>
                       <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{workflow.description}</div>
                     </button>
                   </td>
@@ -1823,7 +1838,7 @@ function WorkflowsTable({
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, totalCost }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
@@ -1832,9 +1847,11 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   isSelected?: boolean
   onToggleSelect?: () => void
   isRunning?: boolean
+  healthState?: WorkflowHealthState
   totalCost?: number
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
+  const statusDotClass = getWorkflowHealthDotClass(healthState || getWorkflowHealthState(workflow, Boolean(isRunning)))
 
   return (
     <div className={`border rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer relative ${
@@ -1861,6 +1878,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
       <div onClick={onToggleSelect || onClick}>
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2 pr-8">
+            <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
             <h3 className="font-semibold text-gray-900 text-sm dark:text-gray-100">{workflow.name}</h3>
             {isRunning && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
@@ -1869,9 +1887,6 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${
-              workflow.enabled ? 'bg-green-400' : 'bg-gray-300'
-            } ${isRunning ? 'animate-pulse' : ''}`} />
             {!onToggleSelect && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
@@ -1956,4 +1971,32 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
       )}
     </div>
   )
+}
+
+function getWorkflowHealthState(
+  workflow: Workflow,
+  isRunning: boolean,
+  latestStatus?: WorkflowExecution['status']
+): WorkflowHealthState {
+  if (isRunning || latestStatus === 'running') return 'running'
+  if (!workflow.enabled) return 'disabled'
+  if (latestStatus === 'failed') return 'failed'
+  if (latestStatus === 'paused') return 'paused'
+  return 'enabled'
+}
+
+function getWorkflowHealthDotClass(state: WorkflowHealthState): string {
+  switch (state) {
+    case 'running':
+      return 'bg-green-400 animate-pulse'
+    case 'failed':
+      return 'bg-red-400'
+    case 'paused':
+      return 'bg-amber-400'
+    case 'disabled':
+      return 'bg-gray-400 dark:bg-gray-500'
+    case 'enabled':
+    default:
+      return 'bg-sky-400'
+  }
 }
