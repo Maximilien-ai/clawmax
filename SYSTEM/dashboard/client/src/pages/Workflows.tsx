@@ -17,6 +17,7 @@ interface Workflow {
   description: string
   schedule: string
   scheduleHuman?: string
+  nextRunAt?: string | null
   enabled: boolean
   executionMode: 'automated' | 'managed'
   owner?: string
@@ -88,6 +89,36 @@ function stripFrontmatter(content: string): string {
     return content.slice(match[0].length).trim()
   }
   return content.trim()
+}
+
+function formatNextRun(nextRunAt?: string | null): string {
+  if (!nextRunAt) return 'Not scheduled'
+  const date = new Date(nextRunAt)
+  if (Number.isNaN(date.getTime())) return 'Not scheduled'
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
+function formatNextRunRelative(nextRunAt?: string | null): string {
+  if (!nextRunAt) return 'No upcoming run'
+  const date = new Date(nextRunAt)
+  if (Number.isNaN(date.getTime())) return 'No upcoming run'
+
+  const diffMs = date.getTime() - Date.now()
+  if (diffMs <= 0) return 'Due now'
+
+  const diffMins = Math.round(diffMs / 60000)
+  if (diffMins < 60) return `In ${diffMins}m`
+
+  const diffHours = Math.round(diffMins / 60)
+  if (diffHours < 48) return `In ${diffHours}h`
+
+  const diffDays = Math.round(diffHours / 24)
+  return `In ${diffDays}d`
 }
 
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
@@ -1116,6 +1147,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Schedule</h3>
                 <p className="text-sm text-gray-900 font-mono dark:text-gray-100">{selectedWorkflow.schedule}</p>
                 <p className="text-xs text-gray-500 mt-1">{selectedWorkflow.scheduleHuman}</p>
+                <p className="text-xs text-sky-600 dark:text-sky-400 mt-1">
+                  Next run: {formatNextRun(selectedWorkflow.nextRunAt)} · {formatNextRunRelative(selectedWorkflow.nextRunAt)}
+                </p>
                 {selectedWorkflow.maxRuns != null && selectedWorkflow.maxRuns > 0 ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                     Run {selectedWorkflow.runCount || 0} of {selectedWorkflow.maxRuns}
@@ -1793,7 +1827,12 @@ function WorkflowsTable({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{workflow.participantCount}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{workflow.scheduleHuman || workflow.schedule || 'Manual'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                    <div>{workflow.scheduleHuman || workflow.schedule || 'Manual'}</div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Next: {formatNextRun(workflow.nextRunAt)} · {formatNextRunRelative(workflow.nextRunAt)}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{workflow.executionMode}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                     {workflow.maxRuns && workflow.maxRuns > 0
@@ -1903,6 +1942,8 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 mb-3">
           <span>{workflow.scheduleHuman || workflow.schedule}</span>
+          <span>·</span>
+          <span className="text-gray-600 dark:text-gray-300">Next {formatNextRunRelative(workflow.nextRunAt)}</span>
           <span>·</span>
           <span>{workflow.participantCount} agent{workflow.participantCount !== 1 ? 's' : ''}</span>
           {workflow.maxRuns && workflow.maxRuns > 0 ? (

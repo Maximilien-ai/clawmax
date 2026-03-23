@@ -11,6 +11,7 @@ import {
   validateCron,
   triggerWorkflow
 } from '../lib/workflows'
+import { getNextCronRun } from '../lib/cron-next-run'
 import { listAgents } from '../lib/workspace'
 import { generateCronFromText } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
@@ -69,6 +70,7 @@ router.get('/', (req, res) => {
         description: workflow.description,
         schedule: workflow.schedule,
         scheduleHuman: cronInfo.humanReadable || workflow.schedule,
+        nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
         enabled: workflow.enabled,
         executionMode: workflow.executionMode,
         owner: workflow.owner,
@@ -113,6 +115,7 @@ router.get('/:id', (req, res) => {
     const response = {
       ...workflow,
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
+      nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
       participantCount: participants.length,
       resolvedParticipants: participants.map(p => ({ id: p.agentId, name: p.agentName, reason: p.reason }))
     }

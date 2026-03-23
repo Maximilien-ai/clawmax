@@ -258,6 +258,15 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Cron next-run unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/cron-next-run.test.ts > /tmp/clawmax-cron-next-run.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-cron-next-run.out; then
+  pass "Cron next-run unit tests (5 tests)"
+else
+  fail "Cron next-run unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Safe env / BYOK unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/safe-env.test.ts > /tmp/clawmax-safe-env.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-safe-env.out; then
