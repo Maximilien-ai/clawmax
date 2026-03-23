@@ -3120,16 +3120,21 @@ const AgentTableView = React.memo(function AgentTableView({
             >
               {selectionMode && (
                 <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedAgentIds.has(agent.id)}
-                    onChange={(e) => {
+                  <button
+                    type="button"
+                    onClick={(e) => {
                       e.stopPropagation()
                       onToggleSelect(agent.id)
                     }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500 dark:border-gray-600"
-                  />
+                    className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                      selectedAgentIds.has(agent.id)
+                        ? 'bg-sky-600 border-sky-600 text-white'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                    } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                    title={selectedAgentIds.has(agent.id) ? 'Deselect agent' : 'Select agent'}
+                  >
+                    {selectedAgentIds.has(agent.id) ? '✓' : '□'}
+                  </button>
                 </td>
               )}
               <td className="px-4 py-3 whitespace-nowrap">
