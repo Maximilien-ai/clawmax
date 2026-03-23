@@ -3074,21 +3074,29 @@ const AgentTableView = React.memo(function AgentTableView({
         <thead className="bg-gray-50 sticky top-0 z-10 dark:bg-gray-900">
           <tr>
             {selectionMode && (
-              <th className="px-4 py-3 w-12">
-                <input
-                  type="checkbox"
-                  checked={agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))}
-                  onChange={(e) => {
-                    agents.forEach(a => {
-                      if (e.target.checked && !selectedAgentIds.has(a.id)) {
-                        onToggleSelect(a.id)
-                      } else if (!e.target.checked && selectedAgentIds.has(a.id)) {
-                        onToggleSelect(a.id)
+              <th className="px-4 py-3 w-14">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const allSelected = agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))
+                    agents.forEach(agent => {
+                      if (allSelected && selectedAgentIds.has(agent.id)) {
+                        onToggleSelect(agent.id)
+                      } else if (!allSelected && !selectedAgentIds.has(agent.id)) {
+                        onToggleSelect(agent.id)
                       }
                     })
                   }}
-                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500 dark:border-gray-600"
-                />
+                  className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                    agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))
+                      ? 'bg-sky-600 border-sky-600 text-white'
+                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                  } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                  title="Toggle select all visible agents"
+                >
+                  {agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id)) ? '✓' : '□'}
+                </button>
               </th>
             )}
             <SortHeader column="name" label="Name" />
