@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
+import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { readStoredByokKeys } from '../lib/byok'
 
 interface AgentTargeting {
@@ -116,8 +117,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [archivedExecutions, setArchivedExecutions] = useState<WorkflowExecution[]>([])
   const [archivedWorkflowId, setArchivedWorkflowId] = useState<string | null>(null)
   const [trackedExecutions, setTrackedExecutions] = useState<Map<string, { status: string; executionId: string; workflowName: string }>>(new Map())
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Workflow | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    itemName: string
+    consequences: string[]
+    onConfirm: () => Promise<void>
+  } | null>(null)
 
   const fetchWorkflows = () => {
     setLoading(true)
@@ -495,33 +499,32 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const handleDelete = (id: string) => {
     const workflow = workflows.find(w => w.id === id)
     if (!workflow) return
-    setDeleteTarget(workflow)
-    setShowDeleteConfirm(true)
-  }
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return
+    setDeleteDialog({
+      itemName: workflow.name,
+      consequences: getWorkflowDeleteConsequences([workflow]),
+      onConfirm: async () => {
+        try {
+          const resp = await fetch(`/api/workflows/${workflow.id}`, {
+            method: 'DELETE'
+          })
 
-    try {
-      const resp = await fetch(`/api/workflows/${deleteTarget.id}`, {
-        method: 'DELETE'
-      })
+          if (!resp.ok) throw new Error('Failed to delete')
 
-      if (!resp.ok) throw new Error('Failed to delete')
+          showSuccess(`Deleted workflow "${workflow.name}"`)
+          fetchWorkflows()
 
-      showSuccess(`Deleted workflow "${deleteTarget.name}"`)
-      fetchWorkflows()
+          if (selectedWorkflow?.id === workflow.id) {
+            setSelectedWorkflow(null)
+            setShowDetailPanel(false)
+          }
 
-      if (selectedWorkflow?.id === deleteTarget.id) {
-        setSelectedWorkflow(null)
-        setShowDetailPanel(false)
+          setDeleteDialog(null)
+        } catch (err) {
+          showError('Failed to delete workflow')
+        }
       }
-
-      setShowDeleteConfirm(false)
-      setDeleteTarget(null)
-    } catch (err) {
-      showError('Failed to delete workflow')
-    }
+    })
   }
 
   const handleCreateWorkflow = async (data: any) => {
@@ -636,15 +639,20 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
 
     try {
-      await Promise.all(
-        workflowsToDisable.map(w =>
-          fetch(`/api/workflows/${w.id}`, {
+      const responses = await Promise.all(
+        workflowsToDisable.map(async w => {
+          const resp = await fetch(`/api/workflows/${w.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: false })
           })
-        )
+          if (!resp.ok) {
+            throw new Error(`Failed to disable ${w.name}`)
+          }
+          return resp
+        })
       )
+      if (responses.length === 0) throw new Error('No workflows disabled')
       showSuccess(`Disabled ${workflowsToDisable.length} workflow${workflowsToDisable.length !== 1 ? 's' : ''}`)
       fetchWorkflows()
       setSelectedWorkflowIds(new Set())
@@ -658,31 +666,36 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     if (selectedWorkflowIds.size === 0) return
 
     const selectedWorkflowsList = workflows.filter(w => selectedWorkflowIds.has(w.id))
-    const workflowNames = selectedWorkflowsList.map(w => w.name).join(', ')
-
-    if (!confirm(`Delete ${selectedWorkflowIds.size} workflow${selectedWorkflowIds.size !== 1 ? 's' : ''}?\n\n${workflowNames}`)) {
+    if (selectedWorkflowsList.length === 0) {
       return
     }
 
-    try {
-      await Promise.all(
-        Array.from(selectedWorkflowIds).map(id =>
-          fetch(`/api/workflows/${id}`, { method: 'DELETE' })
-        )
-      )
-      showSuccess(`Deleted ${selectedWorkflowIds.size} workflow${selectedWorkflowIds.size !== 1 ? 's' : ''}`)
-      fetchWorkflows()
-      setSelectedWorkflowIds(new Set())
-      setSelectionMode(false)
+    setDeleteDialog({
+      itemName: `${selectedWorkflowsList.length} workflow${selectedWorkflowsList.length !== 1 ? 's' : ''}`,
+      consequences: getWorkflowDeleteConsequences(selectedWorkflowsList),
+      onConfirm: async () => {
+        try {
+          await Promise.all(
+            selectedWorkflowsList.map(async workflow => {
+              const resp = await fetch(`/api/workflows/${workflow.id}`, { method: 'DELETE' })
+              if (!resp.ok) throw new Error(`Failed to delete ${workflow.name}`)
+            })
+          )
+          showSuccess(`Deleted ${selectedWorkflowsList.length} workflow${selectedWorkflowsList.length !== 1 ? 's' : ''}`)
+          fetchWorkflows()
+          setSelectedWorkflowIds(new Set())
+          setSelectionMode(false)
 
-      // Close detail panel if showing a deleted workflow
-      if (selectedWorkflow && selectedWorkflowIds.has(selectedWorkflow.id)) {
-        setSelectedWorkflow(null)
-        setShowDetailPanel(false)
+          if (selectedWorkflow && selectedWorkflowIds.has(selectedWorkflow.id)) {
+            setSelectedWorkflow(null)
+            setShowDetailPanel(false)
+          }
+          setDeleteDialog(null)
+        } catch (err) {
+          showError('Failed to delete workflows')
+        }
       }
-    } catch (err) {
-      showError('Failed to delete workflows')
-    }
+    })
   }
 
   // Get all unique tags from workflow targeting
@@ -699,6 +712,24 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const next = new Set(prev)
       if (next.has(tag)) next.delete(tag)
       else next.add(tag)
+      return next
+    })
+  }
+
+  const toggleWorkflowTagSelection = (tag: string) => {
+    const matchingIds = sortedWorkflows
+      .filter(workflow => workflow.targeting.tags.includes(tag))
+      .map(workflow => workflow.id)
+
+    if (matchingIds.length === 0) return
+
+    const allSelected = matchingIds.every(id => selectedWorkflowIds.has(id))
+    setSelectedWorkflowIds(prev => {
+      const next = new Set(prev)
+      for (const id of matchingIds) {
+        if (allSelected) next.delete(id)
+        else next.add(id)
+      }
       return next
     })
   }
@@ -760,6 +791,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     return rows
   }, [filteredWorkflows, sortColumn, sortDirection, runningWorkflows])
 
+  const allVisibleSelected = sortedWorkflows.length > 0 && sortedWorkflows.every(workflow => selectedWorkflowIds.has(workflow.id))
+  const selectedWorkflows = workflows.filter(workflow => selectedWorkflowIds.has(workflow.id))
+  const selectedEnabledCount = selectedWorkflows.filter(workflow => workflow.enabled).length
+  const selectedDisabledCount = selectedWorkflows.filter(workflow => !workflow.enabled).length
+
   const handleSort = (column: WorkflowSortColumn) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -782,50 +818,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            {selectionMode && selectedWorkflowIds.size > 0 && (
-              <>
-                <span className="text-sm text-gray-600 mr-2">
-                  {selectedWorkflowIds.size} selected
-                </span>
-                <button
-                  onClick={handleBulkEnable}
-                  className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-                >
-                  Enable Selected
-                </button>
-                <button
-                  onClick={handleBulkDisable}
-                  className="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
-                >
-                  Disable Selected
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
-                >
-                  Delete Selected
-                </button>
-              </>
-            )}
-            <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 rounded-md p-0.5">
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
-                }`}
+                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 title="Grid view"
               >
                 ⊞
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
-                }`}
+                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 title="List view"
               >
                 ☰
@@ -841,7 +844,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
                 selectionMode
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple workflows'}
             >
@@ -850,15 +853,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             {selectionMode && (
               <button
                 onClick={() => {
-                  if (selectedWorkflowIds.size === sortedWorkflows.length) {
+                  if (allVisibleSelected) {
                     setSelectedWorkflowIds(new Set())
                   } else {
                     setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
                   }
                 }}
-                className="px-3 py-2 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
-                {selectedWorkflowIds.size === sortedWorkflows.length ? 'Deselect All' : 'Select All'}
+                {allVisibleSelected ? 'Deselect All' : 'Select All'}
               </button>
             )}
             <button
@@ -921,6 +924,28 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 </button>
               ))}
             </div>
+            {selectionMode && (
+              <div className="flex items-center gap-2 flex-wrap mt-2">
+                <span className="text-xs text-gray-400 font-medium">Select tag groups:</span>
+                {allTags.map(tag => {
+                  const matchingVisible = sortedWorkflows.filter(workflow => workflow.targeting.tags.includes(tag))
+                  const allMatchingSelected = matchingVisible.length > 0 && matchingVisible.every(workflow => selectedWorkflowIds.has(workflow.id))
+                  return (
+                    <button
+                      key={`select-${tag}`}
+                      onClick={() => toggleWorkflowTagSelection(tag)}
+                      className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                        allMatchingSelected
+                          ? 'bg-blue-600 text-white border border-blue-600'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                      }`}
+                    >
+                      {allMatchingSelected ? 'Deselect' : 'Select'} {tag}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1590,80 +1615,74 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete Workflow?</h3>
-
-            {/* Workflow name */}
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-2xl">⚙️</span>
-              <div>
-                <p className="font-semibold text-gray-800 dark:text-gray-200">{deleteTarget.name}</p>
-                <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
-              </div>
-            </div>
-
-            {/* Impact summary */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2 mb-4">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Impact</p>
-              <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
-                <li className="flex items-center gap-2">
-                  <span className="w-4 text-center">📅</span>
-                  <span>Scheduled execution: <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">{deleteTarget.schedule}</code></span>
-                </li>
-                {deleteTarget.participantCount > 0 && (
-                  <li className="flex items-center gap-2">
-                    <span className="w-4 text-center">👥</span>
-                    <span>{deleteTarget.participantCount} agent{deleteTarget.participantCount !== 1 ? 's' : ''} will no longer receive this workflow</span>
-                  </li>
-                )}
-                {deleteTarget.targeting.groups.length > 0 && (
-                  <li className="flex items-center gap-2">
-                    <span className="w-4 text-center">💬</span>
-                    <span>Targets {deleteTarget.targeting.groups.length} group{deleteTarget.targeting.groups.length !== 1 ? 's' : ''}</span>
-                  </li>
-                )}
-                {deleteTarget.targeting.communities.length > 0 && (
-                  <li className="flex items-center gap-2">
-                    <span className="w-4 text-center">🏘</span>
-                    <span>Targets {deleteTarget.targeting.communities.length} communit{deleteTarget.targeting.communities.length !== 1 ? 'ies' : 'y'}</span>
-                  </li>
-                )}
-                <li className="flex items-center gap-2">
-                  <span className="w-4 text-center">📁</span>
-                  <span>Workflow file <code className="text-xs bg-white dark:bg-gray-800 px-1 rounded">WORKFLOWS/{deleteTarget.id}.md</code> will be removed</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-4 text-center">📊</span>
-                  <span>All execution history will be lost</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(false)
-                  setDeleteTarget(null)
-                }}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
-              >
-                Delete Workflow
-              </button>
-            </div>
-          </div>
+      {selectedWorkflowIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 z-40 max-w-[calc(100vw-2rem)] overflow-x-auto">
+          <span className="font-medium whitespace-nowrap">
+            {selectedWorkflowIds.size} workflow{selectedWorkflowIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => setSelectedWorkflowIds(new Set())}
+            className="px-3 py-1 bg-blue-700 hover:bg-blue-800 rounded transition-colors text-sm whitespace-nowrap"
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleBulkEnable}
+            disabled={selectedDisabledCount === 0}
+            className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded transition-colors text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Enable
+          </button>
+          <button
+            onClick={handleBulkDisable}
+            disabled={selectedEnabledCount === 0}
+            className="px-3 py-1 bg-orange-600 hover:bg-orange-700 rounded transition-colors text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Disable
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded transition-colors text-sm whitespace-nowrap"
+          >
+            Delete
+          </button>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        isOpen={deleteDialog !== null}
+        itemName={deleteDialog?.itemName || ''}
+        itemType="workflows"
+        warningMessage="Deleting workflows removes their definitions and execution history. Scheduled runs will stop immediately."
+        consequences={deleteDialog?.consequences}
+        onConfirm={async () => {
+          if (deleteDialog) {
+            await deleteDialog.onConfirm()
+          }
+        }}
+        onCancel={() => setDeleteDialog(null)}
+      />
     </div>
   )
+}
+
+function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
+  const consequences: string[] = []
+
+  workflows.forEach(workflow => {
+    consequences.push(`${workflow.name} — ${workflow.scheduleHuman || workflow.schedule || 'Manual'}`)
+    consequences.push(`  • ${workflow.participantCount} targeted agent${workflow.participantCount !== 1 ? 's' : ''}`)
+    consequences.push(`  • WORKFLOWS/${workflow.id}.md will be removed`)
+    if (workflow.targeting.groups.length > 0) {
+      consequences.push(`  • targets ${workflow.targeting.groups.length} group${workflow.targeting.groups.length !== 1 ? 's' : ''}`)
+    }
+    if (workflow.targeting.communities.length > 0) {
+      consequences.push(`  • targets ${workflow.targeting.communities.length} communit${workflow.targeting.communities.length !== 1 ? 'ies' : 'y'}`)
+    }
+  })
+
+  consequences.push('All execution history for deleted workflows will be lost')
+  return consequences
 }
 
 function WorkflowsTable({
