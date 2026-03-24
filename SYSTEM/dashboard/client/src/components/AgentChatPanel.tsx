@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { readStoredByokKeys } from '../lib/byok'
@@ -8,6 +8,11 @@ interface Message {
   content: string
   timestamp: number
   id: string
+}
+
+interface GroupTarget {
+  type: 'group' | 'community'
+  name: string
 }
 
 interface Props {
@@ -84,6 +89,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [error, setError] = useState<string | null>(null)
   const [sessionId] = useState<string>(`dashboard-${agentId}-chat`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
+  const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
+  const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
+  const [forwardingTo, setForwardingTo] = useState<string | null>(null)
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem(`agent-chat-mode-${agentId}`)
@@ -345,6 +353,48 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     }
   }
 
+  const openForwardPicker = useCallback(async (messageId: string) => {
+    setForwardTargetMsgId(messageId)
+    if (forwardGroups.length === 0) {
+      try {
+        const [groupsResp, commsResp] = await Promise.all([
+          fetch('/api/groups').then(r => r.json()),
+          fetch('/api/communities').then(r => r.json()),
+        ])
+        const targets: GroupTarget[] = [
+          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name })),
+          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name })),
+        ]
+        setForwardGroups(targets)
+      } catch {}
+    }
+  }, [forwardGroups.length])
+
+  async function forwardToGroup(target: GroupTarget) {
+    const msg = messages.find(m => m.id === forwardTargetMsgId)
+    if (!msg) return
+    setForwardingTo(`${target.type}:${target.name}`)
+    try {
+      const endpoint = target.type === 'community'
+        ? `/api/communities/${encodeURIComponent(target.name)}/messages`
+        : `/api/groups/${encodeURIComponent(target.name)}/messages`
+      const prefix = msg.role === 'assistant' ? `**[Forwarded from ${agentName}]**\n\n` : `**[Forwarded by user from chat with ${agentName}]**\n\n`
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: prefix + msg.content,
+          from: msg.role === 'assistant' ? agentId : 'user',
+          mentions: [],
+        }),
+      })
+      setForwardTargetMsgId(null)
+      setForwardingTo(null)
+    } catch {
+      setForwardingTo(null)
+    }
+  }
+
   async function clearMessages() {
     try {
       const r = await fetch(`/api/agents/${agentId}/chat/messages`, { method: 'DELETE' })
@@ -582,19 +632,54 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   </>
                 )}
 
-                {/* Resubmit button for user messages */}
-                {msg.role === 'user' && (
-                  <button
-                    onClick={() => resendMessage(msg.id)}
-                    disabled={sending}
-                    className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 text-sky-600 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Resend this message"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                )}
+                {/* Action buttons on hover */}
+                <div className="absolute -bottom-2 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Forward to group */}
+                  <div className="relative">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id) }}
+                      className="bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 rounded-full p-1.5 shadow-md hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                      title="Forward to group"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                    </button>
+                    {forwardTargetMsgId === msg.id && (
+                      <div className="absolute bottom-full right-0 mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">Forward to</div>
+                        {forwardGroups.length === 0 && (
+                          <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                        )}
+                        {forwardGroups.map(g => (
+                          <button
+                            key={`${g.type}:${g.name}`}
+                            onClick={() => forwardToGroup(g)}
+                            disabled={forwardingTo === `${g.type}:${g.name}`}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span className="text-gray-400">{g.type === 'community' ? '🏘' : '👥'}</span>
+                            <span className="truncate text-gray-700 dark:text-gray-200">{g.name}</span>
+                            {forwardingTo === `${g.type}:${g.name}` && <span className="text-[10px] text-gray-400">sending...</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Resend for user messages */}
+                  {msg.role === 'user' && (
+                    <button
+                      onClick={() => resendMessage(msg.id)}
+                      disabled={sending}
+                      className="bg-white dark:bg-gray-800 text-sky-600 rounded-full p-1.5 shadow-md hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Resend this message"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

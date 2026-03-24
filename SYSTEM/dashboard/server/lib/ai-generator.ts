@@ -251,6 +251,116 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
 }
 
 /**
+ * Generate a workflow definition from natural language description.
+ */
+export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
+  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('No system API key configured for generation')
+  }
+
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are a workflow generator for ClawMax, a multiagent orchestration platform.
+
+Given a natural language description, generate a valid workflow definition in JSON format.
+
+Available agents: ${availableAgents.join(', ')}
+Available tags: ${availableTags.join(', ')}
+
+A workflow has:
+- name: short descriptive name
+- description: what the workflow does
+- schedule: a cron expression (e.g., "0 9 * * 1-5" for weekdays at 9am) or "manual"
+- executionMode: "automated" (agents run independently) or "managed" (sequential with coordination)
+- targeting: which agents participate, defined by:
+  - agents: array of agent IDs from the available list
+  - tags: array of agent tags from the available list
+  - groups: array of group names
+  - communities: array of community names
+- content: the detailed instruction/prompt that agents will receive when the workflow runs
+
+Respond with ONLY valid JSON, no markdown fences or explanation.`
+      },
+      {
+        role: 'user',
+        content: description
+      }
+    ],
+    temperature: 0.7,
+  })
+
+  const raw = completion.choices[0].message.content?.trim() || ''
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw]
+  const jsonStr = (jsonMatch[1] || raw).trim()
+
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    throw new Error(`Generated output is not valid JSON: ${jsonStr.slice(0, 200)}`)
+  }
+}
+
+/**
+ * Generate an organization template from natural language description.
+ */
+export async function generateTemplateFromNL(description: string): Promise<any> {
+  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('No system API key configured for generation')
+  }
+
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are an organization template generator for ClawMax, a multiagent orchestration platform.
+
+Given a natural language description, generate a valid organization template in JSON format.
+
+A template has:
+- name: organization name
+- description: what this organization does
+- version: "1.0.0"
+- author: "ClawMax AI"
+- tags: relevant tags array
+- agents: array of agent definitions, each with:
+  - id: lowercase kebab-case ID (e.g., "lead-engineer")
+  - name: display name
+  - role: job title/role
+  - communities: array of community names
+  - groups: array of group names
+  - identity: multiline string describing role, responsibilities, expertise
+  - tools: array of tool names (e.g., "gh-issues", "github", "web-search", "code-review")
+- communities: array with name, description, tags
+- groups: array with name, description, community (parent), tags
+
+Respond with ONLY valid JSON, no markdown fences or explanation.`
+      },
+      {
+        role: 'user',
+        content: description
+      }
+    ],
+    temperature: 0.7,
+  })
+
+  const raw = completion.choices[0].message.content?.trim() || ''
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw]
+  const jsonStr = (jsonMatch[1] || raw).trim()
+
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    throw new Error(`Generated output is not valid JSON: ${jsonStr.slice(0, 200)}`)
+  }
+}
+
+/**
  * Convert natural language schedule description to a cron expression.
  * Returns the cron expression and a human-readable confirmation.
  */

@@ -139,6 +139,9 @@ echo "Dashboard | API | Integration Tests"
 echo "========================================="
 echo ""
 
+# Save current active workspace so we can restore it after tests
+ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || echo "")
+
 # Ensure tests run on the correct workspace (default workspace for this repo)
 apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
 
@@ -1140,6 +1143,12 @@ fi
 rm -rf "$TEST_SKILL_DIR" "$TEST_INVALID_DIR" "$TEST_INVALID_DIR2"
 
 echo ""
+
+# Restore original workspace if it was different from default
+if [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
+  apicurl -X PUT "${API_BASE}/api/workspaces/${ORIGINAL_WORKSPACE_ID}/activate" > /dev/null 2>&1
+  echo -e "${GREEN}✓${NC} Restored active workspace: $ORIGINAL_WORKSPACE_ID"
+fi
 
 # =========================================
 # Summary

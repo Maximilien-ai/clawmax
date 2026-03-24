@@ -493,13 +493,23 @@ router.post('/communities/:name/messages', async (req, res) => {
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
+      const communityContext = `[Community chat: "${decodedName}" — from: ${from || 'User'}]\n\n${content}`
+
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
           const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          const response = await callAgent(agentId, content, agentSessionId)
+          let response = await callAgent(agentId, communityContext, agentSessionId)
+
+          // Retry once if empty response
+          if (!response || !response.trim()) {
+            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            await new Promise(r => setTimeout(r, 2000))
+            response = await callAgent(agentId, communityContext, agentSessionId)
+          }
+
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
             addMessage('community', decodedName, {
@@ -509,10 +519,20 @@ router.post('/communities/:name/messages', async (req, res) => {
             })
             console.log(`[Group Chat] Added ${agentId} response to history`)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response`)
+            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            addMessage('community', decodedName, {
+              from: agentId,
+              content: '*(Agent did not return a response. Try mentioning them directly with @)*',
+              mentions: []
+            })
           }
         } catch (err) {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          addMessage('community', decodedName, {
+            from: agentId,
+            content: `*(Error: ${err instanceof Error ? err.message.slice(0, 100) : 'failed to respond'})*`,
+            mentions: []
+          })
         }
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))
@@ -553,6 +573,9 @@ router.post('/groups/:name/messages', async (req, res) => {
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
+      // Build context-aware message so agents know they're in a group
+      const groupContext = `[Group chat: "${decodedName}" — from: ${from || 'User'}]\n\n${content}`
+
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
         // Small delay between agents to avoid gateway race
@@ -560,10 +583,17 @@ router.post('/groups/:name/messages', async (req, res) => {
         try {
           const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          const response = await callAgent(agentId, content, agentSessionId)
+          let response = await callAgent(agentId, groupContext, agentSessionId)
+
+          // Retry once if empty response (common with 2nd+ agent due to gateway timing)
+          if (!response || !response.trim()) {
+            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            await new Promise(r => setTimeout(r, 2000))
+            response = await callAgent(agentId, groupContext, agentSessionId)
+          }
+
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
           if (response && response.trim()) {
-            // Add agent response to message history
             addMessage('group', decodedName, {
               from: agentId,
               content: response,
@@ -571,10 +601,20 @@ router.post('/groups/:name/messages', async (req, res) => {
             })
             console.log(`[Group Chat] Added ${agentId} response to history`)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response`)
+            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            addMessage('group', decodedName, {
+              from: agentId,
+              content: '*(Agent did not return a response. Try mentioning them directly with @)*',
+              mentions: []
+            })
           }
         } catch (err) {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          addMessage('group', decodedName, {
+            from: agentId,
+            content: `*(Error: ${err instanceof Error ? err.message.slice(0, 100) : 'failed to respond'})*`,
+            mentions: []
+          })
         }
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))

@@ -58,18 +58,19 @@
 - [x] **Per-agent cost limits** — individual agent USD limits stored in agent-state.json, auto-pause when exceeded, editable in agent detail panel, notification on breach
 
 ### P4: Forward to Group (Issue #29)
-- [ ] **Forward to group** — share 1:1 agent chat message/thread to a group chat
+- [x] **Forward to group** — forward button on every chat message, group/community picker dropdown, forwarded messages show origin context
 
 ### P5: Group Chat Empty Response Bug
-- [ ] **Group chat: 2nd agent empty response** — workaround exists (@all or Tab-expand) but needs root cause fix
+- [x] **Group chat: 2nd agent empty response** — auto-retry on empty, group context prefix, visible error messages instead of silent failure
 
 ### P6: System Agents — Creators
-- [ ] **System agent: workflow creator** — natural language to workflow definition
-- [ ] **System agent: org creator** — natural language to full org with agents, groups, communities, domain knowledge
-- [ ] **System agent: template creator** — create templates from existing agents and workflows
+- [x] **System agent: workflow creator** — POST /api/workflows/generate (NL to workflow JSON)
+- [x] **System agent: org creator** — POST /api/templates/generate (NL to org template JSON)
+- [ ] **Template wizard** — UI wizard to create templates from existing agents, workflows, communities, groups
+- [ ] **System agent: template creator** — create templates from existing agents and workflows via NL
 
 ### P7: Community Rules & Workflow Sequencing
-- [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups. Example: engineering security constraints applied consistently.
+- [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
 - [ ] **Workflow sequencing/chaining** — workflows trigger other workflows, dependency graphs, sequential execution
 
 ## High Priority (UX) — Completed or In Progress
