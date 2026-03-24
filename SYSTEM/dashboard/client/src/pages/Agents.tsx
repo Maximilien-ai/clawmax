@@ -110,6 +110,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
+  const [aiGenerateMode, setAiGenerateMode] = useState(false)
   const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Agent | null>(null)
@@ -1034,7 +1035,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               </button>
             )}
             <button
-              onClick={() => setShowAddWizard(true)}
+              onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+              title="Generate agent with AI"
+            >
+              AI Generate
+            </button>
+            <button
+              onClick={() => { setAiGenerateMode(false); setShowAddWizard(true) }}
               className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
               title="Add new agent"
             >
@@ -1707,9 +1715,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {showAddWizard && (
         <AddAgentWizard
-          onClose={() => { setShowAddWizard(false); setCloneFromAgent(null); }}
+          onClose={() => { setShowAddWizard(false); setCloneFromAgent(null); setAiGenerateMode(false) }}
           onDone={() => fetchAgents()}
           defaultCloneFrom={cloneFromAgent || undefined}
+          startWithAI={aiGenerateMode}
         />
       )}
 
