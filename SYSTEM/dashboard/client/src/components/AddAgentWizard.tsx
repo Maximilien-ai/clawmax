@@ -268,7 +268,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
       const sanitizeName = (n: string) => n.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
       const aiName = data.suggestedName ? sanitizeName(data.suggestedName) : form.name
       if (data.suggestedName) set('name', aiName)
-      if (data.suggestedTags?.length > 0) set('tags', data.suggestedTags)
+      if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
       if (data.suggestedModel) set('model', data.suggestedModel)
 
       // Update IDENTITY.md with the AI-suggested name (replace placeholder)
