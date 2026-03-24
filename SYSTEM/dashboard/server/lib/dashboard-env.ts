@@ -26,8 +26,15 @@ const dashboardEnv = readDashboardEnvFile()
 dotenv.config({ path: DASHBOARD_ENV_PATH, override: true })
 
 function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): string | undefined {
+  // Check .env file first, then fall back to process.env (container env vars)
   for (const key of keys) {
     const value = rawEnv[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  for (const key of keys) {
+    const value = process.env[key]
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim()
     }
