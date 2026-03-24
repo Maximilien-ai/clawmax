@@ -38,7 +38,8 @@ export function ByokWizard() {
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic)
 
   useEffect(() => {
-    if (!hydrated || !user || config?.authDisabled) return
+    if (!hydrated) return
+    if (!user && !config?.authDisabled) return
     if (hasDefaultUserKeys || hasStoredKeys || dismissed) return
     setOpen(true)
   }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, user])
@@ -65,7 +66,9 @@ export function ByokWizard() {
     return 'No monitoring keys configured — using system defaults if available'
   }, [opikApiKey, opikWorkspace, opikProject])
 
-  if (!user || config?.authDisabled || !hydrated) return null
+  // Show BYOK even when auth is disabled (solo/container mode still needs API keys)
+  if (!hydrated) return null
+  if (!user && !config?.authDisabled) return null
 
   const handleSave = () => {
     writeStoredByokKeys({
