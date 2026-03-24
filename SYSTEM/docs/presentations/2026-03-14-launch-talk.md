@@ -13,7 +13,7 @@
 
 ## 🎯 Talk Overview
 
-The launch talk demonstrated ClawMax v1.0.0, the visual management dashboard for OpenClaw multi-agent systems. The presentation covered:
+The launch talk demonstrated ClawMax v1.0.0, the visual management dashboard for OpenClaw multiagent systems. The presentation covered:
 
 - **Agent Management**: Creating and organizing AI agents from templates
 - **Skills Assignment**: Equipping agents with 50+ built-in capabilities
@@ -37,7 +37,7 @@ Key feature requests captured during and after the talk:
 2. **Favorites Tab**: Star/favorite agents, groups, communities, workflows for quick access and template creation
 3. **Enhanced Templates**: More role-specific agent templates (Golang Engineer, QA Engineer, etc.)
 4. **Personal Assistants**: Org template for email, calendar, TODO management
-5. **Deep Research**: Org template for marketing/topic research with multi-agent collaboration
+5. **Deep Research**: Org template for marketing/topic research with multiagent collaboration
 6. **Setup Automation**: setup.sh for one-command installation and configuration
 
 See [FEATURES.md](./FEATURES.md) for detailed feature tracking.

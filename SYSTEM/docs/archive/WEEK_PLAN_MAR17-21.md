@@ -289,7 +289,7 @@ Create 5 new org templates (1h each + 1h testing):
 - **Friday:** Release v1.1.0 or v1.2.0
 
 ### Potential Features
-- Multi-agent coordination workflows
+- Multiagent coordination workflows
 - Enhanced chat memory and context
 - Advanced template features
 - Integration improvements

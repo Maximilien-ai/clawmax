@@ -90,7 +90,7 @@ decktape reveal clawmax-v1-launch.html clawmax-v1-launch.pdf
 2. **Problem** - The challenge of scaling to 100s of agents
 3. **Solution** - ClawMax's 5-layer architecture
 4. **Live Demo: Dashboard** - Show agent management
-5. **Live Demo: Workflow** - Execute multi-agent task
+5. **Live Demo: Workflow** - Execute multiagent task
 6. **Templates** - Pre-built setups for fast onboarding
 7. **System AI Agents** - Meta-agents (Beta, backup slide)
 8. **Technical Highlights** - Built ON OpenClaw

@@ -410,8 +410,8 @@ function getSessionFromRequest(req: Request): SessionPayload | null {
  * Supports both authentication methods for backwards compatibility.
  */
 export function requireGitHubAuth(req: Request, res: Response, next: NextFunction) {
-  // Dev bypass
-  if (process.env.DASHBOARD_AUTH_DISABLED === 'true') {
+  // Dev/solo bypass — set BYPASS_OAUTH=true in .env to skip authentication
+  if (process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true') {
     return next()
   }
 

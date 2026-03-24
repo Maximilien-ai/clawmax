@@ -45,7 +45,7 @@
 ## ✅ What's Complete (v0.9.3)
 
 ### Core Features ✅
-- [x] Multi-agent dashboard with real-time status
+- [x] Multiagent dashboard with real-time status
 - [x] Organizations (communities, groups, tags)
 - [x] Workflow automation and execution
 - [x] Real-time execution tracking

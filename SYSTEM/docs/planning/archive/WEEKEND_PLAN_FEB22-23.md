@@ -250,7 +250,7 @@ Building on existing validation for COMMUNITIES.md, GROUPS.md, and IDENTITY.md.
    - Customization during agent creation
    - Import/export templates
 
-**Why Big:** Makes agent creation 10x faster, enables best practices, foundation for multi-agent workflows
+**Why Big:** Makes agent creation 10x faster, enables best practices, foundation for multiagent workflows
 
 ---
 

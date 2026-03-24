@@ -239,7 +239,7 @@
 2. **🏷️ Git Tag & Commit** (15 minutes)
    - Review all changes: `git status`, `git diff`
    - Commit: `git commit -m "feat: ClawMax v1.0.0 release"`
-   - Tag: `git tag -a v1.0.0 -m "ClawMax v1.0.0: Multi-agent orchestration dashboard"`
+   - Tag: `git tag -a v1.0.0 -m "ClawMax v1.0.0: Multiagent orchestration dashboard"`
    - **Don't push yet** - wait until after blog published
    - **Goal**: v1.0.0 tagged locally
 

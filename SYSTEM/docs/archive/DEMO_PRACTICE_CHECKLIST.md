@@ -120,7 +120,7 @@
 ---
 
 ### Section 3: Trigger a Workflow (2 minutes)
-**Goal**: Demonstrate multi-agent coordination with one click
+**Goal**: Demonstrate multiagent coordination with one click
 
 **Script**:
 > "Now the real power—workflows. Here's a Daily Standup workflow targeted at my engineering community. It's scheduled for 9 AM every weekday, but I can also run it manually. Watch—[click 'Run Now']. ClawMax sends this prompt to all 3 agents simultaneously via OpenClaw's gateway."

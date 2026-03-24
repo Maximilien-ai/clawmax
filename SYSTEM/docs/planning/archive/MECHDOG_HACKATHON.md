@@ -114,7 +114,7 @@ Nebius GPU (VLM vision inference — camera feed → scene understanding)
 
 **Priority 3 (Stretch):**
 - [ ] Voice wake word integration
-- [ ] Multi-agent coordination
+- [ ] Multiagent coordination
 
 #### Demo + Judging (6:00 PM - 8:00 PM)
 - [ ] Execute demo script (2 min)
@@ -129,7 +129,7 @@ Nebius GPU (VLM vision inference — camera feed → scene understanding)
 2. **"Now turn left and sit"**
 3. **"What do you see in front of you?"** ← VLM vision
 4. **"Walk toward the red object"** ← vision-guided locomotion (stretch goal)
-5. **Multi-agent stretch:** second OpenClaw instance coordinating
+5. **Multiagent stretch:** second OpenClaw instance coordinating
 
 ---
 
@@ -140,7 +140,7 @@ Nebius GPU (VLM vision inference — camera feed → scene understanding)
 | Vision-guided navigation (VLM + locomotion) | Medium | High | 🔥 High |
 | Voice wake word → OpenClaw → action | Low | Medium | Medium |
 | Nebius GPU inference for real-time scene understanding | Medium | High | 🔥 High |
-| Multi-agent: two OpenClaw instances coordinating | High | Very High | Low |
+| Multiagent: two OpenClaw instances coordinating | High | Very High | Low |
 | RosClaw bridge for ROS2 compatibility | High | Medium | Low |
 
 ---

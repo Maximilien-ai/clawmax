@@ -1,6 +1,6 @@
 # ClawMax Dashboard
 
-**The visual management dashboard for OpenClaw multi-agent systems**
+**The visual management dashboard for OpenClaw multiagent systems**
 
 ClawMax provides a powerful web-based interface to manage, monitor, and orchestrate OpenClaw AI agents. Build teams of specialized agents, assign skills, create workflows, and track activity across your entire agent ecosystem.
 
@@ -431,7 +431,7 @@ For pricing and inquiries: contact@clawmax.ai
 
 ## 🌟 Acknowledgments
 
-ClawMax is built on top of [OpenClaw](https://openclaw.ai), the open-source multi-agent platform.
+ClawMax is built on top of [OpenClaw](https://openclaw.ai), the open-source AI agent platform.
 
 Special thanks to:
 - The OpenClaw team for the core agent framework
@@ -442,4 +442,4 @@ Special thanks to:
 
 **Built with ❤️ by the Maximilien.ai ClawMax team**
 
-🦞 **Powered by OpenClaw** | 🚀 **Ready for take for a spin** | 📖 **Well Documented**
+🦞 **Powered by OpenClaw** | 🚀 **Ready to take for a spin** | 📖 **Well Documented**

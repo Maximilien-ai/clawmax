@@ -148,7 +148,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
   }
 
   // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
-  // For multi-agent workflows, we create one cron job per agent
+  // For multiagent workflows, we create one cron job per agent
   const results: string[] = []
 
   for (const agentId of participants) {
@@ -197,7 +197,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
 }
 
 export function removeCronJob(jobId: string): void {
-  // Handle comma-separated job IDs (multi-agent workflows)
+  // Handle comma-separated job IDs (multiagent workflows)
   for (const id of jobId.split(',')) {
     runCronCmd(['rm', id.trim()])
   }

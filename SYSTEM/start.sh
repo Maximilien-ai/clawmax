@@ -147,23 +147,43 @@ else
       echo "Logs: tail -f /tmp/dashboard.log"
       echo "Stop: ./SYSTEM/stop.sh"
 
-      # Check for AI model API keys in both env and .env file
+      # Load .env for config checks
+      if [ -f ".env" ]; then
+        . ./.env
+      fi
+
+      # Check authentication config
+      if [ "$BYPASS_OAUTH" = "true" ] || [ "$DASHBOARD_AUTH_DISABLED" = "true" ]; then
+        echo ""
+        echo "⚠ OAuth bypassed (BYPASS_OAUTH=true) — no login required"
+        echo "  All API endpoints are open. Do NOT use in production."
+      else
+        if [ -z "$GITHUB_CLIENT_ID" ] || [ "$GITHUB_CLIENT_ID" = "your-github-client-id" ]; then
+          echo ""
+          echo "⚠ GitHub OAuth not configured (GITHUB_CLIENT_ID missing)"
+          echo "  Either:"
+          echo "  1. Set BYPASS_OAUTH=true in .env for solo/local development"
+          echo "  2. Configure GitHub OAuth — see .env.example for setup steps"
+        fi
+      fi
+
+      # Check for AI model API keys
       ENV_API_KEYS_MISSING=false
-      if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
-        # If the environment doesn't have the keys, check .env
-        if [ -f ".env" ]; then
-          . ./.env
-        fi
-        if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
-          ENV_API_KEYS_MISSING=true
-        fi
+      if [ -z "$SYSTEM_ANTHROPIC_API_KEY" ] && [ -z "$SYSTEM_OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+        ENV_API_KEYS_MISSING=true
       fi
       if [ "$ENV_API_KEYS_MISSING" = true ]; then
         echo ""
-        echo "⚠ No AI model API keys detected (ANTHROPIC_API_KEY, OPENAI_API_KEY)"
-        echo "  Agent creation requires at least one API key configured."
-        echo "  Add keys to SYSTEM/dashboard/.env or export in your shell."
-        echo "  See README.md for details."
+        echo "⚠ No AI model API keys detected"
+        echo "  Agent interactions require at least one key configured."
+        echo "  Add SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY to SYSTEM/dashboard/.env"
+      fi
+
+      # Check Opik metering
+      if [ -z "$OPIK_API_KEY" ] || [ "$OPIK_API_KEY" = "your-opik-key-here" ]; then
+        echo ""
+        echo "ℹ Opik metering not configured (optional)"
+        echo "  Add OPIK_API_KEY to .env for token/cost tracking."
       fi
 
       # Show gateway pairing URL if gateway is running

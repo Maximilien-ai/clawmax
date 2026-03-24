@@ -10,7 +10,7 @@
     },
     "type": {
       "const": "organization",
-      "description": "Template type - must be 'organization' for multi-agent templates"
+      "description": "Template type - must be 'organization' for multiagent templates"
     },
     "version": {
       "type": "string",

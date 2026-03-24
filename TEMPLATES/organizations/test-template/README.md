@@ -17,7 +17,7 @@ A minimal organization template designed for testing ClawMax functionality. This
 - **test-group** - Basic group for agent communication
 
 ### Communities (1)
-- **test-community** - Basic community for multi-agent coordination
+- **test-community** - Basic community for multiagent coordination
 
 ### Workflows (1)
 - **test-workflow** - Simple manual workflow for validation (disabled by default)

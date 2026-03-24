@@ -62,7 +62,7 @@
 ## ✅ Recent Accomplishments (This Week)
 
 1. **Dashboard v0.5.0** — AI-powered chat archives
-2. **Multi-Agent Group Chat** — @mentions, typing indicators, history
+2. **Multiagent Group Chat** — @mentions, typing indicators, history
 3. **Schema Validation** — COMMUNITIES.md, GROUPS.md, IDENTITY.md
 4. **Planning** — Weekend and next week fully scoped
 
@@ -83,7 +83,7 @@
 
 **Next Month:**
 - WhatsApp integration (groups.fetchAll)
-- Multi-agent workflows
+- Multiagent workflows
 - Analytics and monitoring
 
 ---

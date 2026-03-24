@@ -25,9 +25,9 @@
 
 ### Key Value Propositions
 
-1. **Multi-Agent Orchestration** - Coordinate dozens of AI agents as a cohesive team
+1. **Multiagent Orchestration** - Coordinate dozens of AI agents as a cohesive team
 2. **Visual Organization** - See your entire agent ecosystem at a glance
-3. **Workflow Automation** - Schedule and trigger coordinated multi-agent workflows
+3. **Workflow Automation** - Schedule and trigger coordinated multiagent workflows
 4. **Communication Hub** - Integrate with WhatsApp, Slack, Discord for agent interactions
 5. **Document Workspace** - Centralized knowledge base for organizational context
 
@@ -197,7 +197,7 @@ Pre-integrated skills available for assignment:
 
 ### What are Workflows?
 
-Workflows are scheduled or manual tasks sent to multiple agents based on targeting rules. They enable coordinated multi-agent operations.
+Workflows are scheduled or manual tasks sent to multiple agents based on targeting rules. They enable coordinated multiagent operations.
 
 ### Workflow Structure
 

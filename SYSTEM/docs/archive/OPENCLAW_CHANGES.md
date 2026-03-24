@@ -27,7 +27,7 @@ The following changes were made previously to support ClawMax Dashboard developm
 
 These changes add workflow execution capabilities to OpenClaw, enabling:
 - Scheduled/manual workflow execution
-- Multi-agent task coordination
+- Multiagent task coordination
 - Execution tracking and status updates
 - Integration with ClawMax Dashboard's workflow management UI
 
@@ -58,7 +58,7 @@ New CLI command module that implements `openclaw workflow run <workflowId>`.
 - `loadExecution()` / `saveExecution()` - Manage execution state files
 - `getAgentConfig()` - Read agent gateway port and auth token
 - `sendWorkflowToAgent()` - Execute workflow on single agent via WebSocket
-- `runWorkflow()` - Main orchestration logic for multi-agent execution
+- `runWorkflow()` - Main orchestration logic for multiagent execution
 
 ## Files Modified
 
@@ -71,7 +71,7 @@ Registered the new `workflow` command in the CLI command registry.
 - Lazy-loaded via dynamic import of `workflow-cli.js`
 
 ### `src/gateway/server-methods/chat.ts` **(NEW - March 7, 2026)**
-Added agent routing logic to enable multi-agent workflow execution through a shared gateway.
+Added agent routing logic to enable multiagent workflow execution through a shared gateway.
 
 **Changes:**
 - Added workflow session key parsing (lines 738-746)
@@ -93,8 +93,8 @@ When a workflow sends messages with session keys like `workflow-abc123-ceo`:
 - Enables **single shared gateway** to serve all agents (no per-agent gateways needed)
 - No global lock issues - gateway routes to agent contexts dynamically
 - Simpler architecture than running multiple gateway instances
-- Better resource utilization for multi-agent systems
-- Foundation for ClawMax Dashboard multi-agent orchestration
+- Better resource utilization for multiagent systems
+- Foundation for ClawMax Dashboard multiagent orchestration
 
 ## Dependencies
 
@@ -244,7 +244,7 @@ Summary: 1 succeeded, 0 failed
 
 ## Benefits for OpenClaw Community
 
-1. **Workflow Orchestration** - Enables coordinated multi-agent tasks beyond simple chat
+1. **Workflow Orchestration** - Enables coordinated multiagent tasks beyond simple chat
 2. **Scheduled Tasks** - Foundation for cron-based workflow automation
 3. **Execution Tracking** - Detailed logs and status for troubleshooting
 4. **Agent Coordination** - Groups/communities/tags based agent selection
@@ -277,13 +277,13 @@ This feature is production-ready and would benefit the broader OpenClaw communit
 4. Any concerns about the WebSocket-based agent communication approach?
 5. Should workflow templates ship with OpenClaw core, or remain plugin/extension territory?
 6. **NEW**: Is the workflow session key format (`workflow-{executionId}-{agentId}`) acceptable, or should it follow a different pattern?
-7. **NEW**: Should agent routing in the gateway be extended to support other multi-agent use cases beyond workflows?
+7. **NEW**: Should agent routing in the gateway be extended to support other multiagent use cases beyond workflows?
 8. **NEW**: Any concerns about dynamically routing to agent contexts based on session key patterns?
 
 ## Timeline
 
 - **2026-03-06**: Initial workflow CLI implementation
-- **2026-03-07**: Added agent routing to gateway for multi-agent support
+- **2026-03-07**: Added agent routing to gateway for multiagent support
 - **Next Week**: Discussion with OpenClaw maintainers
 - **TBD**: PR submission to upstream
 

@@ -160,7 +160,7 @@ Completed comprehensive chat archiving features for the OpenClaw Dashboard with 
    - Low storage warnings
    - Export completion alerts
 
-3. **Multi-Agent Workflows**
+3. **Multiagent Workflows**
    - Sequential agent calls
    - Conditional routing
    - Workflow templates

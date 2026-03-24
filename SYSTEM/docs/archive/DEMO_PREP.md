@@ -31,7 +31,7 @@
 - [ ] Workflow templates available
 
 **Demo Workspace Goals** (Weekend Setup):
-1. **Multi-Agent Workflows**: 3-5 agents executing reliably
+1. **Multiagent Workflows**: 3-5 agents executing reliably
    - Status Check (simple, proven)
    - Daily Standup (tag-based targeting)
    - Code Review Reminder (GitHub skill demo)
@@ -166,7 +166,7 @@
 ### 7. Closing & Next Steps (2 minutes)
 
 **Recap**:
-- ✅ Multi-agent visibility and management
+- ✅ Multiagent visibility and management
 - ✅ Organizational structure (communities/groups)
 - ✅ Automated workflow coordination
 - ✅ Real-time execution tracking
@@ -307,7 +307,7 @@ A: TBD. Dashboard is free for OpenClaw users currently. May offer hosted version
 **Video Title Ideas**:
 - "ClawMax Dashboard: Manage 100+ AI Agents as a Team"
 - "Automated Workflows for OpenClaw AI Agents"
-- "ClawMax Demo: Multi-Agent Coordination Made Easy"
+- "ClawMax Demo: Multiagent Coordination Made Easy"
 - "Building an AI Agent Team with ClawMax"
 
 ---

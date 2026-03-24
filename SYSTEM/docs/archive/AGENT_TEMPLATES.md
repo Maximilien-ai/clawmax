@@ -866,7 +866,7 @@ Each instantiated agent stores template metadata:
 
 ## Integration with Other Features
 
-### Multi-Agent Group Chat
+### Multiagent Group Chat
 **Synergy:**
 - Template defines groups
 - One-click "Chat with Backend Team" for template instances

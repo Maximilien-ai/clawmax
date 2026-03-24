@@ -51,7 +51,7 @@ Features delivered:
 
 2. **THREE_DAY_SPRINT.md**
    - Friday: WhatsApp integration & stability
-   - Saturday: Multi-agent coordination
+   - Saturday: Multiagent coordination
    - Sunday: Agent templates & QA
    - Clear success criteria and risk mitigations
 
@@ -66,7 +66,7 @@ Features delivered:
 **Next Session Priorities** (around noon):
 1. Start WhatsApp message sending implementation
 2. Review and potentially archive completed planning docs
-3. Begin multi-agent group chat foundation
+3. Begin multiagent group chat foundation
 4. Keep iterating based on real usage patterns
 
 ## 💡 Key Insights

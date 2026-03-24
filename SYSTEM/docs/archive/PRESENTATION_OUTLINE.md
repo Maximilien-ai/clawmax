@@ -24,7 +24,7 @@ NOTE: can we generate a PDF from this or PPTX?
 ### Slide 1: Title Slide
 **Content**:
 - Title: "ClawMax: OpenClaw to the Max! 🚀"
-- Subtitle: "Multi-Agent (lobster 🦞) Orchestration Made Simple"
+- Subtitle: "Multiagent (lobster 🦞) Orchestration Made Simple"
 - Date: March 13, 2026
 - v1.0.0 Launch
 
@@ -60,7 +60,7 @@ NOTE: use /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images/image6-clawma
 - Solution overview:
   - 🎛️ Visual Dashboard - See all agents at once
   - 🏢 Organizations - Structure teams like Slack channels
-  - 🔄 Workflows - Coordinate multi-agent tasks
+  - 🔄 Workflows - Coordinate multiagent tasks
   - 📚 Templates - Clone successful setups
   - 📊 Execution Tracking - Watch and review in real-time
 
@@ -207,7 +207,7 @@ NOTE: see SVG images in /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images
 **Content**:
 - Title: "What's Next: v1.1.0 and Beyond"
 - v1.0.0 (Today):
-  - ✅ Multi-agent dashboard
+  - ✅ Multiagent dashboard
   - ✅ Workflow automation
   - ✅ Organization templates
   - ✅ Execution tracking
@@ -237,7 +237,7 @@ NOTE: see SVG images in /Users/maximilien/.openclaw/workspace/SYSTEM/docs/images
 NOTE: generate timeline SVG if possible
 
 **Speaking Notes**:
-"We're just getting started. v1.0.0 is the foundation for development and testing. In late March, we're shipping v1.0.1 with full security hardening and production readiness. Then in April, ClawMax.ai launches with cloud deployment, evaluation features, and advanced AI assistance. The vision? Make multi-agent coordination as natural as single-agent use."
+"We're just getting started. v1.0.0 is the foundation for development and testing. In late March, we're shipping v1.0.1 with full security hardening and production readiness. Then in April, ClawMax.ai launches with cloud deployment, evaluation features, and advanced AI assistance. The vision? Make multiagent coordination as natural as single-agent use."
 
 **Duration**: 2 minutes
 
@@ -275,7 +275,7 @@ NOTE: will setup clawmax.ai mail but not there yet so above gmail for now.
 NOTE: generate QR code for https://www.ClawMax.ai
 
 **Speaking Notes**:
-"ClawMax comes in two flavors. First, the Community edition on GitHub - completely open source, free forever. Perfect for individual developers and teams getting started. Second, ClawMax.ai launching in April - for teams that want cloud deployment or on-premise installation with enterprise support. One-time setup fee plus optional monthly support. Both use the same core codebase. Try the OSS version today, upgrade when you're ready for production. Together, let's make multi-agent AI coordination a solved problem. Thank you!"
+"ClawMax comes in two flavors. First, the Community edition on GitHub - completely open source, free forever. Perfect for individual developers and teams getting started. Second, ClawMax.ai launching in April - for teams that want cloud deployment or on-premise installation with enterprise support. One-time setup fee plus optional monthly support. Both use the same core codebase. Try the OSS version today, upgrade when you're ready for production. Together, let's make multiagent AI coordination a solved problem. Thank you!"
 
 **Duration**: 1 minute
 
@@ -322,7 +322,7 @@ NOTE: this will be key items to do on Friday as we prep and get ready for demo a
 5. **Open Source** - "Join us, contribute, share your use cases"
 
 ### Closing (30 seconds)
-"ClawMax v1.0.0 is available today. Try it with your OpenClaw agents. From managing 5 agents to 500, centralized coordination is key to unlocking multi-agent AI potential. Thank you!"
+"ClawMax v1.0.0 is available today. Try it with your OpenClaw agents. From managing 5 agents to 500, centralized coordination is key to unlocking multiagent AI potential. Thank you!"
 
 NOTE: overarching goal is to build ClawMax.ai with ClawMax so that as users sign up and pay for ClawMax we will standup ClawMax orgs to help manage these. Don't need to include details but know this is the vision.
 

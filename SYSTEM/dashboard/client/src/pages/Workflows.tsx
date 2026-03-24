@@ -892,7 +892,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Workflows</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Scheduled tasks and multi-agent coordination
+            Scheduled tasks and multiagent coordination
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">

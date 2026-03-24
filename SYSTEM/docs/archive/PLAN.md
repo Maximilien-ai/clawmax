@@ -19,7 +19,7 @@ NOTE: let's take some time to update this EOD today
 ## 📋 Release Overview
 
 ### v1.0.0 Goals
-- Complete multi-agent orchestration dashboard
+- Complete multiagent orchestration dashboard
 - Production-ready organization templates
 - Comprehensive workflow automation
 - Polish and bug fixes
@@ -269,7 +269,7 @@ The execution IS detected as `completed`, BUT `wasTracked: false`! This means:
 **Tasks**:
 - [ ] Review all changes with `git status` and `git diff`
 - [ ] Commit all changes: `git commit -m "feat: ClawMax v1.0.0 release"`
-- [ ] Tag release: `git tag -a v1.0.0 -m "ClawMax v1.0.0: Multi-agent orchestration dashboard"`
+- [ ] Tag release: `git tag -a v1.0.0 -m "ClawMax v1.0.0: Multiagent orchestration dashboard"`
 - [ ] Push to GitHub: `git push && git push --tags`
 - [ ] Verify git status is clean
 - [ ] Create GitHub release with changelog

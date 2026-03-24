@@ -89,7 +89,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 ## Core Features
 
-### 1. Multi-Agent Dashboard 🎛️
+### 1. Multiagent Dashboard 🎛️
 
 **Visual overview of your entire agent ecosystem**
 
@@ -163,7 +163,7 @@ ClawMax is designed to **enhance** OpenClaw, not replace it:
 
 ### 3. Workflow Automation 🔄
 
-**Scheduled or manual multi-agent coordination**
+**Scheduled or manual multiagent coordination**
 
 ![ClawMax - workflow execution in progress](images/image3-workflow.png)
 
@@ -468,11 +468,11 @@ ClawMax is open source and welcomes contributions:
 
 ## Closing
 
-ClawMax isn't just a dashboard—it's a new paradigm for multi-agent coordination. By building on OpenClaw's solid foundation and adding organizational structure, workflow automation, visual management, and execution tracking, we're making it possible to operate AI agent teams at scale.
+ClawMax isn't just a dashboard—it's a new paradigm for multiagent coordination. By building on OpenClaw's solid foundation and adding organizational structure, workflow automation, visual management, and execution tracking, we're making it possible to operate AI agent teams at scale.
 
 From workflow completion notifications to template-based replication, every feature is designed with one goal: **make managing many agents as easy as managing one**.
 
-We're excited to see what you build with ClawMax. Whether you're managing 5 agents or 500, centralized coordination is key to unlocking the full potential of multi-agent AI systems.
+We're excited to see what you build with ClawMax. Whether you're managing 5 agents or 500, centralized coordination is key to unlocking the full potential of multiagent AI systems.
 
 **Try ClawMax today at [ClawMax.ai](https://clawmax.ai). Take your OpenClaw agents to the max.** 🚀
 

@@ -13,7 +13,7 @@ Workflows enable scheduled, recurring tasks to be executed across one or more ag
 - Weekly progress summaries
 - Periodic health checks
 - Scheduled maintenance tasks
-- Coordinated multi-agent actions
+- Coordinated multiagent actions
 - peridoically reacting to external event, e.g., new issues open on Github
 
 ---

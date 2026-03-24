@@ -62,7 +62,7 @@
   "communities": [
     {
       "name": "test-community",
-      "description": "Test community for multi-agent coordination",
+      "description": "Test community for multiagent coordination",
       "tags": [
         "test"
       ],

@@ -1,4 +1,4 @@
-# Multi-Agent Group Chat Feature
+# Multiagent Group Chat Feature
 
 **Status:** ✅ COMPLETED (Archived 2026-02-20)
 **Priority:** High
@@ -10,7 +10,7 @@
 - Commit `83fe654`: Complete group chat with incremental typing indicators, history & export
 - Commit `7052600`: Add group chat with @mentions and agent responses
 - File: `SYSTEM/dashboard/client/src/components/GroupChatPanel.tsx`
-- Features: Multi-agent @mentions, typing indicators, message history, export functionality
+- Features: Multiagent @mentions, typing indicators, message history, export functionality
 
 ## Overview
 
@@ -226,7 +226,7 @@ interface GroupSelectionState {
 ```
 
 #### 2. `GroupChatPanel.tsx`
-- Multi-agent chat interface
+- Multiagent chat interface
 - SSE streaming integration
 - Per-agent loading states
 - Response sorting/filtering
@@ -329,7 +329,7 @@ Each agent maintains their own conversation thread, linked by the shared `groupS
 - [ ] Users create at least one group chat per session
 - [ ] Average group size: 3-5 agents
 - [ ] Group chats become primary interaction mode for complex tasks
-- [ ] 60%+ of multi-agent tasks use dashboard vs WhatsApp
+- [ ] 60%+ of multiagent tasks use dashboard vs WhatsApp
 
 ## Open Questions
 

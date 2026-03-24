@@ -146,7 +146,7 @@ app.get('/api/auth/config', (_req, res) => {
   const userKeys = getUserDefaultProviderKeys()
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
-    authDisabled: process.env.DASHBOARD_AUTH_DISABLED === 'true',
+    authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true',
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
