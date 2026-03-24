@@ -115,6 +115,10 @@ export default function Templates() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
+  const [showAiGenerate, setShowAiGenerate] = useState(false)
+  const [aiDescription, setAiDescription] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiResult, setAiResult] = useState<any>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string

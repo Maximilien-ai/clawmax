@@ -167,6 +167,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
+  const [showAiPrompt, setShowAiPrompt] = useState(false)
+  const [aiPromptText, setAiPromptText] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiInitialData, setAiInitialData] = useState<any>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<Set<string>>(new Set())
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
@@ -598,6 +602,29 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     })
   }
 
+  const handleAiGenerate = async () => {
+    if (!aiPromptText.trim()) return
+    setAiGenerating(true)
+    try {
+      const resp = await fetch('/api/workflows/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: aiPromptText.trim() }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Generation failed')
+      setAiInitialData(data.workflow)
+      setShowAiPrompt(false)
+      setShowEditorDialog(true)
+      setAiPromptText('')
+      showSuccess('Workflow generated — review and save')
+    } catch (err: any) {
+      showError(err.message || 'Failed to generate workflow')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
   const handleCreateWorkflow = async (data: any) => {
     try {
       const resp = await fetch('/api/workflows', {
@@ -944,7 +971,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </button>
             )}
             <button
-              onClick={() => setShowEditorDialog(true)}
+              onClick={() => setShowAiPrompt(true)}
+              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
+            >
+              AI Generate
+            </button>
+            <button
+              onClick={() => { setAiInitialData(null); setShowEditorDialog(true) }}
               className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors"
             >
               + New Workflow
@@ -1613,10 +1646,49 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       )}
 
       {/* Create Dialog */}
+      {/* AI Generate Prompt */}
+      {showAiPrompt && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Generate Workflow with AI</h2>
+              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Describe what you want the workflow to do in natural language. The AI will generate a workflow definition you can review and edit.
+            </p>
+            <textarea
+              value={aiPromptText}
+              onChange={(e) => setAiPromptText(e.target.value)}
+              placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[100px] resize-y"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowAiPrompt(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAiGenerate}
+                disabled={aiGenerating || !aiPromptText.trim()}
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {aiGenerating ? 'Generating...' : 'Generate Workflow'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <WorkflowEditorDialog
         isOpen={showEditorDialog}
-        onClose={() => setShowEditorDialog(false)}
+        onClose={() => { setShowEditorDialog(false); setAiInitialData(null) }}
         onSave={handleCreateWorkflow}
+        initialData={aiInitialData || undefined}
         mode="create"
       />
 

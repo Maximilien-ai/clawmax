@@ -342,23 +342,22 @@ async function runMonitorScan(): Promise<void> {
         const lastSeen = lastSeenMessageCounts.get(key)
         const fp = `channel-activity:${key}`
 
-        if (lastSeen !== undefined && count > lastSeen) {
-          const newCount = count - lastSeen
-          // Check if latest messages are from agents (not user)
-          const recentMessages = messages.slice(-newCount)
-          const agentMessages = recentMessages.filter(m => m.from !== 'user' && m.from !== 'dr.max')
+        if (count > 0 && (lastSeen === undefined || count > lastSeen)) {
+          // On first scan or new messages: check for recent agent messages
+          const checkCount = lastSeen !== undefined ? count - lastSeen : Math.min(count, 20)
+          const recentMessages = messages.slice(-checkCount)
+          const agentMessages = recentMessages.filter(m => m.from !== 'user' && m.from !== 'dr.max' && m.from !== 'User')
           if (agentMessages.length > 0) {
             createNotification({
               type: 'channel-activity',
               title: `New messages in ${ch.name}`,
-              message: `${agentMessages.length} new agent message${agentMessages.length !== 1 ? 's' : ''} in ${ch.type} "${ch.name}".`,
+              message: `${agentMessages.length} agent message${agentMessages.length !== 1 ? 's' : ''} in ${ch.type} "${ch.name}".`,
               entityId: ch.name,
               entityType: 'channel',
               fingerprint: fp,
             })
           }
         } else if (lastSeen !== undefined && count <= lastSeen) {
-          // Messages cleared or unchanged — resolve
           resolveByFingerprint(fp)
         }
 
