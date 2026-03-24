@@ -124,15 +124,18 @@ Available models:
 - openai/gpt-4o (best for general purpose, creative tasks)
 - openai/gpt-4o-mini (best for simple tasks, cost-efficient)
 
+IMPORTANT: If the user mentions a specific name for the agent (e.g., "Create jarvis", "Make a bot called Friday"), use that name. The name should be a simple, clean identifier.
+
 Respond in JSON: {
-  "name": "Display Name",
-  "id": "kebab-case-id",
+  "name": "agent-name",
   "tags": ["tag1", "tag2"],
   "model": "provider/model-name",
   "skills": ["skill1", "skill2"]
 }
 
-Pick 2-4 tags, 1-4 relevant skills, and the best model for the role.`
+Rules:
+- name: lowercase, letters/numbers/dashes only (e.g., "jarvis", "friday", "data-analyst")
+- Pick 2-4 tags, 1-4 relevant skills, and the best model for the role.`
       },
       { role: 'user', content: description }
     ],
