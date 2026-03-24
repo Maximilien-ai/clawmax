@@ -737,7 +737,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 />
                 <p className="mt-1 text-xs text-gray-400">Suggested: <strong>{suggested?.port ?? '…'}</strong></p>
               </div>
-              <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-700">
+              <div className="p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-700 dark:text-sky-300">
                 State will be isolated under <code className="font-mono">~/.openclaw-{form.name || suggested?.id || 'name'}/</code> with its own gateway and credentials.
               </div>
             </div>
