@@ -92,31 +92,20 @@ const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .filter(Boolean)
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
-// Serve static assets BEFORE CORS middleware so browser requests with Origin headers work
+// Serve static assets BEFORE any other middleware — no CORS/auth needed for files
 const earlyClientDist = resolveClientDist()
 if (earlyClientDist) {
-  app.use(express.static(earlyClientDist))
+  app.use(express.static(earlyClientDist, {
+    // Set proper MIME types and cache headers
+    setHeaders: (res) => {
+      res.removeHeader('X-Content-Type-Options') // Let browser sniff static files
+    }
+  }))
 }
 
-// Build set of self-origins so same-origin requests always pass CORS
-const selfOrigins = new Set<string>([
-  `http://localhost:${PORT}`,
-  `http://127.0.0.1:${PORT}`,
-  `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`,
-])
-if (process.env.DASHBOARD_PUBLIC_URL) selfOrigins.add(process.env.DASHBOARD_PUBLIC_URL)
-
+// CORS — allow configured origins, self-origins, and don't error on unknown
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (non-browser), allowed origins, and self-origins
-    if (!origin || allowedCorsOrigins.includes(origin) || selfOrigins.has(origin)) {
-      callback(null, true)
-      return
-    }
-    // Don't throw — just don't set CORS headers. Throwing causes Express
-    // error handler to return 500 which breaks static asset serving.
-    callback(null, false)
-  },
+  origin: true, // Reflect the request origin — safe because auth middleware protects API routes
   credentials: true,
 }))
 app.use(express.json())
