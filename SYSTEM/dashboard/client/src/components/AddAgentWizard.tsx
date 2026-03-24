@@ -277,7 +277,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           ...files,
           identity: files.identity
             .replace(/\*\*Name:\*\*\s*.*/m, `**Name:** ${aiName}`)
-            .replace(/\*\*Tags:\*\*\s*/m, `**Tags:** ${(data.suggestedTags || []).join(', ')}`)
+            .replace(/\*\*Tags:\*\*.*/m, `**Tags:** ${[...new Set(data.suggestedTags || [])].join(', ')}`)
         }
       }
 
