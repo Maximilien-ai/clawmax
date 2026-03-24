@@ -387,7 +387,9 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
     }
     const fileContent = matter.stringify(workflow.content, frontmatter)
 
-    const filePath = path.join(getWorkflowsDir(), `${id}.md`)
+    const wfDir = getWorkflowsDir()
+    fs.mkdirSync(wfDir, { recursive: true })
+    const filePath = path.join(wfDir, `${id}.md`)
     fs.writeFileSync(filePath, fileContent, 'utf-8')
 
     return { success: true, id }
