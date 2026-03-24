@@ -81,9 +81,25 @@ export class WorkspaceManager {
     }
   }
 
-  /** List all workspaces */
+  /** List all workspaces with live agent counts */
   listWorkspaces(): Workspace[] {
     const registry = this.loadRegistry()
+    // Dynamically count agents from each workspace's AGENTS directory
+    for (const workspace of registry.workspaces) {
+      try {
+        const agentsDir = path.join(workspace.path, 'AGENTS')
+        if (fs.existsSync(agentsDir)) {
+          const entries = fs.readdirSync(agentsDir, { withFileTypes: true })
+          workspace.agentCount = entries.filter(e =>
+            e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith('_') && e.name !== 'archive'
+          ).length
+        } else {
+          workspace.agentCount = 0
+        }
+      } catch {
+        // Keep existing count if scan fails
+      }
+    }
     return registry.workspaces
   }
 

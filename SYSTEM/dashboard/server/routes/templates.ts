@@ -11,6 +11,7 @@ import {
   slugify
 } from '../lib/templates'
 import { listWorkflowTemplates } from '../lib/workflows'
+import { generateTemplateFromNL } from '../lib/ai-generator'
 
 const router = Router()
 
@@ -162,6 +163,22 @@ router.post('/validate', (req, res) => {
   }
 
   res.json({ valid: true })
+})
+
+// POST /api/templates/generate - Generate an organization template from natural language
+router.post('/generate', async (req, res) => {
+  const { description } = req.body
+  if (!description || typeof description !== 'string') {
+    return res.status(400).json({ error: 'description is required' })
+  }
+
+  try {
+    const template = await generateTemplateFromNL(description)
+    res.json({ ok: true, template })
+  } catch (err: any) {
+    console.error('Error generating template:', err)
+    res.status(500).json({ error: err.message || 'Failed to generate template' })
+  }
 })
 
 // POST /api/templates/agents/import - Import an agent from a template

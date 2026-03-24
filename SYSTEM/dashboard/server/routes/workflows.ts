@@ -13,7 +13,7 @@ import {
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { listAgents } from '../lib/workspace'
-import { generateCronFromText } from '../lib/ai-generator'
+import { generateCronFromText, generateWorkflowFromNL } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 
 const router = Router()
@@ -49,6 +49,28 @@ router.post('/generate-cron', (req, res) => {
       console.error('Error generating cron:', err)
       res.status(500).json({ error: 'Failed to generate cron expression' })
     })
+})
+
+/**
+ * POST /api/workflows/generate
+ * Generate a complete workflow definition from natural language using AI
+ */
+router.post('/generate', async (req, res) => {
+  const { description } = req.body
+  if (!description || typeof description !== 'string') {
+    return res.status(400).json({ error: 'description is required' })
+  }
+
+  try {
+    const agents = listAgents()
+    const agentIds = agents.filter(a => !a.archived).map(a => a.id)
+    const allTags = [...new Set(agents.flatMap(a => a.tags))]
+    const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    res.json({ ok: true, workflow })
+  } catch (err: any) {
+    console.error('Error generating workflow:', err)
+    res.status(500).json({ error: err.message || 'Failed to generate workflow' })
+  }
 })
 
 /**
