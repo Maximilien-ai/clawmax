@@ -126,7 +126,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     // Poll message counts for unread indicators
     const checkUnread = () => {
-      fetch('/api/message-counts').then(r => r.json()).then(d => {
+      fetch('/api/message-counts').then(r => r.ok ? r.json() : {}).then(d => {
         const counts = d.counts || {}
         const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
         const unread: Record<string, number> = {}

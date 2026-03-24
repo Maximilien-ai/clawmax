@@ -150,7 +150,7 @@ export default function App() {
   useEffect(() => {
     const load = () =>
       fetch('/api/system')
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
         .then(d => setSystem(d))
         .catch(() => {})
     load()
@@ -163,6 +163,7 @@ export default function App() {
     const checkRunningWorkflows = async () => {
       try {
         const res = await fetch('/api/workflows')
+        if (!res.ok) return
         const data = await res.json()
         const workflows = data.workflows || []
 
@@ -190,7 +191,7 @@ export default function App() {
   // Poll for unread message counts
   useEffect(() => {
     const checkUnread = () => {
-      fetch('/api/message-counts').then(r => r.json()).then(d => {
+      fetch('/api/message-counts').then(r => r.ok ? r.json() : {}).then(d => {
         const counts = d.counts || {}
         const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
         let total = 0

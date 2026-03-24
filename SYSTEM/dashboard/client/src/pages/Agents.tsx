@@ -155,7 +155,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     }
 
     fetch(url)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => {
         if (resetPagination) {
           setAgents(d.agents || [])
