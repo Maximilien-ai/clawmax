@@ -4,6 +4,7 @@ interface Agent {
   id: string
   name: string
   archived?: boolean
+  paused?: boolean
 }
 
 interface BulkOperationsPanelProps {
@@ -30,6 +31,8 @@ export default function BulkOperationsPanel({
   onAddToGroups,
   onArchive,
   onUnarchive,
+  onPause,
+  onResume,
   onDelete,
   onChat,
 }: BulkOperationsPanelProps) {
@@ -37,6 +40,7 @@ export default function BulkOperationsPanel({
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState(false)
+  const [processingLabel, setProcessingLabel] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
   const [deleteImpact, setDeleteImpact] = useState<any>(null)
   const [showSecondConfirm, setShowSecondConfirm] = useState(false)
@@ -70,8 +74,19 @@ export default function BulkOperationsPanel({
     }
   }
 
+  const OPERATION_LABELS: Record<string, string> = {
+    communities: 'Adding to communities',
+    groups: 'Adding to groups',
+    archive: 'Archiving agents',
+    unarchive: 'Unarchiving agents',
+    pause: 'Pausing agents',
+    resume: 'Resuming agents',
+    delete: 'Deleting agents',
+  }
+
   async function handleExecute() {
     setProcessing(true)
+    setProcessingLabel(OPERATION_LABELS[operation || ''] || 'Processing')
     try {
       const agentIds = selectedAgents.map(a => a.id)
 
@@ -156,6 +171,7 @@ export default function BulkOperationsPanel({
             <div className="px-6 py-4">
               <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Choose an operation:</div>
               <div className="space-y-2">
+                {/* --- Quick actions --- */}
                 {onChat && (
                   <button
                     onClick={() => {
@@ -169,101 +185,126 @@ export default function BulkOperationsPanel({
                   </button>
                 )}
 
-                <button
-                  onClick={() => setOperation('communities')}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                    operation === 'communities'
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'
-                  }`}
-                >
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Add to Communities</div>
-                  <div className="text-sm text-gray-500">Add selected agents to one or more communities</div>
-                </button>
-
-                <button
-                  onClick={() => setOperation('groups')}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                    operation === 'groups'
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'
-                  }`}
-                >
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Add to Groups</div>
-                  <div className="text-sm text-gray-500">Add selected agents to one or more groups</div>
-                </button>
-
-                {activeCount > 0 && (
-                <button
-                  onClick={() => setOperation('archive')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'archive'
-                        ? 'border-orange-500 bg-orange-50'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Archive Agents</div>
-                    <div className="text-sm text-gray-500">Archive {activeCount} active agent{activeCount !== 1 ? 's' : ''}</div>
-                  </button>
-               )}
-
-                {operation !== 'pause' && onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
+                {/* --- State control --- */}
+                {onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
                   <button
-                    onClick={() => setOperation('pause')}
+                    onClick={() => setOperation(operation === 'pause' ? null : 'pause')}
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'pause'
-                        ? 'border-amber-500 bg-amber-50'
+                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Pause Agents</div>
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'pause' && <span className="text-amber-600 dark:text-amber-400">✓</span>}
+                      Pause Agents
+                    </div>
                     <div className="text-sm text-gray-500">
                       Pause {selectedAgents.filter(a => !a.paused && !a.archived).length} active agent{selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}
                     </div>
                   </button>
                 )}
 
-                {operation !== 'resume' && onResume && selectedAgents.some(a => a.paused) && (
+                {onResume && selectedAgents.some(a => a.paused) && (
                   <button
-                    onClick={() => setOperation('resume')}
+                    onClick={() => setOperation(operation === 'resume' ? null : 'resume')}
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'resume'
-                        ? 'border-emerald-500 bg-emerald-50'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Resume Agents</div>
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'resume' && <span className="text-emerald-600 dark:text-emerald-400">✓</span>}
+                      Resume Agents
+                    </div>
                     <div className="text-sm text-gray-500">
                       Resume {selectedAgents.filter(a => a.paused).length} paused agent{selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}
                     </div>
                   </button>
                 )}
 
+                {/* --- Organization --- */}
+                <button
+                  onClick={() => setOperation(operation === 'communities' ? null : 'communities')}
+                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                    operation === 'communities'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                    {operation === 'communities' && <span className="text-purple-600 dark:text-purple-400">✓</span>}
+                    Add to Communities
+                  </div>
+                  <div className="text-sm text-gray-500">Add selected agents to one or more communities</div>
+                </button>
+
+                <button
+                  onClick={() => setOperation(operation === 'groups' ? null : 'groups')}
+                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                    operation === 'groups'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                    {operation === 'groups' && <span className="text-indigo-600 dark:text-indigo-400">✓</span>}
+                    Add to Groups
+                  </div>
+                  <div className="text-sm text-gray-500">Add selected agents to one or more groups</div>
+                </button>
+
+                {/* --- Lifecycle --- */}
+                {activeCount > 0 && (
+                  <button
+                    onClick={() => setOperation(operation === 'archive' ? null : 'archive')}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'archive'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'archive' && <span className="text-orange-600 dark:text-orange-400">✓</span>}
+                      Archive Agents
+                    </div>
+                    <div className="text-sm text-gray-500">Archive {activeCount} active agent{activeCount !== 1 ? 's' : ''}</div>
+                  </button>
+                )}
+
                 {archivedCount > 0 && (
                   <button
-                    onClick={() => setOperation('unarchive')}
+                    onClick={() => setOperation(operation === 'unarchive' ? null : 'unarchive')}
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'unarchive'
-                        ? 'border-green-500 bg-green-50'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-green-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Unarchive Agents</div>
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'unarchive' && <span className="text-green-600 dark:text-green-400">✓</span>}
+                      Unarchive Agents
+                    </div>
                     <div className="text-sm text-gray-500">Unarchive {archivedCount} archived agent{archivedCount !== 1 ? 's' : ''}</div>
                   </button>
                 )}
 
+                {/* --- Destructive --- */}
                 {onDelete && (
                   <button
-                    onClick={() => setOperation('delete')}
+                    onClick={() => setOperation(operation === 'delete' ? null : 'delete')}
                     className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
                       operation === 'delete'
-                        ? 'border-red-500 bg-red-50'
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-red-300 bg-white dark:bg-gray-800'
                     }`}
                   >
-                    <div className="font-medium text-gray-900 text-red-700 dark:text-gray-100">⚠️ Delete Agents Permanently</div>
-                    <div className="text-sm text-red-600">Permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} (cannot be undone)</div>
+                    <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-400">
+                      {operation === 'delete' && <span>✓</span>}
+                      ⚠️ Delete Agents Permanently
+                    </div>
+                    <div className="text-sm text-red-600 dark:text-red-500">Permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} (cannot be undone)</div>
                   </button>
                 )}
               </div>
@@ -409,7 +450,7 @@ export default function BulkOperationsPanel({
                 disabled={processing}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                {processing ? 'Processing...' : 'Confirm & Execute'}
+                {processing ? `${processingLabel}...` : 'Confirm & Execute'}
               </button>
             </div>
           </>

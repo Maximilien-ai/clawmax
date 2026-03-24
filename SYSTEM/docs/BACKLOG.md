@@ -24,9 +24,9 @@
 ### Cost Management (Sprint Priority #2)
 - [x] **Workspace cost budget** — per-workspace USD budget with progress bar, yellow at 80%, red when exceeded, auto-pause agents + block workflows
 - [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
-- [ ] **Per-agent cost limits** — individual agent limits (future, currently workspace-level)
 - [x] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause/resume via selection. Paused agents show badge & block new interactions.
-- [x] **Bulk pause agents** — selection-mode action to pause/resume many agents safely without deleting them. Workflows can finish before new interactions resume.
+- [x] **Bulk pause agents** — selection-mode action to pause/resume many agents safely without deleting them.
+- [ ] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
 - [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
 
@@ -35,87 +35,72 @@
 - [ ] **Workspace restore** — upload zip to restore workspace state
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
-### Agent Coordination (Sprint Priority #4)
-- [ ] **Blocking/waiting notifications** — system skills for agents to report "waiting on X" or "blocked by Y". Central notification hub visible to all agents and user.
-- [ ] **System skills** — built-in skills all agents get: notify-blocked, request-decision, escalate-to-human, update-status
+## Sprint: March 23–31 — Priority Order
 
-### Templates Library (Sprint Priority #5)
-- [ ] **Template categories** — Personal, Enterprise, Teams with 5-10 templates each
-- [ ] **Pre-built templates**: Job Search, Sales Lead, Deep Research, Customer Support, Content Creation, Legal Review, Student Study Group, Back Office, Retail Operations, Marketing Team
-- [ ] **Non-engineering org and agent examples** — expand system templates beyond software engineering with strong examples for operations, support, sales, marketing, research, legal, education, and back office use cases
-- [ ] **Custom templates** — save current workspace as template (agents, groups, communities, workflows)
-- [ ] **Template sharing** — export/import via email (zip or JSON)
-- [ ] **Template skills audit** — role-appropriate skills per agent type
+### P0: Notification Center (GAME CHANGER)
+> Central workspace awareness — the missing glue between "I have agents" and "I know what's happening."
 
-## High Priority (Bugs)
+- [ ] **Notification center UI** — badge in top nav (near BYOK) with count, red/orange severity. Click opens dropdown with grouped notifications and action links.
+- [ ] **Workspace monitor agent** — system agent that periodically scans workspace state: agents waiting on feedback, agents failing, workflows stuck/failed, cost approaching limits, agents circling on tasks.
+- [ ] **Notification types** — agent-needs-feedback, agent-error, workflow-failed, workflow-stuck, cost-warning, agent-blocked, agent-idle-too-long.
+- [ ] **Grouped display** — notifications grouped by category with timestamps. Links to jump to agent chat, workflow detail, group, etc.
+- [ ] **Bulk actions from notifications** — dismiss, pause agent, restart workflow, open chat — directly from notification dropdown.
+- [ ] **Auto-clear** — notifications auto-resolve when underlying issue is fixed (agent responds, workflow completes, etc.).
+- [ ] **Badge refresh** — poll or websocket for live badge count updates.
 
-- [x] **Issue #28** Agent config editor: validate all sections against schema before saving
-- [x] **Issue #30** Mobile: Agents detail view responsive audit
-- [x] **Issue #8** Anthropic per-agent auth store issue (resolved by runtime auth/model override plus BYOK/system env precedence fixes in v1.1.8)
-- [ ] Group chat: 2nd agent empty response (workaround: @all or Tab-expand)
-- [ ] Group chat jitter on mobile (improved but not eliminated)
-- [ ] Template apply: GROUPS.md/COMMUNITIES.md intermittent
+### P1: Agent List Pagination
+- [x] **Agent list pagination** — client-side pagination with 10 per page, page controls, auto-reset on filter change
 
-## High Priority (UX)
+### P2: Template Apply Bug
+- [x] **Template apply: GROUPS.md/COMMUNITIES.md intermittent** — fixed case-insensitive matching + fallback write ensures files always created
 
-- [ ] **Agent list pagination** — paginate agent list/table views (10 per page) to handle growing rosters
-- [ ] **Activity metering loading state** — show placeholder message while Opik data loads (e.g., "Fetching metering data…") so users don't think it's broken on cold start
+### P3: Per-Agent Cost Limits
+- [x] **Per-agent cost limits** — individual agent USD limits stored in agent-state.json, auto-pause when exceeded, editable in agent detail panel, notification on breach
+
+### P4: Forward to Group (Issue #29)
+- [ ] **Forward to group** — share 1:1 agent chat message/thread to a group chat
+
+### P5: Group Chat Empty Response Bug
+- [ ] **Group chat: 2nd agent empty response** — workaround exists (@all or Tab-expand) but needs root cause fix
+
+### P6: System Agents — Creators
+- [ ] **System agent: workflow creator** — natural language to workflow definition
+- [ ] **System agent: org creator** — natural language to full org with agents, groups, communities, domain knowledge
+- [ ] **System agent: template creator** — create templates from existing agents and workflows
+
+### P7: Community Rules & Workflow Sequencing
+- [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups. Example: engineering security constraints applied consistently.
+- [ ] **Workflow sequencing/chaining** — workflows trigger other workflows, dependency graphs, sequential execution
+
+## High Priority (UX) — Completed or In Progress
+- [x] **Activity metering loading state** — shimmer placeholder in cost column while metering data loads
 - [x] **Issue #31** Templates list view — with select/select-all/bulk-delete
-- [ ] **Workflow next-run visibility** — show next scheduled run and a compact “coming up / running now / next in queue” view so users can understand dozens of workflows at a glance
+- [x] **Workflow next-run visibility** — next scheduled run + "coming up / running now" view
+- [x] **Dark mode audit (Issue #12)** — systematic fixes across agents, templates, workflows, bulk ops
+- [x] **BYOK wizard** — 2-step flow: LLM keys + Opik monitoring
 - [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents
 
 ## High Priority (Quality / Test Automation)
-
-- [ ] **Dashboard regression automation** — add coverage for OAuth/auth flows, agent edit/model save, template apply, workspace switching, and production route regressions so fewer manual checks are needed before each push
-- [x] **System template contract tests** — keep `TEMPLATES/*` under strict validation in CI and extend coverage to template apply paths
-- [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows before release candidates
-- [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic in empty/default workspaces and ensure GitHub Actions is trustworthy on `main`
+- [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching
+- [x] **System template contract tests** — `TEMPLATES/*` under strict validation in CI
+- [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows
+- [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ## High Priority (Features)
-
-- [ ] **Issue #29** Forward to group — share 1:1 agent chat to group chat
-- [ ] **System agent: workflow creator** — NL to workflow
-- [ ] **System agent: org creator** — NL to full org with domain knowledge
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
-## Next Sprint Candidates
-
-- [ ] **Community rules and constraints** — define reusable rules/constraints at the community level and inherit them into all groups in that community. Example: engineering community security constraints applied consistently across engineering groups/workflows.
-- [ ] **Workflow table view** — sortable columns like agent table view, but defer until after release blockers
-
-## Sprint: March 23-31
-
-### Must Land Before Workshop
-- [ ] **Workflow table view**
-- [ ] **Workflow next-run visibility**
-- [x] **Bulk pause agents**
-- [ ] **Close stale fixed GitHub issues and keep docs aligned with shipped behavior**
-
-### Strong Next Slice If Time Allows
-- [ ] **Community rules and constraints**
-- [ ] **Non-engineering org and agent examples**
-- [ ] **OAuth clean-room auth test**
-
-### Defer Until After Workshop Unless Blocking
-- [ ] **Secure multi-user BYOK storage**
-- [ ] **Google/Apple auth**
-
 ## Medium Priority
-
 - [ ] Template tag filtering
-- [ ] **Issue #12** Dark mode audit
 - [ ] **Issue #32** Consolidate cron with OpenClaw native
-- [ ] Workflow chaining — one triggers others
 - [ ] **Issue #10** CI .env handling
 - [ ] **Issue #33** Branch protection for main
 - [ ] **Issue #11** Clean-room test of setup flow
-- [ ] **Issue #14** Workflow cron scheduler not running
 - [ ] **Issue #13** Agent creation flow missing from agent registry
 - [ ] **Issue #15** Agent chat streaming improvement
+- [ ] Group chat jitter on mobile (improved but not eliminated)
 
 ## Cloud Deployment (April 1st — Separate Team)
-
 - [ ] Cloud infrastructure setup
 - [ ] Multi-tenant workspace isolation
 - [ ] Cloud management dashboard (ClawMax.ai)
@@ -124,7 +109,6 @@
 - [ ] Template marketplace
 
 ## On-Premise (v1.3.0 — Future)
-
 - [ ] Remote agent installation
 - [ ] Remote setup/management/updates
 - [ ] On-premise management dashboard
@@ -132,12 +116,13 @@
 
 ---
 
-## Completed (v1.1.5 — March 19, 2026)
+## Completed (v1.1.5–v1.1.8)
 
-See CHANGELOG.md. Key: Opik metering, cost badges, unread indicators, @mention grouping, Select All, agent PRs merged, markdown chat, nav reorder.
+See CHANGELOG.md. Key: Opik metering, cost badges, bulk pause/resume, dark mode audit, BYOK wizard with Opik, metering loading state, workflow next-run, select-all styling, paused agent indicators, bulk operations panel UX.
 
 ## Notes
 
-- Best pre-workshop order is: **workflow table view**, **workflow next-run visibility**, **bulk pause agents**, then **community rules**.
-- `Community rules` is strategically important, but it is less immediately demo-visible than workflow scale management and budget-control actions.
-- Secure multi-user BYOK storage should remain deferred until after workflow scale UX and workshop readiness.
+- Notification center is the scaling enabler — build it now with small roster, validate it scales.
+- System creator agents (workflow, org, template) unlock non-technical users.
+- Community rules + workflow sequencing are the coordination layer for enterprise use cases.
+- Full week March 23–31 to land P0–P5, stretch for P6–P7.

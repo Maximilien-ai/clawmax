@@ -664,6 +664,7 @@ export default function Templates() {
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onToggleSelect={toggleTemplateSelection}
+            onToggleSelectAll={setSelectedTemplateKeys}
             onOpenTemplate={setSelectedTemplate}
             onDeleteTemplate={(template) => handleDelete(
               template.type,
@@ -746,6 +747,7 @@ function TemplatesTable({
   sortColumn,
   sortDirection,
   onToggleSelect,
+  onToggleSelectAll,
   onOpenTemplate,
   onDeleteTemplate,
   onApplyTemplate,
@@ -758,6 +760,7 @@ function TemplatesTable({
   sortColumn: TemplateSortColumn
   sortDirection: 'asc' | 'desc'
   onToggleSelect: (key: string) => void
+  onToggleSelectAll: (keys: Set<string>) => void
   onOpenTemplate: (template: Template) => void
   onDeleteTemplate: (template: Template) => void
   onApplyTemplate: (template: Template) => void
@@ -780,7 +783,27 @@ function TemplatesTable({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              {selectionMode && <th className="px-4 py-3 text-left w-10"></th>}
+              {selectionMode && (
+                <th className="px-4 py-3 text-left w-10 dark:bg-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSelected = rows.length > 0 && rows.every(r => selectedTemplateKeys.has(r.key))
+                      const next = new Set(selectedTemplateKeys)
+                      rows.forEach(r => allSelected ? next.delete(r.key) : next.add(r.key))
+                      onToggleSelectAll(next)
+                    }}
+                    className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                      rows.length > 0 && rows.every(r => selectedTemplateKeys.has(r.key))
+                        ? 'bg-sky-600 border-sky-600 text-white'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                    } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                    title="Toggle select all"
+                  >
+                    {rows.length > 0 && rows.every(r => selectedTemplateKeys.has(r.key)) ? '✓' : '□'}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-3 text-left"><SortHeader column="name" label="Template" /></th>
               <th className="px-4 py-3 text-left"><SortHeader column="type" label="Type" /></th>
               <th className="px-4 py-3 text-left"><SortHeader column="agents" label="Agents" /></th>
@@ -799,33 +822,38 @@ function TemplatesTable({
               return (
                 <tr
                   key={row.key}
-                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/40 ${
+                  onClick={() => onOpenTemplate(row.template)}
+                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
                     isActive ? 'bg-sky-50 dark:bg-sky-900/20' : ''
                   }`}
                 >
                   {selectionMode && (
                     <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggleSelect(row.key)}
-                        className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
-                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onToggleSelect(row.key) }}
+                        className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                          isSelected
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                        } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
+                        title={isSelected ? 'Deselect template' : 'Select template'}
+                      >
+                        {isSelected ? '✓' : '□'}
+                      </button>
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <button onClick={() => onOpenTemplate(row.template)} className="text-left">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
-                      {row.tags.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {row.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="text-[11px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </button>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
+                    {row.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {row.tags.slice(0, 3).map(tag => (
+                          <span key={tag} className="text-[11px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{row.type}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.agentCount}</td>
@@ -836,14 +864,14 @@ function TemplatesTable({
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => onOpenTemplate(row.template)}
+                        onClick={(e) => { e.stopPropagation(); onOpenTemplate(row.template) }}
                         className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
                       >
                         View
                       </button>
                       {row.template.type !== 'workflow' && (
                         <button
-                          onClick={() => onApplyTemplate(row.template)}
+                          onClick={(e) => { e.stopPropagation(); onApplyTemplate(row.template) }}
                           className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                         >
                           Apply
@@ -851,7 +879,7 @@ function TemplatesTable({
                       )}
                       {row.source === 'workspace' && (
                         <button
-                          onClick={() => onDeleteTemplate(row.template)}
+                          onClick={(e) => { e.stopPropagation(); onDeleteTemplate(row.template) }}
                           className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
                         >
                           Delete
@@ -899,7 +927,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
           className={`absolute top-3 right-3 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
             isSelected
               ? 'bg-sky-600 border-sky-600 text-white'
-              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
           }`}
           title={isSelected ? 'Deselect template' : 'Select template'}
         >
@@ -1285,7 +1313,7 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
           className={`absolute top-3 right-3 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
             isSelected
               ? 'bg-sky-600 border-sky-600 text-white'
-              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
           }`}
           title={isSelected ? 'Deselect template' : 'Select template'}
         >

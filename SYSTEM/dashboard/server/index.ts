@@ -18,6 +18,8 @@ import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
+import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
+import notificationsRouter from './routes/notifications'
 import { initOpikTracing, shutdownOpik } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
@@ -409,6 +411,7 @@ app.use('/api/templates', protect, templatesRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
+app.use('/api/notifications', protect, notificationsRouter)
 app.use('/api', protect, channelsRouter)
 
 function resolveClientDist(): string | null {
@@ -453,10 +456,13 @@ app.listen(PORT, HOST, () => {
   // Start workflow scheduler after server is ready
   startScheduler()
 
+  // Start notification monitor
+  startNotificationMonitor()
+
   // Initialize Opik tracing
   initOpikTracing()
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { stopScheduler(); shutdownOpik() })
-process.on('SIGINT', () => { stopScheduler(); shutdownOpik() })
+process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
+process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })

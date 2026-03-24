@@ -5,11 +5,21 @@
  */
 
 import https from 'https'
+import path from 'path'
 
 let apiKey = ''
 let workspace = ''
 let projectName = ''
 let enabled = false
+
+function getWorkspaceId(): string {
+  try {
+    const wsPath = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
+    return path.basename(wsPath)
+  } catch {
+    return 'default'
+  }
+}
 
 // Estimated cost per 1K tokens (USD)
 const COST_PER_1K: Record<string, { input: number; output: number }> = {
@@ -146,6 +156,8 @@ export function traceAgentChat(
     output: { response: response.slice(0, 1000) },
     metadata: {
       agent_id: agentId,
+      workspace_id: getWorkspaceId(),
+      user_id: meta.sessionId ? 'session' : 'system',
       model: meta.model || 'unknown',
       provider: meta.provider || 'unknown',
       tokens_input: meta.inputTokens || 0,
@@ -201,6 +213,7 @@ export function traceWorkflowExecution(
     metadata: {
       workflow_id: workflowId,
       workflow_name: workflowName,
+      workspace_id: getWorkspaceId(),
       trigger_type: meta.triggerType,
       participant_count: participants.length,
       tokens_input: totalInput,

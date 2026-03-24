@@ -4,6 +4,7 @@ import { getWorkspacePath } from './workspace'
 
 interface AgentState {
   paused: string[]
+  costLimits: Record<string, number> // agentId -> USD limit
 }
 
 const STATE_PATH = path.join(getWorkspacePath(), 'SYSTEM', 'agent-state.json')
@@ -13,10 +14,11 @@ function loadState(): AgentState {
     const raw = fs.readFileSync(STATE_PATH, 'utf-8')
     const parsed = JSON.parse(raw)
     return {
-      paused: Array.isArray(parsed.paused) ? parsed.paused : []
+      paused: Array.isArray(parsed.paused) ? parsed.paused : [],
+      costLimits: parsed.costLimits && typeof parsed.costLimits === 'object' ? parsed.costLimits : {},
     }
   } catch {
-    return { paused: [] }
+    return { paused: [], costLimits: {} }
   }
 }
 
@@ -47,4 +49,29 @@ export function resumeAgents(agentIds: string[]): Set<string> {
   state.paused = Array.from(next)
   saveState(state)
   return next
+}
+
+// --- Per-agent cost limits ---
+
+export function getAgentCostLimits(): Record<string, number> {
+  return loadState().costLimits
+}
+
+export function getAgentCostLimit(agentId: string): number | null {
+  const limits = loadState().costLimits
+  return limits[agentId] ?? null
+}
+
+export function setAgentCostLimit(agentId: string, limitUsd: number | null): void {
+  const state = loadState()
+  if (limitUsd === null || limitUsd <= 0) {
+    delete state.costLimits[agentId]
+  } else {
+    state.costLimits[agentId] = limitUsd
+  }
+  saveState(state)
+}
+
+export function getAllAgentCostLimits(): Record<string, number> {
+  return loadState().costLimits
 }

@@ -12,7 +12,7 @@ import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { updateAgentModelInConfigFile } from '../lib/agent-model'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
-import { getPausedAgents, pauseAgents, resumeAgents } from '../lib/agent-state'
+import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -1286,6 +1286,27 @@ router.post('/resume', (req, res) => {
   }
   const paused = resumeAgents(agentIds)
   res.json({ paused: Array.from(paused) })
+})
+
+// GET /api/agents/cost-limits — get all per-agent cost limits
+router.get('/cost-limits', (_req, res) => {
+  res.json({ limits: getAllAgentCostLimits() })
+})
+
+// GET /api/agents/:id/cost-limit — get cost limit for a specific agent
+router.get('/:id/cost-limit', (req, res) => {
+  const limit = getAgentCostLimit(req.params.id)
+  res.json({ agentId: req.params.id, limitUsd: limit })
+})
+
+// PUT /api/agents/:id/cost-limit — set cost limit for a specific agent
+router.put('/:id/cost-limit', (req, res) => {
+  const { limitUsd } = req.body
+  if (limitUsd !== null && (typeof limitUsd !== 'number' || limitUsd < 0)) {
+    return res.status(400).json({ error: 'limitUsd must be a positive number or null to remove' })
+  }
+  setAgentCostLimit(req.params.id, limitUsd)
+  res.json({ ok: true, agentId: req.params.id, limitUsd: limitUsd || null })
 })
 
 // PATCH /api/agents/:id/tags — update agent tags in IDENTITY.md

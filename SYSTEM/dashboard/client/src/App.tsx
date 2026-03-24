@@ -17,6 +17,7 @@ import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
+import { NotificationCenter } from './components/NotificationCenter'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'logs'
 
@@ -324,6 +325,9 @@ export default function App() {
               onClickRunningWorkflows={() => setPage('workflows')}
               darkMode={darkMode}
               onToggleDarkMode={() => setDarkMode(d => !d)}
+              onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
+              onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
+              onNavigateToPage={(p) => setPage(p as any)}
             />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
@@ -387,7 +391,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -395,6 +399,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onClickRunningWorkflows?: () => void
   darkMode?: boolean
   onToggleDarkMode?: () => void
+  onNavigateToAgent?: (agentId: string) => void
+  onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToPage?: (page: string) => void
 }) {
   const { user, logout, config } = useAuth()
 
@@ -461,6 +468,11 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex items-center gap-3">
+        <NotificationCenter
+          onNavigateToAgent={onNavigateToAgent}
+          onNavigateToWorkflow={onNavigateToWorkflow}
+          onNavigateToPage={onNavigateToPage}
+        />
         <ByokWizard />
         {user && !config?.authDisabled && (
           <div className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">

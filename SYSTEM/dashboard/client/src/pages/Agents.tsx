@@ -96,7 +96,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [total, setTotal] = useState<number>(0)
   const PAGE_SIZE = 20
+  const DISPLAY_PAGE_SIZE = 10
+  const [currentPage, setCurrentPage] = useState(1)
   const [agentMetering, setAgentMetering] = useState<Record<string, { calls: number; tokens: number; cost: number }>>({})
+  const [meteringLoaded, setMeteringLoaded] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
     return (saved === 'list' || saved === 'grid' || saved === 'table') ? saved : 'grid'
@@ -181,7 +184,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         map[a.agentId] = { calls: a.totalCalls, tokens: a.totalTokens, cost: a.estimatedCostUsd }
       }
       setAgentMetering(map)
-    }).catch(() => {})
+      setMeteringLoaded(true)
+    }).catch(() => { setMeteringLoaded(true) })
   }, [])
 
   useEffect(() => {
@@ -795,6 +799,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     return filtered
   }, [agents, selectedTags, searchQuery, archiveTab])
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedTags, archiveTab, viewMode])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAgents.length / DISPLAY_PAGE_SIZE))
+  const paginatedAgents = useMemo(() => {
+    const start = (currentPage - 1) * DISPLAY_PAGE_SIZE
+    return filteredAgents.slice(start, start + DISPLAY_PAGE_SIZE)
+  }, [filteredAgents, currentPage])
+
   const groupedAgents = useMemo(() => {
     const groups = new Map<string, Agent[]>()
 
@@ -1190,8 +1205,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <div className="space-y-8">
           {(() => {
             // Separate user agents from built-in agents
-            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
-            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+            const userAgents = paginatedAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = paginatedAgents.filter(a => a.tags.includes('built-in'))
 
             const renderAgentCards = (agents: Agent[], title?: string) => (
               <>
@@ -1279,8 +1294,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <div className="space-y-8">
           {(() => {
             // Separate user agents from built-in agents
-            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
-            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+            const userAgents = paginatedAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = paginatedAgents.filter(a => a.tags.includes('built-in'))
 
             // Group each separately
             const userGrouped = new Map<string, Agent[]>()
@@ -1467,8 +1482,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'grid' && selectedTags.size > 0 && (
         <div className="space-y-8">
           {(() => {
-            const userAgents = filteredAgents.filter(a => !a.tags.includes('built-in'))
-            const builtInAgents = filteredAgents.filter(a => a.tags.includes('built-in'))
+            const userAgents = paginatedAgents.filter(a => !a.tags.includes('built-in'))
+            const builtInAgents = paginatedAgents.filter(a => a.tags.includes('built-in'))
 
             return (
               <>
@@ -1572,7 +1587,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {/* Table View */}
       {!loading && !error && filteredAgents.length > 0 && viewMode === 'table' && (
         <AgentTableView
-          agents={filteredAgents}
+          agents={paginatedAgents}
           selectedAgent={selectedAgent}
           selectedAgentIds={selectedAgentIds}
           selectionMode={selectionMode}
@@ -1595,28 +1610,83 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
           metering={agentMetering}
+          meteringLoaded={meteringLoaded}
         />
       )}
 
-      {/* Load More button */}
+      {/* Pagination */}
+      {!loading && !error && filteredAgents.length > DISPLAY_PAGE_SIZE && (
+        <div className="flex items-center justify-between py-4 px-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Showing {(currentPage - 1) * DISPLAY_PAGE_SIZE + 1}–{Math.min(currentPage * DISPLAY_PAGE_SIZE, filteredAgents.length)} of {filteredAgents.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let page: number
+              if (totalPages <= 5) {
+                page = i + 1
+              } else if (currentPage <= 3) {
+                page = i + 1
+              } else if (currentPage >= totalPages - 2) {
+                page = totalPages - 4 + i
+              } else {
+                page = currentPage - 2 + i
+              }
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+                    page === currentPage
+                      ? 'bg-sky-600 border-sky-600 text-white'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {page}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next →
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Load More from server */}
       {!loading && !error && hasMore && (
-        <div className="flex justify-center py-6">
+        <div className="flex justify-center py-2">
           <button
             onClick={() => fetchAgents(false)}
             disabled={loadingMore}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-              loadingMore
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-sky-600 text-white hover:bg-sky-700'
-            }`}
+            className="px-4 py-1.5 text-xs rounded-lg font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
           >
-            {loadingMore && (
-              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            )}
-            {loadingMore ? 'Loading...' : `Load More (${agents.length} of ${total})`}
+            {loadingMore ? 'Loading...' : `Load more from server (${agents.length} of ${total} loaded)`}
           </button>
         </div>
       )}
@@ -2433,20 +2503,19 @@ const AgentCard = React.memo(function AgentCard({
       {/* Card header — always visible */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0 pr-8">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
+          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-500' : STATUS_COLORS[agent.status]}`} />
           <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">{agent.name}</h3>
           {agent.archived ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700">
               📦 Archived
             </span>
+          ) : agent.paused ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
+              paused
+            </span>
           ) : (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_TEXT[agent.status]}`}>
               {agent.status}
-            </span>
-          )}
-          {agent.paused && !agent.archived && (
-            <span className={PAUSED_BADGE} title="Agent is paused">
-              Paused
             </span>
           )}
           {metering && metering.calls > 0 && (
@@ -2844,7 +2913,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       )}
       {/* Line 1: Name + chat icon */}
       <div className="flex items-center gap-1.5 mb-1">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : STATUS_COLORS[agent.status]}`} />
+        <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-500' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
         {agent.tags.includes('built-in') && <span className="shrink-0" title="Built-in system agent">🤖</span>}
         {agent.archived && <span className="shrink-0">📦</span>}
@@ -3033,6 +3102,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onArchive,
   onUnarchive,
   metering,
+  meteringLoaded = true,
 }: {
   agents: Agent[]
   selectedAgent: Agent | null
@@ -3050,6 +3120,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
   metering: Record<string, { calls: number; tokens: number; cost: number }>
+  meteringLoaded?: boolean
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
 
@@ -3126,7 +3197,7 @@ const AgentTableView = React.memo(function AgentTableView({
         <thead className="bg-gray-50 sticky top-0 z-10 dark:bg-gray-900">
           <tr>
             {selectionMode && (
-              <th className="px-4 py-3 w-14">
+              <th className="px-4 py-3 w-14 dark:bg-gray-800">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -3143,7 +3214,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
                     agents.length > 0 && agents.every(a => selectedAgentIds.has(a.id))
                       ? 'bg-sky-600 border-sky-600 text-white'
-                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
                   } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
                   title="Toggle select all visible agents"
                 >
@@ -3201,13 +3272,15 @@ const AgentTableView = React.memo(function AgentTableView({
                 </div>
               </td>
               <td className="px-4 py-3 whitespace-nowrap">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${STATUS_TEXT[agent.status]}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
-                  {agent.status}
-                </span>
-                {agent.paused && (
-                  <span className={PAUSED_BADGE} title="Agent is paused and will not be sent messages">
-                    Paused
+                {agent.paused && !agent.archived ? (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                    paused
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${STATUS_TEXT[agent.status]}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[agent.status]}`}></span>
+                    {agent.status}
                   </span>
                 )}
               </td>
@@ -3215,7 +3288,9 @@ const AgentTableView = React.memo(function AgentTableView({
                 {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">
-                {metering[agent.id] ? (
+                {!meteringLoaded ? (
+                  <span className="inline-block w-14 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                ) : metering[agent.id] ? (
                   <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${(metering[agent.id].tokens/1000).toFixed(1)}k tokens`}>
                     ${metering[agent.id].cost.toFixed(4)}
                   </span>

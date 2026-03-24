@@ -8,12 +8,18 @@ function maskKey(value: string) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
+type Step = 'keys' | 'monitoring'
+
 export function ByokWizard() {
   const { user, config } = useAuth()
   const { showSuccess, showInfo } = useToast()
   const [open, setOpen] = useState(false)
+  const [step, setStep] = useState<Step>('keys')
   const [openaiKey, setOpenaiKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
+  const [opikApiKey, setOpikApiKey] = useState('')
+  const [opikWorkspace, setOpikWorkspace] = useState('')
+  const [opikProject, setOpikProject] = useState('')
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
@@ -21,6 +27,9 @@ export function ByokWizard() {
     const stored = readStoredByokKeys()
     setOpenaiKey(stored.openai || '')
     setAnthropicKey(stored.anthropic || '')
+    setOpikApiKey(stored.opikApiKey || '')
+    setOpikWorkspace(stored.opikWorkspace || '')
+    setOpikProject(stored.opikProject || '')
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
     setHydrated(true)
   }, [])
@@ -46,16 +55,30 @@ export function ByokWizard() {
     return 'No user keys configured yet'
   }, [anthropicKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
 
+  const monitoringStatusText = useMemo(() => {
+    if (opikApiKey) {
+      const parts = [`Opik ${maskKey(opikApiKey)}`]
+      if (opikWorkspace) parts.push(`workspace: ${opikWorkspace}`)
+      if (opikProject) parts.push(`project: ${opikProject}`)
+      return parts.join(' · ')
+    }
+    return 'No monitoring keys configured — using system defaults if available'
+  }, [opikApiKey, opikWorkspace, opikProject])
+
   if (!user || config?.authDisabled || !hydrated) return null
 
   const handleSave = () => {
     writeStoredByokKeys({
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
+      opikApiKey: opikApiKey.trim(),
+      opikWorkspace: opikWorkspace.trim(),
+      opikProject: opikProject.trim(),
     })
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
+    setStep('keys')
     showSuccess('BYOK preview keys saved locally for this browser')
   }
 
@@ -63,10 +86,12 @@ export function ByokWizard() {
     localStorage.setItem(getByokDismissKey(), 'true')
     setDismissed(true)
     setOpen(false)
+    setStep('keys')
     showInfo('BYOK preview skipped for now')
   }
 
   const handleReopen = () => {
+    setStep('keys')
     setOpen(true)
   }
 
@@ -91,7 +116,7 @@ export function ByokWizard() {
                 </p>
               </div>
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => { setOpen(false); setStep('keys') }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                 aria-label="Close"
               >
@@ -99,70 +124,168 @@ export function ByokWizard() {
               </button>
             </div>
 
-            <div className="mt-5 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-sm text-sky-900 dark:text-sky-100">
-              <div className="font-medium">System vs user keys</div>
-              <div className="mt-1">
-                System keys in `SYSTEM/dashboard/.env` power dashboard-owned actions. User keys are the default direction for the logged-in user&apos;s agents.
-              </div>
+            {/* Step indicator */}
+            <div className="mt-4 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className={`px-2 py-1 rounded-full ${step === 'keys' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                1. LLM Keys
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+              <span className={`px-2 py-1 rounded-full ${step === 'monitoring' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                2. Monitoring
+              </span>
             </div>
 
-            <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-              <div className="font-medium text-gray-900 dark:text-gray-100">Current status</div>
-              <div className="mt-1">{statusText}</div>
-            </div>
+            {step === 'keys' ? (
+              <>
+                <div className="mt-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-sm text-sky-900 dark:text-sky-100">
+                  <div className="font-medium">Why bring your own keys?</div>
+                  <div className="mt-1">
+                    System keys may be limited or unavailable. Add your own to ensure your agents can run with the models and providers you choose, billed to your own account.
+                  </div>
+                </div>
 
-            <div className="mt-5 space-y-4">
-              <div>
-                <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  OpenAI key
-                </label>
-                <input
-                  id="byok-openai"
-                  type="password"
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
+                <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">Current status</div>
+                  <div className="mt-1">{statusText}</div>
+                </div>
 
-              <div>
-                <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Anthropic key
-                </label>
-                <input
-                  id="byok-anthropic"
-                  type="password"
-                  value={anthropicKey}
-                  onChange={(e) => setAnthropicKey(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-            </div>
+                <div className="mt-5 space-y-4">
+                  <div>
+                    <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      OpenAI key
+                    </label>
+                    <input
+                      id="byok-openai"
+                      type="password"
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
 
-            <div className="mt-6 flex items-center justify-between gap-3">
-              <button
-                onClick={handleSkip}
-                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              >
-                Skip for now
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
-                >
-                  Save Preview Keys
-                </button>
-              </div>
-            </div>
+                  <div>
+                    <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Anthropic key
+                    </label>
+                    <input
+                      id="byok-anthropic"
+                      type="password"
+                      value={anthropicKey}
+                      onChange={(e) => setAnthropicKey(e.target.value)}
+                      placeholder="sk-ant-..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-3">
+                  <button
+                    onClick={handleSkip}
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSave}
+                      className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Save &amp; Close
+                    </button>
+                    <button
+                      onClick={() => setStep('monitoring')}
+                      className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+                    >
+                      Next &rarr;
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mt-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-4 text-sm text-purple-900 dark:text-purple-100">
+                  <div className="font-medium">Opik Monitoring (optional)</div>
+                  <div className="mt-1">
+                    Connect your own <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">Opik</a> account to track agent calls, tokens, and costs under your workspace. Without these, metering may be limited or unavailable.
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">Monitoring status</div>
+                  <div className="mt-1">{monitoringStatusText}</div>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  <div>
+                    <label htmlFor="byok-opik-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Opik API key
+                    </label>
+                    <input
+                      id="byok-opik-key"
+                      type="password"
+                      value={opikApiKey}
+                      onChange={(e) => setOpikApiKey(e.target.value)}
+                      placeholder="Your Opik API key"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="byok-opik-workspace" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Opik workspace
+                    </label>
+                    <input
+                      id="byok-opik-workspace"
+                      type="text"
+                      value={opikWorkspace}
+                      onChange={(e) => setOpikWorkspace(e.target.value)}
+                      placeholder="e.g. my-team"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">Found in your Opik dashboard settings</p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="byok-opik-project" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Opik project name
+                    </label>
+                    <input
+                      id="byok-opik-project"
+                      type="text"
+                      value={opikProject}
+                      onChange={(e) => setOpikProject(e.target.value)}
+                      placeholder="e.g. clawmax-agents"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">All agent traces will be logged under this project</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => setStep('keys')}
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  >
+                    &larr; Back
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setOpen(false); setStep('keys') }}
+                      className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+                    >
+                      Save All Keys
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

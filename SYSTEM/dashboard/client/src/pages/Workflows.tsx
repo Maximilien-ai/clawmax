@@ -1828,7 +1828,7 @@ function WorkflowsTable({
           <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
             <tr>
               {selectionMode && (
-                <th className="px-4 py-3 text-left w-12">
+                <th className="px-4 py-3 text-left w-12 dark:bg-gray-800">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1836,10 +1836,10 @@ function WorkflowsTable({
                       else setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
                     }}
                     title={allVisibleSelected ? 'Deselect all visible workflows' : 'Select all visible workflows'}
-                    className={`flex h-6 w-6 items-center justify-center rounded border ${
+                    className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
                       allVisibleSelected
                         ? 'bg-sky-600 border-sky-600 text-white'
-                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
                     } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
                   >
                     {allVisibleSelected ? '✓' : '□'}
@@ -1877,10 +1877,10 @@ function WorkflowsTable({
                           e.stopPropagation()
                           onToggleSelect(workflow.id)
                         }}
-                        className={`h-6 w-6 flex items-center justify-center rounded border ${
+                        className={`h-6 w-6 flex items-center justify-center rounded border text-xs font-bold transition-colors ${
                           selectedWorkflowIds.has(workflow.id)
                             ? 'bg-sky-600 border-sky-600 text-white'
-                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
                         } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400`}
                         title={selectedWorkflowIds.has(workflow.id) ? 'Deselect workflow' : 'Select workflow'}
                       >
@@ -2018,7 +2018,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
           className={`absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
             isSelected
               ? 'bg-sky-600 border-sky-600 text-white'
-              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500'
           }`}
           title={isSelected ? 'Deselect workflow' : 'Select workflow'}
         >

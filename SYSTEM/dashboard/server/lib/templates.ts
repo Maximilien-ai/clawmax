@@ -1056,9 +1056,10 @@ export function importOrganizationTemplate(
               fs.mkdirSync(agentDir, { recursive: true })
               const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
 
-              // Build COMMUNITIES.md content
-              const communitiesContent = template.communities
-                .filter(comm => agentCommunities.includes(comm.name))
+              // Build COMMUNITIES.md content — match by name (case-insensitive)
+              const matchedCommunities = template.communities
+                .filter(comm => agentCommunities.some((ac: string) => ac.toLowerCase() === comm.name.toLowerCase()))
+              const communitiesContent = matchedCommunities
                 .map(comm => {
                   let content = `## ${comm.name}\n\n`
                   if (comm.description) content += `${comm.description}\n\n`
@@ -1074,6 +1075,10 @@ export function importOrganizationTemplate(
 
               if (communitiesContent.trim()) {
                 fs.writeFileSync(communitiesPath, `# Communities\n\n${communitiesContent}`, 'utf-8')
+              } else {
+                // Fallback: write community names as headers even if no match in template definitions
+                const fallback = agentCommunities.map((name: string) => `## ${name}\n`).join('\n')
+                fs.writeFileSync(communitiesPath, `# Communities\n\n${fallback}`, 'utf-8')
               }
             } catch (err) {
               console.warn(`Failed to create COMMUNITIES.md for ${targetAgentId}:`, err)
@@ -1095,9 +1100,10 @@ export function importOrganizationTemplate(
               fs.mkdirSync(agentDir, { recursive: true })
               const groupsPath = path.join(agentDir, 'GROUPS.md')
 
-              // Build GROUPS.md content
-              const groupsContent = template.groups
-                .filter(grp => agentGroups.includes(grp.name))
+              // Build GROUPS.md content — match by name (case-insensitive)
+              const matchedGroups = template.groups
+                .filter(grp => agentGroups.some((ag: string) => ag.toLowerCase() === grp.name.toLowerCase()))
+              const groupsContent = matchedGroups
                 .map(grp => {
                   let content = `## ${grp.name}\n\n`
                   if (grp.description) content += `${grp.description}\n\n`
@@ -1114,6 +1120,10 @@ export function importOrganizationTemplate(
 
               if (groupsContent.trim()) {
                 fs.writeFileSync(groupsPath, `# Groups\n\n${groupsContent}`, 'utf-8')
+              } else {
+                // Fallback: write group names as headers even if no match in template definitions
+                const fallback = agentGroups.map((name: string) => `## ${name}\n`).join('\n')
+                fs.writeFileSync(groupsPath, `# Groups\n\n${fallback}`, 'utf-8')
               }
             } catch (err) {
               console.warn(`Failed to create GROUPS.md for ${targetAgentId}:`, err)
