@@ -92,9 +92,23 @@ const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .filter(Boolean)
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
+// Serve static assets BEFORE CORS middleware so browser requests with Origin headers work
+const earlyClientDist = resolveClientDist()
+if (earlyClientDist) {
+  app.use(express.static(earlyClientDist))
+}
+
+// Build set of self-origins so same-origin requests always pass CORS
+const selfOrigins = new Set<string>([
+  `http://localhost:${PORT}`,
+  `http://127.0.0.1:${PORT}`,
+  `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`,
+])
+if (process.env.DASHBOARD_PUBLIC_URL) selfOrigins.add(process.env.DASHBOARD_PUBLIC_URL)
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedCorsOrigins.includes(origin)) {
+    if (!origin || allowedCorsOrigins.includes(origin) || selfOrigins.has(origin)) {
       callback(null, true)
       return
     }
@@ -431,13 +445,11 @@ function resolveClientDist(): string | null {
   return null
 }
 
-// Serve built client in production / containerized deployments
-const clientDist = resolveClientDist()
-if (clientDist) {
-  console.log(`[Static] Serving dashboard client from ${clientDist}`)
-  app.use(express.static(clientDist))
+// SPA fallback for client-side routing (static files already mounted above CORS)
+if (earlyClientDist) {
+  console.log(`[Static] Serving dashboard client from ${earlyClientDist}`)
   app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'))
+    res.sendFile(path.join(earlyClientDist, 'index.html'))
   })
 } else if (process.env.NODE_ENV === 'production') {
   console.warn('[Static] No built dashboard client found. Root route will not serve the UI.')
