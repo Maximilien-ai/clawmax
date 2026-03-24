@@ -969,10 +969,23 @@ export function importOrganizationTemplate(
           const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
           if (fs.existsSync(identityPath)) {
             let content = fs.readFileSync(identityPath, 'utf-8')
-            content = content.replace(
-              /^-\s+\*\*Model:\*\*\s+.+$/m,
-              `- **Model:** ${options.modelOverride}`
-            )
+            if (/^-\s+\*\*Model:\*\*/m.test(content)) {
+              // Replace existing model line
+              content = content.replace(
+                /^-\s+\*\*Model:\*\*\s+.*$/m,
+                `- **Model:** ${options.modelOverride}`
+              )
+            } else {
+              // No model line exists — add it after the header
+              const lines = content.split('\n')
+              const insertIdx = lines.findIndex(l => /^#+\s/.test(l) && lines.indexOf(l) > 0)
+              if (insertIdx > 0) {
+                lines.splice(insertIdx, 0, `- **Model:** ${options.modelOverride}`, '')
+              } else {
+                lines.push('', `- **Model:** ${options.modelOverride}`)
+              }
+              content = lines.join('\n')
+            }
             fs.writeFileSync(identityPath, content, 'utf-8')
           }
         }
@@ -1430,14 +1443,15 @@ export function importOrganizationTemplate(
               agents: newAgents
             }
 
+            console.log(`[Template Import] Creating workflow "${wf.name}" with ${newAgents.length} agents`)
             const result = createWorkflow({
               name: wf.name,
               description: wf.description,
               schedule: wf.schedule,
-              enabled: wf.enabled,
-              executionMode: wf.executionMode,
+              enabled: wf.enabled !== false,
+              executionMode: wf.executionMode || 'automated',
               targeting: updatedTargeting,
-              content: wf.content,
+              content: wf.content || 'Execute workflow tasks.',
               author: template.author || 'imported'
             })
 

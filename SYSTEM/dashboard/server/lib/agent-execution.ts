@@ -67,11 +67,16 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'open
 
   if (providerKeys.openai) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openai }
-    if (preferredProvider === 'openai') lastGood.openai = 'openai-key'
+    // Set lastGood if this is preferred OR if it's the only key available
+    if (preferredProvider === 'openai' || !providerKeys.anthropic) {
+      lastGood.openai = 'openai-key'
+    }
   }
   if (providerKeys.anthropic) {
     profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: providerKeys.anthropic }
-    if (preferredProvider === 'anthropic') lastGood.anthropic = 'anthropic-key'
+    if (preferredProvider === 'anthropic' || !providerKeys.openai) {
+      lastGood.anthropic = 'anthropic-key'
+    }
   }
 
   return {
