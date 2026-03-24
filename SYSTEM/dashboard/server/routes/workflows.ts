@@ -156,7 +156,7 @@ router.get('/:id', (req, res) => {
 router.post('/:id/trigger', (req, res) => {
   try {
     const { id } = req.params
-    const { byok } = req.body as { byok?: { openai?: string; anthropic?: string; nebius?: string } }
+    const { byok } = req.body as { byok?: { openai?: string; anthropic?: string } }
 
     // Validate workflow ID format
     if (!/^[a-z0-9-]+$/.test(id)) {

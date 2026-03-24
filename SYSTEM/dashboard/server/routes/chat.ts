@@ -75,7 +75,7 @@ router.post('/:id/chat', (req, res) => {
   const { message, sessionId, byok } = req.body as {
     message?: string
     sessionId?: string
-    byok?: { openai?: string; anthropic?: string; nebius?: string }
+    byok?: { openai?: string; anthropic?: string }
   }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
@@ -96,7 +96,7 @@ router.post('/:id/chat', (req, res) => {
   const resolvedAgent = resolveAgentExecutionConfig(id)
 
   // Validate API keys exist before starting chat
-  if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY && !executionEnv.NEBIUS_API_KEY) {
+  if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY) {
     return res.status(400).json({
       error: 'No execution API keys configured. Add USER_* defaults in SYSTEM/dashboard/.env or configure BYOK preview keys.'
     })
@@ -134,7 +134,6 @@ router.post('/:id/chat', (req, res) => {
   withTemporaryAgentAuthProfiles(id, {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
-    nebius: executionEnv.NEBIUS_API_KEY,
   }, resolvedAgent.model, resolvedAgent.provider, async () => {
     await new Promise<void>((resolve) => {
       const spawned = spawn('openclaw', args, {

@@ -14,12 +14,10 @@ interface AuthConfig {
   systemKeyDefaults?: {
     openai: boolean
     anthropic: boolean
-    nebius: boolean
   }
   userKeyDefaults?: {
     openai: boolean
     anthropic: boolean
-    nebius: boolean
   }
 }
 

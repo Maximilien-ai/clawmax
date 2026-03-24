@@ -159,11 +159,15 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(agentId: string, message: string, _sessionId: string): Promise<string> {
+async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string }): Promise<string> {
   return new Promise((resolve, reject) => {
     // Use --local to bypass gateway (avoids empty payload issues with some agents)
     const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
-    const proc = spawn('openclaw', args, { env: safeEnv() })
+    // Merge BYOK keys into env if provided (fall back to server keys)
+    const env = { ...safeEnv() }
+    if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
+    if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic
+    const proc = spawn('openclaw', args, { env })
 
     let stdout = ''
     let stderr = ''
@@ -469,7 +473,7 @@ router.get('/communities/:name/messages', (req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from } = req.body as { content?: string; mentions?: string[]; from?: string }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -501,13 +505,13 @@ router.post('/communities/:name/messages', async (req, res) => {
         try {
           const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, communityContext, agentSessionId)
+          let response = await callAgent(agentId, communityContext, agentSessionId, byok)
 
           // Retry once if empty response
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, communityContext, agentSessionId)
+            response = await callAgent(agentId, communityContext, agentSessionId, byok)
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
@@ -549,7 +553,7 @@ router.get('/groups/:name/messages', (req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from } = req.body as { content?: string; mentions?: string[]; from?: string }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -583,13 +587,13 @@ router.post('/groups/:name/messages', async (req, res) => {
         try {
           const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, groupContext, agentSessionId)
+          let response = await callAgent(agentId, groupContext, agentSessionId, byok)
 
           // Retry once if empty response (common with 2nd+ agent due to gateway timing)
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, groupContext, agentSessionId)
+            response = await callAgent(agentId, groupContext, agentSessionId, byok)
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)

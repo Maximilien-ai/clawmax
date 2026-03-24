@@ -589,7 +589,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
-  byok?: { openai?: string; anthropic?: string; nebius?: string }
+  byok?: { openai?: string; anthropic?: string }
 }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
@@ -682,7 +682,6 @@ export function triggerWorkflow(workflowId: string, options?: {
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
-              nebius: executionEnv.NEBIUS_API_KEY,
             }, resolvedAgent.model, resolvedAgent.provider, async () => {
               await new Promise<void>((innerResolve) => {
                 const proc = spawn('openclaw', args, { env: executionEnv })

@@ -28,11 +28,10 @@ function readOpenClawAgentRecord(agentId: string): OpenClawAgentRecord | null {
   }
 }
 
-function providerFromModel(model?: string): 'openai' | 'anthropic' | 'nebius' | null {
+function providerFromModel(model?: string): 'openai' | 'anthropic' | null {
   if (!model) return null
   if (model.startsWith('openai/') || model.startsWith('gpt-') || model.startsWith('o1')) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
-  if (model.startsWith('nebius/')) return 'nebius'
   return null
 }
 
@@ -40,7 +39,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   workspace?: string
   agentDir?: string
-  provider?: 'openai' | 'anthropic' | 'nebius' | null
+  provider?: 'openai' | 'anthropic' | null
 } {
   const record = readOpenClawAgentRecord(agentId)
   const identityPath = record?.workspace
@@ -62,7 +61,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   }
 }
 
-function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'openai' | 'anthropic' | 'nebius' | null): AuthProfileFile {
+function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'openai' | 'anthropic' | null): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
 
@@ -73,10 +72,6 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'open
   if (providerKeys.anthropic) {
     profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: providerKeys.anthropic }
     if (preferredProvider === 'anthropic') lastGood.anthropic = 'anthropic-key'
-  }
-  if (providerKeys.nebius) {
-    profiles['nebius-key'] = { type: 'api_key', provider: 'nebius', key: providerKeys.nebius }
-    if (preferredProvider === 'nebius') lastGood.nebius = 'nebius-key'
   }
 
   return {
@@ -91,7 +86,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
   preferredModel: string | undefined,
-  preferredProvider: 'openai' | 'anthropic' | 'nebius' | null | undefined,
+  preferredProvider: 'openai' | 'anthropic' | null | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
   const execution = resolveAgentExecutionConfig(agentId)

@@ -24,11 +24,9 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
 }
 
 function providerKeysToEnv(providerKeys: ProviderKeys): Record<string, string> | undefined {
-  if (!providerKeys.openai && !providerKeys.anthropic && !providerKeys.nebius) return undefined
   return {
     OPENAI_API_KEY: providerKeys.openai || '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
-    NEBIUS_API_KEY: providerKeys.nebius || '',
   }
 }
 

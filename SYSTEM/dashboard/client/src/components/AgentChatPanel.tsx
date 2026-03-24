@@ -197,37 +197,37 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   }, [isSlideMode, agentId])
 
   async function checkGateway() {
+    // Check for BYOK keys in browser — these can power chat without gateway or server keys
+    const byokKeys = readStoredByokKeys()
+    const hasByokKeys = !!(byokKeys.openai || byokKeys.anthropic)
+
     try {
       const r = await fetch(`/api/agents/${agentId}/gateway`)
       const data = await r.json()
       if (data.available === true) {
         setGatewayAvailable(true)
-      } else {
-        // Gateway not available — check if local mode is supported
-        // (API keys configured = can chat without gateway)
-        const configResp = await fetch('/api/auth/config')
-        const config = configResp.ok ? await configResp.json() : {}
-        const hasKeys = config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic
-        if (hasKeys) {
-          setGatewayAvailable(true) // Allow chat via local execution
-        } else {
-          setGatewayAvailable(false)
-          setError('Agent gateway is not running and no system API keys configured.')
-        }
+        return
       }
-    } catch (e) {
-      // Gateway check failed — still allow if we have API keys
-      try {
-        const configResp = await fetch('/api/auth/config')
-        const config = configResp.ok ? await configResp.json() : {}
-        const hasKeys = config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic
-        setGatewayAvailable(hasKeys || false)
-        if (!hasKeys) setError('Failed to check gateway status')
-      } catch {
-        setGatewayAvailable(false)
-        setError('Failed to check gateway status')
-      }
+    } catch {}
+
+    // Gateway not available — check server-side keys or BYOK
+    if (hasByokKeys) {
+      setGatewayAvailable(true) // BYOK keys sent with each chat request
+      return
     }
+
+    try {
+      const configResp = await fetch('/api/auth/config')
+      const config = configResp.ok ? await configResp.json() : {}
+      const hasServerKeys = config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic
+      if (hasServerKeys) {
+        setGatewayAvailable(true)
+        return
+      }
+    } catch {}
+
+    setGatewayAvailable(false)
+    setError('No API keys available. Add keys via BYOK or configure server environment.')
   }
 
   function toggleVoiceInput() {

@@ -156,12 +156,10 @@ app.get('/api/auth/config', (_req, res) => {
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
-      nebius: !!systemKeys.nebius,
     },
     userKeyDefaults: {
       openai: !!userKeys.openai,
       anthropic: !!userKeys.anthropic,
-      nebius: !!userKeys.nebius,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
   })
