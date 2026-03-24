@@ -108,11 +108,14 @@ if (process.env.DASHBOARD_PUBLIC_URL) selfOrigins.add(process.env.DASHBOARD_PUBL
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Allow requests with no origin (non-browser), allowed origins, and self-origins
     if (!origin || allowedCorsOrigins.includes(origin) || selfOrigins.has(origin)) {
       callback(null, true)
       return
     }
-    callback(new Error(`CORS origin not allowed: ${origin}`))
+    // Don't throw — just don't set CORS headers. Throwing causes Express
+    // error handler to return 500 which breaks static asset serving.
+    callback(null, false)
   },
   credentials: true,
 }))
