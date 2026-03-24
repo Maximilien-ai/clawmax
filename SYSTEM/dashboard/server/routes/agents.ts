@@ -317,25 +317,48 @@ router.get('/status', async (req, res) => {
 })
 
 // POST /api/agents/generate — AI-generate agent files
+// If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags } = req.body as {
+  const { description, name, tags, suggestMeta } = req.body as {
     description?: string
     name?: string
     tags?: string[]
+    suggestMeta?: boolean
   }
 
-  if (!description || !name) {
-    res.status(400).json({ error: 'Missing required fields' })
+  if (!description) {
+    res.status(400).json({ error: 'description is required' })
     return
   }
 
   try {
+    // If suggestMeta or no name, generate suggestions first
+    let suggestedName = name || ''
+    let suggestedTags = tags || []
+    let suggestedModel = ''
+    let suggestedSkills: string[] = []
+
+    if (suggestMeta || !name) {
+      const { generateAgentMeta } = require('../lib/ai-generator')
+      const meta = await generateAgentMeta(description)
+      if (!name) suggestedName = meta.name || 'new-agent'
+      if (!tags || tags.length === 0) suggestedTags = meta.tags || []
+      suggestedModel = meta.model || ''
+      suggestedSkills = meta.skills || []
+    }
+
     const files = await generateAgentFiles({
       description,
-      name,
-      tags: tags || [],
+      name: suggestedName,
+      tags: suggestedTags,
     })
-    res.json(files)
+    res.json({
+      ...files,
+      suggestedName,
+      suggestedTags,
+      suggestedModel,
+      suggestedSkills,
+    })
   } catch (err) {
     console.error('AI generation error:', err)
     res.status(500).json({ error: String(err) })

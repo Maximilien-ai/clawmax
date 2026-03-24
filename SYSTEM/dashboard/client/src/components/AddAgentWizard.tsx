@@ -13,6 +13,7 @@ interface WizardProps {
   onClose: () => void
   onDone: () => void
   defaultCloneFrom?: string
+  startWithAI?: boolean
 }
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -42,8 +43,8 @@ interface ValidationResult {
   warnings: string[]
 }
 
-export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: WizardProps) {
-  const [step, setStep] = useState<Step>(1)
+export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
+  const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
     name: '',
     model: '',
@@ -245,8 +246,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: form.aiDescription,
-          name: form.name,
-          tags: form.tags,
+          name: form.name || undefined,
+          tags: form.tags.length > 0 ? form.tags : undefined,
+          suggestMeta: true,
         }),
       })
 
@@ -257,9 +259,16 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom }: Wi
         return
       }
 
-      const files = await resp.json() as GeneratedFiles
+      const data = await resp.json()
+      const files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
       setGeneratedFiles(files)
       set('useAI', true)
+
+      // Apply AI suggestions if fields are empty
+      if (!form.name && data.suggestedName) set('name', data.suggestedName)
+      if (form.tags.length === 0 && data.suggestedTags?.length > 0) set('tags', data.suggestedTags)
+      if (!form.model && data.suggestedModel) set('model', data.suggestedModel)
+
       setGenerating(false)
     } catch (e) {
       setGenError(String(e))

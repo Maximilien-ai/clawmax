@@ -93,6 +93,67 @@ Other things to add as you learn this setup:
 Add whatever helps you do your job. This is your cheat sheet.
 `
 
+/**
+ * Generate agent metadata (name, tags, model, skills) from a description.
+ * Used when creating agents via "AI Generate" to suggest all fields.
+ */
+export async function generateAgentMeta(description: string): Promise<{
+  name: string
+  tags: string[]
+  model: string
+  skills: string[]
+}> {
+  // Get available skills for suggestion
+  let availableSkills: string[] = []
+  try {
+    const { listAvailableSkills } = require('./skills')
+    availableSkills = listAvailableSkills().map((s: any) => s.id || s.name)
+  } catch {}
+
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You suggest metadata for a new AI agent based on a description.
+
+Available skills that can be assigned: ${availableSkills.join(', ') || 'gh-issues, github, web-search, code-review, slack, jira'}
+
+Available models:
+- anthropic/claude-sonnet-4-20250514 (best for coding, analysis, complex reasoning)
+- openai/gpt-4o (best for general purpose, creative tasks)
+- openai/gpt-4o-mini (best for simple tasks, cost-efficient)
+
+Respond in JSON: {
+  "name": "Display Name",
+  "id": "kebab-case-id",
+  "tags": ["tag1", "tag2"],
+  "model": "provider/model-name",
+  "skills": ["skill1", "skill2"]
+}
+
+Pick 2-4 tags, 1-4 relevant skills, and the best model for the role.`
+      },
+      { role: 'user', content: description }
+    ],
+    temperature: 0.7,
+    max_tokens: 200,
+  })
+
+  const raw = completion.choices[0].message.content?.trim() || '{}'
+  try {
+    const parsed = JSON.parse(raw)
+    return {
+      name: parsed.name || 'New Agent',
+      tags: parsed.tags || [],
+      model: parsed.model || 'anthropic/claude-sonnet-4-20250514',
+      skills: parsed.skills || [],
+    }
+  } catch {
+    return { name: 'New Agent', tags: [], model: 'anthropic/claude-sonnet-4-20250514', skills: [] }
+  }
+}
+
 async function generateIdentity(input: GenerateAgentFilesInput): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: 'gpt-4',
