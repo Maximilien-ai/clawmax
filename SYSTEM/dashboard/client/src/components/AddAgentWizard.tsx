@@ -264,9 +264,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
       const data = await resp.json()
       let files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
 
-      // Apply AI-suggested name, tags, model
-      const aiName = data.suggestedName || form.name
-      if (data.suggestedName) set('name', data.suggestedName)
+      // Apply AI-suggested name, tags, model — sanitize name to valid agent ID format
+      const sanitizeName = (n: string) => n.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
+      const aiName = data.suggestedName ? sanitizeName(data.suggestedName) : form.name
+      if (data.suggestedName) set('name', aiName)
       if (data.suggestedTags?.length > 0) set('tags', data.suggestedTags)
       if (data.suggestedModel) set('model', data.suggestedModel)
 
