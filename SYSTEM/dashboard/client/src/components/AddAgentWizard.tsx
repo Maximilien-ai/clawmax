@@ -241,12 +241,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     setGenError(null)
 
     try {
+      // When using AI Generate, let the AI suggest the name (don't send auto-generated "agent0" etc.)
+      const isAutoName = /^agent\d+$/.test(form.name) || !form.name
       const resp = await fetch('/api/agents/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: form.aiDescription,
-          name: form.name || undefined,
+          name: isAutoName ? undefined : form.name,
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
         }),
@@ -260,14 +262,26 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
       }
 
       const data = await resp.json()
-      const files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
+      let files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
+
+      // Apply AI-suggested name, tags, model
+      const aiName = data.suggestedName || form.name
+      if (data.suggestedName) set('name', data.suggestedName)
+      if (data.suggestedTags?.length > 0) set('tags', data.suggestedTags)
+      if (data.suggestedModel) set('model', data.suggestedModel)
+
+      // Update IDENTITY.md with the AI-suggested name (replace placeholder)
+      if (data.suggestedName && files.identity) {
+        files = {
+          ...files,
+          identity: files.identity
+            .replace(/\*\*Name:\*\*\s*.*/m, `**Name:** ${aiName}`)
+            .replace(/\*\*Tags:\*\*\s*/m, `**Tags:** ${(data.suggestedTags || []).join(', ')}`)
+        }
+      }
+
       setGeneratedFiles(files)
       set('useAI', true)
-
-      // Apply AI suggestions if fields are empty
-      if (!form.name && data.suggestedName) set('name', data.suggestedName)
-      if (form.tags.length === 0 && data.suggestedTags?.length > 0) set('tags', data.suggestedTags)
-      if (!form.model && data.suggestedModel) set('model', data.suggestedModel)
 
       setGenerating(false)
     } catch (e) {
