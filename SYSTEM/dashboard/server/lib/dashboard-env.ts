@@ -5,7 +5,6 @@ import dotenv from 'dotenv'
 export interface ProviderKeys {
   openai?: string
   anthropic?: string
-  nebius?: string
 }
 
 export const DASHBOARD_ENV_PATH = path.resolve(__dirname, '..', '..', '.env')
@@ -26,15 +25,8 @@ const dashboardEnv = readDashboardEnvFile()
 dotenv.config({ path: DASHBOARD_ENV_PATH, override: true })
 
 function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): string | undefined {
-  // Check .env file first, then fall back to process.env (container env vars)
   for (const key of keys) {
     const value = rawEnv[key]
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim()
-    }
-  }
-  for (const key of keys) {
-    const value = process.env[key]
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim()
     }
@@ -42,8 +34,11 @@ function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): strin
   return undefined
 }
 
+// In container mode (no .env file), fall back to process.env for provider keys
+const isContainerMode = Object.keys(dashboardEnv).length === 0
+
 function hasAnyProviderKey(keys: ProviderKeys): boolean {
-  return !!(keys.openai || keys.anthropic || keys.nebius)
+  return !!(keys.openai || keys.anthropic)
 }
 
 export function getDashboardEnvRaw(): Record<string, string> {
@@ -51,10 +46,12 @@ export function getDashboardEnvRaw(): Record<string, string> {
 }
 
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
+  const lookup = isContainerMode
+    ? (key: string) => firstNonEmpty(rawEnv, key) || (process.env[key]?.trim() || undefined)
+    : (key: string) => firstNonEmpty(rawEnv, key)
   return {
-    openai: firstNonEmpty(rawEnv, 'SYSTEM_OPENAI_API_KEY', 'OPENAI_API_KEY'),
-    anthropic: firstNonEmpty(rawEnv, 'SYSTEM_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'),
-    nebius: firstNonEmpty(rawEnv, 'SYSTEM_NEBIUS_API_KEY', 'NEBIUS_API_KEY'),
+    openai: lookup('SYSTEM_OPENAI_API_KEY') || lookup('OPENAI_API_KEY'),
+    anthropic: lookup('SYSTEM_ANTHROPIC_API_KEY') || lookup('ANTHROPIC_API_KEY'),
   }
 }
 
@@ -62,7 +59,6 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
   return {
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
-    nebius: firstNonEmpty(rawEnv, 'USER_NEBIUS_API_KEY'),
   }
 }
 
@@ -78,7 +74,6 @@ export function resolveUserExecutionProviderKeys(
     return {
       openai: byokOverrides?.openai?.trim() || undefined,
       anthropic: byokOverrides?.anthropic?.trim() || undefined,
-      nebius: byokOverrides?.nebius?.trim() || undefined,
     }
   }
 

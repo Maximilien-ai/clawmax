@@ -38,7 +38,6 @@ function assert(condition: boolean, message: string) {
 const originalEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  NEBIUS_API_KEY: process.env.NEBIUS_API_KEY,
 }
 
 function restoreEnv() {
@@ -120,7 +119,6 @@ test('userExecutionEnv blanks non-selected providers during BYOK execution', () 
 
   assert(env.OPENAI_API_KEY === 'preview-openai', 'Expected BYOK OpenAI key in child env')
   assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic to be blanked during BYOK OpenAI execution')
-  assert(env.NEBIUS_API_KEY === '', 'Expected Nebius to be blanked during BYOK OpenAI execution')
 })
 
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
