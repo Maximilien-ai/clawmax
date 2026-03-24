@@ -122,8 +122,8 @@ router.post('/:id/chat', (req, res) => {
     try { res.write(': keepalive\n\n') } catch {}
   }, 2000)
 
-  // Spawn openclaw agent CLI
-  const args = ['agent', '--agent', id, '--message', message, '--json']
+  // Spawn openclaw agent CLI (--local bypasses gateway, uses API keys directly)
+  const args = ['agent', '--agent', id, '--message', message, '--json', '--local']
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   let procExited = false
