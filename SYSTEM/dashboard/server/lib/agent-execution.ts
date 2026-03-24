@@ -104,11 +104,24 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
   const hadConfig = fs.existsSync(configPath)
   const previousConfig = hadConfig ? fs.readFileSync(configPath, 'utf-8') : null
-  const nextAuthProfiles = buildAuthProfiles(providerKeys, preferredProvider)
+  // If preferred provider's key is missing, fall back to available provider's model
+  let effectiveModel = preferredModel
+  let effectiveProvider = preferredProvider
+  if (preferredProvider === 'anthropic' && !providerKeys.anthropic && providerKeys.openai) {
+    effectiveModel = 'openai/gpt-4o'
+    effectiveProvider = 'openai'
+    console.log(`[Auth] Agent ${agentId}: no Anthropic key, falling back to ${effectiveModel}`)
+  } else if (preferredProvider === 'openai' && !providerKeys.openai && providerKeys.anthropic) {
+    effectiveModel = 'anthropic/claude-sonnet-4-20250514'
+    effectiveProvider = 'anthropic'
+    console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)
+  }
+
+  const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
-  if (preferredModel && hadConfig) {
-    const update = updateAgentModelInConfigFile(configPath, agentId, preferredModel)
+  if (effectiveModel && hadConfig) {
+    const update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel)
     if (!update.ok) {
       throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
     }
