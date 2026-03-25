@@ -69,13 +69,18 @@
 - [ ] **Template wizard** — UI wizard to create templates from existing agents, workflows, communities, groups
 - [ ] **System agent: template creator** — create templates from existing agents and workflows via NL
 
-### Next Up: Dynamic Model Discovery
-- [ ] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs to populate model selectors dynamically instead of a static list. Cache results (TTL ~1hr). Show provider badge per model. Needed for: bulk model change, AI agent generate, add agent wizard, template apply model override.
+### Next Up: Priority Items
 
-### Next Up: AI Generate Consistency
-- [ ] **Agent AI Generate button** — dedicated "AI Generate" button on Agents page (like Workflows), NL prompt → generates agent files → opens add wizard pre-filled. Include model selector (or AI suggests model based on role). Keep existing AI generate in add wizard too for users who skip.
-- [ ] **Template AI Generate UI** — wire the existing POST /api/templates/generate endpoint to a "AI Generate" button on Templates page
+**High priority (demo/production blockers):**
+- [ ] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs, cache 1hr, populate all model selectors. Needed for: bulk model change, AI agent generate, add agent wizard, template apply.
+- [ ] **Template AI Generate UI** — wire POST /api/templates/generate to "AI Generate" button on Templates page
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, groups via multi-step wizard
+- [ ] **Container fixes** — ENOENT agent dir in container (#41), SYSTEM/schemas/ and TEMPLATES/ inclusion in container image
+
+**Completed AI Generate:**
+- [x] **Agent AI Generate button** — dedicated button on Agents page, NL → suggests name/tags/model/skills → opens wizard pre-filled
+- [x] **Workflow AI Generate** — button on Workflows page, NL → workflow definition → editor pre-filled
+- [x] **Bulk model change** — select agents → change model for all at once
 
 ### P7: Community Rules & Workflow Sequencing
 - [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
