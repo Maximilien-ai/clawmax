@@ -52,14 +52,14 @@ function getAvailableModels(): string[] {
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
   if (systemKeys.anthropic || userKeys.anthropic) {
-    availableModels.push('claude-3-haiku-20240307')
-    availableModels.push('anthropic/claude-3-haiku-20240307')
+    availableModels.push('anthropic/claude-sonnet-4-20250514')
+    availableModels.push('anthropic/claude-haiku-4-5-20251001')
+    availableModels.push('anthropic/claude-opus-4-20250514')
   }
   if (systemKeys.openai || userKeys.openai) {
     availableModels.push('openai/gpt-4o')
     availableModels.push('openai/gpt-4o-mini')
-    availableModels.push('gpt-4o')
-    availableModels.push('gpt-4o-mini')
+    availableModels.push('openai/o1')
   }
   return availableModels
 }
@@ -1309,6 +1309,55 @@ router.post('/resume', (req, res) => {
   }
   const paused = resumeAgents(agentIds)
   res.json({ paused: Array.from(paused) })
+})
+
+// POST /api/agents/bulk-model — change model for multiple agents
+router.post('/bulk-model', async (req, res) => {
+  const { agentIds, model } = req.body as { agentIds?: string[]; model?: string }
+  if (!Array.isArray(agentIds) || !model || typeof model !== 'string') {
+    return res.status(400).json({ error: 'agentIds (array) and model (string) are required' })
+  }
+
+  const results: { id: string; ok: boolean; error?: string }[] = []
+  for (const agentId of agentIds) {
+    try {
+      // Update IDENTITY.md
+      const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+      const identityPath = path.join(agentDir, 'IDENTITY.md')
+      if (fs.existsSync(identityPath)) {
+        let content = fs.readFileSync(identityPath, 'utf-8')
+        if (/^-\s+\*\*Model:\*\*/m.test(content)) {
+          content = content.replace(/^-\s+\*\*Model:\*\*.*$/m, `- **Model:** ${model}`)
+        } else {
+          const lines = content.split('\n')
+          const insertIdx = lines.findIndex((l, i) => i > 0 && /^#+\s/.test(l))
+          if (insertIdx > 0) {
+            lines.splice(insertIdx, 0, `- **Model:** ${model}`, '')
+          } else {
+            lines.push('', `- **Model:** ${model}`)
+          }
+          content = lines.join('\n')
+        }
+        fs.writeFileSync(identityPath, content, 'utf-8')
+      }
+
+      // Update openclaw.json model
+      try {
+        const { updateAgentModelInConfigFile } = require('../lib/agent-execution')
+        const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+        if (fs.existsSync(configPath)) {
+          updateAgentModelInConfigFile(configPath, agentId, model)
+        }
+      } catch {}
+
+      results.push({ id: agentId, ok: true })
+    } catch (err: any) {
+      results.push({ id: agentId, ok: false, error: err.message })
+    }
+  }
+
+  const succeeded = results.filter(r => r.ok).length
+  res.json({ ok: true, updated: succeeded, total: agentIds.length, results })
 })
 
 // GET /api/agents/cost-limits — get all per-agent cost limits

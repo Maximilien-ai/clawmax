@@ -20,6 +20,7 @@ interface BulkOperationsPanelProps {
   onResume?: (agentIds: string[]) => Promise<void>
   onDelete?: (agents: Array<{ id: string; archived?: boolean }>) => Promise<void>
   onChat?: (agentIds: string[]) => void
+  onChangeModel?: (agentIds: string[], model: string) => Promise<void>
 }
 
 export default function BulkOperationsPanel({
@@ -35,10 +36,13 @@ export default function BulkOperationsPanel({
   onResume,
   onDelete,
   onChat,
+  onChangeModel,
 }: BulkOperationsPanelProps) {
-  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | null>(null)
+  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | 'model' | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState('')
   const [processing, setProcessing] = useState(false)
   const [processingLabel, setProcessingLabel] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
@@ -82,6 +86,7 @@ export default function BulkOperationsPanel({
     pause: 'Pausing agents',
     resume: 'Resuming agents',
     delete: 'Deleting agents',
+    model: 'Changing model',
   }
 
   async function handleExecute() {
@@ -102,6 +107,8 @@ export default function BulkOperationsPanel({
         await onPause(agentIds)
       } else if (operation === 'resume' && onResume) {
         await onResume(agentIds)
+      } else if (operation === 'model' && onChangeModel && selectedModel) {
+        await onChangeModel(agentIds, selectedModel)
       } else if (operation === 'delete' && onDelete) {
         const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
         await onDelete(agents)
@@ -221,6 +228,31 @@ export default function BulkOperationsPanel({
                     <div className="text-sm text-gray-500">
                       Resume {selectedAgents.filter(a => a.paused).length} paused agent{selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}
                     </div>
+                  </button>
+                )}
+
+                {/* --- Model --- */}
+                {onChangeModel && (
+                  <button
+                    onClick={() => {
+                      if (operation === 'model') { setOperation(null) } else {
+                        setOperation('model')
+                        if (availableModels.length === 0) {
+                          fetch('/api/agents/models').then(r => r.json()).then(d => setAvailableModels(d.models || [])).catch(() => {})
+                        }
+                      }
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'model'
+                        ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 bg-white dark:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'model' && <span className="text-cyan-600 dark:text-cyan-400">✓</span>}
+                      Change Model
+                    </div>
+                    <div className="text-sm text-gray-500">Change the AI model for {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</div>
                   </button>
                 )}
 
@@ -356,6 +388,30 @@ export default function BulkOperationsPanel({
               </div>
             )}
 
+            {/* Model selection */}
+            {operation === 'model' && (
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select model:</div>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {availableModels.length === 0 && (
+                    <div className="text-sm text-gray-400">Loading models...</div>
+                  )}
+                  {availableModels.map(model => (
+                    <label key={model} className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${selectedModel === model ? 'bg-cyan-50 dark:bg-cyan-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <input
+                        type="radio"
+                        name="bulk-model"
+                        checked={selectedModel === model}
+                        onChange={() => setSelectedModel(model)}
+                        className="text-cyan-600"
+                      />
+                      <span className="text-sm font-mono text-gray-700 dark:text-gray-200">{model}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Footer */}
             <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-4 flex gap-3 justify-end dark:border-gray-700">
               <button
@@ -371,7 +427,8 @@ export default function BulkOperationsPanel({
                   processing ||
                   !operation ||
                   (operation === 'communities' && selectedCommunities.size === 0) ||
-                  (operation === 'groups' && selectedGroups.size === 0)
+                  (operation === 'groups' && selectedGroups.size === 0) ||
+                  (operation === 'model' && !selectedModel)
                 }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
