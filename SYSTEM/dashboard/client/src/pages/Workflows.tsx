@@ -179,7 +179,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    const saved = localStorage.getItem('workflows-view-mode')
+    return saved === 'list' ? 'list' : 'grid'
+  })
+  useEffect(() => { localStorage.setItem('workflows-view-mode', viewMode) }, [viewMode])
   const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [executionsPage, setExecutionsPage] = useState(1)

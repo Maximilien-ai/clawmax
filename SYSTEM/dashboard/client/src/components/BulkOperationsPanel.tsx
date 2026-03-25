@@ -462,6 +462,7 @@ export default function BulkOperationsPanel({
                     {operation === 'unarchive' && `Unarchive ${archivedCount} agent${archivedCount !== 1 ? 's' : ''}`}
                     {operation === 'pause' && `Pause ${selectedAgents.filter(a => !a.paused && !a.archived).length} agent${selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}`}
                     {operation === 'resume' && `Resume ${selectedAgents.filter(a => a.paused).length} agent${selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}`}
+                    {operation === 'model' && `Change model to ${selectedModel} for ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
                   </div>
                 </div>
 

@@ -111,7 +111,11 @@ export default function Templates() {
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<TemplateViewMode>('list')
+  const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
+    const saved = localStorage.getItem('templates-view-mode')
+    return saved === 'grid' ? 'grid' : 'list'
+  })
+  useEffect(() => { localStorage.setItem('templates-view-mode', viewMode) }, [viewMode])
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
