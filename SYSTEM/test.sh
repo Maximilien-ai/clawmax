@@ -1139,6 +1139,151 @@ else
   fail "Import validation did not reject missing index.ts"
 fi
 
+echo ""
+
+# =========================================
+# 18. Notification APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "18. Notification APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# GET /api/notifications
+response=$(apicurl "$API_BASE/api/notifications")
+if echo "$response" | jq -e '.notifications' > /dev/null 2>&1; then
+  pass "List notifications (HTTP 200)"
+else
+  fail "List notifications failed"
+fi
+
+# Check response has expected fields
+if echo "$response" | jq -e '.activeCount >= 0' > /dev/null 2>&1; then
+  pass "Notifications response has activeCount"
+else
+  fail "Notifications missing activeCount"
+fi
+
+# POST /api/notifications/dismiss-all
+response=$(apicurl -X POST "$API_BASE/api/notifications/dismiss-all")
+if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Dismiss all notifications"
+else
+  fail "Dismiss all notifications failed"
+fi
+
+# POST /api/notifications/dismiss with invalid id
+response=$(apicurl -X POST "$API_BASE/api/notifications/dismiss" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"nonexistent-id"}')
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Dismiss invalid notification returns error"
+else
+  fail "Dismiss invalid notification should return error"
+fi
+
+echo ""
+
+# =========================================
+# 19. Per-Agent Cost Limits
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "19. Per-Agent Cost Limits"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# GET /api/agents/cost-limits
+response=$(apicurl "$API_BASE/api/agents/cost-limits")
+if echo "$response" | jq -e '.limits' > /dev/null 2>&1; then
+  pass "List all cost limits"
+else
+  fail "List cost limits failed"
+fi
+
+# Set a cost limit on a test agent (if agents exist)
+FIRST_AGENT=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id // empty')
+if [ -n "$FIRST_AGENT" ]; then
+  # PUT cost limit
+  response=$(apicurl -X PUT "$API_BASE/api/agents/$FIRST_AGENT/cost-limit" \
+    -H 'Content-Type: application/json' \
+    -d '{"limitUsd": 5.00}')
+  if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    pass "Set per-agent cost limit"
+  else
+    fail "Set per-agent cost limit failed"
+  fi
+
+  # GET cost limit
+  response=$(apicurl "$API_BASE/api/agents/$FIRST_AGENT/cost-limit")
+  if echo "$response" | jq -e '.limitUsd == 5' > /dev/null 2>&1; then
+    pass "Get per-agent cost limit"
+  else
+    fail "Get per-agent cost limit failed (got: $(echo $response | jq '.limitUsd'))"
+  fi
+
+  # Remove cost limit
+  response=$(apicurl -X PUT "$API_BASE/api/agents/$FIRST_AGENT/cost-limit" \
+    -H 'Content-Type: application/json' \
+    -d '{"limitUsd": null}')
+  if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    pass "Remove per-agent cost limit"
+  else
+    fail "Remove per-agent cost limit failed"
+  fi
+else
+  warn "No agents found — skipping per-agent cost limit tests"
+fi
+
+echo ""
+
+# =========================================
+# 20. Bulk Model Change
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "20. Bulk Model Change"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# POST /api/agents/bulk-model with no agents (should still succeed with 0 updated)
+response=$(apicurl -X POST "$API_BASE/api/agents/bulk-model" \
+  -H 'Content-Type: application/json' \
+  -d '{"agentIds":[],"model":"openai/gpt-4o"}')
+if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Bulk model change (empty list)"
+else
+  fail "Bulk model change (empty list) failed"
+fi
+
+# POST with missing model (should fail validation)
+response=$(apicurl -X POST "$API_BASE/api/agents/bulk-model" \
+  -H 'Content-Type: application/json' \
+  -d '{"agentIds":["test"]}')
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Bulk model change rejects missing model"
+else
+  fail "Bulk model change should reject missing model"
+fi
+
+echo ""
+
+# =========================================
+# 21. Available Models API
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "21. Available Models API"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+response=$(apicurl "$API_BASE/api/agents/models")
+if echo "$response" | jq -e '.models' > /dev/null 2>&1; then
+  model_count=$(echo "$response" | jq '.models | length')
+  pass "Models API returns list (count: $model_count)"
+else
+  fail "Models API failed"
+fi
+
+if echo "$response" | jq -e '.modelsByProvider' > /dev/null 2>&1; then
+  pass "Models API includes modelsByProvider"
+else
+  fail "Models API missing modelsByProvider"
+fi
+
 # Cleanup test directories
 rm -rf "$TEST_SKILL_DIR" "$TEST_INVALID_DIR" "$TEST_INVALID_DIR2"
 
