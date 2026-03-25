@@ -12,6 +12,7 @@ import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { updateAgentModelInConfigFile } from '../lib/agent-model'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
+import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
@@ -47,97 +48,12 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
   return { baileys: null, boom: null }
 }
 
+/** Synchronous model list for validation — uses cached discovery or fallback */
 function getAvailableModels(): string[] {
-  const availableModels: string[] = []
-  const systemKeys = getSystemProviderKeys()
-  const userKeys = getUserDefaultProviderKeys()
-  if (systemKeys.anthropic || userKeys.anthropic) {
-    availableModels.push('anthropic/claude-sonnet-4-20250514')
-    availableModels.push('anthropic/claude-haiku-4-5-20251001')
-    availableModels.push('anthropic/claude-opus-4-20250514')
-  }
-  if (systemKeys.openai || userKeys.openai) {
-    availableModels.push('openai/gpt-4o')
-    availableModels.push('openai/gpt-4o-mini')
-    availableModels.push('openai/o1')
-  }
-  return availableModels
+  return getAvailableModelsCached()
 }
 
-function buildModelsResponse(): {
-  models: string[]
-  modelsByProvider: Record<string, { name: string; models: string[] }>
-} {
-  const models: string[] = []
-  const modelsByProvider: Record<string, { name: string; models: string[] }> = {}
-  const systemKeys = getSystemProviderKeys()
-  const userKeys = getUserDefaultProviderKeys()
-
-  try {
-    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      const providers = config?.models?.providers || {}
-
-      for (const [providerId, providerConfig] of Object.entries(providers) as [string, any][]) {
-        if (providerConfig.models && Array.isArray(providerConfig.models)) {
-          const providerModels = providerConfig.models.map((m: any) => {
-            if (typeof m === 'string') return m
-            if (m.id) return m.id
-            return m
-          })
-          models.push(...providerModels)
-          modelsByProvider[providerId] = {
-            name: providerConfig.name || providerId,
-            models: providerModels,
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load models from openclaw.json:', err)
-  }
-
-  if ((systemKeys.anthropic || userKeys.anthropic) && !modelsByProvider['anthropic']) {
-    const anthropicModels = [
-      'anthropic/claude-3-haiku-20240307',
-      'anthropic/claude-3-5-sonnet-20241022',
-      'anthropic/claude-3-5-haiku-20241022'
-    ]
-    models.push(...anthropicModels)
-    modelsByProvider['anthropic'] = {
-      name: 'Anthropic',
-      models: anthropicModels,
-    }
-  }
-
-  if ((systemKeys.openai || userKeys.openai) && !modelsByProvider['openai']) {
-    const openaiModels = [
-      'openai/gpt-4o',
-      'openai/gpt-4o-mini',
-      'openai/gpt-4.1',
-      'openai/o1',
-      'openai/o1-mini'
-    ]
-    models.push(...openaiModels)
-    modelsByProvider['openai'] = {
-      name: 'OpenAI',
-      models: openaiModels,
-    }
-  }
-
-  const sortedProviders: Record<string, { name: string; models: string[] }> = {}
-  Object.keys(modelsByProvider)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach(key => {
-      sortedProviders[key] = {
-        name: modelsByProvider[key].name,
-        models: modelsByProvider[key].models.sort((a, b) => a.localeCompare(b))
-      }
-    })
-
-  return { models, modelsByProvider: sortedProviders }
-}
+// buildModelsResponse removed — replaced by discoverModels() from model-discovery.ts
 
 function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean; error?: string } {
   const HOME = process.env.HOME || ''
@@ -374,10 +290,28 @@ router.post('/validate-provision', (req, res) => {
   res.json(result)
 })
 
-// GET /api/agents/models — available models from openclaw.json and environment
+// GET /api/agents/models — dynamic discovery from provider APIs (cached 1hr)
 // Must be defined before /:id routes.
-router.get('/models', (_req, res) => {
-  res.json(buildModelsResponse())
+router.get('/models', async (_req, res) => {
+  try {
+    const result = await discoverModels()
+    res.json(result)
+  } catch (err) {
+    console.error('Model discovery failed:', err)
+    res.status(500).json({ error: 'Failed to discover models' })
+  }
+})
+
+// POST /api/agents/models/refresh — force-clear cache and re-fetch
+router.post('/models/refresh', async (_req, res) => {
+  clearModelCache()
+  try {
+    const result = await discoverModels()
+    res.json(result)
+  } catch (err) {
+    console.error('Model refresh failed:', err)
+    res.status(500).json({ error: 'Failed to refresh models' })
+  }
 })
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE

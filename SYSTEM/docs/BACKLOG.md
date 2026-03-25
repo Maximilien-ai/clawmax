@@ -72,7 +72,7 @@
 ### Next Up: Priority Items
 
 **High priority (demo/production blockers):**
-- [ ] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs, cache 1hr, populate all model selectors. Needed for: bulk model change, AI agent generate, add agent wizard, template apply.
+- [x] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs, cache 1hr, populate all model selectors. Needed for: bulk model change, AI agent generate, add agent wizard, template apply.
 - [ ] **Template AI Generate UI** — wire POST /api/templates/generate to "AI Generate" button on Templates page
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, groups via multi-step wizard
 - [ ] **Container fixes** — ENOENT agent dir in container (#41), SYSTEM/schemas/ and TEMPLATES/ inclusion in container image

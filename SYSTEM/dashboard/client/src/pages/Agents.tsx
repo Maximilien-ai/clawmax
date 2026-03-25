@@ -2207,7 +2207,26 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           {!loading && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model</label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/agents/models/refresh', { method: 'POST' })
+                        if (res.ok) {
+                          const data = await res.json()
+                          setAvailableModels(Array.isArray(data.models) ? data.models : [])
+                          setModelsByProvider(data.modelsByProvider || {})
+                        }
+                      } catch {}
+                    }}
+                    className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors"
+                    title="Refresh models from provider APIs"
+                  >
+                    Refresh models
+                  </button>
+                </div>
                 <select
                   value={model}
                   onChange={e => setModel(e.target.value)}
@@ -2228,7 +2247,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     ))
                   )}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">This updates the agent model directly without requiring manual markdown edits.</p>
+                <p className="mt-1 text-xs text-gray-400">Live models from provider APIs (cached 1hr). Click "Refresh" to update.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>

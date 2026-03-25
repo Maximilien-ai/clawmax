@@ -110,7 +110,7 @@ export function ByokWizard() {
 
       {!open ? null : (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[85vh] overflow-y-auto">
+          <div className="w-full max-w-xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[93vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Bring Your Own Keys</div>

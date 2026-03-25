@@ -1284,6 +1284,15 @@ else
   fail "Models API missing modelsByProvider"
 fi
 
+# Test models refresh endpoint
+response=$(apicurl -X POST "$API_BASE/api/agents/models/refresh")
+if echo "$response" | jq -e '.models' > /dev/null 2>&1; then
+  refresh_count=$(echo "$response" | jq '.models | length')
+  pass "Models refresh returns list (count: $refresh_count)"
+else
+  fail "Models refresh failed"
+fi
+
 # Cleanup test directories
 rm -rf "$TEST_SKILL_DIR" "$TEST_INVALID_DIR" "$TEST_INVALID_DIR2"
 
