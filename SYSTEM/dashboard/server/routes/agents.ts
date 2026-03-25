@@ -755,6 +755,11 @@ router.get('/usage', async (req, res) => {
   }
 })
 
+// GET /api/agents/cost-limits — get all per-agent cost limits (before /:id to avoid route conflict)
+router.get('/cost-limits', (_req, res) => {
+  res.json({ limits: getAllAgentCostLimits() })
+})
+
 // GET /api/agents/:id — single agent
 router.get('/:id', (req, res) => {
   const agents = listAgents()
@@ -1358,11 +1363,6 @@ router.post('/bulk-model', async (req, res) => {
 
   const succeeded = results.filter(r => r.ok).length
   res.json({ ok: true, updated: succeeded, total: agentIds.length, results })
-})
-
-// GET /api/agents/cost-limits — get all per-agent cost limits
-router.get('/cost-limits', (_req, res) => {
-  res.json({ limits: getAllAgentCostLimits() })
 })
 
 // GET /api/agents/:id/cost-limit — get cost limit for a specific agent
