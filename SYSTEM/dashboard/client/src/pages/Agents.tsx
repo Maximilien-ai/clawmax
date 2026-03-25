@@ -1966,6 +1966,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             onResume={handleBulkResume}
             onDelete={handleBulkDelete}
             onChat={handleBulkChat}
+            onChangeModel={async (agentIds, model) => {
+              const resp = await fetch('/api/agents/bulk-model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentIds, model }),
+              })
+              const data = await resp.json()
+              if (resp.ok) {
+                showSuccess(`Updated model to ${model} for ${data.updated} agent${data.updated !== 1 ? 's' : ''}`)
+                fetchAgents()
+                setSelectionMode(false)
+                setSelectedAgentIds(new Set())
+              } else {
+                showError(data.error || 'Failed to change model')
+              }
+            }}
           />
       )}
 
