@@ -69,6 +69,9 @@
 - [ ] **Template wizard** — UI wizard to create templates from existing agents, workflows, communities, groups
 - [ ] **System agent: template creator** — create templates from existing agents and workflows via NL
 
+### Next Up: Dynamic Model Discovery
+- [ ] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs to populate model selectors dynamically instead of a static list. Cache results (TTL ~1hr). Show provider badge per model. Needed for: bulk model change, AI agent generate, add agent wizard, template apply model override.
+
 ### Next Up: AI Generate Consistency
 - [ ] **Agent AI Generate button** — dedicated "AI Generate" button on Agents page (like Workflows), NL prompt → generates agent files → opens add wizard pre-filled. Include model selector (or AI suggests model based on role). Keep existing AI generate in add wizard too for users who skip.
 - [ ] **Template AI Generate UI** — wire the existing POST /api/templates/generate endpoint to a "AI Generate" button on Templates page
