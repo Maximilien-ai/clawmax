@@ -58,14 +58,18 @@
 
 ### P0: Notification Center (GAME CHANGER)
 > Central workspace awareness — the missing glue between "I have agents" and "I know what's happening."
+> **Status:** Core implemented. Channel activity bug fixed Mar 26. Needs testing + polish.
 
-- [ ] **Notification center UI** — badge in top nav (near BYOK) with count, red/orange severity. Click opens dropdown with grouped notifications and action links.
-- [ ] **Workspace monitor agent** — system agent that periodically scans workspace state: agents waiting on feedback, agents failing, workflows stuck/failed, cost approaching limits, agents circling on tasks.
-- [ ] **Notification types** — agent-needs-feedback, agent-error, workflow-failed, workflow-stuck, cost-warning, agent-blocked, agent-idle-too-long.
-- [ ] **Grouped display** — notifications grouped by category with timestamps. Links to jump to agent chat, workflow detail, group, etc.
-- [ ] **Bulk actions from notifications** — dismiss, pause agent, restart workflow, open chat — directly from notification dropdown.
-- [ ] **Auto-clear** — notifications auto-resolve when underlying issue is fixed (agent responds, workflow completes, etc.).
-- [ ] **Badge refresh** — poll or websocket for live badge count updates.
+- [x] **Notification center UI** — bell icon in top nav with count badge (red/amber/blue by severity), dropdown with grouped notifications
+- [x] **Workspace monitor** — 60s scan: agent health, workflow health, budget, per-agent costs, channel activity
+- [x] **Notification types** — agent-error, agent-offline, agent-needs-feedback, workflow-failed, workflow-stuck, cost-warning, cost-exceeded, channel-activity
+- [x] **Grouped display** — notifications grouped by category (Agents, Workflows, Communication, Budget) with timestamps and action links
+- [x] **Auto-clear** — notifications auto-resolve when underlying issue is fixed
+- [x] **Badge refresh** — polls every 30s
+- [x] **Dedup** — fingerprint-based deduplication prevents duplicate active notifications
+- [x] **Auto-prune** — dismissed/resolved notifications cleaned after 7 days
+- [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
+- [ ] **Testing & validation** — verify all notification types fire correctly with real agent activity
 
 ### P1: Agent List Pagination
 - [x] **Agent list pagination** — client-side pagination with 10 per page, page controls, auto-reset on filter change
