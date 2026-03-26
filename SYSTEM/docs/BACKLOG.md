@@ -123,6 +123,7 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ## High Priority (Features)
+- [ ] **Top bar online count ignores paused agents** — shows "6 online" when all paused. Exclude paused from count.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
