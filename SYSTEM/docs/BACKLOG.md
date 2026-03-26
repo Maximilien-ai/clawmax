@@ -127,6 +127,23 @@
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
+### Unified Wizard Design (Agents, Templates, Workflows)
+> All three creation flows should follow the same UX pattern so users familiar with one are familiar with all.
+
+**Design principles:**
+1. Multi-step wizard with clear progress (step 1/4, 2/4, etc.)
+2. Each step has human-editable fields pre-populated with sensible defaults
+3. AI can optionally generate/fill fields at any step (bypass manual input)
+4. Final confirmation step shows full preview before creation
+5. Consistent layout: left = form, right = preview/suggestions
+
+**Implementation order:**
+- [ ] **Template wizard** — create from existing agents, workflows, communities, groups (most complex, do first)
+- [ ] **Template AI Generate** — wire POST /api/templates/generate, AI fills wizard steps, human confirms
+- [ ] **Unify Agent wizard** — align AddAgentWizard with same step/preview/confirm pattern
+- [ ] **Unify Workflow wizard** — align workflow editor with same pattern
+- [ ] **AI consistency pass** — all three wizards: same AI button placement, same pre-fill behavior, same confirmation flow
+
 ### Skills Management
 - [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page
 - [ ] **Skills select/select-all + bulk ops** — select mode with bulk add tags, bulk delete skills
