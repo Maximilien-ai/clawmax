@@ -91,15 +91,8 @@
 ### Next Up: Priority Items
 
 **High priority (demo/production blockers):**
-- [x] **Dynamic model discovery from provider APIs** — call OpenAI/Anthropic list-models APIs, cache 1hr, populate all model selectors. Needed for: bulk model change, AI agent generate, add agent wizard, template apply.
 - [ ] **Template AI Generate UI** — wire POST /api/templates/generate to "AI Generate" button on Templates page
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, groups via multi-step wizard
-- [ ] **Container fixes** — ENOENT agent dir in container (#41), SYSTEM/schemas/ and TEMPLATES/ inclusion in container image
-
-**Completed AI Generate:**
-- [x] **Agent AI Generate button** — dedicated button on Agents page, NL → suggests name/tags/model/skills → opens wizard pre-filled
-- [x] **Workflow AI Generate** — button on Workflows page, NL → workflow definition → editor pre-filled
-- [x] **Bulk model change** — select agents → change model for all at once
 
 ### P7: Workflow v2 — Autonomous Multiagent Coordination
 > Full design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
@@ -130,7 +123,6 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ## High Priority (Features)
-- [x] **Markdown rendering in chat** — render markdown in 1-1 agent chat and group chat messages (both user and agent bubbles).
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
@@ -166,9 +158,27 @@
 
 ---
 
-## Completed (v1.1.5–v1.1.8)
+## Completed (v1.1.5–v1.1.15)
 
-See CHANGELOG.md. Key: Opik metering, cost badges, bulk pause/resume, dark mode audit, BYOK wizard with Opik, metering loading state, workflow next-run, select-all styling, paused agent indicators, bulk operations panel UX.
+See CHANGELOG.md for full history.
+
+**v1.1.14–v1.1.15 (Mar 23-25):**
+- Dynamic model discovery from OpenAI/Anthropic APIs (1hr cache)
+- 6 weave-cli skills + RAG Team org template (OpenClaw Hack Day)
+- Template skills wiring (setAgentSkills on apply, getAgentSkills on export)
+- Markdown rendering in all chat messages (user + agent)
+- Skill tags, emoji, metadata.openclaw parsing for workspace skills
+- Skills per agent in template detail + apply modal
+- Workflow manual schedule, targeting normalization, cross-workspace message scoping
+- Empty state improvements (Agents, Skills pages), communication card sizing
+- Workflow v2 design document
+- Agent list pagination, per-agent cost limits, forward to group
+- Group chat empty response fix, bulk model change
+- System agents: workflow creator, org creator
+- Agent/Workflow AI Generate buttons, BYOK dialog sizing
+
+**v1.1.5–v1.1.8 (earlier):**
+Opik metering, cost badges, bulk pause/resume, dark mode audit, BYOK wizard with Opik, metering loading state, workflow next-run, select-all styling, paused agent indicators, bulk operations panel UX.
 
 ## Notes
 
