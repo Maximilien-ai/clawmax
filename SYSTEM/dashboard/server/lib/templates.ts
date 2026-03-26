@@ -4,6 +4,7 @@ import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
 import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
+import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
@@ -589,6 +590,16 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       fs.writeFileSync(identityPath, identity, 'utf-8')
     }
 
+    // Assign skills from template if defined
+    if (sourceAgent.skills && Array.isArray(sourceAgent.skills) && sourceAgent.skills.length > 0) {
+      try {
+        setAgentSkills(targetAgentId, sourceAgent.skills)
+        console.log(`Assigned skills [${sourceAgent.skills.join(', ')}] to agent ${targetAgentId}`)
+      } catch (err) {
+        console.warn(`Failed to assign skills to ${targetAgentId}: ${err}`)
+      }
+    }
+
     return { ok: true, agentId: targetAgentId }
   } catch (err) {
     return { ok: false, error: String(err) }
@@ -655,7 +666,7 @@ export function createAgentTemplateFromAgent(
         name: identity.name || agentId,
         role: identity.creature || 'AI Agent',
         tags: identity.tags || [],
-        skills: []  // TODO: Extract from skills/ directory when implemented
+        skills: getAgentSkills(agentId)
       }],
       metadata: {
         aiPrompt,
@@ -795,7 +806,7 @@ export function createOrganizationTemplate(
         name: identity.name || agentInfo.id,
         role: identity.creature || 'AI Agent',
         tags: identity.tags || [],
-        skills: [],  // TODO: Extract from skills/ directory
+        skills: getAgentSkills(agentInfo.id),
         communities: agentCommunities.length > 0 ? agentCommunities : undefined,
         groups: agentGroups.length > 0 ? agentGroups : undefined
       }
@@ -958,7 +969,7 @@ export function importOrganizationTemplate(
             let content = fs.readFileSync(identityPath, 'utf-8')
             content = content.replace(
               /^-\s+\*\*Name:\*\*\s+.+$/m,
-              `- **Name:** ${targetAgentId}`
+              `- **Name:** ${templateAgent.name || targetAgentId}`
             )
             fs.writeFileSync(identityPath, content, 'utf-8')
           }
@@ -1386,7 +1397,7 @@ export function importOrganizationTemplate(
 
         for (const wf of template.workflows) {
           // Update targeting to use new agent IDs if prefix/suffix was applied
-          const newAgents = wf.targeting.agents.map(agentId => `${prefix}${agentId}${suffix}`)
+          const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
 
           const existing = existingWorkflowMap.get(wf.name)
           if (existing) {
@@ -1495,6 +1506,21 @@ export function importOrganizationTemplate(
         } catch (err) {
           console.warn(`Failed to register agent ${agentId}: ${err}`)
           // Don't fail the import if registration fails - agent files are still created
+        }
+      }
+
+      // Step 7: Assign skills from template to agents in openclaw.json
+      for (const templateAgent of agentsToCreate) {
+        const skills = templateAgent.skills
+        if (skills && Array.isArray(skills) && skills.length > 0) {
+          const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+          try {
+            setAgentSkills(targetAgentId, skills)
+            console.log(`Assigned skills [${skills.join(', ')}] to agent ${targetAgentId}`)
+          } catch (err) {
+            console.warn(`Failed to assign skills to ${targetAgentId}: ${err}`)
+            // Non-fatal — agent files and registration still intact
+          }
         }
       }
 

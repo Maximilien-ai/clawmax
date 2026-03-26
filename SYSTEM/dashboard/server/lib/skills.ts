@@ -208,18 +208,20 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const name = data.name || lines[0]?.replace(/^#\s*/, '') || skillId
     const description = data.description || lines.find(l => !l.startsWith('#'))?.trim() || 'Custom skill'
 
+    const openclawMeta = data.metadata?.openclaw || {}
+
     return {
       id: skillId, // Store directory name for deletion
       name,
       description,
-      emoji: data.emoji,
+      emoji: data.emoji || openclawMeta.emoji,
       filePath,
       bundled: false,
       source: 'workspace',
-      requires: data.requires,
-      install: data.install,
-      homepage: data.homepage,
-      tags: data.tags || []
+      requires: data.requires || openclawMeta.requires,
+      install: data.install || openclawMeta.install,
+      homepage: data.homepage || openclawMeta.homepage,
+      tags: data.tags || openclawMeta.tags || []
     }
   } catch (err) {
     console.error(`Failed to parse workspace skill ${filePath}:`, err)

@@ -188,14 +188,24 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  // Poll for unread message counts
+  // Poll for unread message counts (scoped to current workspace channels)
   useEffect(() => {
     const checkUnread = () => {
-      fetch('/api/message-counts').then(r => r.ok ? r.json() : {}).then(d => {
+      Promise.all([
+        fetch('/api/message-counts').then(r => r.ok ? r.json() : {}),
+        fetch('/api/channels/groups').then(r => r.ok ? r.json() : { groups: [] }),
+        fetch('/api/channels/communities').then(r => r.ok ? r.json() : { communities: [] }),
+      ]).then(([d, g, c]) => {
         const counts = d.counts || {}
         const lastSeen = JSON.parse(localStorage.getItem('clawmax-last-seen-counts') || '{}')
+        // Only count channels that exist in the current workspace
+        const validKeys = new Set([
+          ...(g.groups || []).map((gr: any) => `group:${gr.name}`),
+          ...(c.communities || []).map((co: any) => `community:${co.name}`),
+        ])
         let total = 0
         for (const [key, count] of Object.entries(counts)) {
+          if (!validKeys.has(key)) continue
           const seen = lastSeen[key] || 0
           if ((count as number) > seen) total += (count as number) - seen
         }

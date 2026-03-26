@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -253,7 +255,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                     : 'bg-gray-100 text-gray-800'
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                <div className={`text-sm prose prose-sm max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${msg.role === 'user' ? 'prose-invert' : 'dark:prose-invert'}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
           ))}
@@ -431,7 +437,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                         <p className="text-xs text-gray-500 mb-1">
                           {msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}
                         </p>
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                        <div className={`text-sm prose prose-sm max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${msg.role === 'user' ? 'prose-invert' : 'dark:prose-invert'}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
                       </div>
                     </div>
                   ))

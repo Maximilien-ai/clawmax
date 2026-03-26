@@ -36,6 +36,15 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
             {skill.description}
           </p>
 
+          {/* Tags */}
+          {skill.tags && skill.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {skill.tags.map(tag => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">{tag}</span>
+              ))}
+            </div>
+          )}
+
           {/* Usage information */}
           {usageCount !== undefined && usageCount > 0 && (
             <p className="text-xs text-gray-500 mt-1">
@@ -106,7 +115,9 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
                       {option.kind === 'brew' && `brew install ${option.formula}`}
                       {option.kind === 'apt' && `apt install ${option.package}`}
                       {option.kind === 'npm' && `npm install -g ${option.package}`}
-                      {option.kind === 'go' && `go install ${option.module}`}
+                      {option.kind === 'go' && `go install ${option.module || option.package}`}
+                      {option.kind === 'uv' && `uv tool install ${option.package}`}
+                      {!['brew', 'apt', 'npm', 'go', 'uv'].includes(option.kind) && option.label}
                     </div>
                   ))}
                 </div>

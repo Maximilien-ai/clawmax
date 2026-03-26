@@ -35,11 +35,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }, [initialAgentId])
 
-  // Reload skills when agent changes
+  // Reload skills when agent changes (or on mount if no agents)
   useEffect(() => {
-    if (agentId) {
-      loadSkills()
-    }
+    loadSkills()
   }, [agentId])
 
   async function loadAgents() {
@@ -53,8 +51,6 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       // Set default agent to first available, or reset if current agent isn't in this workspace
       if (agentIds.length > 0 && (!agentId || !agentIds.includes(agentId))) {
         setAgentId(agentIds[0])
-      } else if (agentIds.length === 0) {
-        setLoading(false)
       }
 
       // Compute skill usage across all agents
@@ -195,7 +191,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       const query = searchQuery.toLowerCase()
       const matchesSearch =
         skill.name.toLowerCase().includes(query) ||
-        skill.description.toLowerCase().includes(query)
+        skill.description.toLowerCase().includes(query) ||
+        (skill.tags || []).some(t => t.toLowerCase().includes(query))
       if (!matchesSearch) return false
     }
 
@@ -313,14 +310,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         </div>
 
         {availableAgents.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center h-96 text-gray-400">
-            <span className="text-6xl mb-4">🤖</span>
-            <p className="text-lg font-medium mb-2">No Agents in Workspace</p>
-            <p className="text-sm text-gray-500">Create an agent to start assigning skills</p>
+          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+            No agents in workspace — browsing skill catalog. Create an agent to start assigning skills.
           </div>
         )}
 
-        {availableAgents.length > 0 && (
+        {(availableAgents.length > 0 || allSkills.length > 0) && (
           <>
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">

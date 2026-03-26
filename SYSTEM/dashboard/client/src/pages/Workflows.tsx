@@ -804,7 +804,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const allTags = React.useMemo(() => {
     const tags = new Set<string>()
     workflows.forEach(w => {
-      w.targeting.tags.forEach(tag => tags.add(tag))
+      (w.targeting?.tags || []).forEach(tag => tags.add(tag))
     })
     return Array.from(tags).sort()
   }, [workflows])
@@ -1836,10 +1836,10 @@ function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
     consequences.push(`${workflow.name} — ${workflow.scheduleHuman || workflow.schedule || 'Manual'}`)
     consequences.push(`  • ${workflow.participantCount} targeted agent${workflow.participantCount !== 1 ? 's' : ''}`)
     consequences.push(`  • WORKFLOWS/${workflow.id}.md will be removed`)
-    if (workflow.targeting.groups.length > 0) {
+    if (workflow.targeting?.groups?.length > 0) {
       consequences.push(`  • targets ${workflow.targeting.groups.length} group${workflow.targeting.groups.length !== 1 ? 's' : ''}`)
     }
-    if (workflow.targeting.communities.length > 0) {
+    if (workflow.targeting?.communities?.length > 0) {
       consequences.push(`  • targets ${workflow.targeting.communities.length} communit${workflow.targeting.communities.length !== 1 ? 'ies' : 'y'}`)
     }
   })

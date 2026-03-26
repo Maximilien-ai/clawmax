@@ -970,7 +970,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
         <p className="text-xs text-gray-500 mb-3 line-clamp-2">{template.description}</p>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-400 mb-2">
         <span>{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
         {isOrg && communityCount > 0 && (
           <>
@@ -1180,8 +1180,17 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
             <div className="space-y-2">
               {template.agents.map((agent, idx) => (
                 <div key={idx} className="bg-gray-50 rounded px-3 py-2 text-sm dark:bg-gray-900">
-                  <div className="font-mono text-sky-600">{agent.id}</div>
-                  <div className="text-gray-600">{agent.role}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-sky-600 dark:text-sky-400">{agent.id}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{agent.role}</span>
+                  </div>
+                  {agent.skills && agent.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {agent.skills.map((s: string) => (
+                        <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">{s}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

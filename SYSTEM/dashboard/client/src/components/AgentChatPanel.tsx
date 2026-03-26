@@ -643,8 +643,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   </>
                 ) : (
                   <>
-                    <div className="text-sm whitespace-pre-wrap break-words">
-                      {msg.content || ''}
+                    <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content || ''}
+                      </ReactMarkdown>
                     </div>
                     <div className="text-xs opacity-60 mt-1">
                       {new Date(msg.timestamp).toLocaleTimeString()}
