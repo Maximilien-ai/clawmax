@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 23, 2026
+> Last updated: March 25, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -111,7 +111,7 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ## High Priority (Features)
-- [ ] **Markdown rendering in chat** — render markdown in 1-1 agent chat and group chat messages (both user and agent bubbles). Currently displays raw markdown as plain text.
+- [x] **Markdown rendering in chat** — render markdown in 1-1 agent chat and group chat messages (both user and agent bubbles).
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
@@ -153,7 +153,9 @@ See CHANGELOG.md. Key: Opik metering, cost badges, bulk pause/resume, dark mode 
 
 ## Notes
 
+- **Workflow v2 is the #1 priority** — hackathon proved multiagent teams block without blocker surfacing, agent-to-agent messaging, and kickoff workflows. See WORKFLOW_V2_DESIGN.md.
 - Notification center is the scaling enabler — build it now with small roster, validate it scales.
 - System creator agents (workflow, org, template) unlock non-technical users.
 - Community rules + workflow sequencing are the coordination layer for enterprise use cases.
+- Skills ecosystem (weave-cli-skills) is the first SkillsHub contribution — model for future skills.
 - Full week March 23–31 to land P0–P5, stretch for P6–P7.
