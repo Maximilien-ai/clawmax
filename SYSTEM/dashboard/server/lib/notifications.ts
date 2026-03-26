@@ -314,10 +314,10 @@ async function runMonitorScan(): Promise<void> {
       let commParsed: { communities: { name: string }[]; groups: { name: string }[] } = { communities: [], groups: [] }
 
       try {
-        groupsParsed = parseGroups(fs.readFileSync(path.join(getWorkspacePath(), 'GROUPS.md'), 'utf-8'))
+        groupsParsed = parseGroups(fs.readFileSync(path.join(getWorkspacePath(), 'ORG', 'GROUPS.md'), 'utf-8'))
       } catch {}
       try {
-        commParsed = parseGroups(fs.readFileSync(path.join(getWorkspacePath(), 'COMMUNITIES.md'), 'utf-8'))
+        commParsed = parseGroups(fs.readFileSync(path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md'), 'utf-8'))
       } catch {}
 
       const allChannels: { type: 'group' | 'community'; name: string }[] = [
