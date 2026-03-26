@@ -25,6 +25,7 @@ export interface OpenClawSkill {
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL
+  tags?: string[]       // Searchable tags
 }
 
 // API Response Types

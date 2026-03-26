@@ -15,7 +15,7 @@ interface OrganizationTemplate {
   version: string
   description?: string
   parameters?: TemplateParameter[]
-  agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[] }>
+  agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[]; skills?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
   workflows?: Array<{ id: string; name: string }>
@@ -303,7 +303,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
             >
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Agents & Models ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''})
+                Agents, Skills & Models ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''})
               </h3>
               <span className="text-gray-400 text-xs">{showModelSection ? '▼' : '▶'}</span>
             </button>
@@ -317,6 +317,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                       <tr className="bg-gray-100 dark:bg-gray-800">
                         <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Agent</th>
                         <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Role</th>
+                        <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Skills</th>
                         <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">Model</th>
                       </tr>
                     </thead>
@@ -329,6 +330,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                           <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
                             <td className="px-3 py-2 font-mono font-medium text-sky-700 dark:text-sky-400">{newId}</td>
                             <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{agent.role}</td>
+                            <td className="px-3 py-2">
+                              {agent.skills && agent.skills.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {agent.skills.map(s => (
+                                    <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">{s}</span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">none</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2">
                               <span className={isOverridden ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}>
                                 {effectiveModel}

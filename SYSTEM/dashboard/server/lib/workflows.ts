@@ -272,7 +272,12 @@ export function listWorkflowTemplates(): Workflow[] {
         description: data.description || '',
         schedule: data.schedule || '',
         enabled: false, // Templates are disabled by default
-        targeting: data.targeting || { communities: [], groups: [], tags: [], agents: [] },
+        targeting: {
+        communities: data.targeting?.communities || [],
+        groups: data.targeting?.groups || [],
+        tags: data.targeting?.tags || [],
+        agents: data.targeting?.agents || [],
+      },
         created: data.created || '',
         modified: data.modified || '',
         author: data.author || 'system',
@@ -308,7 +313,12 @@ export function getWorkflow(id: string): Workflow | null {
       description: data.description || '',
       schedule: data.schedule || '',
       enabled: data.enabled !== false, // Default to true
-      targeting: data.targeting || { communities: [], groups: [], tags: [], agents: [] },
+      targeting: {
+        communities: data.targeting?.communities || [],
+        groups: data.targeting?.groups || [],
+        tags: data.targeting?.tags || [],
+        agents: data.targeting?.agents || [],
+      },
       created: data.created || new Date().toISOString(),
       modified: data.modified || new Date().toISOString(),
       author: data.author || '',
@@ -336,9 +346,12 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
     }
 
     // Validate cron expression (semantic check beyond schema)
-    const cronValidation = validateCron(data.schedule!)
-    if (!cronValidation.valid) {
-      return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
+    // Allow empty or "manual" for on-demand workflows
+    if (data.schedule && data.schedule !== 'manual') {
+      const cronValidation = validateCron(data.schedule)
+      if (!cronValidation.valid) {
+        return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
+      }
     }
 
     // Schema validation passed — these fields are guaranteed present
@@ -358,7 +371,12 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       description,
       schedule,
       enabled: data.enabled !== false,
-      targeting: data.targeting || { communities: [], groups: [], tags: [], agents: [] },
+      targeting: {
+        communities: data.targeting?.communities || [],
+        groups: data.targeting?.groups || [],
+        tags: data.targeting?.tags || [],
+        agents: data.targeting?.agents || [],
+      },
       created: now,
       modified: now,
       author: data.author || 'unknown',

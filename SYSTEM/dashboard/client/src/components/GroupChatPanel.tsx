@@ -726,7 +726,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                   </ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               )}
             </div>
           ))}

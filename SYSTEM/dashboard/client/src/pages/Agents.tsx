@@ -158,10 +158,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => {
+        const normalized = (d.agents || []).map((a: any) => ({ ...a, tags: a.tags || [] }))
         if (resetPagination) {
-          setAgents(d.agents || [])
+          setAgents(normalized)
         } else {
-          setAgents(prev => [...prev, ...(d.agents || [])])
+          setAgents(prev => [...prev, ...normalized])
         }
         setHasMore(d.hasMore || false)
         setNextCursor(d.nextCursor || null)
@@ -730,9 +731,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     const primaryTags = new Set<string>() // Tags that are first for at least one agent
 
     agents.forEach(a => {
-      a.tags.forEach(t => tags.add(t))
-      if (a.tags.length > 0) {
-        primaryTags.add(a.tags[0]) // First tag is primary
+      const agentTags = a.tags || []
+      agentTags.forEach(t => tags.add(t))
+      if (agentTags.length > 0) {
+        primaryTags.add(agentTags[0]) // First tag is primary
       }
     })
 
@@ -1189,10 +1191,25 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       )}
 
       {!loading && !error && agents.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-          <span className="text-4xl mb-4">🤖</span>
-          <p className="text-sm">No agents found in workspace</p>
-          <p className="text-xs mt-1 text-gray-300">Run setup.sh to add the first agent</p>
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+          <span className="text-5xl mb-4">🤖</span>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[title="Add Agent with AI"]')?.click() }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium"
+            >
+              ✨ Create Agent with AI
+            </a>
+            <a
+              href="/templates"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+            >
+              📋 Deploy a Team from Templates
+            </a>
+          </div>
         </div>
       )}
 

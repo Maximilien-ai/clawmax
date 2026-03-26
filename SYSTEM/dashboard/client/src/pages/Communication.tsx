@@ -691,7 +691,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   {communities.length} channel{communities.length !== 1 ? 's' : ''}
                 </span>
               </h2>
-              <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedCommunities.map(channel => (
                   <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`community:${channel.name}`] || 0} />
                 ))}
@@ -706,7 +706,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   {groups.length} channel{groups.length !== 1 ? 's' : ''}
                 </span>
               </h2>
-              <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedGroups.map(channel => (
                   <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`group:${channel.name}`] || 0} />
                 ))}

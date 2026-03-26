@@ -82,9 +82,19 @@
 - [x] **Workflow AI Generate** — button on Workflows page, NL → workflow definition → editor pre-filled
 - [x] **Bulk model change** — select agents → change model for all at once
 
-### P7: Community Rules & Workflow Sequencing
+### P7: Workflow v2 — Autonomous Multiagent Coordination
+> Full design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
+
+- [ ] **Agent blocker surfacing + dynamic UI** — agents declare blockers, notifications render actionable UI (choice/approval/input), human or agents resolve inline (P0)
+- [ ] **Kickoff workflow in templates** — `once` type workflow with pre-built prompt, runs on template apply, eliminates manual "paste prompt to start" step (P0)
+- [ ] **Agent-to-agent direct messaging** — 1-1 messages between agents for dependency resolution, not just group broadcast (P1)
+- [ ] **Workflow progress tracking** — agents report progress %, aggregated per workflow, visible in Workflows page (P1)
+- [ ] **Workflow DAG + dependencies** — `depends_on` field, parallel execution, sequential gates, conditional triggers (P2)
+- [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete when all deps met (P2)
+- [ ] **Workflow DAG visualization** — Mermaid-style graph in Workflows page with status coloring (P3)
+
+### P8: Community Rules
 - [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
-- [ ] **Workflow sequencing/chaining** — workflows trigger other workflows, dependency graphs, sequential execution
 
 ## High Priority (UX) — Completed or In Progress
 - [x] **Activity metering loading state** — shimmer placeholder in cost column while metering data loads
@@ -101,8 +111,15 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ## High Priority (Features)
+- [ ] **Markdown rendering in chat** — render markdown in 1-1 agent chat and group chat messages (both user and agent bubbles). Currently displays raw markdown as plain text.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
+
+### Skills Management
+- [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page
+- [ ] **Skills select/select-all + bulk ops** — select mode with bulk add tags, bulk delete skills
+- [ ] **Skill tag filtering** — filter skills by tag (like agent tag filtering)
+- [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 
 ## Medium Priority
 - [ ] Template tag filtering
