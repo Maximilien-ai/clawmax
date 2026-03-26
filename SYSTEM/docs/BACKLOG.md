@@ -35,7 +35,26 @@
 - [ ] **Workspace restore** — upload zip to restore workspace state
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
-## Sprint: March 23–31 — Priority Order
+## Next Sprint: March 31 – April 11
+
+### Workflow v2 + Self-Management (deferred from Mar 17-28 sprint)
+> Original plan: TWO_WEEK_SPRINT_MAR17-28.md. Deferred because hackathon proved Workflow v2 is prerequisite for autonomous teams.
+
+- [ ] **Kickoff workflow** — `type: "once"` runs on template apply, eliminates manual prompt to start teams
+- [ ] **Basic blocker surfacing** — agents emit structured blockers, notification center renders actionable UI
+- [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution
+- [ ] **ClawMax Dev Team template** — qa-engineer, release-engineer, github-triage with kickoff workflow
+- [ ] **ClawMax self-management MVP** — deploy Dev Team on ClawMax repo, test autonomous PR review + triage
+- [ ] **Mac Mini deployment** — 24/7 agent team managing ClawMax repo
+- [ ] **Workflow progress tracking** — agents report %, aggregated per workflow
+- [ ] **Workflow DAG visualization** — dependency graph in Workflows page
+
+### Production Readiness (deferred)
+- [ ] **OAuth clean-room auth test** — end-to-end on fresh machine
+- [ ] **Container fixes** — ENOENT agent dir (#41), schemas/templates inclusion
+- [ ] **Security follow-through** — auth-required API coverage, cookie/session behavior
+
+## Sprint: March 23–31 — Priority Order (current)
 
 ### P0: Notification Center (GAME CHANGER)
 > Central workspace awareness — the missing glue between "I have agents" and "I know what's happening."
