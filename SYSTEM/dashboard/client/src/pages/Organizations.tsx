@@ -115,7 +115,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       const communitiesData = await communitiesRes.json()
       const groupsData = await groupsRes.json()
 
-      setAgents(agentsData.agents)
+      setAgents(agentsData.agents || [])
       setWorkspaceCommunities(communitiesData.communities || [])
       setWorkspaceGroups(groupsData.groups || [])
       setLoading(false)

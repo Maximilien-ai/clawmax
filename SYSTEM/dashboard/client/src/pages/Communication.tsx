@@ -116,7 +116,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const fetchAgents = useCallback(() => {
     fetch('/api/agents')
       .then(r => r.json())
-      .then(d => { setAgents(d.agents); setLoading(false); setLastRefreshed(Date.now()) })
+      .then(d => { setAgents(d.agents || []); setLoading(false); setLastRefreshed(Date.now()) })
       .catch(() => setLoading(false))
   }, [])
 
