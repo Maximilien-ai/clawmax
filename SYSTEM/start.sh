@@ -32,19 +32,27 @@ echo "Workspace: $OPENCLAW_WORKSPACE"
 echo ""
 
 # Check if already running
+BACKEND_RUNNING=false
+FRONTEND_RUNNING=false
+
 if lsof -ti:3001 > /dev/null 2>&1; then
+  BACKEND_RUNNING=true
   echo "⚠ Backend already running on port 3001"
 else
   echo "✓ Backend port 3001 is free"
 fi
 
 if lsof -ti:5173 > /dev/null 2>&1; then
+  FRONTEND_RUNNING=true
   echo "⚠ Frontend already running on port 5173"
+else
+  echo "✓ Frontend port 5173 is free"
+fi
+
+if [ "$BACKEND_RUNNING" = true ] && [ "$FRONTEND_RUNNING" = true ]; then
   echo ""
   echo "Dashboard already running at http://localhost:5173"
   exit 0
-else
-  echo "✓ Frontend port 5173 is free"
 fi
 
 echo ""
@@ -120,10 +128,22 @@ if [ "$FOLLOW_LOGS" = true ]; then
     echo "Public URL: https://$NGROK_URL"
   fi
   echo ""
-  exec npm run dev
+  if [ "$BACKEND_RUNNING" = false ] && [ "$FRONTEND_RUNNING" = false ]; then
+    exec npm run dev
+  elif [ "$BACKEND_RUNNING" = false ]; then
+    exec npm run dev:server
+  else
+    exec npm run dev:client
+  fi
 else
   # Run in background and log to file
-  npm run dev > /tmp/dashboard.log 2>&1 &
+  if [ "$BACKEND_RUNNING" = false ] && [ "$FRONTEND_RUNNING" = false ]; then
+    npm run dev > /tmp/dashboard.log 2>&1 &
+  elif [ "$BACKEND_RUNNING" = false ]; then
+    npm run dev:server > /tmp/dashboard.log 2>&1 &
+  else
+    npm run dev:client > /tmp/dashboard.log 2>&1 &
+  fi
   DASHBOARD_PID=$!
 
   echo "Dashboard starting (PID: $DASHBOARD_PID)"

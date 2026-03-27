@@ -131,14 +131,17 @@ export default function Templates() {
   const fetchTemplates = () => {
     setLoading(true)
     fetch('/api/templates')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load templates')))
       .then(data => {
-        setAgentTemplates(data.agents || [])
-        setOrgTemplates(data.organizations || [])
-        setWorkflowTemplates(data.workflows || [])
+        setAgentTemplates(Array.isArray(data.agents) ? data.agents : [])
+        setOrgTemplates(Array.isArray(data.organizations) ? data.organizations : [])
+        setWorkflowTemplates(Array.isArray(data.workflows) ? data.workflows : [])
         setLoading(false)
       })
-      .catch(err => {
+      .catch(() => {
+        setAgentTemplates([])
+        setOrgTemplates([])
+        setWorkflowTemplates([])
         showError('Failed to load templates')
         setLoading(false)
       })
