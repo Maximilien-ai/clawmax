@@ -2022,7 +2022,7 @@ function WorkflowsTable({
                     <div className="flex justify-end gap-2">
                       {totalCost > 0 && (
                         <span className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                          ${totalCost.toFixed(3)}
+                          ${(totalCost || 0).toFixed(3)}
                         </span>
                       )}
                       <button
