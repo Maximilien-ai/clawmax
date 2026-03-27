@@ -2,9 +2,11 @@ import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys } from './dashboard-env'
 
 function getSystemOpenAiClient(): OpenAI {
-  return new OpenAI({
-    apiKey: resolveSystemExecutionProviderKeys().openai || '',
-  })
+  const key = resolveSystemExecutionProviderKeys().openai
+  if (!key) {
+    throw new Error('No OpenAI API key configured. Set SYSTEM_OPENAI_API_KEY in .env or provide a BYOK key.')
+  }
+  return new OpenAI({ apiKey: key })
 }
 
 interface GenerateAgentFilesInput {
