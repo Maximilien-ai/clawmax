@@ -88,7 +88,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         setAssignedSkills(new Set())
       }
 
-      setAllSkills(skillsData.skills)
+      setAllSkills(skillsData.skills || [])
     } catch (error) {
       console.error('Failed to load skills:', error)
       alert('Failed to load skills. Make sure the server is running.')
