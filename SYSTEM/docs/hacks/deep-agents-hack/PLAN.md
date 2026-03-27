@@ -6,9 +6,22 @@
 
 ## Strategy
 
-NOTE: a IMPORTANT change that we need is to allow templates to be defined as markdown so TEMPLATE.md in addition to template.json and ensure we have a schema for this so templates can be checked for correctness. THIS IS KEY
-
 Use the template wizard to rapidly generate diverse org templates, then pick 2-3 and run real agent teams to produce autonomous results. Each template = a complete multiagent team with roles, workflows, skills, and coordination.
+
+### Key: TEMPLATE.md Format (in addition to template.json)
+
+Templates should also be definable as **TEMPLATE.md** (YAML frontmatter + Markdown body) — not just JSON. This is critical because:
+- AI generates markdown much more naturally than JSON
+- Humans can read/edit markdown easily
+- Same pattern as SKILL.md, IDENTITY.md, workflows
+- Schema validation ensures correctness regardless of format
+
+**Implementation:**
+- [ ] Define TEMPLATE.md schema (YAML frontmatter with agents, communities, groups, workflows)
+- [ ] Parser: `gray-matter` to extract frontmatter, validate against schema
+- [ ] Template system accepts both template.json and TEMPLATE.md (auto-detect)
+- [ ] AI Generate outputs TEMPLATE.md format
+- [ ] Wizard exports as TEMPLATE.md
 
 ## Phase 1: Template Wizard (2-3 hrs morning)
 
@@ -25,6 +38,13 @@ Build the multi-step wizard for creating org templates:
 - AI generates initial team based on description (bypass steps 2-4)
 - Each step can be AI-assisted or manual
 - Human confirms/edits before creation
+
+### Kickoff Workflow (MUST HAVE)
+Every template includes a kickoff workflow that auto-starts the team on apply:
+- `type: "once"` — runs exactly once when template is applied
+- Targets the team lead/planner agent
+- Contains the initial prompt with project context, team roster, and instructions
+- Eliminates the "paste a big prompt to get started" step from OpenClaw Hack Day
 
 ## Phase 2: Template Generation (2-3 hrs)
 
@@ -50,15 +70,13 @@ Generate 10-12 templates across domains using the wizard:
 |---|----------|-------|---------------|
 | 8 | **Dev Team** | tech-lead, engineer (N), qa-engineer, devops | PR review, CI triage, release prep, daily standup |
 | 9 | **Data Team** | data-lead, data-engineer (N), analyst, ml-engineer | Pipeline monitoring, data quality, model eval |
+| 10 | **RAG Team** | planner, data-eng (N), search-eng, eval-eng, ops | (already built — reference implementation) |
 
 ### Personal Templates
 | # | Template | Roles | Key Workflows |
 |---|----------|-------|---------------|
-| 10 | **Student Research** | research-lead, lit-reviewer, data-analyst, writer | Literature search, source evaluation, draft review |
-| 11 | **Technical Writing** | editor, writer (N), reviewer, publisher | Outline review, draft writing, fact-check, publish |
-| 12 | **RAG Team** | planner, data-eng (N), search-eng, eval-eng, ops | (already built — reference implementation) |
-
-NOTE: isn't 'RAG Team' a Technical Template. Let's move there?
+| 11 | **Student Research** | research-lead, lit-reviewer, data-analyst, writer | Literature search, source evaluation, draft review |
+| 12 | **Technical Writing** | editor, writer (N), reviewer, publisher | Outline review, draft writing, fact-check, publish |
 
 ## Phase 3: Live Execution (2-3 hrs afternoon)
 
@@ -106,12 +124,9 @@ Pick 2-3 templates and deploy real teams:
 - Execution: just 1 team (Dev Team on ClawMax repo = most impressive demo)
 
 **If ahead of schedule:**
-- Add Workflow v2 kickoff (auto-start on template apply)
-
-NOTE: I think this is a MUST
-
 - Add domain-specific skills (sales-crm, support-zendesk, etc.)
 - Run multiple teams concurrently across workspaces
+- Import skills from Shipables.dev registry
 
 ## Stretch: Shipables.dev Integration
 
