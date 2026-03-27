@@ -2582,9 +2582,9 @@ const AgentCard = React.memo(function AgentCard({
           {metering && metering.calls > 0 && (
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
-              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
+              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(4)}`}
             >
-              📊 ${metering.cost.toFixed(3)}
+              📊 ${(metering.cost || 0).toFixed(3)}
             </span>
           )}
         </div>
@@ -2995,9 +2995,9 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {metering && metering.calls > 0 && (
             <span
               className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
-              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${(metering.tokens/1000).toFixed(1)}k tokens · $${metering.cost.toFixed(4)}`}
+              title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(4)}`}
             >
-              💲{metering.cost.toFixed(3)}
+              💲{(metering.cost || 0).toFixed(3)}
             </span>
           )}
           {onViewDocs && (
@@ -3041,7 +3041,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           <div className="text-xs text-gray-400 shrink-0">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
         )}
         {usage && usage.totalTokens > 0 && (
-          <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${usage.totalTokens.toLocaleString()} tokens (${usage.inputTokens.toLocaleString()} in / ${usage.outputTokens.toLocaleString()} out)${usage.totalCost > 0 ? ` • $${usage.totalCost.toFixed(4)}` : ''}`}>
+          <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${(usage.totalTokens || 0).toLocaleString()} tokens (${(usage.inputTokens || 0).toLocaleString()} in / ${(usage.outputTokens || 0).toLocaleString()} out)${usage.totalCost > 0 ? ` • $${(usage.totalCost || 0).toFixed(4)}` : ''}`}>
             {formatTokens(usage.totalTokens)} 🪙
           </div>
         )}
@@ -3352,8 +3352,8 @@ const AgentTableView = React.memo(function AgentTableView({
                 {!meteringLoaded ? (
                   <span className="inline-block w-14 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                 ) : metering[agent.id] ? (
-                  <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${(metering[agent.id].tokens/1000).toFixed(1)}k tokens`}>
-                    ${metering[agent.id].cost.toFixed(4)}
+                  <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${((metering[agent.id].tokens || 0)/1000).toFixed(1)}k tokens`}>
+                    ${(metering[agent.id].cost || 0).toFixed(4)}
                   </span>
                 ) : (
                   <span className="text-gray-400">—</span>

@@ -195,7 +195,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       ...rows.map(entry => {
         const ft = fileType(entry.file)
         return [
-          entry.ageMins.toFixed(2),
+          (entry.ageMins || 0).toFixed(2),
           `"${entry.agentId}"`,
           `"${ft.label}"`,
           `"${entry.file}"`,
@@ -344,7 +344,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
                 </div>
               ) : (
                 <button onClick={() => setEditingBudget(true)} className="text-xs text-sky-600 hover:text-sky-700">
-                  Limit: ${budget.config.limitUsd.toFixed(2)} — Edit
+                  Limit: ${(budget.config?.limitUsd || 0).toFixed(2)} — Edit
                 </button>
               )}
               <label className="flex items-center gap-1 text-xs text-gray-500">
@@ -366,13 +366,13 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
                 budget.level === 'warning' ? 'bg-yellow-500' :
                 'bg-green-500'
               }`}
-              style={{ width: `${Math.min(budget.usedPct, 100)}%` }}
+              style={{ width: `${Math.min(budget.usedPct || 0, 100)}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
-            <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
-            <span>{budget.usedPct.toFixed(1)}% used</span>
-            <span>${budget.remainingUsd.toFixed(4)} remaining</span>
+            <span>${(budget.currentSpendUsd || 0).toFixed(4)} spent</span>
+            <span>{(budget.usedPct || 0).toFixed(1)}% used</span>
+            <span>${(budget.remainingUsd || 0).toFixed(4)} remaining</span>
           </div>
         </div>
       )}
@@ -391,11 +391,11 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
               <div className="text-xs text-gray-500">Total Calls</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(metering.totalTokens / 1000).toFixed(1)}k</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{((metering.totalTokens || 0) / 1000).toFixed(1)}k</div>
               <div className="text-xs text-gray-500">Total Tokens</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <div className="text-2xl font-bold text-green-600">${metering.estimatedCostUsd.toFixed(4)}</div>
+              <div className="text-2xl font-bold text-green-600">${(metering.estimatedCostUsd || 0).toFixed(4)}</div>
               <div className="text-xs text-gray-500">Est. Cost</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -423,9 +423,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
                     <tr key={agent.agentId} className="border-t border-gray-100 dark:border-gray-800">
                       <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
                       <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
-                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{(agent.totalTokens / 1000).toFixed(1)}k</td>
-                      <td className="px-3 py-2 text-right text-green-600">${agent.estimatedCostUsd.toFixed(4)}</td>
-                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell">{(agent.avgDurationMs / 1000).toFixed(1)}s</td>
+                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{((agent.totalTokens || 0) / 1000).toFixed(1)}k</td>
+                      <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(4)}</td>
+                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell">{((agent.avgDurationMs || 0) / 1000).toFixed(1)}s</td>
                       <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell font-mono">{Object.keys(agent.models)[0] || '—'}</td>
                     </tr>
                   ))}

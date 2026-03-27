@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
       fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
     ]).then(([cfg, me]) => {
-      setConfig(cfg ?? { githubEnabled: true, authDisabled: false })
+      setConfig(cfg ?? { githubEnabled: false, authDisabled: false })
       if (me?.authenticated) {
         setUser(me.user)
       } else {
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setLoading(false)
     }).catch(() => {
-      setConfig({ githubEnabled: true, authDisabled: false })
+      setConfig({ githubEnabled: false, authDisabled: false })
       setUser(null)
       setLoading(false)
     })
