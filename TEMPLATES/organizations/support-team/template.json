@@ -4,52 +4,129 @@
   "version": "1.0.0",
   "description": "A multiagent customer support organization with ticket triage, SLA monitoring, escalation handling, and knowledge base maintenance. Handles high-volume support with automated prioritization.",
   "author": "ClawMax Team",
-  "tags": ["support", "customer-service", "sla", "tickets"],
+  "tags": [
+    "support",
+    "customer-service",
+    "sla",
+    "tickets"
+  ],
   "parameters": [
-    { "agentId": "support-agent", "label": "Number of Support Agents", "default": 3, "min": 1, "max": 10 }
+    {
+      "agentId": "support-agent",
+      "label": "Number of Support Agents",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    }
   ],
   "agents": [
     {
       "id": "support-lead",
       "name": "Support Lead",
-      "role": "Support manager — monitors SLA compliance, handles escalation decisions, coaches agents, and reports on CSAT metrics",
-      "tags": ["lead", "support", "management"],
-      "communities": ["Support Team"],
-      "groups": ["Triage", "Escalations", "Status"]
+      "role": "Support manager \u2014 monitors SLA compliance, handles escalation decisions, coaches agents, and reports on CSAT metrics",
+      "tags": [
+        "lead",
+        "support",
+        "management"
+      ],
+      "communities": [
+        "Support Team"
+      ],
+      "groups": [
+        "Triage",
+        "Escalations",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     },
     {
       "id": "support-agent",
       "name": "Support Agent",
-      "role": "Frontline support — responds to tickets, troubleshoots issues, documents solutions, and maintains first-response SLA",
-      "tags": ["support", "frontline"],
-      "communities": ["Support Team"],
-      "groups": ["Triage"]
+      "role": "Frontline support \u2014 responds to tickets, troubleshoots issues, documents solutions, and maintains first-response SLA",
+      "tags": [
+        "support",
+        "frontline"
+      ],
+      "communities": [
+        "Support Team"
+      ],
+      "groups": [
+        "Triage"
+      ]
     },
     {
       "id": "escalation-eng",
       "name": "Escalation Engineer",
-      "role": "Senior technical support — handles complex escalations, debugs difficult issues, and creates permanent fixes",
-      "tags": ["support", "escalation", "technical"],
-      "communities": ["Support Team"],
-      "groups": ["Escalations", "Knowledge Base"]
+      "role": "Senior technical support \u2014 handles complex escalations, debugs difficult issues, and creates permanent fixes",
+      "tags": [
+        "support",
+        "escalation",
+        "technical"
+      ],
+      "communities": [
+        "Support Team"
+      ],
+      "groups": [
+        "Escalations",
+        "Knowledge Base"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     },
     {
       "id": "knowledge-mgr",
       "name": "Knowledge Base Manager",
-      "role": "Documentation — maintains FAQ, writes help articles, identifies documentation gaps from ticket patterns, and trains agents",
-      "tags": ["support", "knowledge", "docs"],
-      "communities": ["Support Team"],
-      "groups": ["Knowledge Base", "Status"]
+      "role": "Documentation \u2014 maintains FAQ, writes help articles, identifies documentation gaps from ticket patterns, and trains agents",
+      "tags": [
+        "support",
+        "knowledge",
+        "docs"
+      ],
+      "communities": [
+        "Support Team"
+      ],
+      "groups": [
+        "Knowledge Base",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     }
   ],
   "communities": [
-    { "name": "Support Team", "description": "All support team coordination and announcements" }
+    {
+      "name": "Support Team",
+      "description": "All support team coordination and announcements"
+    }
   ],
   "groups": [
-    { "name": "Triage", "description": "Incoming ticket triage and assignment", "community": "Support Team" },
-    { "name": "Escalations", "description": "Escalated issues requiring senior engineering attention", "community": "Support Team" },
-    { "name": "Knowledge Base", "description": "KB article creation, updates, and gap analysis", "community": "Support Team" },
-    { "name": "Status", "description": "Daily standups and SLA metrics", "community": "Support Team" }
+    {
+      "name": "Triage",
+      "description": "Incoming ticket triage and assignment",
+      "community": "Support Team"
+    },
+    {
+      "name": "Escalations",
+      "description": "Escalated issues requiring senior engineering attention",
+      "community": "Support Team"
+    },
+    {
+      "name": "Knowledge Base",
+      "description": "KB article creation, updates, and gap analysis",
+      "community": "Support Team"
+    },
+    {
+      "name": "Status",
+      "description": "Daily standups and SLA metrics",
+      "community": "Support Team"
+    }
   ],
   "workflows": [
     {
@@ -59,7 +136,16 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["support-lead"] },
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "support-lead"
+        ]
+      },
       "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets, KB articles, or customer data\n3. Set SLA targets: first response time, resolution time, CSAT goals\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas"
     },
     {
@@ -69,7 +155,14 @@
       "schedule": "*/30 * * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Triage"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Triage"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Ticket Triage Cycle\n\n1. Pull all unassigned tickets since last triage\n2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)\n3. P0/P1: immediately assign to escalation engineer and notify support lead\n4. P2/P3: assign to support agents based on current load and expertise\n5. Update ticket status and post triage summary to Triage group"
     },
     {
@@ -79,7 +172,14 @@
       "schedule": "0 * * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Status"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# SLA Monitoring\n\n1. Check all open tickets against SLA thresholds\n2. Flag tickets approaching SLA breach (80% of allowed time)\n3. For breached SLAs: notify support lead and escalate if needed\n4. Calculate current SLA compliance rate and CSAT score\n5. Post hourly SLA dashboard to Status group"
     },
     {
@@ -89,8 +189,17 @@
       "schedule": "0 10 * * 5",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Knowledge Base"], "tags": [], "agents": ["knowledge-mgr"] },
-      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week — identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group"
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Knowledge Base"
+        ],
+        "tags": [],
+        "agents": [
+          "knowledge-mgr"
+        ]
+      },
+      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week \u2014 identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group"
     }
   ]
 }

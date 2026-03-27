@@ -4,43 +4,103 @@
   "version": "1.0.0",
   "description": "A multiagent legal team for contract review, compliance monitoring, and risk assessment. Automates contract analysis, regulatory tracking, and risk scoring.",
   "author": "ClawMax Team",
-  "tags": ["legal", "compliance", "contracts", "risk"],
+  "tags": [
+    "legal",
+    "compliance",
+    "contracts",
+    "risk"
+  ],
   "parameters": [
-    { "agentId": "contract-analyst", "label": "Number of Contract Analysts", "default": 2, "min": 1, "max": 5 }
+    {
+      "agentId": "contract-analyst",
+      "label": "Number of Contract Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 5
+    }
   ],
   "agents": [
     {
       "id": "legal-lead",
       "name": "Legal Lead",
-      "role": "General counsel — oversees all legal operations, approves high-risk contracts, sets compliance policies, and manages outside counsel",
-      "tags": ["lead", "legal", "management"],
-      "communities": ["Legal Team"],
-      "groups": ["Contracts", "Compliance", "Status"]
+      "role": "General counsel \u2014 oversees all legal operations, approves high-risk contracts, sets compliance policies, and manages outside counsel",
+      "tags": [
+        "lead",
+        "legal",
+        "management"
+      ],
+      "communities": [
+        "Legal Team"
+      ],
+      "groups": [
+        "Contracts",
+        "Compliance",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     },
     {
       "id": "contract-analyst",
       "name": "Contract Analyst",
-      "role": "Contract specialist — reviews agreements, redlines terms, identifies unfavorable clauses, and tracks renewal dates",
-      "tags": ["legal", "contracts"],
-      "communities": ["Legal Team"],
-      "groups": ["Contracts"]
+      "role": "Contract specialist \u2014 reviews agreements, redlines terms, identifies unfavorable clauses, and tracks renewal dates",
+      "tags": [
+        "legal",
+        "contracts"
+      ],
+      "communities": [
+        "Legal Team"
+      ],
+      "groups": [
+        "Contracts"
+      ]
     },
     {
       "id": "compliance-officer",
       "name": "Compliance Officer",
-      "role": "Regulatory compliance — monitors regulatory changes, audits internal processes, maintains compliance documentation, and flags violations",
-      "tags": ["legal", "compliance", "regulatory"],
-      "communities": ["Legal Team"],
-      "groups": ["Compliance", "Status"]
+      "role": "Regulatory compliance \u2014 monitors regulatory changes, audits internal processes, maintains compliance documentation, and flags violations",
+      "tags": [
+        "legal",
+        "compliance",
+        "regulatory"
+      ],
+      "communities": [
+        "Legal Team"
+      ],
+      "groups": [
+        "Compliance",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     }
   ],
   "communities": [
-    { "name": "Legal Team", "description": "All legal team coordination and announcements" }
+    {
+      "name": "Legal Team",
+      "description": "All legal team coordination and announcements"
+    }
   ],
   "groups": [
-    { "name": "Contracts", "description": "Contract review queue, redlines, and approvals", "community": "Legal Team" },
-    { "name": "Compliance", "description": "Regulatory updates, audit findings, and compliance tracking", "community": "Legal Team" },
-    { "name": "Status", "description": "Team updates and risk dashboard", "community": "Legal Team" }
+    {
+      "name": "Contracts",
+      "description": "Contract review queue, redlines, and approvals",
+      "community": "Legal Team"
+    },
+    {
+      "name": "Compliance",
+      "description": "Regulatory updates, audit findings, and compliance tracking",
+      "community": "Legal Team"
+    },
+    {
+      "name": "Status",
+      "description": "Team updates and risk dashboard",
+      "community": "Legal Team"
+    }
   ],
   "workflows": [
     {
@@ -50,7 +110,16 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["legal-lead"] },
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "legal-lead"
+        ]
+      },
       "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts, compliance docs, or legal matters\n3. Assign contract review queues to analysts by contract type or department\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment and priorities to Status group"
     },
     {
@@ -60,7 +129,14 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Contracts"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Contracts"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Contract Review\n\n1. Pull pending contracts from the review queue\n2. Analyze key terms: liability caps, indemnification, IP ownership, termination clauses\n3. Flag non-standard or high-risk clauses with redline suggestions\n4. Score overall contract risk (low/medium/high)\n5. Route high-risk contracts to legal lead for final approval"
     },
     {
@@ -70,7 +146,16 @@
       "schedule": "0 8 * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Compliance"], "tags": [], "agents": ["compliance-officer"] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Compliance"
+        ],
+        "tags": [],
+        "agents": [
+          "compliance-officer"
+        ]
+      },
       "content": "# Daily Compliance Check\n\n1. Scan for new regulatory updates in relevant jurisdictions\n2. Cross-reference against current internal policies\n3. Flag any gaps between new requirements and existing compliance posture\n4. Check upcoming compliance deadlines (filings, certifications, renewals)\n5. Post compliance status summary to Status group"
     },
     {
@@ -80,7 +165,14 @@
       "schedule": "0 10 * * 1",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Status"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Weekly Risk Assessment\n\n1. Compile all active legal matters: open contracts, compliance issues, disputes\n2. Score each matter by risk level and potential business impact\n3. Identify matters requiring escalation or outside counsel\n4. Review contract renewal calendar for upcoming 30 days\n5. Post risk dashboard with week-over-week trend to Status group"
     }
   ]

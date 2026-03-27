@@ -4,49 +4,122 @@
   "version": "1.0.0",
   "description": "A multiagent research group for academic projects. Includes literature review, data analysis, and writing roles with workflows for systematic research and collaborative drafting.",
   "author": "ClawMax Team",
-  "tags": ["research", "academic", "writing", "analysis"],
+  "tags": [
+    "research",
+    "academic",
+    "writing",
+    "analysis"
+  ],
   "agents": [
     {
       "id": "research-lead",
       "name": "Research Lead",
-      "role": "Principal investigator — defines research questions, manages methodology, coordinates team efforts, and ensures academic rigor",
-      "tags": ["lead", "research", "methodology"],
-      "communities": ["Research Group"],
-      "groups": ["Literature", "Analysis", "Writing", "Status"]
+      "role": "Principal investigator \u2014 defines research questions, manages methodology, coordinates team efforts, and ensures academic rigor",
+      "tags": [
+        "lead",
+        "research",
+        "methodology"
+      ],
+      "communities": [
+        "Research Group"
+      ],
+      "groups": [
+        "Literature",
+        "Analysis",
+        "Writing",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     },
     {
       "id": "lit-reviewer",
       "name": "Literature Reviewer",
-      "role": "Literature specialist — searches databases, reads papers, extracts key findings, identifies gaps, and maintains citation database",
-      "tags": ["research", "literature", "citations"],
-      "communities": ["Research Group"],
-      "groups": ["Literature"]
+      "role": "Literature specialist \u2014 searches databases, reads papers, extracts key findings, identifies gaps, and maintains citation database",
+      "tags": [
+        "research",
+        "literature",
+        "citations"
+      ],
+      "communities": [
+        "Research Group"
+      ],
+      "groups": [
+        "Literature"
+      ]
     },
     {
       "id": "data-analyst",
       "name": "Data Analyst",
-      "role": "Data analysis — cleans datasets, runs statistical analyses, creates visualizations, and validates findings against hypotheses",
-      "tags": ["research", "data", "statistics"],
-      "communities": ["Research Group"],
-      "groups": ["Analysis", "Status"]
+      "role": "Data analysis \u2014 cleans datasets, runs statistical analyses, creates visualizations, and validates findings against hypotheses",
+      "tags": [
+        "research",
+        "data",
+        "statistics"
+      ],
+      "communities": [
+        "Research Group"
+      ],
+      "groups": [
+        "Analysis",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     },
     {
       "id": "writer",
       "name": "Research Writer",
-      "role": "Academic writing — drafts paper sections, synthesizes findings into narrative, ensures proper citations, and formats for submission",
-      "tags": ["research", "writing", "drafting"],
-      "communities": ["Research Group"],
-      "groups": ["Writing", "Status"]
+      "role": "Academic writing \u2014 drafts paper sections, synthesizes findings into narrative, ensures proper citations, and formats for submission",
+      "tags": [
+        "research",
+        "writing",
+        "drafting"
+      ],
+      "communities": [
+        "Research Group"
+      ],
+      "groups": [
+        "Writing",
+        "Status"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ]
     }
   ],
   "communities": [
-    { "name": "Research Group", "description": "All research group coordination and updates" }
+    {
+      "name": "Research Group",
+      "description": "All research group coordination and updates"
+    }
   ],
   "groups": [
-    { "name": "Literature", "description": "Paper searches, reading notes, and citation management", "community": "Research Group" },
-    { "name": "Analysis", "description": "Data analysis, methodology, and findings discussion", "community": "Research Group" },
-    { "name": "Writing", "description": "Paper drafts, revisions, and submission prep", "community": "Research Group" },
-    { "name": "Status", "description": "Research progress and team coordination", "community": "Research Group" }
+    {
+      "name": "Literature",
+      "description": "Paper searches, reading notes, and citation management",
+      "community": "Research Group"
+    },
+    {
+      "name": "Analysis",
+      "description": "Data analysis, methodology, and findings discussion",
+      "community": "Research Group"
+    },
+    {
+      "name": "Writing",
+      "description": "Paper drafts, revisions, and submission prep",
+      "community": "Research Group"
+    },
+    {
+      "name": "Status",
+      "description": "Research progress and team coordination",
+      "community": "Research Group"
+    }
   ],
   "workflows": [
     {
@@ -56,7 +129,16 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["research-lead"] },
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "research-lead"
+        ]
+      },
       "content": "# Research Group Kickoff\n\nYou are the Research Lead. Your team just came online.\n\n1. Introduce yourself in the Research Group community\n2. Define the research question, scope, and methodology\n3. Assign initial literature search topics to the lit reviewer\n4. Brief the data analyst on expected data sources and analysis approach\n5. Set milestones: lit review completion, analysis phase, first draft, and submission target"
     },
     {
@@ -66,8 +148,17 @@
       "schedule": "0 9 * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Literature"], "tags": [], "agents": ["lit-reviewer"] },
-      "content": "# Daily Literature Search\n\n1. Search academic databases for papers matching research keywords\n2. Screen titles and abstracts for relevance to research question\n3. For relevant papers: read and extract key findings, methods, and citations\n4. Update the literature matrix with new entries\n5. Post daily search summary to Literature group — flag any breakthrough papers"
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Literature"
+        ],
+        "tags": [],
+        "agents": [
+          "lit-reviewer"
+        ]
+      },
+      "content": "# Daily Literature Search\n\n1. Search academic databases for papers matching research keywords\n2. Screen titles and abstracts for relevance to research question\n3. For relevant papers: read and extract key findings, methods, and citations\n4. Update the literature matrix with new entries\n5. Post daily search summary to Literature group \u2014 flag any breakthrough papers"
     },
     {
       "id": "source-evaluation",
@@ -76,7 +167,15 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Literature", "Analysis"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Literature",
+          "Analysis"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Source Evaluation Session\n\n1. Review all collected sources for quality and relevance\n2. Identify themes, contradictions, and gaps in the literature\n3. Map sources to research sub-questions\n4. Research lead: assess whether literature coverage is sufficient\n5. Writer: begin outlining the literature review section based on themes"
     },
     {
@@ -86,7 +185,14 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Writing"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Writing"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Draft Review Session\n\n1. Writer: share the latest draft section for review\n2. Research lead: check for methodological accuracy and argument strength\n3. Data analyst: verify data citations and statistical claims\n4. Lit reviewer: check citation accuracy and completeness\n5. Compile revision notes and assign rewrite tasks"
     }
   ]
