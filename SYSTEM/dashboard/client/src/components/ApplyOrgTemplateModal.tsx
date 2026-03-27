@@ -38,6 +38,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [applying, setApplying] = useState(false)
   const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [useGithub, setUseGithub] = useState(false)
+  const [githubRepo, setGithubRepo] = useState('')
   const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
@@ -128,6 +130,29 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       clearInterval(progressInterval)
 
       if (resp.ok) {
+        const createdAgentIds: string[] = data.agentIds || []
+
+        // Add or remove github skills based on checkbox
+        if (createdAgentIds.length > 0) {
+          const githubSkills = ['github', 'gh-issues']
+          if (useGithub) {
+            setApplyProgress('Adding GitHub skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: githubSkills }),
+            }).catch(() => {})
+          } else {
+            // Remove github skills if user unchecked (template may have included them)
+            setApplyProgress('Finalizing skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: [], removeSkills: githubSkills }),
+            }).catch(() => {})
+          }
+        }
+
         showSuccess(`Template "${template.name}" applied successfully!`)
         setApplyProgress('Done! Refreshing workspace...')
         setTimeout(() => {
@@ -253,15 +278,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent ID Customization */}
-          <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-sky-900 mb-3">Agent ID Customization</h3>
-            <p className="text-xs text-sky-700 mb-3">
+          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-200 mb-3">Agent ID Customization</h3>
+            <p className="text-xs text-sky-700 dark:text-sky-400 mb-3">
               Add a prefix or suffix to avoid conflicts with existing agents. Leave blank to keep original IDs.
             </p>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Prefix
                 </label>
                 <input
@@ -269,12 +294,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={prefix}
                   onChange={e => setPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., proj1-"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Suffix
                 </label>
                 <input
@@ -282,17 +307,50 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={suffix}
                   onChange={e => setSuffix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., -v2"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                 />
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 border border-sky-300 rounded p-2">
-              <div className="text-xs text-gray-500 mb-1">Preview:</div>
-              <div className="font-mono text-sm text-sky-700">
+            <div className="bg-white dark:bg-gray-800 border border-sky-300 dark:border-sky-700 rounded p-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Preview:</div>
+              <div className="font-mono text-sm text-sky-700 dark:text-sky-400">
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
               </div>
             </div>
+          </div>
+
+          {/* GitHub Coordination */}
+          <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useGithub}
+                onChange={e => setUseGithub(e.target.checked)}
+                className="mt-0.5 rounded"
+              />
+              <div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Use GitHub for coordination</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Agents will use a GitHub repo for issues, PRs, file storage, and code review. Adds github + gh-issues skills to all agents.
+                </div>
+              </div>
+            </label>
+            {useGithub && (
+              <div className="mt-3 ml-7">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  GitHub Repository
+                </label>
+                <input
+                  type="text"
+                  value={githubRepo}
+                  onChange={e => setGithubRepo(e.target.value)}
+                  placeholder="owner/repo-name"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Agents will create issues, branches, and PRs in this repo</p>
+              </div>
+            )}
           </div>
 
           {/* Agent List with Models (collapsible) */}
