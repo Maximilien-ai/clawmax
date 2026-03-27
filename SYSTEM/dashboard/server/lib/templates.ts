@@ -1534,20 +1534,27 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               agents: newAgents
             }
 
-            console.log(`[Template Import] Creating workflow "${wf.name}" with ${newAgents.length} agents`)
+            // For managed workflows, auto-assign owner from first targeted agent
+            const execMode = wf.executionMode || 'automated'
+            const owner = execMode === 'managed'
+              ? (newAgents[0] || createdAgents[0] || undefined)
+              : undefined
+
+            console.log(`[Template Import] Creating workflow "${wf.name}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
               name: wf.name,
               description: wf.description,
               schedule: wf.schedule,
               enabled: wf.enabled !== false,
-              executionMode: wf.executionMode || 'automated',
+              executionMode: execMode,
+              owner,
               targeting: updatedTargeting,
               content: wf.content || 'Execute workflow tasks.',
               author: template.author || 'imported'
             })
 
             if (!result.success) {
-              console.warn(`Failed to create workflow ${wf.name}: ${result.error}`)
+              console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
               // Don't fail the whole import for workflow creation failures
             }
           }
