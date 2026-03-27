@@ -115,6 +115,18 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
       }, 800)
 
+      // Build final workflow overrides — inject GitHub context if enabled
+      const finalOverrides = { ...workflowOverrides }
+      if (useGithub && githubRepo.trim() && template.workflows) {
+        const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('GitHub Coordination')) {
+            finalOverrides[wf.id] = existing + ghBlock
+          }
+        }
+      }
+
       const resp = await fetch('/api/templates/organizations/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,7 +137,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           includeBuiltIn,
           modelOverride: modelOverride || undefined,
           agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
-          workflowOverrides: Object.keys(workflowOverrides).length > 0 ? workflowOverrides : undefined,
+          workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
         }),
       })
 
