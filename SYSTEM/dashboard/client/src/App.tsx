@@ -519,7 +519,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
             )}
           </button>
         )}
-        <span className="text-xs text-gray-300 dark:text-gray-600 font-mono">{system.version}</span>
+        <span className="text-xs text-gray-300 dark:text-gray-600 font-mono">{system?.version}</span>
       </div>
     </div>
   )
