@@ -53,7 +53,7 @@
       "id": "kickoff",
       "name": "Research Kickoff",
       "description": "Initialize the research group and define the research question",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["research-lead"] },

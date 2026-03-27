@@ -47,7 +47,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the legal team and assess current obligations",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["legal-lead"] },

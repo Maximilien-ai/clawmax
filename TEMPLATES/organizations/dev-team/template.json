@@ -60,7 +60,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the dev team and assess the codebase",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["tech-lead"] },

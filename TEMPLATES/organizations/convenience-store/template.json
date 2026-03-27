@@ -44,7 +44,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the store team and assess current operations",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["store-manager"] },

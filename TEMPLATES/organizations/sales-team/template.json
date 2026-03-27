@@ -61,7 +61,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the sales team and set targets",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["sales-lead"] },

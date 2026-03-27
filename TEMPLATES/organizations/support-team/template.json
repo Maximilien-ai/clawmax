@@ -56,7 +56,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the support team and set SLA targets",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["support-lead"] },

@@ -56,7 +56,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the writing team and set editorial direction",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["editor"] },

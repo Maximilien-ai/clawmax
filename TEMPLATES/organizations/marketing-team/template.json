@@ -56,7 +56,7 @@
       "id": "kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the marketing team and set campaign goals",
-      "schedule": "once",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["marketing-lead"] },
