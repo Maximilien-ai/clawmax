@@ -82,7 +82,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; initialAgentId?: string; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -1196,19 +1196,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
           <div className="flex flex-wrap gap-3">
-            <a
-              href="#"
-              onClick={(e) => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[title="Add Agent with AI"]')?.click() }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium"
+            <button
+              onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
             >
               ✨ Create Agent with AI
-            </a>
-            <a
-              href="/templates"
+            </button>
+            <button
+              onClick={() => onNavigateToTemplates?.()}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
             >
               📋 Deploy a Team from Templates
-            </a>
+            </button>
           </div>
         </div>
       )}
