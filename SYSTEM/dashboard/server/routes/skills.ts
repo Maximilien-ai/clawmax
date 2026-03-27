@@ -425,15 +425,16 @@ router.get('/registry/search', async (req, res) => {
   try {
     const query = (req.query.q as string || '').trim()
     const searchArg = query ? `"${query.replace(/"/g, '')}"` : '""'
+    const limit = parseInt(req.query.limit as string) || 20
 
-    const { stdout } = await execAsync(`npx @senso-ai/shipables search ${searchArg} --json`, {
+    const { stdout } = await execAsync(`npx @senso-ai/shipables search ${searchArg} --limit ${limit} --json`, {
       timeout: 15000,
     })
 
     const parsed = JSON.parse(stdout)
     // CLI returns { skills: [...], pagination: {...} }
     const results = Array.isArray(parsed) ? parsed : (parsed.skills || [])
-    res.json({ ok: true, results, total: parsed.pagination?.total })
+    res.json({ ok: true, results, total: parsed.pagination?.total, pagination: parsed.pagination })
   } catch (err: any) {
     // If npx not available or shipables not installed, return empty
     if (err.code === 'ENOENT' || err.message?.includes('not found')) {

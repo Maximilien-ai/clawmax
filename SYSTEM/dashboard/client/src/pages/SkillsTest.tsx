@@ -28,6 +28,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [registryResults, setRegistryResults] = useState<Array<{ name: string; description?: string; version?: string; downloads?: number }>>([])
   const [registrySearching, setRegistrySearching] = useState(false)
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
+  const [registryTotal, setRegistryTotal] = useState(0)
+  const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
 
   // Load agents list on mount
   useEffect(() => {
@@ -156,6 +158,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     } finally {
       setSaving(false)
     }
+  }
+
+  async function searchRegistry(query: string, limit = 20) {
+    setRegistrySearching(true)
+    try {
+      const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(query)}&limit=${limit}`)
+      const data = await resp.json()
+      setRegistryResults(data.results || [])
+      setRegistryTotal(data.total || data.results?.length || 0)
+    } catch { setRegistryResults([]) }
+    finally { setRegistrySearching(false) }
   }
 
   async function handleImportSkill() {
@@ -658,30 +671,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         type="text"
                         value={registryQuery}
                         onChange={e => setRegistryQuery(e.target.value)}
-                        onKeyDown={async e => {
-                          if (e.key === 'Enter') {
-                            setRegistrySearching(true)
-                            try {
-                              const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
-                              const data = await resp.json()
-                              setRegistryResults(data.results || [])
-                            } catch { setRegistryResults([]) }
-                            finally { setRegistrySearching(false) }
-                          }
-                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') searchRegistry(registryQuery) }}
                         placeholder="Search skills... (e.g., github, slack, salesforce)"
                         className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
                       />
                       <button
-                        onClick={async () => {
-                          setRegistrySearching(true)
-                          try {
-                            const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
-                            const data = await resp.json()
-                            setRegistryResults(data.results || [])
-                          } catch { setRegistryResults([]) }
-                          finally { setRegistrySearching(false) }
-                        }}
+                        onClick={() => searchRegistry(registryQuery)}
                         disabled={registrySearching}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
                       >
@@ -694,16 +689,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       {['github', 'slack', 'api', 'data', 'ai', 'web', 'devops', 'crm'].map(cat => (
                         <button
                           key={cat}
-                          onClick={async () => {
-                            setRegistryQuery(cat)
-                            setRegistrySearching(true)
-                            try {
-                              const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(cat)}`)
-                              const data = await resp.json()
-                              setRegistryResults(data.results || [])
-                            } catch { setRegistryResults([]) }
-                            finally { setRegistrySearching(false) }
-                          }}
+                          onClick={() => { setRegistryQuery(cat); searchRegistry(cat) }}
                           className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
                         >
                           {cat}
@@ -715,15 +701,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     {registryResults.length === 0 && !registrySearching && !registryQuery && (
                       <div className="text-center py-4">
                         <button
-                          onClick={async () => {
-                            setRegistrySearching(true)
-                            try {
-                              const resp = await fetch('/api/skills/registry/search?q=')
-                              const data = await resp.json()
-                              setRegistryResults(data.results || [])
-                            } catch { setRegistryResults([]) }
-                            finally { setRegistrySearching(false) }
-                          }}
+                          onClick={() => searchRegistry('', 30)}
                           className="text-sm text-purple-600 hover:text-purple-700 font-medium"
                         >
                           Browse all skills →
@@ -739,50 +717,70 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     {/* Results */}
                     {!registrySearching && registryResults.length > 0 && (
                       <div>
-                        <div className="text-xs text-gray-400 mb-2">{registryResults.length} skill{registryResults.length !== 1 ? 's' : ''} found</div>
-                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
-                          {registryResults.map((skill: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || skill.name}</div>
-                                {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
-                                <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
-                                  {skill.latest_version && <span>v{skill.latest_version}</span>}
-                                  {skill.downloads_weekly != null && <span>{skill.downloads_weekly}/week</span>}
-                                  {skill.categories?.length > 0 && <span>{skill.categories.join(', ')}</span>}
-                                </div>
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  const installName = skill.full_name || skill.name
-                                  setRegistryInstalling(installName)
-                                  try {
-                                    const resp = await fetch('/api/skills/registry/install', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ name: installName }),
-                                    })
-                                    const data = await resp.json()
-                                    if (data.ok) {
-                                      showSuccess(`Installed "${installName}" from Shipables`)
-                                      loadSkills()
-                                    } else {
-                                      showToastError(data.error || 'Install failed')
-                                    }
-                                  } catch {
-                                    showToastError('Network error installing skill')
-                                  } finally {
-                                    setRegistryInstalling(null)
-                                  }
-                                }}
-                                disabled={!!registryInstalling}
-                                className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
-                              >
-                                {registryInstalling === (skill.full_name || skill.name) ? 'Installing...' : 'Install'}
-                              </button>
-                            </div>
-                          ))}
+                        <div className="text-xs text-gray-400 mb-2">
+                          Showing {registryResults.length} of {registryTotal} skill{registryTotal !== 1 ? 's' : ''}
                         </div>
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-80 overflow-y-auto">
+                          {registryResults.map((skill: any, idx: number) => {
+                            const installName = skill.full_name || skill.name
+                            const isInstalled = registryInstalledNames.has(installName)
+                            return (
+                              <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{installName}</div>
+                                  {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
+                                  <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
+                                    {skill.latest_version && <span>v{skill.latest_version}</span>}
+                                    {skill.downloads_weekly != null && <span>{skill.downloads_weekly}/week</span>}
+                                    {skill.categories?.length > 0 && <span>{skill.categories.join(', ')}</span>}
+                                  </div>
+                                </div>
+                                {isInstalled ? (
+                                  <span className="ml-3 px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md shrink-0">
+                                    Installed
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      setRegistryInstalling(installName)
+                                      try {
+                                        const resp = await fetch('/api/skills/registry/install', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ name: installName }),
+                                        })
+                                        const data = await resp.json()
+                                        if (data.ok) {
+                                          showSuccess(`Installed "${installName}" from Shipables`)
+                                          setRegistryInstalledNames(prev => new Set([...prev, installName]))
+                                          loadSkills()
+                                        } else {
+                                          showToastError(data.error || 'Install failed')
+                                        }
+                                      } catch {
+                                        showToastError('Network error installing skill')
+                                      } finally {
+                                        setRegistryInstalling(null)
+                                      }
+                                    }}
+                                    disabled={!!registryInstalling}
+                                    className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                                  >
+                                    {registryInstalling === installName ? 'Installing...' : 'Install'}
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {registryResults.length < registryTotal && (
+                          <button
+                            onClick={() => searchRegistry(registryQuery, registryResults.length + 20)}
+                            className="mt-2 w-full py-2 text-sm text-purple-600 hover:text-purple-700 font-medium text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          >
+                            Load more ({registryTotal - registryResults.length} remaining)
+                          </button>
+                        )}
                       </div>
                     )}
 
