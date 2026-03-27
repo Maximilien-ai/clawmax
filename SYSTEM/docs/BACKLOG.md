@@ -35,21 +35,34 @@
 - [ ] **Workspace restore** — upload zip to restore workspace state
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
+## Deep Agents Hack — March 27 (immediate)
+> Plan: `docs/hacks/deep-agents-hack/PLAN.md`
+
+### Hackathon Deliverables
+- [ ] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
+- [ ] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
+- [ ] **Kickoff workflow** — `type: "once"` runs on template apply, auto-starts team (Workflow v2 P0)
+- [ ] **Basic blocker surfacing** — agents declare blockers, notification renders actionable UI (Workflow v2 P0)
+- [ ] **Workflow progress tracking** — agents report %, visible in Workflows page (Workflow v2 P1)
+- [ ] **10-12 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Specialty Retail, Dev Team, Data Team, Student Research, Technical Writing, RAG Team
+- [ ] **Live execution** — deploy 2-3 teams, produce autonomous results
+
 ## Next Sprint: March 31 – April 11
 
-### Workflow v2 + Self-Management (deferred from Mar 17-28 sprint)
-> Original plan: TWO_WEEK_SPRINT_MAR17-28.md. Deferred because hackathon proved Workflow v2 is prerequisite for autonomous teams.
+### Workflow v2 Continued
+> Design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
 
-- [ ] **Kickoff workflow** — `type: "once"` runs on template apply, eliminates manual prompt to start teams
-- [ ] **Basic blocker surfacing** — agents emit structured blockers, notification center renders actionable UI
 - [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution
+- [ ] **Workflow DAG + dependencies** — `depends_on`, parallel execution, sequential gates
+- [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete
+- [ ] **Workflow DAG visualization** — Mermaid-style graph in Workflows page
+
+### Self-Management
 - [ ] **ClawMax Dev Team template** — qa-engineer, release-engineer, github-triage with kickoff workflow
 - [ ] **ClawMax self-management MVP** — deploy Dev Team on ClawMax repo, test autonomous PR review + triage
 - [ ] **Mac Mini deployment** — 24/7 agent team managing ClawMax repo
-- [ ] **Workflow progress tracking** — agents report %, aggregated per workflow
-- [ ] **Workflow DAG visualization** — dependency graph in Workflows page
 
-### Production Readiness (deferred)
+### Production Readiness
 - [ ] **OAuth clean-room auth test** — end-to-end on fresh machine
 - [ ] **Container fixes** — ENOENT agent dir (#41), schemas/templates inclusion
 - [ ] **Security follow-through** — auth-required API coverage, cookie/session behavior
