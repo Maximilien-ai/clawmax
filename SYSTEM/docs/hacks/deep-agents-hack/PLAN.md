@@ -17,9 +17,9 @@ Templates should also be definable as **TEMPLATE.md** (YAML frontmatter + Markdo
 - Schema validation ensures correctness regardless of format
 
 **Implementation:**
-- [ ] Define TEMPLATE.md schema (YAML frontmatter with agents, communities, groups, workflows)
-- [ ] Parser: `gray-matter` to extract frontmatter, validate against schema
-- [ ] Template system accepts both template.json and TEMPLATE.md (auto-detect)
+- [x] Define TEMPLATE.md schema (YAML frontmatter with agents, communities, groups, workflows)
+- [x] Parser: `gray-matter` to extract frontmatter, validate against schema
+- [x] Template system accepts both template.json and TEMPLATE.md (auto-detect)
 - [ ] AI Generate outputs TEMPLATE.md format
 - [ ] Wizard exports as TEMPLATE.md
 

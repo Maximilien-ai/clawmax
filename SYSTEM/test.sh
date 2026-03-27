@@ -845,6 +845,37 @@ else
   warn "No agents found for skills assignment test"
 fi
 
+# Test bulk skill assignment
+if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
+   apicurl "$API_BASE/api/agents" | jq -e '.agents[1].id' > /dev/null 2>&1; then
+  agent1=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
+  agent2=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[1].id')
+
+  response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
+    -H 'Content-Type: application/json' \
+    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"github\"]}")
+
+  if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    updated=$(echo "$response" | jq -r '.updated')
+    pass "Bulk skill assignment succeeded ($updated agents)"
+  else
+    fail "Bulk skill assignment failed"
+  fi
+
+  # Test validation: invalid skills rejected
+  response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
+    -H 'Content-Type: application/json' \
+    -d "{\"agentIds\":[\"$agent1\"],\"addSkills\":[\"nonexistent-skill-xyz\"]}")
+
+  if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+    pass "Bulk skill assignment rejects invalid skills"
+  else
+    fail "Bulk skill assignment should reject invalid skills"
+  fi
+else
+  warn "Need 2+ agents for bulk skill assignment test"
+fi
+
 echo ""
 
 # =========================================
