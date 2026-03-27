@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { readStoredByokKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 
 const PREDEFINED_TAGS = [
   'assistant',
@@ -94,11 +96,24 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         setModelsLoaded(true)
         setModelsByProvider(d.modelsByProvider || {})
 
-        // Set default model to gpt-4o/gpt-5 if available, otherwise first openai model, otherwise first available
+        // Pick default model based on available keys
         if (models.length > 0) {
-          const defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
-            || models.find((m: string) => m.startsWith('openai/'))
-            || models[0]
+          const byok = readStoredByokKeys()
+          const hasOpenAiKey = !!(byok.openai || d.modelsByProvider?.openai?.length)
+          const hasAnthropicKey = !!(byok.anthropic || d.modelsByProvider?.anthropic?.length)
+
+          let defaultModel: string
+          if (hasOpenAiKey) {
+            defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
+              || models.find((m: string) => m.startsWith('openai/'))
+              || models[0]
+          } else if (hasAnthropicKey) {
+            defaultModel = models.find((m: string) => m.includes('claude-sonnet') || m.includes('claude-opus'))
+              || models.find((m: string) => m.startsWith('anthropic/'))
+              || models[0]
+          } else {
+            defaultModel = models[0]
+          }
           setForm(f => ({ ...f, model: defaultModel }))
         }
       })

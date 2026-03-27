@@ -1,12 +1,49 @@
 import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys } from './dashboard-env'
 
-function getSystemOpenAiClient(): OpenAI {
-  const key = resolveSystemExecutionProviderKeys().openai
-  if (!key) {
-    throw new Error('No OpenAI API key configured. Set SYSTEM_OPENAI_API_KEY in .env or provide a BYOK key.')
+type AIProvider = 'openai' | 'anthropic'
+
+function getAvailableProvider(): { provider: AIProvider; key: string } {
+  const keys = resolveSystemExecutionProviderKeys()
+  if (keys.openai) return { provider: 'openai', key: keys.openai }
+  if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
+  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, or provide a BYOK key.')
+}
+
+function getAIClient(): { client: OpenAI; model: string } {
+  const { provider, key } = getAvailableProvider()
+  if (provider === 'anthropic') {
+    // Use Anthropic's OpenAI-compatible endpoint
+    return {
+      client: new OpenAI({
+        apiKey: key,
+        baseURL: 'https://api.anthropic.com/v1/',
+        defaultHeaders: { 'anthropic-version': '2023-06-01' },
+      }),
+      model: 'claude-sonnet-4-20250514',
+    }
   }
-  return new OpenAI({ apiKey: key })
+  return {
+    client: new OpenAI({ apiKey: key }),
+    model: resolveModel('gpt-4o-mini'),
+  }
+}
+
+/**
+ * Get the appropriate model name for the available provider.
+ * Maps OpenAI model names to Anthropic equivalents when needed.
+ */
+function resolveModel(requestedModel: string): string {
+  const { provider } = getAvailableProvider()
+  if (provider === 'openai') return requestedModel
+  // Map OpenAI models to Anthropic equivalents
+  if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return 'claude-sonnet-4-20250514'
+  if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return 'claude-sonnet-4-20250514'
+  return 'claude-sonnet-4-20250514'
+}
+
+function getSystemOpenAiClient(): OpenAI {
+  return getAIClient().client
 }
 
 interface GenerateAgentFilesInput {
@@ -113,7 +150,7 @@ export async function generateAgentMeta(description: string): Promise<{
   } catch {}
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: resolveModel('gpt-4o-mini'),
     messages: [
       {
         role: 'system',
@@ -161,7 +198,7 @@ Rules:
 
 async function generateIdentity(input: GenerateAgentFilesInput): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4',
+    model: resolveModel('gpt-4'),
     messages: [
       {
         role: 'system',
@@ -194,7 +231,7 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
 
 async function generateSoul(input: GenerateAgentFilesInput): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4',
+    model: resolveModel('gpt-4'),
     messages: [
       {
         role: 'system',
@@ -225,7 +262,7 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
 
 async function generateTools(input: GenerateAgentFilesInput): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4',
+    model: resolveModel('gpt-4'),
     messages: [
       {
         role: 'system',
@@ -293,7 +330,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
 
   try {
     const completion = await getSystemOpenAiClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: resolveModel('gpt-4o-mini'),
       messages: [
         {
           role: 'system',
@@ -326,7 +363,7 @@ export async function generateWorkflowFromNL(description: string, availableAgent
   }
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4o',
+    model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
@@ -380,7 +417,7 @@ export async function generateTemplateFromNL(description: string): Promise<any> 
   }
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: 'gpt-4o',
+    model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
@@ -438,7 +475,7 @@ export async function generateCronFromText(text: string): Promise<{ cron: string
 
   try {
     const completion = await getSystemOpenAiClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: resolveModel('gpt-4o-mini'),
       messages: [
         {
           role: 'system',
