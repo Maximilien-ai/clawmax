@@ -40,6 +40,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [error, setError] = useState<string | null>(null)
   const [useGithub, setUseGithub] = useState(false)
   const [githubRepo, setGithubRepo] = useState('')
+  const [showWorkflowSection, setShowWorkflowSection] = useState(false)
+  const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
@@ -123,6 +125,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           includeBuiltIn,
           modelOverride: modelOverride || undefined,
           agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
+          workflowOverrides: Object.keys(workflowOverrides).length > 0 ? workflowOverrides : undefined,
         }),
       })
 
@@ -352,6 +355,59 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             )}
           </div>
+
+          {/* Customize Workflows (collapsible) */}
+          {template.workflows && template.workflows.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowWorkflowSection(!showWorkflowSection)}
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Customize Workflows ({template.workflows.length} workflow{template.workflows.length !== 1 ? 's' : ''})
+                </h3>
+                <span className="text-gray-400 text-xs">{showWorkflowSection ? '▼' : '▶'}</span>
+              </button>
+              {showWorkflowSection && (
+                <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto">
+                  {template.workflows.map((wf: any) => {
+                    const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
+                    const isEdited = wf.id in workflowOverrides
+                    return (
+                      <div key={wf.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{wf.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-mono">{wf.schedule}</span>
+                            {isEdited && (
+                              <button
+                                onClick={() => {
+                                  const next = { ...workflowOverrides }
+                                  delete next[wf.id]
+                                  setWorkflowOverrides(next)
+                                }}
+                                className="text-[10px] text-sky-600 hover:text-sky-700"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {wf.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{wf.description}</p>}
+                        <textarea
+                          value={currentContent}
+                          onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                          rows={Math.min(12, Math.max(4, currentContent.split('\n').length + 1))}
+                          className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Agent List with Models (collapsible) */}
           <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">

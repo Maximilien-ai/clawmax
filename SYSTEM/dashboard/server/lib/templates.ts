@@ -942,6 +942,7 @@ export function importOrganizationTemplate(
     includeBuiltIn?: boolean
     modelOverride?: string
     agentCounts?: Record<string, number>
+    workflowOverrides?: Record<string, string>
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -1549,7 +1550,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               executionMode: execMode,
               owner,
               targeting: updatedTargeting,
-              content: wf.content || 'Execute workflow tasks.',
+              content: options?.workflowOverrides?.[wf.id] || wf.content || 'Execute workflow tasks.',
               author: template.author || 'imported'
             })
 

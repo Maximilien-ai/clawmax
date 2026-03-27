@@ -208,7 +208,7 @@ router.post('/agents/import', (req, res) => {
 
 // POST /api/templates/organizations/import - Import organization from template
 router.post('/organizations/import', (req, res) => {
-  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts } = req.body
+  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides } = req.body
 
   if (!templateSlug || typeof templateSlug !== 'string') {
     return res.status(400).json({ error: 'Template slug is required' })
@@ -219,7 +219,8 @@ router.post('/organizations/import', (req, res) => {
     suffix,
     includeBuiltIn: includeBuiltIn !== false, // Default to true
     modelOverride: modelOverride || undefined,
-    agentCounts: agentCounts || undefined
+    agentCounts: agentCounts || undefined,
+    workflowOverrides: workflowOverrides || undefined,
   })
 
   if (!result.ok) {
