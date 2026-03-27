@@ -147,7 +147,7 @@
           "support-lead"
         ]
       },
-      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets, KB articles, or customer data\n3. Set SLA targets: first response time, resolution time, CSAT goals\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas"
+      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [e.g., first response <1hr, resolution <24hr]\n- **Ticket source:** [e.g., GitHub issues, email, Zendesk]\n- **GitHub repo:** [e.g., owner/repo \u2014 for tracking issues]\n- **Escalation criteria:** [e.g., P0 = outage, P1 = broken feature]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas"
     },
     {
       "id": "ticket-triage",

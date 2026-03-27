@@ -149,7 +149,7 @@
           "marketing-lead"
         ]
       },
-      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content, brand guidelines, or campaign data\n3. Set content themes and campaign goals for the current period\n4. Brief each team member on their focus area and deadlines\n5. Kick off the first content calendar planning session in the Content group"
+      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai \u2014 multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [e.g., blog, Twitter/X, LinkedIn, newsletter]\n- **GitHub repo:** [e.g., owner/repo \u2014 for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group"
     },
     {
       "id": "content-calendar",

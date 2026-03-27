@@ -105,7 +105,7 @@
           "store-manager"
         ]
       },
-      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data, supplier contacts, or schedules\n3. Assign initial responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities and store hours to Status group"
+      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group"
     },
     {
       "id": "daily-inventory",
