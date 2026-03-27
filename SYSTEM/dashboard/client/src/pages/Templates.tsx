@@ -3,6 +3,7 @@ import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import TemplateWizard from '../components/TemplateWizard'
 
 interface AgentTemplate {
   name: string
@@ -119,10 +120,7 @@ export default function Templates() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
-  const [showAiGenerate, setShowAiGenerate] = useState(false)
-  const [aiDescription, setAiDescription] = useState('')
-  const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiResult, setAiResult] = useState<any>(null)
+  const [showWizard, setShowWizard] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
@@ -503,10 +501,10 @@ export default function Templates() {
               </button>
             )}
             <button
-              onClick={() => setShowAiGenerate(true)}
+              onClick={() => setShowWizard(true)}
               className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
             >
-              ✨ AI Generate
+              ✨ Create Template
             </button>
             <button
               onClick={fetchTemplates}
@@ -735,176 +733,36 @@ export default function Templates() {
         />
       )}
 
-      {/* AI Generate Modal */}
-      {showAiGenerate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !aiGenerating && setShowAiGenerate(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">✨ AI Generate Template</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Describe the team you want and AI will generate a complete organization template.
-            </p>
-
-            {!aiResult ? (
-              <>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Describe your team
-                  </label>
-                  <textarea
-                    value={aiDescription}
-                    onChange={e => setAiDescription(e.target.value)}
-                    placeholder="e.g., A customer support team with 3 support agents, an escalation engineer, and a knowledge base manager. They handle ticket triage, SLA monitoring, and maintain a FAQ database."
-                    rows={4}
-                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
-                    disabled={aiGenerating}
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Quick examples:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['Sales team with SDRs and account execs', 'Software dev team with QA and DevOps', 'Student research group with lit reviewers', 'Small retail store team'].map(example => (
-                      <button
-                        key={example}
-                        onClick={() => setAiDescription(example)}
-                        className="text-xs px-2 py-1 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
-                      >
-                        {example}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => { setShowAiGenerate(false); setAiDescription(''); setAiResult(null) }}
-                    className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    disabled={aiGenerating}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!aiDescription.trim()) return
-                      setAiGenerating(true)
-                      try {
-                        const resp = await fetch('/api/templates/generate', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ description: aiDescription }),
-                        })
-                        const data = await resp.json()
-                        if (resp.ok && data.template) {
-                          setAiResult(data.template)
-                        } else {
-                          showError(data.error || 'Failed to generate template')
-                        }
-                      } catch {
-                        showError('Network error generating template')
-                      } finally {
-                        setAiGenerating(false)
-                      }
-                    }}
-                    disabled={aiGenerating || !aiDescription.trim()}
-                    className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                  >
-                    {aiGenerating ? 'Generating...' : '✨ Generate Template'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-                  <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
-                    Generated: {aiResult.name}
-                  </h3>
-                  <p className="text-xs text-green-700 dark:text-green-400 mb-3">{aiResult.description}</p>
-
-                  <div className="grid grid-cols-3 gap-2 text-xs text-green-800 dark:text-green-300">
-                    <div>{aiResult.agents?.length || 0} agents</div>
-                    <div>{aiResult.communities?.length || 0} communities</div>
-                    <div>{aiResult.groups?.length || 0} groups</div>
-                  </div>
-
-                  {aiResult.agents && (
-                    <div className="mt-3 space-y-1">
-                      {aiResult.agents.map((agent: any, idx: number) => (
-                        <div key={idx} className="text-xs flex items-center gap-2">
-                          <span className="font-mono text-green-600 dark:text-green-400">{agent.id}</span>
-                          <span className="text-green-500">—</span>
-                          <span>{agent.role}</span>
-                          {agent.skills?.length > 0 && (
-                            <span className="text-green-400">({agent.skills.join(', ')})</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setAiResult(null)}
-                    className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Regenerate
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const slug = aiResult.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-                        const resp = await fetch(`/api/templates/organizations/${slug}`, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(aiResult),
-                        })
-                        if (resp.ok) {
-                          showSuccess(`Template "${aiResult.name}" saved!`)
-                          setShowAiGenerate(false)
-                          setAiDescription('')
-                          setAiResult(null)
-                          fetchTemplates()
-                        } else {
-                          // Fallback: apply directly
-                          const applyResp = await fetch('/api/templates/organizations/import', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ templateSlug: slug }),
-                          })
-                          if (applyResp.ok) {
-                            showSuccess(`Template "${aiResult.name}" applied!`)
-                          } else {
-                            showSuccess(`Template generated — save manually or apply from list`)
-                          }
-                          setShowAiGenerate(false)
-                          setAiDescription('')
-                          setAiResult(null)
-                          fetchTemplates()
-                        }
-                      } catch {
-                        showError('Failed to save template')
-                      }
-                    }}
-                    className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors font-medium"
-                  >
-                    Save Template
-                  </button>
-                  <button
-                    onClick={() => {
-                      setApplyingTemplate(aiResult as OrganizationTemplate)
-                      setShowAiGenerate(false)
-                      setAiDescription('')
-                      setAiResult(null)
-                    }}
-                    className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
-                  >
-                    ⚡ Apply Now
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      {/* Template Wizard */}
+      {showWizard && (
+        <TemplateWizard
+          onClose={() => setShowWizard(false)}
+          onSave={async (template) => {
+            try {
+              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const resp = await fetch(`/api/templates/organizations/${slug}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(template),
+              })
+              if (resp.ok) {
+                showSuccess(`Template "${template.name}" saved!`)
+                setShowWizard(false)
+                fetchTemplates()
+              } else {
+                showError('Failed to save template')
+              }
+            } catch {
+              showError('Failed to save template')
+            }
+          }}
+          onApply={(template) => {
+            setApplyingTemplate(template as OrganizationTemplate)
+            setShowWizard(false)
+          }}
+          showSuccess={showSuccess}
+          showError={showError}
+        />
       )}
 
       <ConfirmDeleteDialog
