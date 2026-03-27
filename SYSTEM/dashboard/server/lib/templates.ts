@@ -1024,17 +1024,35 @@ export function importOrganizationTemplate(
           throw new Error(`Failed to copy agent files: ${copyResult.error}`)
         }
 
-        // Update Name in IDENTITY.md if agent was expanded (e.g., engineer -> engineer1)
-        if (sourceAgentId !== templateAgent.id) {
-          const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
-          if (fs.existsSync(identityPath)) {
-            let content = fs.readFileSync(identityPath, 'utf-8')
-            content = content.replace(
-              /^-\s+\*\*Name:\*\*\s+.+$/m,
-              `- **Name:** ${templateAgent.name || targetAgentId}`
-            )
-            fs.writeFileSync(identityPath, content, 'utf-8')
-          }
+        // Generate IDENTITY.md from template data if none exists
+        const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+        if (!fs.existsSync(identityPath)) {
+          fs.mkdirSync(targetAgentDir, { recursive: true })
+          const agentName = templateAgent.name || targetAgentId
+          const agentRole = templateAgent.role || 'AI Agent'
+          const agentTags = templateAgent.tags || []
+          const now = new Date().toISOString()
+          const identityContent = `# ${agentName}
+
+- **Name:** ${agentName}
+- **Role:** ${agentRole}
+- **Tags:** ${agentTags.length > 0 ? agentTags.join(', ') : 'none'}
+${options?.modelOverride ? `- **Model:** ${options.modelOverride}` : ''}
+
+## Creation Metadata
+- **Created:** ${now}
+- **Source Template:** ${template.name} (v${template.version})
+${template.author ? `- **Template Author:** ${template.author}` : ''}
+`
+          fs.writeFileSync(identityPath, identityContent, 'utf-8')
+        } else if (sourceAgentId !== templateAgent.id) {
+          // Update Name in IDENTITY.md if agent was expanded (e.g., engineer -> engineer1)
+          let content = fs.readFileSync(identityPath, 'utf-8')
+          content = content.replace(
+            /^-\s+\*\*Name:\*\*\s+.+$/m,
+            `- **Name:** ${templateAgent.name || targetAgentId}`
+          )
+          fs.writeFileSync(identityPath, content, 'utf-8')
         }
 
         // Override model in IDENTITY.md if specified
