@@ -23,7 +23,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
-  const [importSource, setImportSource] = useState<'local' | 'github'>('local')
+  const [importSource, setImportSource] = useState<'local' | 'github' | 'registry'>('local')
+  const [registryQuery, setRegistryQuery] = useState('')
+  const [registryResults, setRegistryResults] = useState<Array<{ name: string; description?: string; version?: string; downloads?: number }>>([])
+  const [registrySearching, setRegistrySearching] = useState(false)
+  const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
 
   // Load agents list on mount
   useEffect(() => {
@@ -544,6 +548,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   >
                     🐙 GitHub Repository
                   </button>
+                  <button
+                    onClick={() => setImportSource('registry')}
+                    className={`px-4 py-2 font-medium transition-colors ${
+                      importSource === 'registry'
+                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    🚀 Shipables Registry
+                  </button>
                 </div>
 
                 {/* Local Import */}
@@ -631,6 +645,102 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
+                {/* Shipables Registry */}
+                {importSource === 'registry' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Search and install skills from the <a href="https://shipables.dev" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Shipables.dev</a> registry — 1,000+ agent skills using the open <a href="https://agentskills.io" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">agentskills.io</a> standard.
+                    </p>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={registryQuery}
+                        onChange={e => setRegistryQuery(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && registryQuery.trim()) {
+                            setRegistrySearching(true)
+                            try {
+                              const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
+                              const data = await resp.json()
+                              setRegistryResults(data.results || [])
+                            } catch { setRegistryResults([]) }
+                            finally { setRegistrySearching(false) }
+                          }
+                        }}
+                        placeholder="Search skills... (e.g., web-search, github, slack)"
+                        className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!registryQuery.trim()) return
+                          setRegistrySearching(true)
+                          try {
+                            const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
+                            const data = await resp.json()
+                            setRegistryResults(data.results || [])
+                          } catch { setRegistryResults([]) }
+                          finally { setRegistrySearching(false) }
+                        }}
+                        disabled={registrySearching || !registryQuery.trim()}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium"
+                      >
+                        {registrySearching ? 'Searching...' : 'Search'}
+                      </button>
+                    </div>
+
+                    {registryResults.length > 0 && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                        {registryResults.map((skill, idx) => (
+                          <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.name}</div>
+                              {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{skill.description}</div>}
+                              <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
+                                {skill.version && <span>v{skill.version}</span>}
+                                {skill.downloads != null && <span>{skill.downloads.toLocaleString()} downloads</span>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setRegistryInstalling(skill.name)
+                                try {
+                                  const resp = await fetch('/api/skills/registry/install', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ name: skill.name }),
+                                  })
+                                  const data = await resp.json()
+                                  if (data.ok) {
+                                    showSuccess(`Installed "${skill.name}" from Shipables`)
+                                    loadSkills()
+                                  } else {
+                                    showToastError(data.error || 'Install failed')
+                                  }
+                                } catch {
+                                  showToastError('Network error installing skill')
+                                } finally {
+                                  setRegistryInstalling(null)
+                                }
+                              }}
+                              disabled={registryInstalling === skill.name}
+                              className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed shrink-0"
+                            >
+                              {registryInstalling === skill.name ? 'Installing...' : 'Install'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {registryResults.length === 0 && registryQuery && !registrySearching && (
+                      <div className="text-center py-6 text-gray-400 text-sm">
+                        No results. Try a different search term.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Error Display */}
                 {error && (
                   <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -638,30 +748,32 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={handleImportSkill}
-                    disabled={importing || !importPath.trim()}
-                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                      importing || !importPath.trim()
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    {importing ? 'Importing...' : 'Import Skill'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowImportDialog(false)
-                      setImportPath('')
-                      setError(null)
-                    }}
-                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                {/* Actions (for local/github only) */}
+                {importSource !== 'registry' && (
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={handleImportSkill}
+                      disabled={importing || !importPath.trim()}
+                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                        importing || !importPath.trim()
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                      }`}
+                    >
+                      {importing ? 'Importing...' : 'Import Skill'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowImportDialog(false)
+                        setImportPath('')
+                        setError(null)
+                      }}
+                      className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

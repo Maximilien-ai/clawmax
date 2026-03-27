@@ -416,4 +416,124 @@ router.delete('/:skillId', (req, res) => {
   }
 })
 
+// ============================================================================
+// Shipables.dev Registry Integration
+// ============================================================================
+
+// GET /api/skills/registry/search?q=<query> - Search Shipables registry
+router.get('/registry/search', async (req, res) => {
+  try {
+    const query = (req.query.q as string || '').trim()
+    if (!query) {
+      return res.json({ ok: true, results: [] })
+    }
+
+    const { stdout } = await execAsync(`npx @senso-ai/shipables search "${query.replace(/"/g, '')}" --json`, {
+      timeout: 15000,
+    })
+
+    const results = JSON.parse(stdout)
+    res.json({ ok: true, results: Array.isArray(results) ? results : [] })
+  } catch (err: any) {
+    // If npx not available or shipables not installed, return empty
+    if (err.code === 'ENOENT' || err.message?.includes('not found')) {
+      return res.json({ ok: true, results: [], warning: 'Shipables CLI not available' })
+    }
+    console.error('Shipables search error:', err.message)
+    res.json({ ok: true, results: [], error: err.message })
+  }
+})
+
+// GET /api/skills/registry/info/:name - Get skill details from Shipables
+router.get('/registry/info/:name', async (req, res) => {
+  try {
+    const { name } = req.params
+    if (!name || !/^[@a-z0-9._-]+$/i.test(name)) {
+      return res.status(400).json({ error: 'Invalid skill name' })
+    }
+
+    const { stdout } = await execAsync(`npx @senso-ai/shipables info "${name}" --json`, {
+      timeout: 15000,
+    })
+
+    const info = JSON.parse(stdout)
+    res.json({ ok: true, skill: info })
+  } catch (err: any) {
+    console.error('Shipables info error:', err.message)
+    res.status(404).json({ error: `Skill not found: ${req.params.name}` })
+  }
+})
+
+// POST /api/skills/registry/install - Install skill from Shipables registry
+router.post('/registry/install', async (req, res) => {
+  try {
+    const { name } = req.body
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'Skill name is required' })
+    }
+
+    // Validate name format
+    if (!/^[@a-z0-9._/-]+$/i.test(name)) {
+      return res.status(400).json({ error: 'Invalid skill name format' })
+    }
+
+    // Install to a temp directory first, then import via existing pipeline
+    const os = require('os')
+    const path = require('path')
+    const fs = require('fs')
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shipables-'))
+
+    try {
+      // Install skill to temp directory
+      await execAsync(`npx @senso-ai/shipables install "${name}" --yes`, {
+        timeout: 30000,
+        cwd: tmpDir,
+      })
+
+      // Find the installed skill directory
+      const installed = fs.readdirSync(tmpDir, { withFileTypes: true })
+        .filter((d: any) => d.isDirectory())
+        .map((d: any) => d.name)
+
+      if (installed.length === 0) {
+        // Check if files were placed directly
+        const hasSkillMd = fs.existsSync(path.join(tmpDir, 'SKILL.md')) || fs.existsSync(path.join(tmpDir, 'skill.md'))
+        if (hasSkillMd) {
+          // Import from tmpDir directly
+          const result = importWorkspaceSkill(tmpDir)
+          return res.json({ ok: result.success, skillId: result.skillId, source: 'shipables', error: result.error })
+        }
+        return res.status(400).json({ error: 'No skill files found after install' })
+      }
+
+      // Import each installed skill
+      const results: Array<{ name: string; ok: boolean; error?: string }> = []
+      for (const dir of installed) {
+        const skillDir = path.join(tmpDir, dir)
+        try {
+          const result = importWorkspaceSkill(skillDir)
+          results.push({ name: dir, ok: result.success, error: result.error })
+        } catch (err: any) {
+          results.push({ name: dir, ok: false, error: err.message })
+        }
+      }
+
+      const succeeded = results.filter(r => r.ok).length
+      res.json({
+        ok: succeeded > 0,
+        installed: succeeded,
+        total: results.length,
+        results,
+        source: 'shipables',
+      })
+    } finally {
+      // Clean up temp directory
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+    }
+  } catch (err: any) {
+    console.error('Shipables install error:', err.message)
+    res.status(500).json({ error: err.message || 'Failed to install skill from registry' })
+  }
+})
+
 export default router
