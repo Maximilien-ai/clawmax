@@ -420,9 +420,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   const allOnline = !!system && system.onlineCount === system.agentCount && system.agentCount > 0
 
   // Split orgName at last "." to style the tld separately (e.g. "Maximilien" + ".ai")
-  let orgBase = system.orgName ?? null
+  let orgBase = system?.orgName ?? null
   let orgTld: string | null = null
-  if (system.orgName) {
+  if (system?.orgName) {
     const dot = system.orgName.lastIndexOf('.')
     if (dot > 0) {
       orgBase = system.orgName.slice(0, dot)
