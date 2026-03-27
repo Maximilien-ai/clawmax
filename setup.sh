@@ -334,6 +334,8 @@ OPENCLAW_WORKSPACE=$WORKSPACE
 NODE_ENV=development
 PORT=3001
 VITE_PORT=5173
+# For solo local development without GitHub OAuth:
+# BYPASS_OAUTH=true
 
 # AI Model API Keys (required for agent creation)
 # ANTHROPIC_API_KEY=sk-ant-...

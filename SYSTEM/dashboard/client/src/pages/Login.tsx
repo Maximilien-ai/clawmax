@@ -78,7 +78,8 @@ export default function Login() {
             ) : (
               <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
                 GitHub OAuth is not configured. Add <code className="rounded bg-black/20 px-1.5 py-0.5">GITHUB_CLIENT_ID</code> and{' '}
-                <code className="rounded bg-black/20 px-1.5 py-0.5">GITHUB_CLIENT_SECRET</code> to the dashboard env file.
+                <code className="rounded bg-black/20 px-1.5 py-0.5">GITHUB_CLIENT_SECRET</code> to the dashboard env file, or set{' '}
+                <code className="rounded bg-black/20 px-1.5 py-0.5">BYPASS_OAUTH=true</code> for solo local development.
               </div>
             )}
 

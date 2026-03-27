@@ -92,8 +92,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>
   }
 
-  // If GitHub is configured and user isn't logged in, show login
-  if (config?.githubEnabled && !user) {
+  // If auth is required and user isn't logged in, always block here.
+  // Login.tsx handles both the GitHub OAuth path and the "OAuth not configured" setup message.
+  if (!user) {
     return <Login />
   }
 
@@ -416,8 +417,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 }) {
   const { user, logout, config } = useAuth()
 
-  if (!system) return <div className="h-9 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700" />
-  const allOnline = system.onlineCount === system.agentCount && system.agentCount > 0
+  const allOnline = !!system && system.onlineCount === system.agentCount && system.agentCount > 0
 
   // Split orgName at last "." to style the tld separately (e.g. "Maximilien" + ".ai")
   let orgBase = system.orgName ?? null
