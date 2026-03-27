@@ -278,6 +278,12 @@ export function createAuthRouter(): Router {
   // GET /api/auth/me — get current user
   router.get('/me', (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
+    if (process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true') {
+      return res.json({
+        authenticated: true,
+        user: { id: 0, login: 'local', name: 'Local User', avatar: '' },
+      })
+    }
     const session = getSessionFromRequest(req)
     if (!session) {
       return res.json({ authenticated: false })
