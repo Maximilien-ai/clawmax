@@ -477,7 +477,7 @@ router.post('/registry/install', async (req, res) => {
       return res.status(400).json({ error: 'Invalid skill name format' })
     }
 
-    // Install to a temp directory first, then import via existing pipeline
+    // Install to a temp directory, then copy SKILL.md to workspace custom skills
     const os = require('os')
     const path = require('path')
     const fs = require('fs')
@@ -490,31 +490,69 @@ router.post('/registry/install', async (req, res) => {
         cwd: tmpDir,
       })
 
-      // Find the installed skill directory
-      const installed = fs.readdirSync(tmpDir, { withFileTypes: true })
-        .filter((d: any) => d.isDirectory())
-        .map((d: any) => d.name)
+      // Shipables installs to .claude/skills/<name>/ — find all installed skills
+      const claudeSkillsDir = path.join(tmpDir, '.claude', 'skills')
+      let skillDirs: string[] = []
 
-      if (installed.length === 0) {
-        // Check if files were placed directly
-        const hasSkillMd = fs.existsSync(path.join(tmpDir, 'SKILL.md')) || fs.existsSync(path.join(tmpDir, 'skill.md'))
-        if (hasSkillMd) {
-          // Import from tmpDir directly
-          const result = importWorkspaceSkill(tmpDir)
-          return res.json({ ok: result.success, skillId: result.skillId, source: 'shipables', error: result.error })
-        }
-        return res.status(400).json({ error: 'No skill files found after install' })
+      if (fs.existsSync(claudeSkillsDir)) {
+        skillDirs = fs.readdirSync(claudeSkillsDir, { withFileTypes: true })
+          .filter((d: any) => d.isDirectory() && !d.name.startsWith('.'))
+          .map((d: any) => path.join(claudeSkillsDir, d.name))
       }
 
-      // Import each installed skill
+      // Also check for direct SKILL.md in tmpDir or subdirs
+      if (skillDirs.length === 0) {
+        const topDirs = fs.readdirSync(tmpDir, { withFileTypes: true })
+          .filter((d: any) => d.isDirectory() && !d.name.startsWith('.'))
+        for (const d of topDirs) {
+          const sub = path.join(tmpDir, d.name)
+          if (fs.existsSync(path.join(sub, 'SKILL.md')) || fs.existsSync(path.join(sub, 'skill.md'))) {
+            skillDirs.push(sub)
+          }
+        }
+        if (fs.existsSync(path.join(tmpDir, 'SKILL.md')) || fs.existsSync(path.join(tmpDir, 'skill.md'))) {
+          skillDirs.push(tmpDir)
+        }
+      }
+
+      if (skillDirs.length === 0) {
+        return res.status(400).json({ error: 'No skill files found after install. The skill may use a format not yet supported.' })
+      }
+
+      // Copy each skill to workspace SKILLS/custom/
+      const { getWorkspacePath } = require('../lib/workspace')
+      const customSkillsDir = path.join(getWorkspacePath(), 'SKILLS', 'custom')
+      fs.mkdirSync(customSkillsDir, { recursive: true })
+
       const results: Array<{ name: string; ok: boolean; error?: string }> = []
-      for (const dir of installed) {
-        const skillDir = path.join(tmpDir, dir)
+      for (const skillDir of skillDirs) {
+        const dirName = path.basename(skillDir)
         try {
+          // Try standard import first
           const result = importWorkspaceSkill(skillDir)
-          results.push({ name: dir, ok: result.success, error: result.error })
+          if (result.success) {
+            results.push({ name: dirName, ok: true })
+            continue
+          }
+
+          // Fallback: direct copy for Shipables format (SKILL.md without index.ts)
+          const targetDir = path.join(customSkillsDir, dirName)
+          if (fs.existsSync(targetDir)) {
+            results.push({ name: dirName, ok: false, error: `Skill "${dirName}" already exists` })
+            continue
+          }
+
+          // Copy entire directory recursively
+          fs.cpSync(skillDir, targetDir, { recursive: true })
+
+          // Ensure SKILL.md exists (rename skill.md if needed)
+          if (!fs.existsSync(path.join(targetDir, 'SKILL.md')) && fs.existsSync(path.join(targetDir, 'skill.md'))) {
+            fs.renameSync(path.join(targetDir, 'skill.md'), path.join(targetDir, 'SKILL.md'))
+          }
+
+          results.push({ name: dirName, ok: true })
         } catch (err: any) {
-          results.push({ name: dir, ok: false, error: err.message })
+          results.push({ name: dirName, ok: false, error: err.message })
         }
       }
 
