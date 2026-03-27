@@ -540,11 +540,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 {importSource === 'local' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Enter the full path to your custom skill directory. The directory must contain:
+                      Enter the path to a skill directory or a directory containing multiple skills. Each skill needs:
                     </p>
                     <ul className="text-sm text-gray-600 dark:text-gray-300 list-disc list-inside space-y-1 ml-2">
-                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">skill.md</code> - Skill description</li>
-                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">index.ts</code> - Skill implementation</li>
+                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">SKILL.md</code> - Skill description (YAML frontmatter + markdown)</li>
+                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">index.ts</code> - Skill implementation (optional)</li>
                     </ul>
 
                     <div>
@@ -600,7 +600,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 {importSource === 'github' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Clone and import a skill from a GitHub repository.
+                      Import skills from a GitHub repository. Supports single-skill repos and multi-skill repos (auto-detects <code className="bg-gray-100 px-1 rounded dark:bg-gray-800">skills/</code> directory).
                     </p>
 
                     <div>
@@ -615,7 +615,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-600 focus:border-purple-500 dark:focus:border-purple-600"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        The repository will be cloned and imported automatically
+                        Single skill repo or multi-skill repo with skills/ directory (e.g., github.com/user/my-skills)
                       </p>
                     </div>
                   </div>

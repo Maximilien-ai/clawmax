@@ -172,7 +172,8 @@ router.post('/validate', (req, res) => {
   }
 })
 
-// POST /api/skills/import - Import workspace custom skill from local directory
+// POST /api/skills/import - Import workspace custom skill(s) from local directory
+// Supports single skill dir or multi-skill dir (auto-detects skills/ subdirectory)
 router.post('/import', (req, res) => {
   try {
     const { sourcePath } = req.body
@@ -181,13 +182,51 @@ router.post('/import', (req, res) => {
       return res.status(400).json({ error: 'sourcePath is required' })
     }
 
+    const fs = require('fs')
+    const path = require('path')
+
+    // Check if this is a multi-skill directory (has skills/ subdir with SKILL.md entries)
+    const skillsSubdir = path.join(sourcePath, 'skills')
+    const isSingleSkill = fs.existsSync(path.join(sourcePath, 'SKILL.md')) ||
+                          fs.existsSync(path.join(sourcePath, 'skill.md'))
+    const hasSkillsDir = fs.existsSync(skillsSubdir) && fs.statSync(skillsSubdir).isDirectory()
+
+    if (hasSkillsDir && !isSingleSkill) {
+      // Multi-skill: import each subdirectory under skills/
+      const skillDirs = fs.readdirSync(skillsSubdir).filter((d: string) => {
+        const sp = path.join(skillsSubdir, d)
+        if (!fs.statSync(sp).isDirectory()) return false
+        return fs.existsSync(path.join(sp, 'SKILL.md')) || fs.existsSync(path.join(sp, 'skill.md'))
+      })
+
+      if (skillDirs.length === 0) {
+        return res.status(400).json({ error: 'No skills found in skills/ directory (each skill needs a SKILL.md)' })
+      }
+
+      const results: { skillId: string; ok: boolean; error?: string }[] = []
+      for (const dir of skillDirs) {
+        const result = importWorkspaceSkill(path.join(skillsSubdir, dir))
+        results.push({ skillId: result.skillId || dir, ok: result.success, error: result.error })
+      }
+
+      const imported = results.filter(r => r.ok)
+      return res.json({
+        ok: imported.length > 0,
+        imported: imported.length,
+        failed: results.length - imported.length,
+        total: results.length,
+        skills: results,
+      })
+    }
+
+    // Single skill import
     const result = importWorkspaceSkill(sourcePath)
 
     if (!result.success) {
       return res.status(400).json({ error: result.error })
     }
 
-    res.json({ ok: true, skillId: result.skillId })
+    res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1 })
   } catch (err: any) {
     console.error('Error importing skill:', err)
     res.status(500).json({ error: err.message || 'Failed to import skill' })
