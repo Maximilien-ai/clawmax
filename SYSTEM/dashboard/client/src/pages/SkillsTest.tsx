@@ -45,6 +45,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   async function loadAgents() {
     try {
       const res = await fetch(`${API_BASE}/api/agents`)
+      if (!res.ok) throw new Error('Failed to load agents')
       const data = await res.json()
       const agents = Array.isArray(data.agents) ? data.agents : []
       const agentIds = agents.map((a: any) => a.id)
@@ -69,29 +70,35 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setSkillUsage(usage)
     } catch (error) {
       console.error('Failed to load agents:', error)
+      setAvailableAgents([])
     }
   }
 
   async function loadSkills() {
     setLoading(true)
+    setError(null)
     try {
       // Fetch all available skills
       const skillsRes = await fetch(`${API_BASE}/api/skills`)
+      if (!skillsRes.ok) throw new Error('Failed to load skills')
       const skillsData: SkillsResponse = await skillsRes.json()
 
       // Fetch agent's assigned skills (only if agentId is set)
       if (agentId) {
         const agentSkillsRes = await fetch(`${API_BASE}/api/skills/agent/${agentId}`)
+        if (!agentSkillsRes.ok) throw new Error('Failed to load assigned skills')
         const agentSkillsData: AgentSkillsResponse = await agentSkillsRes.json()
-        setAssignedSkills(new Set(agentSkillsData.skillIds))
+        setAssignedSkills(new Set(Array.isArray(agentSkillsData.skillIds) ? agentSkillsData.skillIds : []))
       } else {
         setAssignedSkills(new Set())
       }
 
-      setAllSkills(skillsData.skills || [])
+      setAllSkills(Array.isArray(skillsData.skills) ? skillsData.skills : [])
     } catch (error) {
       console.error('Failed to load skills:', error)
-      alert('Failed to load skills. Make sure the server is running.')
+      setAllSkills([])
+      setAssignedSkills(new Set())
+      setError('Failed to load skills. Make sure the server is running and you are signed in.')
     } finally {
       setLoading(false)
     }

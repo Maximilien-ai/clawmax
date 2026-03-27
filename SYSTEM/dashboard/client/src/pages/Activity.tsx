@@ -25,6 +25,16 @@ interface MeteringData {
   }>
 }
 
+const EMPTY_METERING: MeteringData = {
+  totalTraces: 0,
+  totalInputTokens: 0,
+  totalOutputTokens: 0,
+  totalTokens: 0,
+  estimatedCostUsd: 0,
+  byAgent: [],
+  byWorkflow: [],
+}
+
 interface ActivityEntry {
   agentId: string
   file: string
@@ -109,11 +119,19 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
     return !!value && typeof value === 'object' && !!value.config && typeof value.config.limitUsd === 'number'
   }
 
+  const isMeteringResponse = (value: any): value is MeteringData => {
+    return !!value &&
+      typeof value === 'object' &&
+      Array.isArray(value.byAgent) &&
+      Array.isArray(value.byWorkflow)
+  }
+
   const fetchFeed = useCallback(() => {
     fetch('/api/activity')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load activity')))
       .then(d => {
         setFeed(Array.isArray(d.feed) ? d.feed : [])
+        setError(null)
         setLoading(false)
         setLastRefreshed(Date.now())
       })
@@ -125,7 +143,10 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
 
   useEffect(() => {
     fetchFeed()
-    fetch('/api/metering').then(r => r.json()).then(d => setMetering(d)).catch(() => {})
+    fetch('/api/metering')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setMetering(isMeteringResponse(d) ? d : EMPTY_METERING))
+      .catch(() => setMetering(EMPTY_METERING))
     fetch('/api/budget')
       .then(r => r.ok ? r.json() : null)
       .then(d => {

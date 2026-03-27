@@ -201,12 +201,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const fetchWorkflows = () => {
     setLoading(true)
     fetch('/api/workflows')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load workflows')))
       .then(data => {
-        setWorkflows(data.workflows || [])
+        setWorkflows(Array.isArray(data.workflows) ? data.workflows : [])
         setLoading(false)
       })
-      .catch(err => {
+      .catch(() => {
+        setWorkflows([])
         showError('Failed to load workflows')
         setLoading(false)
       })
@@ -215,9 +216,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     fetchWorkflows()
     // Fetch metering costs per agent
-    fetch('/api/metering').then(r => r.json()).then(d => {
+    fetch('/api/metering').then(r => r.ok ? r.json() : null).then(d => {
       const costs: Record<string, number> = {}
-      for (const a of d.byAgent || []) costs[a.agentId] = a.estimatedCostUsd
+      for (const a of Array.isArray(d?.byAgent) ? d.byAgent : []) costs[a.agentId] = a.estimatedCostUsd
       setAgentCosts(costs)
     }).catch(() => {})
   }, [])
