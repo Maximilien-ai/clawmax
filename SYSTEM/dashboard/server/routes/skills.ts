@@ -420,20 +420,20 @@ router.delete('/:skillId', (req, res) => {
 // Shipables.dev Registry Integration
 // ============================================================================
 
-// GET /api/skills/registry/search?q=<query> - Search Shipables registry
+// GET /api/skills/registry/search?q=<query> - Search Shipables registry (empty q returns popular)
 router.get('/registry/search', async (req, res) => {
   try {
     const query = (req.query.q as string || '').trim()
-    if (!query) {
-      return res.json({ ok: true, results: [] })
-    }
+    const searchArg = query ? `"${query.replace(/"/g, '')}"` : '""'
 
-    const { stdout } = await execAsync(`npx @senso-ai/shipables search "${query.replace(/"/g, '')}" --json`, {
+    const { stdout } = await execAsync(`npx @senso-ai/shipables search ${searchArg} --json`, {
       timeout: 15000,
     })
 
-    const results = JSON.parse(stdout)
-    res.json({ ok: true, results: Array.isArray(results) ? results : [] })
+    const parsed = JSON.parse(stdout)
+    // CLI returns { skills: [...], pagination: {...} }
+    const results = Array.isArray(parsed) ? parsed : (parsed.skills || [])
+    res.json({ ok: true, results, total: parsed.pagination?.total })
   } catch (err: any) {
     // If npx not available or shipables not installed, return empty
     if (err.code === 'ENOENT' || err.message?.includes('not found')) {

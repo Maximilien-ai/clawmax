@@ -649,16 +649,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 {importSource === 'registry' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Search and install skills from the <a href="https://shipables.dev" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Shipables.dev</a> registry — 1,000+ agent skills using the open <a href="https://agentskills.io" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">agentskills.io</a> standard.
+                      Browse and install skills from <a href="https://shipables.dev" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Shipables.dev</a> — agent skills using the open <a href="https://agentskills.io" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">agentskills.io</a> standard.
                     </p>
 
+                    {/* Search */}
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={registryQuery}
                         onChange={e => setRegistryQuery(e.target.value)}
                         onKeyDown={async e => {
-                          if (e.key === 'Enter' && registryQuery.trim()) {
+                          if (e.key === 'Enter') {
                             setRegistrySearching(true)
                             try {
                               const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
@@ -668,12 +669,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                             finally { setRegistrySearching(false) }
                           }
                         }}
-                        placeholder="Search skills... (e.g., web-search, github, slack)"
+                        placeholder="Search skills... (e.g., github, slack, salesforce)"
                         className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
                       />
                       <button
                         onClick={async () => {
-                          if (!registryQuery.trim()) return
                           setRegistrySearching(true)
                           try {
                             const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(registryQuery)}`)
@@ -682,60 +682,113 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                           } catch { setRegistryResults([]) }
                           finally { setRegistrySearching(false) }
                         }}
-                        disabled={registrySearching || !registryQuery.trim()}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium"
+                        disabled={registrySearching}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
                       >
                         {registrySearching ? 'Searching...' : 'Search'}
                       </button>
                     </div>
 
-                    {registryResults.length > 0 && (
-                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                        {registryResults.map((skill, idx) => (
-                          <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.name}</div>
-                              {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{skill.description}</div>}
-                              <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
-                                {skill.version && <span>v{skill.version}</span>}
-                                {skill.downloads != null && <span>{skill.downloads.toLocaleString()} downloads</span>}
-                              </div>
-                            </div>
-                            <button
-                              onClick={async () => {
-                                setRegistryInstalling(skill.name)
-                                try {
-                                  const resp = await fetch('/api/skills/registry/install', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ name: skill.name }),
-                                  })
-                                  const data = await resp.json()
-                                  if (data.ok) {
-                                    showSuccess(`Installed "${skill.name}" from Shipables`)
-                                    loadSkills()
-                                  } else {
-                                    showToastError(data.error || 'Install failed')
-                                  }
-                                } catch {
-                                  showToastError('Network error installing skill')
-                                } finally {
-                                  setRegistryInstalling(null)
-                                }
-                              }}
-                              disabled={registryInstalling === skill.name}
-                              className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed shrink-0"
-                            >
-                              {registryInstalling === skill.name ? 'Installing...' : 'Install'}
-                            </button>
-                          </div>
-                        ))}
+                    {/* Quick category buttons */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {['github', 'slack', 'api', 'data', 'ai', 'web', 'devops', 'crm'].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={async () => {
+                            setRegistryQuery(cat)
+                            setRegistrySearching(true)
+                            try {
+                              const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(cat)}`)
+                              const data = await resp.json()
+                              setRegistryResults(data.results || [])
+                            } catch { setRegistryResults([]) }
+                            finally { setRegistrySearching(false) }
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Auto-load popular on first render */}
+                    {registryResults.length === 0 && !registrySearching && !registryQuery && (
+                      <div className="text-center py-4">
+                        <button
+                          onClick={async () => {
+                            setRegistrySearching(true)
+                            try {
+                              const resp = await fetch('/api/skills/registry/search?q=')
+                              const data = await resp.json()
+                              setRegistryResults(data.results || [])
+                            } catch { setRegistryResults([]) }
+                            finally { setRegistrySearching(false) }
+                          }}
+                          className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          Browse all skills →
+                        </button>
                       </div>
                     )}
 
-                    {registryResults.length === 0 && registryQuery && !registrySearching && (
+                    {/* Loading */}
+                    {registrySearching && (
+                      <div className="text-center py-6 text-gray-400 text-sm">Searching Shipables registry...</div>
+                    )}
+
+                    {/* Results */}
+                    {!registrySearching && registryResults.length > 0 && (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-2">{registryResults.length} skill{registryResults.length !== 1 ? 's' : ''} found</div>
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+                          {registryResults.map((skill: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || skill.name}</div>
+                                {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
+                                <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
+                                  {skill.latest_version && <span>v{skill.latest_version}</span>}
+                                  {skill.downloads_weekly != null && <span>{skill.downloads_weekly}/week</span>}
+                                  {skill.categories?.length > 0 && <span>{skill.categories.join(', ')}</span>}
+                                </div>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  const installName = skill.full_name || skill.name
+                                  setRegistryInstalling(installName)
+                                  try {
+                                    const resp = await fetch('/api/skills/registry/install', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ name: installName }),
+                                    })
+                                    const data = await resp.json()
+                                    if (data.ok) {
+                                      showSuccess(`Installed "${installName}" from Shipables`)
+                                      loadSkills()
+                                    } else {
+                                      showToastError(data.error || 'Install failed')
+                                    }
+                                  } catch {
+                                    showToastError('Network error installing skill')
+                                  } finally {
+                                    setRegistryInstalling(null)
+                                  }
+                                }}
+                                disabled={!!registryInstalling}
+                                className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                              >
+                                {registryInstalling === (skill.full_name || skill.name) ? 'Installing...' : 'Install'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!registrySearching && registryResults.length === 0 && registryQuery && (
                       <div className="text-center py-6 text-gray-400 text-sm">
-                        No results. Try a different search term.
+                        No results for "{registryQuery}". Try a different term.
                       </div>
                     )}
                   </div>
