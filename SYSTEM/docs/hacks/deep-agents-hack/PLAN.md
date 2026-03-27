@@ -6,6 +6,8 @@
 
 ## Strategy
 
+NOTE: a IMPORTANT change that we need is to allow templates to be defined as markdown so TEMPLATE.md in addition to template.json and ensure we have a schema for this so templates can be checked for correctness. THIS IS KEY
+
 Use the template wizard to rapidly generate diverse org templates, then pick 2-3 and run real agent teams to produce autonomous results. Each template = a complete multiagent team with roles, workflows, skills, and coordination.
 
 ## Phase 1: Template Wizard (2-3 hrs morning)
@@ -56,6 +58,8 @@ Generate 10-12 templates across domains using the wizard:
 | 11 | **Technical Writing** | editor, writer (N), reviewer, publisher | Outline review, draft writing, fact-check, publish |
 | 12 | **RAG Team** | planner, data-eng (N), search-eng, eval-eng, ops | (already built — reference implementation) |
 
+NOTE: isn't 'RAG Team' a Technical Template. Let's move there?
+
 ## Phase 3: Live Execution (2-3 hrs afternoon)
 
 Pick 2-3 templates and deploy real teams:
@@ -103,8 +107,30 @@ Pick 2-3 templates and deploy real teams:
 
 **If ahead of schedule:**
 - Add Workflow v2 kickoff (auto-start on template apply)
+
+NOTE: I think this is a MUST
+
 - Add domain-specific skills (sales-crm, support-zendesk, etc.)
 - Run multiple teams concurrently across workspaces
+
+## Stretch: Shipables.dev Integration
+
+[Shipables.dev](https://shipables.dev/) is a registry with 1,000+ Agent Skills using the same open standard (agentskills.io) as OpenClaw. Same SKILL.md format = direct compatibility.
+
+**Why:** Agents created from templates could install domain-specific skills from Shipables (e.g., CRM skills for Sales Team, ticketing skills for Support Team) without us building them.
+
+**Integration approach:**
+- [ ] **Import from Shipables** — add "Shipables Registry" tab in Import Skill dialog
+- [ ] **Search Shipables** — `npx @senso-ai/shipables search <query>` or API if available
+- [ ] **Install to workspace** — `npx @senso-ai/shipables install <skill>` → copy to workspace SKILLS/custom/
+- [ ] **Browse in UI** — show Shipables catalog alongside bundled/workspace skills
+
+**Other registries to consider (same standard):**
+- [Skills.sh](https://skills.sh) (Vercel) — 83K+ skills
+- [ClawHub](https://clawhub.dev) — OpenClaw's native registry, 2,800+ skills
+- SkillsMP — 351K+ skills with semantic search
+
+**Quick win for hackathon:** Even without full UI integration, agents with bash access can run `npx @senso-ai/shipables install <skill>` themselves when they need a capability.
 
 ## Reference
 
@@ -112,3 +138,5 @@ Pick 2-3 templates and deploy real teams:
 - weave-cli-skills: github.com/Maximilien-ai/weave-cli-skills
 - Workflow v2 design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
 - Template schema: `server/schemas/organization-template.schema.json`
+- Agent Skills standard: https://agentskills.io
+- Shipables registry: https://shipables.dev/
