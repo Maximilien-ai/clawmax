@@ -194,29 +194,32 @@ router.post('/import', (req, res) => {
   }
 })
 
-// POST /api/skills/import-github - Clone and import skill from GitHub
+// POST /api/skills/import-github - Clone and import skill(s) from GitHub
+// Supports single-skill repos and multi-skill repos (auto-detects skills/ subdirectory)
 router.post('/import-github', async (req, res) => {
   try {
-    const { githubUrl } = req.body
+    const { githubUrl, subdir } = req.body
 
     if (!githubUrl) {
       return res.status(400).json({ error: 'githubUrl is required' })
     }
 
+    // Normalize: strip trailing slashes
+    const normalizedUrl = githubUrl.replace(/\/+$/, '')
+
     // Validate GitHub URL format — strict HTTPS-only check to prevent command injection
-    if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/.test(githubUrl)) {
+    if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?$/.test(normalizedUrl)) {
       return res.status(400).json({ error: 'Only HTTPS GitHub URLs are allowed (https://github.com/user/repo)' })
     }
 
-    // Extract repo name from URL (e.g., https://github.com/user/repo -> repo)
-    const urlParts = githubUrl.replace(/\.git$/, '').split('/')
+    // Extract repo name from URL
+    const urlParts = normalizedUrl.replace(/\.git$/, '').split('/')
     const repoName = urlParts[urlParts.length - 1]
 
     if (!repoName) {
       return res.status(400).json({ error: 'Could not parse repository name from URL' })
     }
 
-    // Import using shell command to clone and import
     const { execSync } = require('child_process')
     const os = require('os')
     const path = require('path')
@@ -226,20 +229,77 @@ router.post('/import-github', async (req, res) => {
 
     try {
       // Clone the repository
-      console.log(`Cloning ${githubUrl} to ${tempDir}`)
-      execSync(`git clone ${githubUrl} ${tempDir}`, { stdio: 'inherit' })
+      console.log(`Cloning ${normalizedUrl} to ${tempDir}`)
+      execSync(`git clone --depth 1 ${normalizedUrl} ${tempDir}`, { stdio: 'pipe' })
 
-      // Import from the cloned directory
-      const result = importWorkspaceSkill(tempDir)
-
-      // Clean up temp directory
-      fs.rmSync(tempDir, { recursive: true, force: true })
-
-      if (!result.success) {
-        return res.status(400).json({ error: result.error })
+      // Determine import root: subdir override, or auto-detect
+      let importRoot = tempDir
+      if (subdir) {
+        importRoot = path.join(tempDir, subdir)
+        if (!fs.existsSync(importRoot)) {
+          throw new Error(`Subdirectory "${subdir}" not found in repository`)
+        }
       }
 
-      res.json({ ok: true, skillId: result.skillId })
+      // Check if this is a multi-skill repo (has skills/ directory with subdirs containing SKILL.md)
+      const skillsDir = path.join(importRoot, 'skills')
+      const hasSkillsDir = fs.existsSync(skillsDir) && fs.statSync(skillsDir).isDirectory()
+
+      // Also check if importRoot itself is a single skill (has SKILL.md or skill.md)
+      const isSingleSkill = fs.existsSync(path.join(importRoot, 'SKILL.md')) ||
+                            fs.existsSync(path.join(importRoot, 'skill.md')) ||
+                            fs.existsSync(path.join(importRoot, 'index.ts'))
+
+      if (hasSkillsDir && !isSingleSkill) {
+        // Multi-skill repo: import each subdirectory under skills/
+        const skillDirs = fs.readdirSync(skillsDir).filter((d: string) => {
+          const skillPath = path.join(skillsDir, d)
+          if (!fs.statSync(skillPath).isDirectory()) return false
+          // Must have SKILL.md or skill.md
+          return fs.existsSync(path.join(skillPath, 'SKILL.md')) ||
+                 fs.existsSync(path.join(skillPath, 'skill.md'))
+        })
+
+        if (skillDirs.length === 0) {
+          throw new Error('No skills found in skills/ directory (each skill needs a SKILL.md)')
+        }
+
+        const results: { skillId: string; ok: boolean; error?: string }[] = []
+        for (const dir of skillDirs) {
+          const result = importWorkspaceSkill(path.join(skillsDir, dir))
+          results.push({
+            skillId: result.skillId || dir,
+            ok: result.success,
+            error: result.error,
+          })
+        }
+
+        // Clean up
+        fs.rmSync(tempDir, { recursive: true, force: true })
+
+        const imported = results.filter(r => r.ok)
+        const failed = results.filter(r => !r.ok)
+
+        res.json({
+          ok: imported.length > 0,
+          imported: imported.length,
+          failed: failed.length,
+          total: results.length,
+          skills: results,
+        })
+      } else {
+        // Single skill: import directly
+        const result = importWorkspaceSkill(importRoot)
+
+        // Clean up
+        fs.rmSync(tempDir, { recursive: true, force: true })
+
+        if (!result.success) {
+          return res.status(400).json({ error: result.error })
+        }
+
+        res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1 })
+      }
     } catch (cloneErr: any) {
       // Clean up on error
       if (fs.existsSync(tempDir)) {

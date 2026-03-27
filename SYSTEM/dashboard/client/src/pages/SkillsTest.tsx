@@ -173,7 +173,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         setImportPath('')
         setImportSource('local')
         await loadSkills() // Reload skills list
-        alert(`✓ Successfully imported skill: ${data.skillId}`)
+        // Handle multi-skill import response
+        if (data.total && data.total > 1) {
+          const failed = data.skills?.filter((s: any) => !s.ok) || []
+          const msg = `Imported ${data.imported}/${data.total} skills` +
+            (failed.length > 0 ? `\nFailed: ${failed.map((f: any) => `${f.skillId}: ${f.error}`).join(', ')}` : '')
+          alert(`✓ ${msg}`)
+        } else {
+          alert(`✓ Successfully imported skill: ${data.skillId}`)
+        }
       } else {
         setError(data.error || 'Failed to import skill')
       }
