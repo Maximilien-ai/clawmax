@@ -1998,6 +1998,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 showError(data.error || 'Failed to change model')
               }
             }}
+            onBulkSkills={async (agentIds, addSkills, removeSkills) => {
+              const resp = await fetch('/api/skills/bulk-assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentIds, addSkills, removeSkills }),
+              })
+              const data = await resp.json()
+              if (resp.ok) {
+                showSuccess(`Added ${addSkills.length} skill${addSkills.length !== 1 ? 's' : ''} to ${data.updated} agent${data.updated !== 1 ? 's' : ''}`)
+                fetchAgents()
+                setSelectionMode(false)
+                setSelectedAgentIds(new Set())
+              } else {
+                showError(data.error || 'Failed to assign skills')
+              }
+            }}
           />
       )}
 

@@ -154,6 +154,52 @@ router.put('/agent/:agentId', async (req, res) => {
   }
 })
 
+// POST /api/skills/bulk-assign - Add/remove skills for multiple agents at once
+router.post('/bulk-assign', (req, res) => {
+  try {
+    const { agentIds, addSkills, removeSkills } = req.body
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      return res.status(400).json({ error: 'agentIds must be a non-empty array' })
+    }
+
+    const toAdd = Array.isArray(addSkills) ? addSkills : []
+    const toRemove = Array.isArray(removeSkills) ? removeSkills : []
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      return res.status(400).json({ error: 'Provide addSkills and/or removeSkills' })
+    }
+
+    // Validate skills to add exist
+    if (toAdd.length > 0) {
+      const validation = validateSkills(toAdd)
+      if (!validation.valid) {
+        return res.status(400).json({ error: `Invalid skills: ${validation.missing.join(', ')}`, missing: validation.missing })
+      }
+    }
+
+    const results: Array<{ agentId: string; ok: boolean; skills?: string[]; error?: string }> = []
+
+    for (const agentId of agentIds) {
+      try {
+        const { getAgentSkills } = require('../lib/skills')
+        const current: string[] = getAgentSkills(agentId) || []
+        const updated = [...new Set([...current.filter(s => !toRemove.includes(s)), ...toAdd])]
+        setAgentSkills(agentId, updated)
+        results.push({ agentId, ok: true, skills: updated })
+      } catch (err: any) {
+        results.push({ agentId, ok: false, error: err.message })
+      }
+    }
+
+    const succeeded = results.filter(r => r.ok).length
+    res.json({ ok: true, updated: succeeded, total: agentIds.length, results })
+  } catch (err) {
+    console.error('Error in bulk skill assign:', err)
+    res.status(500).json({ error: 'Failed to bulk assign skills' })
+  }
+})
+
 // POST /api/skills/validate - Validate skill IDs exist
 router.post('/validate', (req, res) => {
   try {

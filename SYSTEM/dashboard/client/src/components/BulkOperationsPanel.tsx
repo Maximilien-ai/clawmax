@@ -21,6 +21,7 @@ interface BulkOperationsPanelProps {
   onDelete?: (agents: Array<{ id: string; archived?: boolean }>) => Promise<void>
   onChat?: (agentIds: string[]) => void
   onChangeModel?: (agentIds: string[], model: string) => Promise<void>
+  onBulkSkills?: (agentIds: string[], addSkills: string[], removeSkills: string[]) => Promise<void>
 }
 
 export default function BulkOperationsPanel({
@@ -37,12 +38,16 @@ export default function BulkOperationsPanel({
   onDelete,
   onChat,
   onChangeModel,
+  onBulkSkills,
 }: BulkOperationsPanelProps) {
-  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | 'model' | null>(null)
+  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | 'model' | 'skills' | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState('')
+  const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; emoji?: string }>>([])
+  const [selectedSkillsToAdd, setSelectedSkillsToAdd] = useState<Set<string>>(new Set())
+  const [skillSearch, setSkillSearch] = useState('')
   const [processing, setProcessing] = useState(false)
   const [processingLabel, setProcessingLabel] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
@@ -87,6 +92,7 @@ export default function BulkOperationsPanel({
     resume: 'Resuming agents',
     delete: 'Deleting agents',
     model: 'Changing model',
+    skills: 'Assigning skills',
   }
 
   async function handleExecute() {
@@ -109,6 +115,8 @@ export default function BulkOperationsPanel({
         await onResume(agentIds)
       } else if (operation === 'model' && onChangeModel && selectedModel) {
         await onChangeModel(agentIds, selectedModel)
+      } else if (operation === 'skills' && onBulkSkills && selectedSkillsToAdd.size > 0) {
+        await onBulkSkills(agentIds, Array.from(selectedSkillsToAdd), [])
       } else if (operation === 'delete' && onDelete) {
         const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
         await onDelete(agents)
@@ -253,6 +261,31 @@ export default function BulkOperationsPanel({
                       Change Model
                     </div>
                     <div className="text-sm text-gray-500">Change the AI model for {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</div>
+                  </button>
+                )}
+
+                {/* --- Skills --- */}
+                {onBulkSkills && (
+                  <button
+                    onClick={() => {
+                      if (operation === 'skills') { setOperation(null) } else {
+                        setOperation('skills')
+                        if (availableSkills.length === 0) {
+                          fetch('/api/skills').then(r => r.json()).then(d => setAvailableSkills((d.skills || []).map((s: any) => ({ id: s.id || s.name, name: s.name, emoji: s.emoji })))).catch(() => {})
+                        }
+                      }
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                      operation === 'skills'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      {operation === 'skills' && <span className="text-emerald-600 dark:text-emerald-400">✓</span>}
+                      Add Skills
+                    </div>
+                    <div className="text-sm text-gray-500">Add skills to {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</div>
                   </button>
                 )}
 
@@ -412,6 +445,46 @@ export default function BulkOperationsPanel({
               </div>
             )}
 
+            {/* Skills selection */}
+            {operation === 'skills' && (
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Select skills to add:</div>
+                <input
+                  type="text"
+                  value={skillSearch}
+                  onChange={e => setSkillSearch(e.target.value)}
+                  placeholder="Search skills..."
+                  className="w-full mb-2 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {availableSkills.length === 0 && <div className="text-sm text-gray-400">Loading skills...</div>}
+                  {availableSkills
+                    .filter(s => !skillSearch || s.name.toLowerCase().includes(skillSearch.toLowerCase()) || s.id.toLowerCase().includes(skillSearch.toLowerCase()))
+                    .map(skill => (
+                    <label key={skill.id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors text-sm ${selectedSkillsToAdd.has(skill.id) ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSkillsToAdd.has(skill.id)}
+                        onChange={() => {
+                          const next = new Set(selectedSkillsToAdd)
+                          if (next.has(skill.id)) next.delete(skill.id)
+                          else next.add(skill.id)
+                          setSelectedSkillsToAdd(next)
+                        }}
+                        className="text-emerald-600"
+                      />
+                      <span>{skill.emoji || '🔧'}</span>
+                      <span className="text-gray-700 dark:text-gray-200">{skill.name}</span>
+                      <span className="text-gray-400 text-xs font-mono">({skill.id})</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedSkillsToAdd.size > 0 && (
+                  <div className="mt-2 text-xs text-emerald-600">{selectedSkillsToAdd.size} skill{selectedSkillsToAdd.size !== 1 ? 's' : ''} selected</div>
+                )}
+              </div>
+            )}
+
             {/* Footer */}
             <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 px-6 py-4 flex gap-3 justify-end dark:border-gray-700">
               <button
@@ -428,7 +501,8 @@ export default function BulkOperationsPanel({
                   !operation ||
                   (operation === 'communities' && selectedCommunities.size === 0) ||
                   (operation === 'groups' && selectedGroups.size === 0) ||
-                  (operation === 'model' && !selectedModel)
+                  (operation === 'model' && !selectedModel) ||
+                  (operation === 'skills' && selectedSkillsToAdd.size === 0)
                 }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
@@ -462,6 +536,7 @@ export default function BulkOperationsPanel({
                     {operation === 'unarchive' && `Unarchive ${archivedCount} agent${archivedCount !== 1 ? 's' : ''}`}
                     {operation === 'pause' && `Pause ${selectedAgents.filter(a => !a.paused && !a.archived).length} agent${selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}`}
                     {operation === 'resume' && `Resume ${selectedAgents.filter(a => a.paused).length} agent${selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}`}
+                    {operation === 'skills' && `Add ${selectedSkillsToAdd.size} skill${selectedSkillsToAdd.size !== 1 ? 's' : ''} to ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
                     {operation === 'model' && `Change model to ${selectedModel} for ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
                   </div>
                 </div>
