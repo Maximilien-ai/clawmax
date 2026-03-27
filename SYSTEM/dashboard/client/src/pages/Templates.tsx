@@ -3,6 +3,7 @@ import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import TemplateWizard from '../components/TemplateWizard'
 
 interface AgentTemplate {
   name: string
@@ -119,10 +120,7 @@ export default function Templates() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
-  const [showAiGenerate, setShowAiGenerate] = useState(false)
-  const [aiDescription, setAiDescription] = useState('')
-  const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiResult, setAiResult] = useState<any>(null)
+  const [showWizard, setShowWizard] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
@@ -506,6 +504,12 @@ export default function Templates() {
               </button>
             )}
             <button
+              onClick={() => setShowWizard(true)}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+            >
+              ✨ Create Template
+            </button>
+            <button
               onClick={fetchTemplates}
               className="text-sm font-medium transition-colors text-sky-600 hover:text-sky-800"
             >
@@ -729,6 +733,38 @@ export default function Templates() {
             setApplyingAgentTemplate(null)
             window.dispatchEvent(new CustomEvent('agents-updated'))
           }}
+        />
+      )}
+
+      {/* Template Wizard */}
+      {showWizard && (
+        <TemplateWizard
+          onClose={() => setShowWizard(false)}
+          onSave={async (template) => {
+            try {
+              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const resp = await fetch(`/api/templates/organizations/${slug}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(template),
+              })
+              if (resp.ok) {
+                showSuccess(`Template "${template.name}" saved!`)
+                setShowWizard(false)
+                fetchTemplates()
+              } else {
+                showError('Failed to save template')
+              }
+            } catch {
+              showError('Failed to save template')
+            }
+          }}
+          onApply={(template) => {
+            setApplyingTemplate(template as OrganizationTemplate)
+            setShowWizard(false)
+          }}
+          showSuccess={showSuccess}
+          showError={showError}
         />
       )}
 
