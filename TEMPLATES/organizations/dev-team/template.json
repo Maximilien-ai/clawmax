@@ -5,6 +5,7 @@
   "description": "A multiagent software development team with engineering, QA, and DevOps roles. Automates PR review, CI triage, release preparation, and daily standups.",
   "author": "ClawMax Team",
   "tags": [
+    "technical",
     "engineering",
     "software",
     "devops",
@@ -223,5 +224,6 @@
       },
       "content": "# Daily Standup\n\n1. Each team member: post in Status group with three items:\n   - What you completed since last standup\n   - What you plan to work on today\n   - Any blockers or questions\n2. Tech lead: review blockers and assign help if needed\n3. DevOps: report on infrastructure health and pending deployments\n4. QA: report on test status and any new bugs found"
     }
-  ]
+  ],
+  "category": "technical"
 }

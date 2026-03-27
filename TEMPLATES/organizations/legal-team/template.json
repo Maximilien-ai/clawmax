@@ -5,6 +5,7 @@
   "description": "A multiagent legal team for contract review, compliance monitoring, and risk assessment. Automates contract analysis, regulatory tracking, and risk scoring.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "legal",
     "compliance",
     "contracts",
@@ -175,5 +176,6 @@
       },
       "content": "# Weekly Risk Assessment\n\n1. Compile all active legal matters: open contracts, compliance issues, disputes\n2. Score each matter by risk level and potential business impact\n3. Identify matters requiring escalation or outside counsel\n4. Review contract renewal calendar for upcoming 30 days\n5. Post risk dashboard with week-over-week trend to Status group"
     }
-  ]
+  ],
+  "category": "business"
 }

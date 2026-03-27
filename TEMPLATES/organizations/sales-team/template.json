@@ -5,6 +5,7 @@
   "description": "A multiagent sales organization with pipeline management, lead qualification, and deal forecasting. Includes SDRs for prospecting, account executives for closing, and sales ops for analytics.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "sales",
     "crm",
     "pipeline",
@@ -206,5 +207,6 @@
       },
       "content": "# Weekly Deal Forecast\n\n1. Sales ops: compile weighted pipeline by stage and close date\n2. Each AE: update confidence levels on their top opportunities\n3. Sales lead: compare forecast to quota \u2014 identify gaps\n4. Identify at-risk deals and plan recovery actions\n5. Post forecast summary with week-over-week delta to Status group"
     }
-  ]
+  ],
+  "category": "business"
 }

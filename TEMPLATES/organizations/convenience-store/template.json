@@ -4,40 +4,88 @@
   "version": "1.0.0",
   "description": "A small business multiagent team for running a convenience store. Manages daily inventory counts, restock alerts, shift scheduling, and floor operations.",
   "author": "ClawMax Team",
-  "tags": ["retail", "small-business", "inventory", "operations"],
+  "tags": [
+    "business",
+    "retail",
+    "small-business",
+    "inventory",
+    "operations"
+  ],
   "agents": [
     {
       "id": "store-manager",
       "name": "Store Manager",
-      "role": "Overall store operations — manages P&L, approves restock orders, handles staffing decisions, and resolves escalated customer issues",
-      "tags": ["lead", "management", "retail"],
-      "communities": ["Store Team"],
-      "groups": ["Inventory", "Floor Operations", "Status"]
+      "role": "Overall store operations \u2014 manages P&L, approves restock orders, handles staffing decisions, and resolves escalated customer issues",
+      "tags": [
+        "lead",
+        "management",
+        "retail"
+      ],
+      "communities": [
+        "Store Team"
+      ],
+      "groups": [
+        "Inventory",
+        "Floor Operations",
+        "Status"
+      ]
     },
     {
       "id": "inventory-clerk",
       "name": "Inventory Clerk",
-      "role": "Inventory management — conducts daily counts, tracks stock levels, generates restock orders, and manages supplier communications",
-      "tags": ["inventory", "retail"],
-      "communities": ["Store Team"],
-      "groups": ["Inventory", "Status"]
+      "role": "Inventory management \u2014 conducts daily counts, tracks stock levels, generates restock orders, and manages supplier communications",
+      "tags": [
+        "inventory",
+        "retail"
+      ],
+      "communities": [
+        "Store Team"
+      ],
+      "groups": [
+        "Inventory",
+        "Status"
+      ]
     },
     {
       "id": "cashier-lead",
       "name": "Cashier Lead",
-      "role": "Floor operations — manages cash registers, handles customer complaints, trains new cashiers, and maintains store presentation",
-      "tags": ["retail", "floor", "customer-service"],
-      "communities": ["Store Team"],
-      "groups": ["Floor Operations", "Status"]
+      "role": "Floor operations \u2014 manages cash registers, handles customer complaints, trains new cashiers, and maintains store presentation",
+      "tags": [
+        "retail",
+        "floor",
+        "customer-service"
+      ],
+      "communities": [
+        "Store Team"
+      ],
+      "groups": [
+        "Floor Operations",
+        "Status"
+      ]
     }
   ],
   "communities": [
-    { "name": "Store Team", "description": "All store team coordination and announcements" }
+    {
+      "name": "Store Team",
+      "description": "All store team coordination and announcements"
+    }
   ],
   "groups": [
-    { "name": "Inventory", "description": "Stock levels, restock orders, and supplier communications", "community": "Store Team" },
-    { "name": "Floor Operations", "description": "Customer service, cash handling, and store presentation", "community": "Store Team" },
-    { "name": "Status", "description": "Daily briefings and store performance", "community": "Store Team" }
+    {
+      "name": "Inventory",
+      "description": "Stock levels, restock orders, and supplier communications",
+      "community": "Store Team"
+    },
+    {
+      "name": "Floor Operations",
+      "description": "Customer service, cash handling, and store presentation",
+      "community": "Store Team"
+    },
+    {
+      "name": "Status",
+      "description": "Daily briefings and store performance",
+      "community": "Store Team"
+    }
   ],
   "workflows": [
     {
@@ -47,7 +95,16 @@
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": [], "tags": ["lead"], "agents": ["store-manager"] },
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "store-manager"
+        ]
+      },
       "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data, supplier contacts, or schedules\n3. Assign initial responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities and store hours to Status group"
     },
     {
@@ -57,7 +114,16 @@
       "schedule": "0 6 * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Inventory"], "tags": [], "agents": ["inventory-clerk"] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Inventory"
+        ],
+        "tags": [],
+        "agents": [
+          "inventory-clerk"
+        ]
+      },
       "content": "# Daily Inventory Count\n\n1. Walk the store and count stock levels for all tracked categories\n2. Compare counts against minimum stock thresholds\n3. Flag any items below restock threshold or approaching expiry\n4. Generate restock order draft for manager approval\n5. Post inventory summary to Status group"
     },
     {
@@ -67,7 +133,14 @@
       "schedule": "0 */4 * * *",
       "enabled": true,
       "executionMode": "automated",
-      "targeting": { "communities": [], "groups": ["Inventory"], "tags": [], "agents": [] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Inventory"
+        ],
+        "tags": [],
+        "agents": []
+      },
       "content": "# Restock Alert Check\n\n1. Check fast-moving items against minimum stock levels\n2. Flag any critical shortages (items at zero or near-zero)\n3. For critical items: notify store manager immediately\n4. Check pending restock orders and expected delivery dates\n5. Update inventory tracking with any received deliveries"
     },
     {
@@ -77,8 +150,18 @@
       "schedule": "0 18 * * 0",
       "enabled": true,
       "executionMode": "managed",
-      "targeting": { "communities": [], "groups": ["Floor Operations"], "tags": [], "agents": ["store-manager"] },
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Floor Operations"
+        ],
+        "tags": [],
+        "agents": [
+          "store-manager"
+        ]
+      },
       "content": "# Weekly Shift Schedule\n\n1. Review next week's expected traffic (weekdays vs weekends, any events)\n2. Draft shift schedule ensuring coverage for all operating hours\n3. Assign cashier lead to peak hours\n4. Post draft schedule to Floor Operations group for team review\n5. Finalize and post confirmed schedule to Status group"
     }
-  ]
+  ],
+  "category": "business"
 }

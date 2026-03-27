@@ -5,6 +5,7 @@
   "description": "A multiagent customer support organization with ticket triage, SLA monitoring, escalation handling, and knowledge base maintenance. Handles high-volume support with automated prioritization.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "support",
     "customer-service",
     "sla",
@@ -201,5 +202,6 @@
       },
       "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week \u2014 identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group"
     }
-  ]
+  ],
+  "category": "business"
 }

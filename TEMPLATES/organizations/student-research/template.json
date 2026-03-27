@@ -5,6 +5,7 @@
   "description": "A multiagent research group for academic projects. Includes literature review, data analysis, and writing roles with workflows for systematic research and collaborative drafting.",
   "author": "ClawMax Team",
   "tags": [
+    "personal",
     "research",
     "academic",
     "writing",
@@ -195,5 +196,6 @@
       },
       "content": "# Draft Review Session\n\n1. Writer: share the latest draft section for review\n2. Research lead: check for methodological accuracy and argument strength\n3. Data analyst: verify data citations and statistical claims\n4. Lit reviewer: check citation accuracy and completeness\n5. Compile revision notes and assign rewrite tasks"
     }
-  ]
+  ],
+  "category": "personal"
 }

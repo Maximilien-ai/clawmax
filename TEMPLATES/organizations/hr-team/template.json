@@ -5,6 +5,7 @@
   "description": "A multiagent HR organization handling recruiting, onboarding, and people operations. Automates candidate screening, interview scheduling, and new hire onboarding workflows.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "hr",
     "recruiting",
     "onboarding",
@@ -192,5 +193,6 @@
       },
       "content": "# New Hire Onboarding\n\n1. Create personalized onboarding plan with 30/60/90 day milestones\n2. Schedule orientation sessions (team intros, tools setup, culture overview)\n3. Set up access to required systems and documentation\n4. Assign an onboarding buddy from the relevant team\n5. Schedule check-ins at day 7, 30, 60, and 90 \u2014 track progress in Onboarding group"
     }
-  ]
+  ],
+  "category": "business"
 }

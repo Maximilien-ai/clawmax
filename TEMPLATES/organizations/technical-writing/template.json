@@ -5,6 +5,7 @@
   "description": "A multiagent technical writing team for creating documentation, tutorials, and reference guides. Includes editor, writers, reviewer, and publisher with end-to-end content workflows.",
   "author": "ClawMax Team",
   "tags": [
+    "personal",
     "writing",
     "documentation",
     "editing",
@@ -228,5 +229,6 @@
       },
       "content": "# Content Publishing\n\n1. Take approved, reviewed content from the Review group\n2. Format for the target platform (docs site, blog, wiki)\n3. Add SEO metadata: title, description, keywords, open graph tags\n4. Publish and verify the live page renders correctly\n5. Post publication confirmation with link to Status group"
     }
-  ]
+  ],
+  "category": "personal"
 }

@@ -5,6 +5,7 @@
   "description": "A multiagent marketing organization managing content creation, SEO optimization, social media, and campaign analytics. Coordinates editorial calendar and tracks performance metrics.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "marketing",
     "content",
     "seo",
@@ -201,5 +202,6 @@
       },
       "content": "# Weekly Analytics Report\n\n1. Compile week-over-week metrics: traffic, leads, conversions, revenue attribution\n2. Analyze top-performing content and channels\n3. Identify underperforming campaigns with recommendations\n4. SEO analyst: report on organic search trends and ranking progress\n5. Marketing lead: post insights summary and adjust next week's strategy"
     }
-  ]
+  ],
+  "category": "business"
 }

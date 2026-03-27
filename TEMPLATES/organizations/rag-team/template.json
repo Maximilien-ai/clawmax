@@ -5,6 +5,7 @@
   "description": "A multiagent team that builds end-to-end RAG solutions using weave-cli. Includes planner, data engineers, search engineers, eval engineers, and ops engineers working in parallel workflows across 10 vector databases.",
   "author": "ClawMax Team",
   "tags": [
+    "technical",
     "rag",
     "weave-cli",
     "vector-database",
@@ -280,5 +281,6 @@
       "description": "Daily status check \u2014 each agent reports progress in their area",
       "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief \u2014 2-3 sentences per item."
     }
-  ]
+  ],
+  "category": "technical"
 }
