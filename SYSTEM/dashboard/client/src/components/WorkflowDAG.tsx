@@ -132,11 +132,14 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
         const fromRect = fromEl.getBoundingClientRect()
         const toRect = toEl.getBoundingClientRect()
 
+        // Connect from right edge of source to left edge of target
+        // Add small gap so lines don't touch the node borders
+        const gap = 8
         const toWf = workflows.find(w => w.id === edge.to)
         newLines.push({
-          x1: fromRect.right - rect.left,
+          x1: fromRect.right - rect.left + gap,
           y1: fromRect.top + fromRect.height / 2 - rect.top,
-          x2: toRect.left - rect.left,
+          x2: toRect.left - rect.left - gap,
           y2: toRect.top + toRect.height / 2 - rect.top,
           status: toWf?.status || 'idle',
           fromId: edge.from,
@@ -219,7 +222,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
       )}
 
       {/* SVG connector lines */}
-      <svg className="absolute inset-0 w-full h-full z-0" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: editable ? 'auto' : 'none' }}>
+      <svg className="absolute inset-0 w-full h-full" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: 'none', zIndex: editable ? 20 : 0 }}>
         {lines.map((line, idx) => {
           const midX = (line.x1 + line.x2) / 2
           const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
@@ -240,15 +243,15 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                     fill="none"
                     stroke="transparent"
                     strokeWidth={12}
-                    className="cursor-pointer"
-                    onClick={() => { onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
+                    style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                    onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
                   />
                   <g
-                    className="cursor-pointer"
-                    onClick={() => { onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
+                    style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                    onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
                   >
-                    <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={8} fill="white" stroke={color} strokeWidth={1} className="dark:fill-gray-800" opacity={0.9} />
-                    <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="#ef4444" fontWeight="bold">×</text>
+                    <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={10} fill="white" stroke="#ef4444" strokeWidth={1.5} className="dark:fill-gray-800" />
+                    <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={12} fill="#ef4444" fontWeight="bold">×</text>
                   </g>
                 </>
               )}
