@@ -149,7 +149,8 @@
           "marketing-lead"
         ]
       },
-      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai \u2014 multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group"
+      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai \u2014 multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group",
+      "type": "once"
     },
     {
       "id": "content-calendar",
@@ -166,7 +167,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Weekly Content Calendar\n\n1. Marketing lead: review this week's content themes and business priorities\n2. SEO analyst: share top keyword opportunities and trending topics\n3. Assign blog posts, emails, and social content to writers with deadlines\n4. Content writers: confirm assignments and flag any research needs\n5. Post finalized calendar to Content group"
+      "content": "# Weekly Content Calendar\n\n1. Marketing lead: review this week's content themes and business priorities\n2. SEO analyst: share top keyword opportunities and trending topics\n3. Assign blog posts, emails, and social content to writers with deadlines\n4. Content writers: confirm assignments and flag any research needs\n5. Post finalized calendar to Content group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "campaign-review",
@@ -183,7 +188,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Campaign Review\n\n1. Pull metrics from all active campaigns (email opens, click rates, conversions)\n2. Social manager: report engagement metrics (likes, shares, comments, reach)\n3. SEO analyst: check ranking changes for target keywords\n4. Flag any campaigns underperforming vs benchmarks\n5. Post daily performance snapshot to Status group"
+      "content": "# Daily Campaign Review\n\n1. Pull metrics from all active campaigns (email opens, click rates, conversions)\n2. Social manager: report engagement metrics (likes, shares, comments, reach)\n3. SEO analyst: check ranking changes for target keywords\n4. Flag any campaigns underperforming vs benchmarks\n5. Post daily performance snapshot to Status group",
+      "dependsOn": [
+        "content-calendar"
+      ],
+      "type": "recurring"
     },
     {
       "id": "analytics-report",
@@ -200,7 +209,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Weekly Analytics Report\n\n1. Compile week-over-week metrics: traffic, leads, conversions, revenue attribution\n2. Analyze top-performing content and channels\n3. Identify underperforming campaigns with recommendations\n4. SEO analyst: report on organic search trends and ranking progress\n5. Marketing lead: post insights summary and adjust next week's strategy"
+      "content": "# Weekly Analytics Report\n\n1. Compile week-over-week metrics: traffic, leads, conversions, revenue attribution\n2. Analyze top-performing content and channels\n3. Identify underperforming campaigns with recommendations\n4. SEO analyst: report on organic search trends and ranking progress\n5. Marketing lead: post insights summary and adjust next week's strategy",
+      "dependsOn": [
+        "campaign-review"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "business"

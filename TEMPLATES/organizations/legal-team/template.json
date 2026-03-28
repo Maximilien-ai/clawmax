@@ -121,7 +121,8 @@
           "legal-lead"
         ]
       },
-      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group"
+      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
+      "type": "once"
     },
     {
       "id": "contract-review",
@@ -138,7 +139,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Contract Review\n\n1. Pull pending contracts from the review queue\n2. Analyze key terms: liability caps, indemnification, IP ownership, termination clauses\n3. Flag non-standard or high-risk clauses with redline suggestions\n4. Score overall contract risk (low/medium/high)\n5. Route high-risk contracts to legal lead for final approval"
+      "content": "# Contract Review\n\n1. Pull pending contracts from the review queue\n2. Analyze key terms: liability caps, indemnification, IP ownership, termination clauses\n3. Flag non-standard or high-risk clauses with redline suggestions\n4. Score overall contract risk (low/medium/high)\n5. Route high-risk contracts to legal lead for final approval",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "compliance-check",
@@ -157,7 +162,11 @@
           "compliance-officer"
         ]
       },
-      "content": "# Daily Compliance Check\n\n1. Scan for new regulatory updates in relevant jurisdictions\n2. Cross-reference against current internal policies\n3. Flag any gaps between new requirements and existing compliance posture\n4. Check upcoming compliance deadlines (filings, certifications, renewals)\n5. Post compliance status summary to Status group"
+      "content": "# Daily Compliance Check\n\n1. Scan for new regulatory updates in relevant jurisdictions\n2. Cross-reference against current internal policies\n3. Flag any gaps between new requirements and existing compliance posture\n4. Check upcoming compliance deadlines (filings, certifications, renewals)\n5. Post compliance status summary to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "risk-assessment",
@@ -174,7 +183,12 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Weekly Risk Assessment\n\n1. Compile all active legal matters: open contracts, compliance issues, disputes\n2. Score each matter by risk level and potential business impact\n3. Identify matters requiring escalation or outside counsel\n4. Review contract renewal calendar for upcoming 30 days\n5. Post risk dashboard with week-over-week trend to Status group"
+      "content": "# Weekly Risk Assessment\n\n1. Compile all active legal matters: open contracts, compliance issues, disputes\n2. Score each matter by risk level and potential business impact\n3. Identify matters requiring escalation or outside counsel\n4. Review contract renewal calendar for upcoming 30 days\n5. Post risk dashboard with week-over-week trend to Status group",
+      "dependsOn": [
+        "contract-review",
+        "compliance-check"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "business"

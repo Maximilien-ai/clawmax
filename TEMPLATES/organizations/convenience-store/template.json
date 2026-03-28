@@ -105,7 +105,8 @@
           "store-manager"
         ]
       },
-      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group"
+      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group",
+      "type": "once"
     },
     {
       "id": "daily-inventory",
@@ -124,7 +125,11 @@
           "inventory-clerk"
         ]
       },
-      "content": "# Daily Inventory Count\n\n1. Walk the store and count stock levels for all tracked categories\n2. Compare counts against minimum stock thresholds\n3. Flag any items below restock threshold or approaching expiry\n4. Generate restock order draft for manager approval\n5. Post inventory summary to Status group"
+      "content": "# Daily Inventory Count\n\n1. Walk the store and count stock levels for all tracked categories\n2. Compare counts against minimum stock thresholds\n3. Flag any items below restock threshold or approaching expiry\n4. Generate restock order draft for manager approval\n5. Post inventory summary to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "restock-alerts",
@@ -141,7 +146,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Restock Alert Check\n\n1. Check fast-moving items against minimum stock levels\n2. Flag any critical shortages (items at zero or near-zero)\n3. For critical items: notify store manager immediately\n4. Check pending restock orders and expected delivery dates\n5. Update inventory tracking with any received deliveries"
+      "content": "# Restock Alert Check\n\n1. Check fast-moving items against minimum stock levels\n2. Flag any critical shortages (items at zero or near-zero)\n3. For critical items: notify store manager immediately\n4. Check pending restock orders and expected delivery dates\n5. Update inventory tracking with any received deliveries",
+      "dependsOn": [
+        "daily-inventory"
+      ],
+      "type": "recurring"
     },
     {
       "id": "shift-scheduling",
@@ -160,7 +169,11 @@
           "store-manager"
         ]
       },
-      "content": "# Weekly Shift Schedule\n\n1. Review next week's expected traffic (weekdays vs weekends, any events)\n2. Draft shift schedule ensuring coverage for all operating hours\n3. Assign cashier lead to peak hours\n4. Post draft schedule to Floor Operations group for team review\n5. Finalize and post confirmed schedule to Status group"
+      "content": "# Weekly Shift Schedule\n\n1. Review next week's expected traffic (weekdays vs weekends, any events)\n2. Draft shift schedule ensuring coverage for all operating hours\n3. Assign cashier lead to peak hours\n4. Post draft schedule to Floor Operations group for team review\n5. Finalize and post confirmed schedule to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "business"
