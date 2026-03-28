@@ -3,6 +3,7 @@ import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { readStoredByokKeys } from '../lib/byok'
+import WorkflowDAG from '../components/WorkflowDAG'
 
 interface AgentTargeting {
   communities: string[]
@@ -182,9 +183,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'dag'>(() => {
     const saved = localStorage.getItem('workflows-view-mode')
-    return saved === 'list' ? 'list' : 'grid'
+    return saved === 'list' ? 'list' : saved === 'dag' ? 'dag' : 'grid'
   })
   useEffect(() => { localStorage.setItem('workflows-view-mode', viewMode) }, [viewMode])
   const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('name')
@@ -947,6 +948,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               >
                 ☰
               </button>
+              <button
+                onClick={() => setViewMode('dag')}
+                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                title="DAG view"
+              >
+                ◇
+              </button>
             </div>
             <button
               onClick={() => {
@@ -1074,6 +1082,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         ) : sortedWorkflows.length === 0 ? (
           <div className="text-center text-gray-500 py-12">
             {searchQuery ? 'No workflows match your search' : 'No workflows yet'}
+          </div>
+        ) : viewMode === 'dag' ? (
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <WorkflowDAG
+              workflows={sortedWorkflows}
+              selectedId={selectedWorkflow?.id}
+              onSelect={(id) => fetchWorkflowDetails(id)}
+            />
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

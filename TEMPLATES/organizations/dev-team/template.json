@@ -151,7 +151,8 @@
           "tech-lead"
         ]
       },
-      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup"
+      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup",
+      "type": "once"
     },
     {
       "id": "pr-review",
@@ -168,7 +169,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# PR Review Cycle\n\n1. List all open PRs that need review\n2. For each PR: check code quality, test coverage, and adherence to patterns\n3. Leave specific, actionable review comments\n4. Approve PRs that meet standards; request changes on others\n5. Flag any PRs open longer than 48 hours for tech lead attention"
+      "content": "# PR Review Cycle\n\n1. List all open PRs that need review\n2. For each PR: check code quality, test coverage, and adherence to patterns\n3. Leave specific, actionable review comments\n4. Approve PRs that meet standards; request changes on others\n5. Flag any PRs open longer than 48 hours for tech lead attention",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "ci-triage",
@@ -187,7 +192,11 @@
           "devops"
         ]
       },
-      "content": "# CI Triage\n\n1. Check CI pipeline for any failed builds or tests\n2. Categorize failures: flaky test, real regression, infrastructure issue\n3. For real regressions: identify the breaking commit and notify the author\n4. For flaky tests: log the pattern and create a fix ticket\n5. Post CI health summary to DevOps group"
+      "content": "# CI Triage\n\n1. Check CI pipeline for any failed builds or tests\n2. Categorize failures: flaky test, real regression, infrastructure issue\n3. For real regressions: identify the breaking commit and notify the author\n4. For flaky tests: log the pattern and create a fix ticket\n5. Post CI health summary to DevOps group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "release-prep",
@@ -205,7 +214,12 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Release Preparation\n\n1. QA engineer: run full regression suite and report results\n2. Tech lead: review all PRs merged since last release\n3. Compile changelog from commit messages and PR descriptions\n4. DevOps: prepare release branch and version bump\n5. Final sign-off from tech lead, then trigger deployment"
+      "content": "# Release Preparation\n\n1. QA engineer: run full regression suite and report results\n2. Tech lead: review all PRs merged since last release\n3. Compile changelog from commit messages and PR descriptions\n4. DevOps: prepare release branch and version bump\n5. Final sign-off from tech lead, then trigger deployment",
+      "dependsOn": [
+        "pr-review",
+        "ci-triage"
+      ],
+      "type": "conditional"
     },
     {
       "id": "daily-standup",
@@ -222,7 +236,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Standup\n\n1. Each team member: post in Status group with three items:\n   - What you completed since last standup\n   - What you plan to work on today\n   - Any blockers or questions\n2. Tech lead: review blockers and assign help if needed\n3. DevOps: report on infrastructure health and pending deployments\n4. QA: report on test status and any new bugs found"
+      "content": "# Daily Standup\n\n1. Each team member: post in Status group with three items:\n   - What you completed since last standup\n   - What you plan to work on today\n   - Any blockers or questions\n2. Tech lead: review blockers and assign help if needed\n3. DevOps: report on infrastructure health and pending deployments\n4. QA: report on test status and any new bugs found",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "technical"
