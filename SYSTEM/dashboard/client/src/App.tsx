@@ -484,6 +484,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onNavigateToAgent={onNavigateToAgent}
           onNavigateToWorkflow={onNavigateToWorkflow}
           onNavigateToPage={onNavigateToPage}
+          onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
         />
         <ByokWizard />
         {user && !config?.authDisabled && (
