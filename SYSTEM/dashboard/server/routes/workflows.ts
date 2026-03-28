@@ -9,7 +9,9 @@ import {
   listExecutions,
   getExecution,
   validateCron,
-  triggerWorkflow
+  triggerWorkflow,
+  completeWorkflow,
+  getDAGStatus,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { listAgents } from '../lib/workspace'
@@ -113,6 +115,16 @@ router.get('/', (req, res) => {
   } catch (error: any) {
     console.error('Error listing workflows:', error)
     res.status(500).json({ error: 'Failed to list workflows', message: error.message })
+  }
+})
+
+// GET /api/workflows/dag — full DAG status with dependency resolution
+router.get('/dag', (_req, res) => {
+  try {
+    const dag = getDAGStatus()
+    res.json({ ok: true, dag })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
   }
 })
 
@@ -562,8 +574,40 @@ router.delete('/:id/executions/:executionId', (req, res) => {
 })
 
 // ============================================================================
-// Workflow v2: Progress & Dependencies
+// Workflow v2: DAG, Progress & Dependencies
 // ============================================================================
+
+// POST /api/workflows/:id/complete — mark workflow as completed, advance DAG
+router.post('/:id/complete', (req, res) => {
+  try {
+    const workflow = getWorkflow(req.params.id)
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+    const { readyToRun } = completeWorkflow(req.params.id)
+
+    // Auto-trigger ready workflows if they're enabled
+    const triggered: string[] = []
+    for (const wfId of readyToRun) {
+      const wf = getWorkflow(wfId)
+      if (wf?.enabled) {
+        const result = triggerWorkflow(wfId)
+        if (result.success) {
+          triggered.push(wfId)
+          updateWorkflow(wfId, { status: 'running' } as any)
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      completed: req.params.id,
+      readyToRun,
+      triggered,
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 // POST /api/workflows/:id/progress — report workflow progress (0-100)
 router.post('/:id/progress', (req, res) => {
