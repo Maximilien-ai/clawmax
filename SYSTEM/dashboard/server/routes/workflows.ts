@@ -102,6 +102,10 @@ router.get('/', (req, res) => {
         targeting: workflow.targeting,
         maxRuns: workflow.maxRuns || 0,
         runCount: workflow.runCount || 0,
+        dependsOn: workflow.dependsOn,
+        type: workflow.type,
+        progress: workflow.progress,
+        status: workflow.status,
       }
     })
 
