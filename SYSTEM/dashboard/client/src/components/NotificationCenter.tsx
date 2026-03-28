@@ -22,6 +22,18 @@ interface Notification {
   progress?: number
 }
 
+// Helper: resolve a notification action
+async function resolveAction(id: string, action: string, value?: string): Promise<boolean> {
+  try {
+    const resp = await fetch(`/api/notifications/${id}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, value }),
+    })
+    return resp.ok
+  } catch { return false }
+}
+
 interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
@@ -60,6 +72,9 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const [criticalCount, setCriticalCount] = useState(0)
   const [warningCount, setWarningCount] = useState(0)
   const [open, setOpen] = useState(false)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [inputValues, setInputValues] = useState<Record<string, string>>({})
+  const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const fetchNotifications = useCallback(async () => {
@@ -80,6 +95,23 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [fetchNotifications])
+
+  // Load agents for delegation blockers
+  useEffect(() => {
+    if (open && notifications.some(n => n.blockerType === 'delegation') && availableAgents.length === 0) {
+      fetch('/api/agents').then(r => r.json()).then(d => {
+        setAvailableAgents((d.agents || []).map((a: any) => a.id))
+      }).catch(() => {})
+    }
+  }, [open, notifications])
+
+  // Helper: execute action with loading state
+  const executeAction = async (id: string, action: string, value?: string) => {
+    setProcessingId(id)
+    await resolveAction(id, action, value)
+    await fetchNotifications()
+    setProcessingId(null)
+  }
 
   // Close on click outside
   useEffect(() => {
@@ -206,53 +238,47 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{timeAgo(n.createdAt)}</span>
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</div>
-                          {/* Progress bar for workflow-progress */}
+                          {/* Progress bar */}
                           {n.type === 'workflow-progress' && n.progress != null && (
                             <div className="mt-1.5">
                               <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                 <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                  <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(n.progress, 100)}%` }} />
+                                  <div className={`h-full rounded-full transition-all ${n.progress >= 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${Math.min(n.progress, 100)}%` }} />
                                 </div>
                                 <span>{n.progress}%</span>
                               </div>
                             </div>
                           )}
 
-                          {/* Blocker actions: approval */}
+                          {/* Blocker: approval — Approve / Reject buttons */}
                           {n.blockerType === 'approval' && (
                             <div className="flex gap-1.5 mt-2">
                               <button
-                                onClick={async () => {
-                                  await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) })
-                                  fetchNotifications()
-                                }}
-                                className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+                                onClick={() => executeAction(n.id, 'approve')}
+                                disabled={processingId === n.id}
+                                className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
                               >
-                                Approve
+                                {processingId === n.id ? '...' : '✓ Approve'}
                               </button>
                               <button
-                                onClick={async () => {
-                                  await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reject' }) })
-                                  fetchNotifications()
-                                }}
-                                className="text-[11px] px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                onClick={() => executeAction(n.id, 'reject')}
+                                disabled={processingId === n.id}
+                                className="text-[11px] px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
                               >
-                                Reject
+                                {processingId === n.id ? '...' : '✕ Reject'}
                               </button>
                             </div>
                           )}
 
-                          {/* Blocker actions: choice */}
+                          {/* Blocker: choice — option buttons */}
                           {n.blockerType === 'choice' && n.blockerOptions && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {n.blockerOptions.map((opt: string) => (
                                 <button
                                   key={opt}
-                                  onClick={async () => {
-                                    await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'choose', value: opt }) })
-                                    fetchNotifications()
-                                  }}
-                                  className="text-[11px] px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                                  onClick={() => executeAction(n.id, 'choose', opt)}
+                                  disabled={processingId === n.id}
+                                  className="text-[11px] px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
                                 >
                                   {opt}
                                 </button>
@@ -260,17 +286,69 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                             </div>
                           )}
 
-                          {/* Custom actions from notification */}
+                          {/* Blocker: input — text field + submit */}
+                          {n.blockerType === 'input' && (
+                            <div className="flex gap-1.5 mt-2">
+                              <input
+                                type="text"
+                                value={inputValues[n.id] || ''}
+                                onChange={e => setInputValues(prev => ({ ...prev, [n.id]: e.target.value }))}
+                                placeholder="Type your response..."
+                                className="flex-1 text-[11px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && inputValues[n.id]?.trim()) {
+                                    executeAction(n.id, 'input', inputValues[n.id])
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={() => executeAction(n.id, 'input', inputValues[n.id])}
+                                disabled={processingId === n.id || !inputValues[n.id]?.trim()}
+                                className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors disabled:opacity-50"
+                              >
+                                Submit
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Blocker: delegation — agent picker */}
+                          {n.blockerType === 'delegation' && (
+                            <div className="flex gap-1.5 mt-2">
+                              <select
+                                value={inputValues[n.id] || ''}
+                                onChange={e => setInputValues(prev => ({ ...prev, [n.id]: e.target.value }))}
+                                className="flex-1 text-[11px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                              >
+                                <option value="">Select agent...</option>
+                                {availableAgents.map(a => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                              <button
+                                onClick={() => executeAction(n.id, 'delegate', inputValues[n.id])}
+                                disabled={processingId === n.id || !inputValues[n.id]}
+                                className="text-[11px] px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors disabled:opacity-50"
+                              >
+                                Delegate
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Blocker: waiting — status indicator */}
+                          {n.blockerType === 'waiting' && (
+                            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              Waiting for external resolution...
+                            </div>
+                          )}
+
+                          {/* Custom actions */}
                           {n.actions && n.actions.length > 0 && !n.blockerType && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {n.actions.map((a: NotificationAction, idx: number) => (
                                 <button
                                   key={idx}
-                                  onClick={async () => {
-                                    await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: a.type, value: a.value }) })
-                                    fetchNotifications()
-                                  }}
-                                  className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors"
+                                  onClick={() => executeAction(n.id, a.type, a.value)}
+                                  disabled={processingId === n.id}
+                                  className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors disabled:opacity-50"
                                 >
                                   {a.label}
                                 </button>
@@ -278,9 +356,43 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                             </div>
                           )}
 
-                          {/* Standard actions */}
+                          {/* Inline agent actions */}
+                          {n.entityType === 'agent' && n.entityId && (n.type === 'agent-error' || n.type === 'agent-offline') && (
+                            <div className="flex gap-1.5 mt-2">
+                              <button
+                                onClick={() => { onNavigateToAgent?.(n.entityId!); setOpen(false) }}
+                                className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors"
+                              >
+                                View Agent
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setProcessingId(n.id)
+                                  await fetch(`/api/agents/${n.entityId}/restart`, { method: 'POST' }).catch(() => {})
+                                  await fetchNotifications()
+                                  setProcessingId(null)
+                                }}
+                                disabled={processingId === n.id}
+                                className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
+                              >
+                                Restart
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Workflow link for blocked notifications */}
+                          {n.workflowId && n.type === 'workflow-blocked' && (
+                            <button
+                              onClick={() => { onNavigateToWorkflow?.(n.workflowId!); setOpen(false) }}
+                              className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline font-medium mt-1.5 block"
+                            >
+                              Go to workflow →
+                            </button>
+                          )}
+
+                          {/* Standard footer actions */}
                           <div className="flex items-center gap-2 mt-1.5">
-                            {n.entityId && !n.blockerType && (
+                            {n.entityId && !n.blockerType && n.entityType !== 'agent' && (
                               <button
                                 onClick={() => handleAction(n)}
                                 className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
