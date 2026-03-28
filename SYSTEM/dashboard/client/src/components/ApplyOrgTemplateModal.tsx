@@ -551,9 +551,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 </div>
                 )
               })()}
-                  })}
-                </div>
-              )}
             </div>
           )}
 
