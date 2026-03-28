@@ -40,6 +40,22 @@ function cleanMessageContent(content: string): string {
   // Strip ANSI codes first
   content = stripAnsi(content)
 
+  // Detect raw gateway message payloads: [ { "id": "...", "content": "..." } ]
+  // Extract just the content fields
+  try {
+    const trimmed = content.trim()
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      const parsed = JSON.parse(trimmed)
+      const items = Array.isArray(parsed) ? parsed : [parsed]
+      if (items.length > 0 && items[0].content && items[0].from) {
+        return items.map(m => m.content).filter(Boolean).join('\n\n')
+      }
+      if (items.length > 0 && items[0].payloads) {
+        return items[0].payloads.map((p: any) => p.text).filter(Boolean).join('\n\n')
+      }
+    }
+  } catch {}
+
   // Process line by line — keep only human-readable content
   const lines = content.split('\n')
   const cleanedLines: string[] = []
