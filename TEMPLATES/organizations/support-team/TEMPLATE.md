@@ -2,6 +2,7 @@
 name: Support Team
 type: organization
 version: 1.0.0
+category: business
 author: ClawMax Team
 tags:
   - business
@@ -15,195 +16,92 @@ parameters:
     default: 3
     min: 1
     max: 10
-agents:
-  - id: support-lead
-    name: Support Lead
-    role: >-
-      Support manager — monitors SLA compliance, handles escalation decisions,
-      coaches agents, and reports on CSAT metrics
-    tags:
-      - lead
-      - support
-      - management
-    communities:
-      - Support Team
-    groups:
-      - Triage
-      - Escalations
-      - Status
-    skills:
-      - github
-      - gh-issues
-  - id: support-agent
-    name: Support Agent
-    role: >-
-      Frontline support — responds to tickets, troubleshoots issues, documents
-      solutions, and maintains first-response SLA
-    tags:
-      - support
-      - frontline
-    communities:
-      - Support Team
-    groups:
-      - Triage
-  - id: escalation-eng
-    name: Escalation Engineer
-    role: >-
-      Senior technical support — handles complex escalations, debugs difficult
-      issues, and creates permanent fixes
-    tags:
-      - support
-      - escalation
-      - technical
-    communities:
-      - Support Team
-    groups:
-      - Escalations
-      - Knowledge Base
-    skills:
-      - github
-      - gh-issues
-  - id: knowledge-mgr
-    name: Knowledge Base Manager
-    role: >-
-      Documentation — maintains FAQ, writes help articles, identifies
-      documentation gaps from ticket patterns, and trains agents
-    tags:
-      - support
-      - knowledge
-      - docs
-    communities:
-      - Support Team
-    groups:
-      - Knowledge Base
-      - Status
-    skills:
-      - github
-      - gh-issues
-communities:
-  - name: Support Team
-    description: All support team coordination and announcements
-groups:
-  - name: Triage
-    description: Incoming ticket triage and assignment
-    community: Support Team
-  - name: Escalations
-    description: Escalated issues requiring senior engineering attention
-    community: Support Team
-  - name: Knowledge Base
-    description: 'KB article creation, updates, and gap analysis'
-    community: Support Team
-  - name: Status
-    description: Daily standups and SLA metrics
-    community: Support Team
-workflows:
-  - id: kickoff
-    name: Team Kickoff
-    description: Initialize the support team and set SLA targets
-    schedule: manual
-    enabled: true
-    executionMode: managed
-    targeting:
-      communities: []
-      groups: []
-      tags:
-        - lead
-      agents:
-        - support-lead
-    content: |-
-      # Support Team Kickoff
-
-      You are the Support Lead. Your team just came online.
-
-      ## Project Configuration
-      > **Customize these before applying:**
-
-      - **Product/service:** [e.g., ClawMax multiagent platform]
-      - **SLA targets:** [e.g., first response <1hr, resolution <24hr]
-      - **Ticket source:** [e.g., GitHub issues, email, Zendesk]
-      - **GitHub repo:** [e.g., owner/repo — for tracking issues]
-      - **Escalation criteria:** [e.g., P0 = outage, P1 = broken feature]
-
-      ## Your Tasks
-      1. Introduce yourself in the Support Team community
-      2. Review the workspace for existing tickets or customer data
-      3. Set SLA targets and escalation policies
-      4. Assign initial ticket queues to support agents
-      5. Brief the knowledge manager on priority documentation areas
-  - id: ticket-triage
-    name: Ticket Triage
-    description: Triage and prioritize incoming support tickets
-    schedule: '*/30 * * * *'
-    enabled: true
-    executionMode: automated
-    targeting:
-      communities: []
-      groups:
-        - Triage
-      tags: []
-      agents: []
-    content: >-
-      # Ticket Triage Cycle
-
-
-      1. Pull all unassigned tickets since last triage
-
-      2. Categorize by priority (P0 = outage, P1 = broken feature, P2 =
-      question, P3 = enhancement)
-
-      3. P0/P1: immediately assign to escalation engineer and notify support
-      lead
-
-      4. P2/P3: assign to support agents based on current load and expertise
-
-      5. Update ticket status and post triage summary to Triage group
-  - id: sla-monitoring
-    name: SLA Monitoring
-    description: Monitor SLA compliance and flag at-risk tickets
-    schedule: 0 * * * *
-    enabled: true
-    executionMode: automated
-    targeting:
-      communities: []
-      groups:
-        - Status
-      tags: []
-      agents: []
-    content: |-
-      # SLA Monitoring
-
-      1. Check all open tickets against SLA thresholds
-      2. Flag tickets approaching SLA breach (80% of allowed time)
-      3. For breached SLAs: notify support lead and escalate if needed
-      4. Calculate current SLA compliance rate and CSAT score
-      5. Post hourly SLA dashboard to Status group
-  - id: kb-updates
-    name: Knowledge Base Updates
-    description: Weekly KB gap analysis and article updates
-    schedule: 0 10 * * 5
-    enabled: true
-    executionMode: managed
-    targeting:
-      communities: []
-      groups:
-        - Knowledge Base
-      tags: []
-      agents:
-        - knowledge-mgr
-    content: >-
-      # Weekly KB Review
-
-
-      1. Analyze resolved tickets from the past week — identify recurring
-      questions
-
-      2. Check if existing KB articles cover the top 10 ticket topics
-
-      3. Draft new articles for any gaps found
-
-      4. Update outdated articles based on product changes
-
-      5. Post KB update summary and link new articles in Knowledge Base group
-category: business
 ---
+
 A multiagent customer support organization with ticket triage, SLA monitoring, escalation handling, and knowledge base maintenance. Handles high-volume support with automated prioritization.
+
+## Agents
+
+| id | name | role | tags | skills |
+|----|------|------|------|--------|
+| support-lead | Support Lead | Support manager — monitors SLA compliance, handles escalation decisions, coaches agents, and reports on CSAT metrics | lead, support, management | github, gh-issues |
+| support-agent | Support Agent | Frontline support — responds to tickets, troubleshoots issues, documents solutions, and maintains first-response SLA | support, frontline |  |
+| escalation-eng | Escalation Engineer | Senior technical support — handles complex escalations, debugs difficult issues, and creates permanent fixes | support, escalation, technical | github, gh-issues |
+| knowledge-mgr | Knowledge Base Manager | Documentation — maintains FAQ, writes help articles, identifies documentation gaps from ticket patterns, and trains agents | support, knowledge, docs | github, gh-issues |
+
+## Communities
+
+- **Support Team** — All support team coordination and announcements
+
+## Groups
+
+- **Triage** — Incoming ticket triage and assignment (Support Team)
+- **Escalations** — Escalated issues requiring senior engineering attention (Support Team)
+- **Knowledge Base** — KB article creation, updates, and gap analysis (Support Team)
+- **Status** — Daily standups and SLA metrics (Support Team)
+
+## Workflows
+
+### Team Kickoff
+- **Schedule:** manual
+- **Mode:** managed
+- **Targets:** agents: support-lead; tags: lead
+
+# Support Team Kickoff
+
+You are the Support Lead. Your team just came online.
+
+## Project Configuration
+> **Customize these before applying:**
+
+- **Product/service:** [e.g., ClawMax multiagent platform]
+- **SLA targets:** [e.g., first response <1hr, resolution <24hr]
+- **Ticket source:** [e.g., GitHub issues, email, Zendesk]
+- **GitHub repo:** [e.g., owner/repo — for tracking issues]
+- **Escalation criteria:** [e.g., P0 = outage, P1 = broken feature]
+
+## Your Tasks
+1. Introduce yourself in the Support Team community
+2. Review the workspace for existing tickets or customer data
+3. Set SLA targets and escalation policies
+4. Assign initial ticket queues to support agents
+5. Brief the knowledge manager on priority documentation areas
+
+### Ticket Triage
+- **Schedule:** */30 * * * *
+- **Mode:** automated
+- **Targets:** groups: Triage
+
+# Ticket Triage Cycle
+
+1. Pull all unassigned tickets since last triage
+2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)
+3. P0/P1: immediately assign to escalation engineer and notify support lead
+4. P2/P3: assign to support agents based on current load and expertise
+5. Update ticket status and post triage summary to Triage group
+
+### SLA Monitoring
+- **Schedule:** 0 * * * *
+- **Mode:** automated
+- **Targets:** groups: Status
+
+# SLA Monitoring
+
+1. Check all open tickets against SLA thresholds
+2. Flag tickets approaching SLA breach (80% of allowed time)
+3. For breached SLAs: notify support lead and escalate if needed
+4. Calculate current SLA compliance rate and CSAT score
+5. Post hourly SLA dashboard to Status group
+
+### Knowledge Base Updates
+- **Schedule:** 0 10 * * 5
+- **Mode:** managed
+- **Targets:** agents: knowledge-mgr; groups: Knowledge Base
+
+# Weekly KB Review
+
+1. Analyze resolved tickets from the past week — identify recurring questions
+2. Check if existing KB articles cover the top 10 ticket topics
+3. Draft new articles for any gaps found
+4. Update outdated articles based on product changes
+5. Post KB update summary and link new articles in Knowledge Base group

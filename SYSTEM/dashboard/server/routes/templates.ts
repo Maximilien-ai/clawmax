@@ -8,9 +8,12 @@ import {
   importAgentFromTemplate,
   importOrganizationTemplate,
   validateTemplate,
-  slugify
+  slugify,
+  parseTemplateMd,
+  templateToMarkdown,
+  saveTemplate,
 } from '../lib/templates'
-import { listWorkflowTemplates } from '../lib/workflows'
+import { listWorkflowTemplates, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL } from '../lib/ai-generator'
 
 const router = Router()
@@ -231,6 +234,94 @@ router.post('/organizations/import', (req, res) => {
     ok: true,
     agentIds: result.agentIds
   })
+})
+
+// ============================================================================
+// Markdown Import/Export
+// ============================================================================
+
+// GET /api/templates/:type/:slug/export-md — Export template as TEMPLATE.md
+router.get('/:type/:slug/export-md', (req, res) => {
+  const { type, slug } = req.params
+  const templateType = type === 'agents' ? 'agent' : type === 'organizations' ? 'organization' : null
+  if (!templateType) return res.status(400).json({ error: 'Invalid template type' })
+
+  const template = getTemplate(templateType, slug)
+  if (!template) return res.status(404).json({ error: 'Template not found' })
+
+  const md = templateToMarkdown(template)
+  res.setHeader('Content-Type', 'text/markdown')
+  res.setHeader('Content-Disposition', `attachment; filename="TEMPLATE.md"`)
+  res.send(md)
+})
+
+// POST /api/templates/import-md — Import template from TEMPLATE.md content
+router.post('/import-md', (req, res) => {
+  try {
+    const { content, type } = req.body
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Markdown content is required' })
+    }
+
+    const template = parseTemplateMd(content)
+    if (!template) {
+      return res.status(400).json({ error: 'Failed to parse TEMPLATE.md — ensure it has valid YAML frontmatter with name and type' })
+    }
+
+    // Override type if provided
+    if (type) template.type = type
+
+    // Validate
+    const validation = validateTemplate(template)
+    if (!validation.valid) {
+      return res.status(400).json({ error: `Validation failed: ${validation.errors?.join(', ')}`, errors: validation.errors })
+    }
+
+    // Save
+    const result = saveTemplate(template)
+    if (!result.ok) {
+      return res.status(500).json({ error: result.error })
+    }
+
+    res.json({ ok: true, template, slug: slugify(template.name) })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to import template' })
+  }
+})
+
+// GET /api/workflows/:id/export-md — Export workflow as WORKFLOW.md
+router.get('/workflows/:id/export-md', (req, res) => {
+  const workflow = getWorkflow(req.params.id)
+  if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+  const md = workflowToMarkdown(workflow)
+  res.setHeader('Content-Type', 'text/markdown')
+  res.setHeader('Content-Disposition', `attachment; filename="${workflow.id}.md"`)
+  res.send(md)
+})
+
+// POST /api/workflows/import-md — Import workflow from WORKFLOW.md content
+router.post('/workflows/import-md', (req, res) => {
+  try {
+    const { content } = req.body
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Markdown content is required' })
+    }
+
+    const parsed = parseWorkflowMd(content)
+    if (!parsed) {
+      return res.status(400).json({ error: 'Failed to parse WORKFLOW.md — ensure it has valid YAML frontmatter with name' })
+    }
+
+    const result = createWorkflow(parsed)
+    if (!result.success) {
+      return res.status(400).json({ error: result.error, errors: result.errors })
+    }
+
+    res.json({ ok: true, id: result.id })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to import workflow' })
+  }
 })
 
 export default router

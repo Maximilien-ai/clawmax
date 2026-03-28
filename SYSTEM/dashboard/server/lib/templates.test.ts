@@ -451,6 +451,78 @@ test('Auth config defaults githubEnabled to false when config unavailable', () =
   assert(true, 'Auth default test — verified in AuthContext.tsx catch block')
 })
 
+// ============================================================================
+// WORKFLOW.md Format Tests
+// ============================================================================
+
+test('parseWorkflowMd parses valid workflow markdown', () => {
+  const { parseWorkflowMd } = require('./workflows')
+  const md = `---
+name: Daily Standup
+description: Async daily standup
+schedule: "30 9 * * *"
+executionMode: automated
+targeting:
+  agents: []
+  groups:
+    - Status
+  tags: []
+  communities: []
+---
+
+# Daily Standup
+
+Each team member: post three items.
+`
+  const result = parseWorkflowMd(md)
+  assert(result !== null, 'Should parse successfully')
+  assert(result.name === 'Daily Standup', `Name should match, got "${result.name}"`)
+  assert(result.schedule === '30 9 * * *', 'Schedule should match')
+  assert(result.content.includes('Each team member'), 'Content should be the body')
+  assert(result.targeting.groups.includes('Status'), 'Should have Status group targeting')
+})
+
+test('workflowToMarkdown produces valid round-trip output', () => {
+  const { workflowToMarkdown, parseWorkflowMd } = require('./workflows')
+  const workflow = {
+    id: 'test-wf',
+    name: 'Test Workflow',
+    description: 'A test',
+    schedule: 'manual',
+    enabled: true,
+    targeting: { communities: [], groups: [], tags: [], agents: ['agent-1'] },
+    created: '2026-03-28T00:00:00Z',
+    modified: '2026-03-28T00:00:00Z',
+    author: 'test',
+    executionMode: 'managed' as const,
+    owner: 'agent-1',
+    content: '# Test\n\nDo the thing.',
+  }
+  const md = workflowToMarkdown(workflow)
+  assert(md.includes('name: Test Workflow'), 'Should contain name')
+  assert(md.includes('Do the thing'), 'Should contain content')
+
+  const parsed = parseWorkflowMd(md)
+  assert(parsed !== null, 'Round-trip should succeed')
+  assert(parsed.name === 'Test Workflow', 'Round-trip name should match')
+  assert(parsed.owner === 'agent-1', 'Round-trip owner should match')
+})
+
+test('Lean TEMPLATE.md has minimal frontmatter', () => {
+  const templates = listTemplates('organization')
+  if (templates.length === 0) return
+
+  const t = templates[0] as any
+  const { templateToMarkdown } = require('./templates')
+  const mdContent = templateToMarkdown(t)
+  const fmEnd = mdContent.indexOf('---', 4)
+  const fm = mdContent.substring(0, fmEnd)
+  const fmLines = fm.split('\n').length
+
+  assert(fmLines < 40, `Frontmatter should be lean (< 40 lines), got ${fmLines}`)
+  assert(mdContent.includes('## Agents'), 'Should have ## Agents section')
+})
+
 // Summary
 setTimeout(() => {
   console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)

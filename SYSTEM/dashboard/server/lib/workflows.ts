@@ -102,6 +102,68 @@ function ensureUniqueId(baseId: string): string {
   return id
 }
 
+// ============================================================================
+// WORKFLOW.md Format — Parse and Serialize
+// ============================================================================
+
+/**
+ * Parse a WORKFLOW.md string into a Workflow object.
+ * Format: YAML frontmatter (metadata) + Markdown body (instructions).
+ */
+export function parseWorkflowMd(content: string, id?: string): Workflow | null {
+  try {
+    const { data, content: body } = matter(content)
+    if (!data.name && !id) return null
+
+    return {
+      id: id || data.id || generateId(data.name || 'workflow'),
+      name: data.name || id || '',
+      description: data.description || '',
+      schedule: data.schedule || 'manual',
+      enabled: data.enabled !== false,
+      targeting: {
+        communities: data.targeting?.communities || [],
+        groups: data.targeting?.groups || [],
+        tags: data.targeting?.tags || [],
+        agents: data.targeting?.agents || [],
+      },
+      created: data.created || new Date().toISOString(),
+      modified: data.modified || new Date().toISOString(),
+      author: data.author || '',
+      owner: data.owner,
+      executionMode: data.executionMode || 'automated',
+      maxRuns: data.maxRuns || 0,
+      runCount: data.runCount || 0,
+      content: body.trim(),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Convert a Workflow object to WORKFLOW.md format.
+ */
+export function workflowToMarkdown(workflow: Workflow): string {
+  const fm: any = {
+    id: workflow.id,
+    name: workflow.name,
+    description: workflow.description,
+    schedule: workflow.schedule,
+    enabled: workflow.enabled,
+    targeting: workflow.targeting,
+    created: workflow.created,
+    modified: workflow.modified,
+    author: workflow.author,
+    executionMode: workflow.executionMode,
+  }
+  if (workflow.owner) fm.owner = workflow.owner
+  if (workflow.maxRuns) fm.maxRuns = workflow.maxRuns
+  if (workflow.runCount) fm.runCount = workflow.runCount
+
+  return matter.stringify(workflow.content || '', fm)
+}
+
 // Helper: Validate cron expression
 export function validateCron(cronExpression: string): { valid: boolean; error?: string; humanReadable?: string } {
   try {

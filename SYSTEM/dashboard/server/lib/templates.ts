@@ -208,12 +208,18 @@ export function slugify(name: string): string {
 }
 
 // ============================================================================
-// TEMPLATE.md Support — YAML frontmatter + Markdown body
+// TEMPLATE.md Support — Lean YAML frontmatter + Structured Markdown body
 // ============================================================================
 
 /**
  * Parse a TEMPLATE.md file into a template object.
- * YAML frontmatter contains the structured data; markdown body becomes the description.
+ *
+ * Format v2 (lean): minimal frontmatter, structured markdown body
+ *   frontmatter: name, type, version, category, author, tags
+ *   body: description + ## Agents, ## Communities, ## Groups sections
+ *   Workflows are separate WORKFLOW.md files or embedded ## Workflows section
+ *
+ * Format v1 (legacy): everything in frontmatter (backward compatible)
  */
 export function parseTemplateMd(content: string): Template | null {
   try {
@@ -224,16 +230,32 @@ export function parseTemplateMd(content: string): Template | null {
       name: data.name,
       type: data.type,
       version: data.version || '1.0.0',
-      description: data.description || body.trim() || '',
+      description: data.description || '',
       author: data.author || '',
       tags: data.tags || [],
       agents: data.agents || [],
     }
 
+    if (data.category) template.category = data.category
     if (data.parameters) template.parameters = data.parameters
+
+    // v1 legacy: all data in frontmatter
     if (data.communities) template.communities = data.communities
     if (data.groups) template.groups = data.groups
     if (data.workflows) template.workflows = data.workflows
+
+    // v2 lean: parse structured markdown body sections
+    if (body.trim() && template.agents.length === 0) {
+      const parsed = parseTemplateMdBody(body)
+      if (!template.description && parsed.description) template.description = parsed.description
+      if (parsed.agents.length > 0) template.agents = parsed.agents
+      if (parsed.communities.length > 0 && !template.communities) template.communities = parsed.communities
+      if (parsed.groups.length > 0 && !template.groups) template.groups = parsed.groups
+      if (parsed.workflows.length > 0 && !template.workflows) template.workflows = parsed.workflows
+    } else if (body.trim() && !template.description) {
+      // v1: body is just the description
+      template.description = body.trim()
+    }
 
     return template as Template
   } catch {
@@ -242,16 +264,185 @@ export function parseTemplateMd(content: string): Template | null {
 }
 
 /**
- * Convert a template object to TEMPLATE.md format (YAML frontmatter + Markdown body).
+ * Parse structured markdown body sections for lean TEMPLATE.md format.
+ * Sections: description (before first ##), ## Agents, ## Communities, ## Groups, ## Workflows
+ */
+function parseTemplateMdBody(body: string): {
+  description: string
+  agents: any[]
+  communities: any[]
+  groups: any[]
+  workflows: any[]
+} {
+  const result = { description: '', agents: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[] }
+
+  // Split into sections by ## headers
+  const sections: Record<string, string> = {}
+  let currentSection = '_description'
+  const lines = body.split('\n')
+
+  for (const line of lines) {
+    const headerMatch = line.match(/^##\s+(.+)/)
+    if (headerMatch) {
+      currentSection = headerMatch[1].trim().toLowerCase()
+    } else {
+      sections[currentSection] = (sections[currentSection] || '') + line + '\n'
+    }
+  }
+
+  result.description = (sections['_description'] || '').trim()
+
+  // Parse ## Agents section — expects table or YAML list
+  if (sections['agents']) {
+    const agentLines = sections['agents'].trim().split('\n')
+    // Try table format: | id | name | role | tags | skills |
+    const tableRows = agentLines.filter(l => l.startsWith('|') && !l.match(/^\|[\s-]+\|/))
+    if (tableRows.length > 1) {
+      const headers = tableRows[0].split('|').map(h => h.trim().toLowerCase()).filter(Boolean)
+      for (let i = 1; i < tableRows.length; i++) {
+        const cells = tableRows[i].split('|').map(c => c.trim()).filter(Boolean)
+        const agent: any = {}
+        headers.forEach((h, idx) => {
+          const val = cells[idx] || ''
+          if (h === 'tags' || h === 'skills') {
+            agent[h] = val.split(',').map((s: string) => s.trim()).filter(Boolean)
+          } else {
+            agent[h] = val
+          }
+        })
+        if (agent.id) result.agents.push(agent)
+      }
+    } else {
+      // Try bullet list format: - **id**: role (tags: x, y)
+      for (const line of agentLines) {
+        const bulletMatch = line.match(/^-\s+\*\*(\S+)\*\*[:\s]+(.+)/)
+        if (bulletMatch) {
+          const id = bulletMatch[1]
+          const rest = bulletMatch[2]
+          const tagsMatch = rest.match(/\(tags?:\s*([^)]+)\)/)
+          const skillsMatch = rest.match(/\(skills?:\s*([^)]+)\)/)
+          const role = rest.replace(/\(tags?:[^)]+\)/, '').replace(/\(skills?:[^)]+\)/, '').trim()
+          result.agents.push({
+            id,
+            role,
+            tags: tagsMatch ? tagsMatch[1].split(',').map((s: string) => s.trim()) : [],
+            skills: skillsMatch ? skillsMatch[1].split(',').map((s: string) => s.trim()) : [],
+          })
+        }
+      }
+    }
+  }
+
+  // Parse ## Communities — bullet list: - **Name** — description
+  if (sections['communities']) {
+    for (const line of sections['communities'].trim().split('\n')) {
+      const match = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:—|-)\s*(.*)/)
+      if (match) {
+        result.communities.push({ name: match[1].trim(), description: match[2].trim() })
+      }
+    }
+  }
+
+  // Parse ## Groups — bullet list: - **Name** — description (Community)
+  if (sections['groups']) {
+    for (const line of sections['groups'].trim().split('\n')) {
+      const match = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:—|-)\s*(.+?)(?:\((.+?)\))?$/)
+      if (match) {
+        const group: any = { name: match[1].trim(), description: match[2].trim() }
+        if (match[3]) group.community = match[3].trim()
+        result.groups.push(group)
+      }
+    }
+  }
+
+  return result
+}
+
+/**
+ * Convert a template object to lean TEMPLATE.md format.
+ * Minimal frontmatter + structured markdown body.
  */
 export function templateToMarkdown(template: Template): string {
-  const { description, ...frontmatterData } = template as any
+  const t = template as any
+  const lines: string[] = []
 
-  // Remove runtime-only fields from frontmatter
-  delete frontmatterData.source
-  delete frontmatterData.slug
+  // YAML frontmatter — minimal
+  const fm: any = {
+    name: t.name,
+    type: t.type,
+    version: t.version || '1.0.0',
+  }
+  if (t.category) fm.category = t.category
+  if (t.author) fm.author = t.author
+  if (t.tags?.length) fm.tags = t.tags
+  if (t.parameters?.length) fm.parameters = t.parameters
 
-  return matter.stringify(description || '', frontmatterData)
+  lines.push(matter.stringify('', fm).trim())
+  lines.push('')
+
+  // Description
+  if (t.description) {
+    lines.push(t.description)
+    lines.push('')
+  }
+
+  // ## Agents — table format
+  if (t.agents?.length) {
+    lines.push('## Agents')
+    lines.push('')
+    lines.push('| id | name | role | tags | skills |')
+    lines.push('|----|------|------|------|--------|')
+    for (const a of t.agents) {
+      const tags = (a.tags || []).join(', ')
+      const skills = (a.skills || []).join(', ')
+      lines.push(`| ${a.id} | ${a.name || a.id} | ${a.role || ''} | ${tags} | ${skills} |`)
+    }
+    lines.push('')
+  }
+
+  // ## Communities
+  if (t.communities?.length) {
+    lines.push('## Communities')
+    lines.push('')
+    for (const c of t.communities) {
+      lines.push(`- **${c.name}** — ${c.description || ''}`)
+    }
+    lines.push('')
+  }
+
+  // ## Groups
+  if (t.groups?.length) {
+    lines.push('## Groups')
+    lines.push('')
+    for (const g of t.groups) {
+      const comm = g.community ? ` (${g.community})` : ''
+      lines.push(`- **${g.name}** — ${g.description || ''}${comm}`)
+    }
+    lines.push('')
+  }
+
+  // ## Workflows
+  if (t.workflows?.length) {
+    lines.push('## Workflows')
+    lines.push('')
+    for (const w of t.workflows) {
+      lines.push(`### ${w.name || w.id}`)
+      lines.push(`- **Schedule:** ${w.schedule || 'manual'}`)
+      lines.push(`- **Mode:** ${w.executionMode || 'automated'}${w.owner ? ` (owner: ${w.owner})` : ''}`)
+      const targets = []
+      if (w.targeting?.agents?.length) targets.push(`agents: ${w.targeting.agents.join(', ')}`)
+      if (w.targeting?.groups?.length) targets.push(`groups: ${w.targeting.groups.join(', ')}`)
+      if (w.targeting?.tags?.length) targets.push(`tags: ${w.targeting.tags.join(', ')}`)
+      if (targets.length) lines.push(`- **Targets:** ${targets.join('; ')}`)
+      lines.push('')
+      if (w.content) {
+        lines.push(w.content)
+        lines.push('')
+      }
+    }
+  }
+
+  return lines.join('\n')
 }
 
 /**
