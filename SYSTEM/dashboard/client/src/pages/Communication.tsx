@@ -209,7 +209,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     // Add communities
     for (const agent of activeAgents) {
-      for (const c of agent.communities) {
+      for (const c of agent.communities || []) {
         const key = `community:${c.name}`
         if (!channelMap.has(key)) {
           channelMap.set(key, {

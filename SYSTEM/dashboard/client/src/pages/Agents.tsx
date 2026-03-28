@@ -424,7 +424,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         const agent = agents.find(a => a.id === agentId)
         if (!agent) continue
 
-        const existingCommunities = agent.communities.map(c => c.name)
+        const existingCommunities = (agent.communities || []).map(c => c.name)
         const allCommunities = Array.from(new Set([...existingCommunities, ...communities]))
 
         const resp = await fetch(`/api/agents/${agentId}/communities`, {
@@ -473,7 +473,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         const resp = await fetch(`/api/agents/${agentId}/communities`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ communities: agent.communities.map(c => c.name), groups: allGroups }),
+          body: JSON.stringify({ communities: (agent.communities || []).map(c => c.name), groups: allGroups }),
         })
 
         if (resp.ok) {
@@ -2803,9 +2803,9 @@ const AgentCard = React.memo(function AgentCard({
                 )}
               </div>
             </div>
-            {(agent.communities.length > 0 || agent.groups.length > 0) ? (
+            {((agent.communities || []).length > 0 || (agent.groups || []).length > 0) ? (
               <div className="flex flex-wrap gap-1">
-                {agent.communities.map(c => (
+                {(agent.communities || []).map(c => (
                   <button
                     key={c.name}
                     title={c.description ?? undefined}
@@ -2958,7 +2958,7 @@ const AgentCard = React.memo(function AgentCard({
 
 const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage, metering }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number } }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
-  const totalGroups = agent.communities.length + agent.groups.length
+  const totalGroups = (agent.communities || []).length + (agent.groups || []).length
 
   // Format token count for display
   const formatTokens = (count: number): string => {
