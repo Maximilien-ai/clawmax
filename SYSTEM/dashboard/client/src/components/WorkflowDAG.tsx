@@ -16,6 +16,9 @@ interface WorkflowDAGProps {
   workflows: Workflow[]
   onSelect?: (workflowId: string) => void
   selectedId?: string
+  editable?: boolean
+  onAddDependency?: (fromId: string, toId: string) => void
+  onRemoveDependency?: (fromId: string, toId: string) => void
 }
 
 // Topological sort + lane assignment
@@ -78,11 +81,12 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
   blocked: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
 }
 
-export default function WorkflowDAG({ workflows, onSelect, selectedId }: WorkflowDAGProps) {
+export default function WorkflowDAG({ workflows, onSelect, selectedId, editable, onAddDependency, onRemoveDependency }: WorkflowDAGProps) {
   const { lanes, edges } = useMemo(() => layoutDAG(workflows), [workflows])
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string }>>([])
+  const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>([])
+  const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
 
   // Calculate SVG connector lines after render
   useEffect(() => {
@@ -108,6 +112,8 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId }: Workflo
           x2: toRect.left - rect.left,
           y2: toRect.top + toRect.height / 2 - rect.top,
           status: toWf?.status || 'idle',
+          fromId: edge.from,
+          toId: edge.to,
         })
       }
 
@@ -127,20 +133,44 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId }: Workflo
 
   return (
     <div ref={containerRef} className="relative overflow-x-auto">
+      {/* Connecting mode banner */}
+      {connectingFrom && (
+        <div className="bg-purple-100 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-700 px-4 py-2 flex items-center justify-between">
+          <span className="text-xs text-purple-700 dark:text-purple-300 font-medium">
+            Click a workflow to add dependency from <strong>{connectingFrom}</strong> → ...
+          </span>
+          <button onClick={() => setConnectingFrom(null)} className="text-xs text-purple-500 hover:text-purple-700">Cancel</button>
+        </div>
+      )}
+
       {/* SVG connector lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ minWidth: '100%', minHeight: '100%' }}>
+      <svg className="absolute inset-0 w-full h-full z-0" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: editable ? 'auto' : 'none' }}>
         {lines.map((line, idx) => {
           const midX = (line.x1 + line.x2) / 2
           const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
           return (
-            <path
-              key={idx}
-              d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
-              fill="none"
-              stroke={color}
-              strokeWidth={2}
-              strokeDasharray={line.status === 'idle' ? '4 4' : undefined}
-            />
+            <g key={idx}>
+              <path
+                d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={2}
+                strokeDasharray={line.status === 'idle' ? '4 4' : undefined}
+              />
+              {/* Clickable hit area for removing dependency */}
+              {editable && onRemoveDependency && (
+                <path
+                  d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={12}
+                  className="cursor-pointer"
+                  onClick={() => onRemoveDependency(line.fromId, line.toId)}
+                >
+                  <title>Click to remove: {line.fromId} → {line.toId}</title>
+                </path>
+              )}
+            </g>
           )
         })}
       </svg>
@@ -165,8 +195,27 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId }: Workflo
                 <div
                   key={wf.id}
                   ref={el => { if (el) nodeRefs.current.set(wf.id, el) }}
-                  onClick={() => onSelect?.(wf.id)}
-                  className={`rounded-lg border-2 p-3 cursor-pointer transition-all ${colors.bg} ${isSelected ? 'border-purple-500 ring-2 ring-purple-200 dark:ring-purple-800' : colors.border} hover:shadow-md`}
+                  onClick={() => {
+                    if (editable && connectingFrom) {
+                      if (connectingFrom !== wf.id) {
+                        onAddDependency?.(connectingFrom, wf.id)
+                      }
+                      setConnectingFrom(null)
+                    } else {
+                      onSelect?.(wf.id)
+                    }
+                  }}
+                  onContextMenu={editable ? (e) => {
+                    e.preventDefault()
+                    setConnectingFrom(wf.id)
+                  } : undefined}
+                  className={`rounded-lg border-2 p-3 cursor-pointer transition-all ${colors.bg} ${
+                    connectingFrom === wf.id
+                      ? 'border-purple-500 ring-2 ring-purple-300 dark:ring-purple-700'
+                      : isSelected
+                        ? 'border-purple-500 ring-2 ring-purple-200 dark:ring-purple-800'
+                        : colors.border
+                  } hover:shadow-md`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
@@ -174,9 +223,20 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId }: Workflo
                   </div>
 
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+                    <span>{wf.schedule === 'manual' || (wf as any).type === 'once' ? '▶' : (wf as any).type === 'conditional' ? '◆' : '↻'}</span>
                     <span className="font-mono">{wf.schedule === 'manual' ? 'manual' : wf.schedule === 'once' ? 'once' : 'cron'}</span>
                     <span>{wf.executionMode}</span>
                   </div>
+
+                  {/* Edit mode: connect button */}
+                  {editable && !connectingFrom && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConnectingFrom(wf.id) }}
+                      className="mt-1.5 text-[10px] text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
+                    >
+                      + Add dependency
+                    </button>
+                  )}
 
                   {/* Progress bar */}
                   {wf.progress != null && wf.progress > 0 && (
