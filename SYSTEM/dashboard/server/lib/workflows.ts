@@ -892,3 +892,80 @@ export function triggerWorkflow(workflowId: string, options?: {
     return { success: false, error: error.message }
   }
 }
+
+// ============================================================================
+// Workflow v2: DAG Execution Engine
+// ============================================================================
+
+/**
+ * Check if a workflow's dependencies are all met (completed).
+ */
+export function areDependenciesMet(workflowId: string): { met: boolean; pending: string[] } {
+  const workflow = getWorkflow(workflowId)
+  if (!workflow?.dependsOn?.length) return { met: true, pending: [] }
+
+  const pending: string[] = []
+  for (const depId of workflow.dependsOn) {
+    const dep = getWorkflow(depId)
+    if (!dep || dep.status !== 'completed') {
+      pending.push(depId)
+    }
+  }
+  return { met: pending.length === 0, pending }
+}
+
+/**
+ * Mark a workflow as completed and advance the DAG.
+ * Finds all workflows that depend on this one and checks if their deps are now met.
+ * Returns the list of workflows that are now ready to run.
+ */
+export function completeWorkflow(workflowId: string): { readyToRun: string[] } {
+  updateWorkflow(workflowId, { status: 'completed', progress: 100 } as any)
+  console.log(`[DAG] Workflow ${workflowId} completed`)
+
+  // Find all workflows that depend on this one
+  const allWorkflows = listWorkflows()
+  const readyToRun: string[] = []
+
+  for (const wf of allWorkflows) {
+    if (!wf.dependsOn?.includes(workflowId)) continue
+    if (wf.status === 'completed' || wf.status === 'running') continue
+
+    const { met } = areDependenciesMet(wf.id)
+    if (met) {
+      readyToRun.push(wf.id)
+      console.log(`[DAG] Workflow ${wf.id} dependencies met — ready to run`)
+    }
+  }
+
+  return { readyToRun }
+}
+
+/**
+ * Get the full DAG status — all workflows with their dependency state.
+ */
+export function getDAGStatus(): Array<{
+  id: string
+  name: string
+  status: string
+  progress: number
+  dependsOn: string[]
+  dependenciesMet: boolean
+  pendingDeps: string[]
+  type: string
+}> {
+  const workflows = listWorkflows()
+  return workflows.map(wf => {
+    const { met, pending } = areDependenciesMet(wf.id)
+    return {
+      id: wf.id,
+      name: wf.name,
+      status: wf.status || 'idle',
+      progress: wf.progress || 0,
+      dependsOn: wf.dependsOn || [],
+      dependenciesMet: met,
+      pendingDeps: pending,
+      type: wf.type || 'recurring',
+    }
+  })
+}
