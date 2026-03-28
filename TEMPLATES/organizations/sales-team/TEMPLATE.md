@@ -1,0 +1,215 @@
+---
+name: Sales Team
+type: organization
+version: 1.0.0
+author: ClawMax Team
+tags:
+  - business
+  - sales
+  - crm
+  - pipeline
+  - revenue
+parameters:
+  - agentId: account-exec
+    label: Number of Account Executives
+    default: 2
+    min: 1
+    max: 8
+  - agentId: sdr
+    label: Number of SDRs
+    default: 2
+    min: 1
+    max: 8
+agents:
+  - id: sales-lead
+    name: Sales Lead
+    role: >-
+      VP of Sales — owns pipeline targets, assigns territories, runs forecast
+      reviews, and coaches reps
+    tags:
+      - lead
+      - sales
+      - management
+    skills:
+      - github
+      - gh-issues
+    communities:
+      - Sales Team
+    groups:
+      - Pipeline
+      - Deals
+      - Status
+  - id: account-exec
+    name: Account Executive
+    role: >-
+      Closer — manages qualified opportunities through discovery, demo,
+      proposal, and close stages
+    tags:
+      - sales
+      - closer
+      - deals
+    skills: []
+    communities:
+      - Sales Team
+    groups:
+      - Pipeline
+      - Deals
+  - id: sdr
+    name: Sales Development Rep
+    role: >-
+      Prospector — identifies leads, sends outbound sequences, qualifies
+      inbound, and books meetings for AEs
+    tags:
+      - sales
+      - prospecting
+      - outbound
+    skills: []
+    communities:
+      - Sales Team
+    groups:
+      - Prospecting
+      - Pipeline
+  - id: sales-ops
+    name: Sales Operations
+    role: >-
+      Analytics & operations — maintains CRM hygiene, builds reports, tracks
+      quotas, and optimizes sales processes
+    tags:
+      - sales
+      - analytics
+      - ops
+    skills:
+      - github
+      - gh-issues
+    communities:
+      - Sales Team
+    groups:
+      - Pipeline
+      - Status
+communities:
+  - name: Sales Team
+    description: All sales team coordination and announcements
+groups:
+  - name: Pipeline
+    description: Deal pipeline reviews and stage updates
+    community: Sales Team
+  - name: Prospecting
+    description: 'Lead gen, outbound sequences, and qualification'
+    community: Sales Team
+  - name: Deals
+    description: Active opportunity discussions and deal strategy
+    community: Sales Team
+  - name: Status
+    description: Daily standups and team health
+    community: Sales Team
+workflows:
+  - id: kickoff
+    name: Team Kickoff
+    description: Initialize the sales team and set targets
+    schedule: manual
+    enabled: true
+    executionMode: managed
+    targeting:
+      communities: []
+      groups: []
+      tags:
+        - lead
+      agents:
+        - sales-lead
+    content: |-
+      # Sales Team Kickoff
+
+      You are the Sales Lead. Your team just came online.
+
+      ## Project Configuration
+      > **Customize these before applying:**
+
+      - **Product/service:** [e.g., ClawMax enterprise multiagent platform]
+      - **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]
+      - **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]
+      - **CRM:** [e.g., Salesforce, HubSpot, GitHub issues for tracking]
+      - **Key competitors:** [e.g., competitor A, competitor B]
+
+      ## Your Tasks
+      1. Introduce yourself in the Sales Team community
+      2. Review the workspace for existing CRM data or pipeline info
+      3. Assign territories or focus areas to each AE and SDR
+      4. Set initial pipeline targets and quota expectations
+      5. Kick off the first pipeline review in the Pipeline group
+  - id: pipeline-review
+    name: Pipeline Review
+    description: Daily pipeline health check and stage progression
+    schedule: 0 9 * * *
+    enabled: true
+    executionMode: automated
+    targeting:
+      communities: []
+      groups:
+        - Pipeline
+      tags: []
+      agents: []
+    content: >-
+      # Daily Pipeline Review
+
+
+      1. Sales ops: pull current pipeline snapshot — total value, stage
+      distribution, aging deals
+
+      2. Each AE: report on top 3 deals — stage, next steps, blockers
+
+      3. Flag any deals stuck in the same stage for 7+ days
+
+      4. Sales lead: review forecast accuracy vs last week
+
+      5. Post summary to Status group
+  - id: lead-qualification
+    name: Lead Qualification
+    description: Process and qualify new inbound and outbound leads
+    schedule: 0 */4 * * *
+    enabled: true
+    executionMode: automated
+    targeting:
+      communities: []
+      groups:
+        - Prospecting
+      tags: []
+      agents: []
+    content: >-
+      # Lead Qualification Cycle
+
+
+      1. SDRs: review new inbound leads since last cycle
+
+      2. Score each lead against ICP criteria (company size, industry, tech
+      stack)
+
+      3. For qualified leads: draft personalized outreach and schedule in
+      sequence
+
+      4. For hot leads (demo requests, pricing pages): immediately route to an
+      AE
+
+      5. Update lead status and log qualification notes
+  - id: deal-forecast
+    name: Deal Forecast
+    description: Weekly revenue forecast and pipeline analysis
+    schedule: 0 10 * * 1
+    enabled: true
+    executionMode: managed
+    targeting:
+      communities: []
+      groups:
+        - Deals
+      tags: []
+      agents: []
+    content: |-
+      # Weekly Deal Forecast
+
+      1. Sales ops: compile weighted pipeline by stage and close date
+      2. Each AE: update confidence levels on their top opportunities
+      3. Sales lead: compare forecast to quota — identify gaps
+      4. Identify at-risk deals and plan recovery actions
+      5. Post forecast summary with week-over-week delta to Status group
+category: business
+---
+A multiagent sales organization with pipeline management, lead qualification, and deal forecasting. Includes SDRs for prospecting, account executives for closing, and sales ops for analytics.
