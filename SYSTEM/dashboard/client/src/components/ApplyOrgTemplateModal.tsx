@@ -405,13 +405,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
                   // Detect field type from placeholder hint
                   const phLower = ph.toLowerCase()
+                  const commaItems = ph.split(',').map(s => s.trim()).filter(Boolean)
                   if (/^(yes|no|true|false|enabled|disabled)/i.test(phLower) || /\btrue\/false\b|\byes\/no\b/i.test(phLower)) {
                     fieldType = 'checkbox'
-                  } else if (ph.includes(',') && ph.split(',').length >= 3 && ph.split(',').every(s => !s.includes(' '))) {
-                    // Multiple comma-separated short values = dropdown
+                  } else if (commaItems.length >= 3 && !phLower.startsWith('e.g.')) {
+                    // 3+ comma-separated options = dropdown
                     fieldType = 'select'
-                    options = ph.replace(/^e\.g\.\s*,?\s*/i, '').split(',').map(s => s.trim()).filter(Boolean)
-                  } else if (phLower.includes('list') || phLower.includes('multiple') || ph.length > 80) {
+                    options = commaItems
+                  } else if (phLower.includes('list') || phLower.includes('multiple')) {
                     fieldType = 'textarea'
                   }
 
