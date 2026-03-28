@@ -47,17 +47,17 @@ End the day with:
 - hackathon work mirrored into the main backlog history
 
 ### Execution order
-1. **Foundation path**
-   Execute a simpler Senso-first template first so we guarantee something working early.
-   Recommended foundation target: `Real-Time Research Desk`
-2. **Shared skills**
-   Search Shipables.dev and SkillsHub for needed skills, reuse what exists, then build only what is missing.
-3. **Showcase demos**
-   Implement `Visual QA Lab`, `Customer Signal Desk`, and `Retail Watchtower`
-4. **Template breadth**
-   Draft the remaining 6 templates so the full slate exists in repo history
-5. **Demo packaging**
-   Capture outputs, screenshots, and sponsor-tool proof points
+- [x] **Foundation path**
+  Execute a simpler Senso-first template first so we guarantee something working early.
+  Recommended foundation target: `Real-Time Research Desk`
+- [x] **Shared skills**
+  Search Shipables.dev and SkillsHub for needed skills, reuse what exists, then build only what is missing.
+- [ ] **Showcase demos**
+  Implement `Visual QA Lab`, `Customer Signal Desk`, and `Retail Watchtower`
+- [x] **Template breadth**
+  Draft the remaining 6 templates so the full slate exists in repo history
+- [ ] **Demo packaging**
+  Capture outputs, screenshots, and sponsor-tool proof points
 
 ### Review points
 - after the foundation Senso-first path is wired
@@ -204,34 +204,34 @@ These skills can be shared across all 10 templates while keeping each template d
 
 Every selected template should follow the same Senso-centric loop:
 
-1. ingest new evidence into Senso
-2. retrieve relevant prior context from Senso
-3. generate a compact action brief
-4. triage and route inside ClawMax workflows
-5. write back outcomes and lessons into Senso
+- [x] ingest new evidence into Senso
+- [x] retrieve relevant prior context from Senso
+- [x] generate a compact action brief
+- [x] triage and route inside ClawMax workflows
+- [x] write back outcomes and lessons into Senso
 
 ## One-Day Sprint
 
 ### Phase 0: Planning lock (30-45 min)
-- [ ] Finalize the 10-template slate
-- [ ] Confirm the 3 showcase execution picks
-- [ ] Confirm the simpler Senso-first foundation execution target
-- [ ] Confirm Senso as primary sponsor integration and choose 2-3 supporting sponsor tools per selected template
-- [ ] Define artifact format for each template: agents, workflows, skills, and expected demo inputs
+- [x] Finalize the 10-template slate
+- [x] Confirm the 3 showcase execution picks
+- [x] Confirm the simpler Senso-first foundation execution target
+- [x] Confirm Senso as primary sponsor integration and choose 2-3 supporting sponsor tools per selected template
+- [x] Define artifact format for each template: agents, workflows, skills, and expected demo inputs
 
 ### Phase 1: Foundation (60-90 min)
-- [ ] Create hackathon docs and backlog
-- [ ] Define shared Senso-backed skill set
-- [ ] Decide one common Senso-centric workflow pattern for all selected templates
-- [ ] Search Shipables.dev / SkillsHub for required skills before building new ones
-- [ ] Wire `SENSO_API_KEY` locally without committing secrets
+- [x] Create hackathon docs and backlog
+- [x] Define shared Senso-backed skill set
+- [x] Decide one common Senso-centric workflow pattern for all selected templates
+- [x] Search Shipables.dev / SkillsHub for required skills before building new ones
+- [x] Wire `SENSO_API_KEY` locally without committing secrets
 - [ ] Write scoring rubric so we reject weak template ideas quickly
 - [ ] Implement the simpler Senso-first foundation execution target
 
 ### Phase 2: Template design pass (2-3 hrs)
-- [ ] Draft 10 template briefs with role list, workflows, skills, sponsor-tool mapping
-- [ ] Mark each template by complexity, demo speed, and sponsor coverage
-- [ ] Downselect final simple / medium / hard showcase trio
+- [x] Draft 10 template briefs with role list, workflows, skills, sponsor-tool mapping
+- [x] Mark each template by complexity, demo speed, and sponsor coverage
+- [x] Downselect final simple / medium / hard showcase trio
 
 ### Phase 3: Build selected trio (3-4 hrs)
 - [ ] Implement **Visual QA Lab**

@@ -5,44 +5,44 @@
 
 ## Ready Now
 
-- [ ] Finalize 10 multimodal template briefs
-- [ ] Score every candidate against autonomy / tool use / demo speed
-- [ ] Confirm the three showcase execution templates
-- [ ] Confirm the simpler Senso-first foundation execution target
-- [ ] Define shared Senso-backed skills
-- [ ] Confirm Senso workspace strategy for shared memory and evidence
-- [ ] Define sponsor-tool mapping for each selected template
+- [x] Finalize 10 multimodal template briefs
+- [x] Score every candidate against autonomy / tool use / demo speed
+- [x] Confirm the three showcase execution templates
+- [x] Confirm the simpler Senso-first foundation execution target
+- [x] Define shared Senso-backed skills
+- [x] Confirm Senso workspace strategy for shared memory and evidence
+- [x] Define sponsor-tool mapping for each selected template
 - [ ] Create demo data packs for selected templates
-- [ ] Add local `SENSO_API_KEY` without committing it
-- [ ] Search Shipables.dev / SkillsHub for required skills
+- [x] Add local `SENSO_API_KEY` without committing it
+- [x] Search Shipables.dev / SkillsHub for required skills
 
 ## Template Slate
 
-- [ ] Retail Watchtower
-- [ ] Customer Signal Desk
-- [ ] Brand Pulse Room
-- [ ] Store Ops Copilot
-- [ ] Multimodal Incident Response Team
-- [ ] Visual QA Lab
-- [ ] Real-Time Research Desk
-- [ ] Clinic Intake Triage
-- [ ] Community Safety Monitor
-- [ ] Creative Review Studio
+- [x] Retail Watchtower
+- [x] Customer Signal Desk
+- [x] Brand Pulse Room
+- [x] Store Ops Copilot
+- [x] Multimodal Incident Response Team
+- [x] Visual QA Lab
+- [x] Real-Time Research Desk
+- [x] Clinic Intake Triage
+- [x] Community Safety Monitor
+- [x] Creative Review Studio
 
 ## Selected For Execution
 
-- [ ] Visual QA Lab
-- [ ] Customer Signal Desk
-- [ ] Retail Watchtower
+- [x] Visual QA Lab
+- [x] Customer Signal Desk
+- [x] Retail Watchtower
 
 ## Foundation Execution Target
 
-- [ ] Real-Time Research Desk
+- [x] Real-Time Research Desk
 
 ## Shared Skills
 
-- [ ] `senso-ingest`
-- [ ] `senso-search`
+- [x] `senso-ingest`
+- [x] `senso-search`
 - [ ] `senso-generate`
 - [ ] `signal-triage`
 - [ ] `action-router`
@@ -59,8 +59,8 @@
 
 ## Skill Ecosystem
 
-- [ ] Reuse Shipables.dev skills wherever they fit
-- [ ] Reuse SkillsHub/workspace skills wherever they fit
+- [x] Reuse Shipables.dev skills wherever they fit
+- [x] Reuse SkillsHub/workspace skills wherever they fit
 - [ ] Publish any missing generally useful hackathon skill we create
 
 ## Stretch

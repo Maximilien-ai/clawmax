@@ -67,17 +67,17 @@
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
 
 ### Hackathon Deliverables
-- [ ] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
+- [x] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
 - [ ] **Senso-first foundation execution** — execute a lower-risk shared-memory demo before the heavier showcase templates
 - [ ] **3 showcase templates implemented** — Visual QA Lab, Customer Signal Desk, Retail Watchtower
-- [ ] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
-- [ ] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
+- [x] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
+- [x] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
 - [ ] **Missing skill publication** — if a required skill does not exist, create it and prepare/publish it for reuse
 - [ ] **Live execution results** — run selected templates and capture outputs
 - [ ] **Demo packaging** — screenshots, outputs, sponsor-tool mapping, and 3-minute story
 
 ### Backlog from Hackathon
-- [ ] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
+- [x] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
 - [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
 - [ ] **Template breadth publication** — publish remaining 6 non-showcase template specs after the selected flows stabilize
 
