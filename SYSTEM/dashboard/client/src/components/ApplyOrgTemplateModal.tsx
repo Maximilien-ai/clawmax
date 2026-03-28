@@ -361,7 +361,24 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 <input
                   type="text"
                   value={githubRepo}
-                  onChange={e => setGithubRepo(e.target.value)}
+                  onChange={e => {
+                      setGithubRepo(e.target.value)
+                      // Auto-fill GitHub repo in any kickoff workflow that has the field
+                      if (e.target.value && template.workflows) {
+                        const newOverrides = { ...workflowOverrides }
+                        for (const wf of template.workflows) {
+                          const content = newOverrides[wf.id] ?? (wf as any).content ?? ''
+                          if (content.includes('**GitHub repo:**')) {
+                            const updated = content.replace(
+                              /^(-\s+\*\*GitHub repo:\*\*)\s+.*$/m,
+                              `$1 ${e.target.value}`
+                            )
+                            if (updated !== content) newOverrides[wf.id] = updated
+                          }
+                        }
+                        setWorkflowOverrides(newOverrides)
+                      }
+                    }}
                   placeholder="owner/repo-name"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
                 />

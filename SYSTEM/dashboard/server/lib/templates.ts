@@ -194,6 +194,71 @@ export function validateAgentTemplateFiles(templateDir: string, expectedAgentId:
 }
 
 // ============================================================================
+// Template Cross-Validation
+// ============================================================================
+
+/**
+ * Validate that a template's agent references are consistent.
+ * Checks: agent IDs are valid, no duplicates, workflow targeting references existing agents/groups.
+ */
+export function validateTemplateReferences(template: Template): { valid: boolean; warnings: string[] } {
+  const warnings: string[] = []
+  const t = template as any
+
+  if (t.type !== 'organization') return { valid: true, warnings }
+
+  const agentIds = new Set((t.agents || []).map((a: any) => a.id))
+  const communityNames = new Set((t.communities || []).map((c: any) => c.name))
+  const groupNames = new Set((t.groups || []).map((g: any) => g.name))
+
+  // Check for duplicate agent IDs
+  const seenIds = new Set<string>()
+  for (const agent of t.agents || []) {
+    if (seenIds.has(agent.id)) {
+      warnings.push(`Duplicate agent ID: ${agent.id}`)
+    }
+    seenIds.add(agent.id)
+  }
+
+  // Check agent community/group references
+  for (const agent of t.agents || []) {
+    for (const comm of agent.communities || []) {
+      if (!communityNames.has(comm)) {
+        warnings.push(`Agent "${agent.id}" references unknown community "${comm}"`)
+      }
+    }
+    for (const group of agent.groups || []) {
+      if (!groupNames.has(group)) {
+        warnings.push(`Agent "${agent.id}" references unknown group "${group}"`)
+      }
+    }
+  }
+
+  // Check group community references
+  for (const group of t.groups || []) {
+    if (group.community && !communityNames.has(group.community)) {
+      warnings.push(`Group "${group.name}" references unknown community "${group.community}"`)
+    }
+  }
+
+  // Check workflow targeting references
+  for (const wf of t.workflows || []) {
+    for (const agentId of wf.targeting?.agents || []) {
+      if (!agentIds.has(agentId)) {
+        warnings.push(`Workflow "${wf.name}" targets unknown agent "${agentId}"`)
+      }
+    }
+    for (const group of wf.targeting?.groups || []) {
+      if (!groupNames.has(group)) {
+        warnings.push(`Workflow "${wf.name}" targets unknown group "${group}"`)
+      }
+    }
+  }
+
+  return { valid: warnings.length === 0, warnings }
+}
+
+// ============================================================================
 // Template Storage Operations
 // ============================================================================
 

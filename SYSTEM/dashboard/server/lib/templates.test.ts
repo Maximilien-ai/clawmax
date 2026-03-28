@@ -452,6 +452,53 @@ test('Auth config defaults githubEnabled to false when config unavailable', () =
 })
 
 // ============================================================================
+// ============================================================================
+// Template Cross-Validation Tests
+// ============================================================================
+
+test('validateTemplateReferences catches unknown agent references', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const result = validateTemplateReferences({
+    name: 'Test',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'agent-1', role: 'Test' }],
+    communities: [{ name: 'Team' }],
+    groups: [{ name: 'Dev', community: 'Team' }],
+    workflows: [{ id: 'wf-1', name: 'Test', targeting: { agents: ['agent-1', 'nonexistent'], groups: ['Dev'], tags: [], communities: [] } }],
+  })
+  assert(!result.valid, 'Should have warnings')
+  assert(result.warnings.some((w: string) => w.includes('nonexistent')), 'Should warn about nonexistent agent')
+})
+
+test('validateTemplateReferences passes for valid template', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const result = validateTemplateReferences({
+    name: 'Valid',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'lead', role: 'Lead', communities: ['Team'], groups: ['Status'] }],
+    communities: [{ name: 'Team' }],
+    groups: [{ name: 'Status', community: 'Team' }],
+    workflows: [{ id: 'kickoff', name: 'Kickoff', targeting: { agents: ['lead'], groups: ['Status'], tags: [], communities: [] } }],
+  })
+  assert(result.valid, `Should be valid, got warnings: ${result.warnings.join(', ')}`)
+})
+
+test('System templates pass cross-validation (excluding test fixtures)', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const templates = listTemplates('organization')
+  const failures: string[] = []
+  for (const t of templates) {
+    if ((t as any).tags?.includes('test') || (t as any).tags?.includes('fixture') || t.name.toLowerCase().includes('test')) continue
+    const result = validateTemplateReferences(t)
+    if (!result.valid) {
+      failures.push(`${t.name}: ${result.warnings.join('; ')}`)
+    }
+  }
+  assert(failures.length === 0, `Templates with warnings:\n${failures.join('\n')}`)
+})
+
 // WORKFLOW.md Format Tests
 // ============================================================================
 

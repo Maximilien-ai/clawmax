@@ -44,7 +44,7 @@
 - [ ] Validate all templates reference agents for which we have templates or valid IDs
 - [ ] Warn on import if template references unknown agents
 - [ ] Add validation to template save/import endpoints
-- [ ] Test
+- [x] 3 unit tests
 
 ### 6. Workflow customization UX (~40 min) DONE
 - [x] Dynamic form fields for kickoff Project Configuration (parse `[placeholder]` markers)

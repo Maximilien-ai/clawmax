@@ -8,6 +8,7 @@ import {
   importAgentFromTemplate,
   importOrganizationTemplate,
   validateTemplate,
+  validateTemplateReferences,
   slugify,
   parseTemplateMd,
   templateToMarkdown,
@@ -283,7 +284,8 @@ router.post('/import-md', (req, res) => {
       return res.status(500).json({ error: result.error })
     }
 
-    res.json({ ok: true, template, slug: slugify(template.name) })
+    const refs = validateTemplateReferences(template)
+    res.json({ ok: true, template, slug: slugify(template.name), warnings: refs.warnings.length > 0 ? refs.warnings : undefined })
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to import template' })
   }
