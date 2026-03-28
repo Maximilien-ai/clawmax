@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 25, 2026
+> Last updated: March 28, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -62,6 +62,24 @@
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
+
+## Multimodal Frontier Hack — March 28 (immediate)
+> Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
+
+### Hackathon Deliverables
+- [ ] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
+- [ ] **Senso-first foundation execution** — execute a lower-risk shared-memory demo before the heavier showcase templates
+- [ ] **3 showcase templates implemented** — Visual QA Lab, Customer Signal Desk, Retail Watchtower
+- [ ] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
+- [ ] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
+- [ ] **Missing skill publication** — if a required skill does not exist, create it and prepare/publish it for reuse
+- [ ] **Live execution results** — run selected templates and capture outputs
+- [ ] **Demo packaging** — screenshots, outputs, sponsor-tool mapping, and 3-minute story
+
+### Backlog from Hackathon
+- [ ] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
+- [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
+- [ ] **Template breadth publication** — publish remaining 6 non-showcase template specs after the selected flows stabilize
 
 ## Next Sprint: March 31 – April 11
 

@@ -34,6 +34,7 @@ export interface OpenClawSkill {
   filePath: string
   bundled: boolean
   source: 'bundled' | 'managed' | 'workspace'
+  dirty?: boolean
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string
@@ -182,6 +183,7 @@ function parseSkillFile(
       filePath,
       bundled: source === 'bundled',
       source,
+      dirty: !!openclawMeta.dirty,
       requires: openclawMeta.requires,
       install: openclawMeta.install,
       homepage: openclawMeta.homepage,
@@ -218,6 +220,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       filePath,
       bundled: false,
       source: 'workspace',
+      dirty: !!openclawMeta.dirty,
       requires: data.requires || openclawMeta.requires,
       install: data.install || openclawMeta.install,
       homepage: data.homepage || openclawMeta.homepage,
@@ -235,6 +238,50 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
 export function getSkillById(id: string): OpenClawSkill | null {
   const skills = listAvailableSkills()
   return skills.find(s => s.name === id) || null
+}
+
+export function getSkillContent(skillId: string): { skill: OpenClawSkill; content: string; editable: boolean } | null {
+  const skill = getSkillById(skillId)
+  if (!skill) return null
+
+  const content = fs.readFileSync(skill.filePath, 'utf-8')
+  const editable = skill.source !== 'bundled'
+  return { skill, content, editable }
+}
+
+export function updateSkillContent(skillId: string, content: string): { skill: OpenClawSkill; content: string; editable: boolean } {
+  const skill = getSkillById(skillId)
+  if (!skill) {
+    throw new Error(`Skill "${skillId}" not found`)
+  }
+
+  if (skill.source === 'bundled') {
+    throw new Error('Bundled skills are read-only')
+  }
+
+  const parsed = matter(content)
+  const updatedData = {
+    ...parsed.data,
+    metadata: {
+      ...(parsed.data?.metadata || {}),
+      openclaw: {
+        ...(parsed.data?.metadata?.openclaw || {}),
+        dirty: true,
+        dirtyEditedAt: new Date().toISOString(),
+        dirtyEditedBy: 'dashboard'
+      }
+    }
+  }
+
+  const nextContent = matter.stringify(parsed.content, updatedData)
+  fs.writeFileSync(skill.filePath, nextContent, 'utf-8')
+
+  const refreshed = getSkillContent(skillId)
+  if (!refreshed) {
+    throw new Error(`Skill "${skillId}" not found after update`)
+  }
+
+  return refreshed
 }
 
 /**

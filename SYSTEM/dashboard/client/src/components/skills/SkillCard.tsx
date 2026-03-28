@@ -5,12 +5,13 @@ interface SkillCardProps {
   skill: OpenClawSkill
   assigned: boolean
   onToggle?: () => void
+  onView?: () => void
   compact?: boolean
   usageCount?: number
   usedBy?: string[]
 }
 
-export function SkillCard({ skill, assigned, onToggle, compact = false, usageCount, usedBy }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, compact = false, usageCount, usedBy }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -30,6 +31,11 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
             <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">
               {skill.name}
             </h3>
+            {skill.dirty && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                DIRTY
+              </span>
+            )}
           </div>
 
           <p className="text-sm text-gray-600 line-clamp-2">
@@ -57,20 +63,31 @@ export function SkillCard({ skill, assigned, onToggle, compact = false, usageCou
         </div>
 
         {/* Action Button */}
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            className={`
-              px-3 py-1 rounded text-sm font-medium transition-colors flex-shrink-0
-              ${assigned
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-              }
-            `}
-          >
-            {assigned ? '✓ Assigned' : 'Add'}
-          </button>
-        )}
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          {onView && (
+            <button
+              onClick={onView}
+              className="px-3 py-1 rounded text-sm font-medium transition-colors border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              title={`View ${skill.name} skill.md`}
+            >
+              📄 View
+            </button>
+          )}
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className={`
+                px-3 py-1 rounded text-sm font-medium transition-colors
+                ${assigned
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                }
+              `}
+            >
+              {assigned ? '✓ Assigned' : 'Add'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Requirements & Install (expandable) */}

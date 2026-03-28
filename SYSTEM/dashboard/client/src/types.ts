@@ -22,6 +22,7 @@ export interface OpenClawSkill {
   filePath: string      // Path to SKILL.md
   bundled: boolean      // Is this a bundled skill?
   source: 'bundled' | 'managed' | 'workspace'
+  dirty?: boolean       // Edited locally from original/default behavior
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL

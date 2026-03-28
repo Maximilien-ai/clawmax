@@ -9,6 +9,10 @@ export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env
 
 /** Get the active workspace path (dynamic, supports multi-workspace) */
 export function getWorkspacePath(): string {
+  if (process.env.OPENCLAW_WORKSPACE) {
+    return process.env.OPENCLAW_WORKSPACE
+  }
+
   try {
     const manager = getWorkspaceManager()
     const activeWorkspace = manager.getActiveWorkspace()

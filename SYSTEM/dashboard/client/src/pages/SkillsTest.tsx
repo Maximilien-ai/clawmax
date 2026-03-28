@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
@@ -6,8 +8,18 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
 
+function stripFrontmatter(content: string): string {
+  if (content.startsWith('---')) {
+    const end = content.indexOf('\n---', 3)
+    if (end !== -1) {
+      return content.slice(end + 4).trim()
+    }
+  }
+  return content
+}
+
 export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
-  const { showSuccess, showError: showToastError } = useToast()
+  const { showSuccess, showWarning, showError: showToastError } = useToast()
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
@@ -30,6 +42,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
   const [registryTotal, setRegistryTotal] = useState(0)
   const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
+  const [viewingSkill, setViewingSkill] = useState<OpenClawSkill | null>(null)
+  const [skillContent, setSkillContent] = useState('')
+  const [editingSkill, setEditingSkill] = useState(false)
+  const [editingDraft, setEditingDraft] = useState('')
+  const [loadingSkillContent, setLoadingSkillContent] = useState(false)
+  const [savingSkillContent, setSavingSkillContent] = useState(false)
 
   // Load agents list on mount
   useEffect(() => {
@@ -216,6 +234,55 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setError(error.message || 'Error importing skill')
     } finally {
       setImporting(false)
+    }
+  }
+
+  async function openSkillViewer(skill: OpenClawSkill) {
+    setViewingSkill(skill)
+    setEditingSkill(false)
+    setLoadingSkillContent(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/content`)
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to load skill content')
+      }
+      setSkillContent(data.content || '')
+      setEditingDraft(data.content || '')
+    } catch (err: any) {
+      setError(err.message || 'Failed to load skill content')
+    } finally {
+      setLoadingSkillContent(false)
+    }
+  }
+
+  async function saveSkillContent() {
+    if (!viewingSkill) return
+
+    setSavingSkillContent(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(viewingSkill.name)}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editingDraft })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save skill')
+      }
+
+      setSkillContent(data.content || editingDraft)
+      setEditingDraft(data.content || editingDraft)
+      setEditingSkill(false)
+      showSuccess(`Saved ${viewingSkill.name} and marked it dirty`)
+      await loadSkills()
+      setViewingSkill(data.skill || viewingSkill)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save skill')
+    } finally {
+      setSavingSkillContent(false)
     }
   }
 
@@ -510,6 +577,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   skill={skill}
                   assigned={assignedSkills.has(skill.name)}
                   onToggle={() => toggleSkill(skill.name)}
+                  onView={() => openSkillViewer(skill)}
                   usageCount={users.length}
                   usedBy={users}
                 />
@@ -518,6 +586,121 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           </div>
         )}
         </>
+        )}
+
+        {viewingSkill && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg">{viewingSkill.emoji || '📄'}</span>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{viewingSkill.name}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                      {viewingSkill.source}
+                    </span>
+                    {viewingSkill.dirty && (
+                      <span className="text-xs px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        DIRTY
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{viewingSkill.filePath}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setViewingSkill(null)
+                    setEditingSkill(false)
+                    setSkillContent('')
+                    setEditingDraft('')
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                  View the raw `skill.md` or inspect the rendered markdown. Editing is only enabled for workspace and managed skills.
+                </div>
+                <div className="flex items-center gap-2">
+                  {!editingSkill && viewingSkill.source !== 'bundled' && (
+                    <button
+                      onClick={() => {
+                        showWarning('Editing this skill will mark it DIRTY so the divergence stays visible.')
+                        setEditingDraft(skillContent)
+                        setEditingSkill(true)
+                      }}
+                      className="px-3 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-700 text-sm font-medium"
+                    >
+                      Edit Skill
+                    </button>
+                  )}
+                  {editingSkill && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingDraft(skillContent)
+                          setEditingSkill(false)
+                        }}
+                        className="px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveSkillContent}
+                        disabled={savingSkillContent}
+                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-sm font-medium"
+                      >
+                        {savingSkillContent ? 'Saving...' : 'Save and Mark Dirty'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {editingSkill && (
+                <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                  You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 h-[calc(90vh-180px)] min-h-0">
+                <div className="border-r border-gray-200 dark:border-gray-700 min-h-0 flex flex-col">
+                  <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    Raw skill.md
+                  </div>
+                  {loadingSkillContent ? (
+                    <div className="p-6 text-sm text-gray-500 dark:text-gray-400">Loading skill content...</div>
+                  ) : editingSkill ? (
+                    <textarea
+                      value={editingDraft}
+                      onChange={(e) => setEditingDraft(e.target.value)}
+                      className="flex-1 min-h-0 w-full p-6 font-mono text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 outline-none resize-none overflow-auto"
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      <pre className="p-6 text-sm whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{skillContent}</pre>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900/40 min-h-0 flex flex-col">
+                  <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    Rendered View
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    <div className="prose prose-sm max-w-none p-6 dark:prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {stripFrontmatter(editingSkill ? editingDraft : skillContent)}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Import Skill Dialog */}
@@ -580,7 +763,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       Enter the path to a skill directory or a directory containing multiple skills. Each skill needs:
                     </p>
                     <ul className="text-sm text-gray-600 dark:text-gray-300 list-disc list-inside space-y-1 ml-2">
-                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">SKILL.md</code> - Skill description (YAML frontmatter + markdown)</li>
+                      <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">skill.md</code> - Skill description (YAML frontmatter + markdown)</li>
                       <li><code className="bg-gray-100 px-1 rounded dark:bg-gray-800">index.ts</code> - Skill implementation (optional)</li>
                     </ul>
 
