@@ -45,6 +45,13 @@ TEMPLATES/organizations/qa-team/
 
 # Workspace runtime data
 WORKSPACES/
+!WORKSPACES/default/
+WORKSPACES/default/*
+!WORKSPACES/default/SKILLS/
+WORKSPACES/default/SKILLS/*
+!WORKSPACES/default/SKILLS/custom/
+WORKSPACES/default/SKILLS/custom/*
+!WORKSPACES/default/SKILLS/custom/.gitkeep
 
 # Generated scripts
 SYSTEM/scripts/

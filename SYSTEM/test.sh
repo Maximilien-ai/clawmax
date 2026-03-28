@@ -13,7 +13,10 @@
 # Ensure we're in the SYSTEM directory
 cd "$(dirname "$0")"
 
-API_BASE="http://localhost:3001"
+BACKEND_PORT="${DASHBOARD_PORT:-3001}"
+FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
+API_BASE="http://localhost:${BACKEND_PORT}"
+FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 CURL_OPTS="--connect-timeout 5 --max-time 10"
 
 # Load dashboard auth token
@@ -101,7 +104,7 @@ fi
 # Check dashboard server is running
 if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
   echo -e "  ${RED}✗${NC} Dashboard server not running on $API_BASE"
-  echo -e "    Start it with: ${YELLOW}./SYSTEM/start.sh${NC}"
+  echo -e "    Start it with: ${YELLOW}DASHBOARD_PORT=${BACKEND_PORT} DASHBOARD_CLIENT_PORT=${FRONTEND_PORT} ./SYSTEM/start.sh${NC}"
   preflight_ok=false
 else
   echo -e "  ${GREEN}✓${NC} Dashboard server running on $API_BASE"
@@ -137,6 +140,8 @@ echo "========================================="
 echo "SYSTEM Test Suite"
 echo "Dashboard | API | Integration Tests"
 echo "========================================="
+echo "Frontend: $FRONTEND_URL"
+echo "API: $API_BASE"
 echo ""
 
 # Save current active workspace so we can restore it after tests

@@ -10,6 +10,18 @@
 
 cd "$(dirname "$0")/dashboard"
 
+BACKEND_PORT="${DASHBOARD_PORT:-3001}"
+FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
+FRONTEND_ORIGIN="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
+API_ORIGIN="${DASHBOARD_PUBLIC_URL:-http://localhost:${BACKEND_PORT}}"
+export DASHBOARD_PORT="$BACKEND_PORT"
+export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
+export DASHBOARD_APP_URL="$FRONTEND_ORIGIN"
+export DASHBOARD_PUBLIC_URL="$API_ORIGIN"
+if [ -z "$CORS_ORIGIN" ]; then
+  export CORS_ORIGIN="$FRONTEND_ORIGIN"
+fi
+
 # Set workspace to WORKSPACES/default if not already set
 if [ -z "$OPENCLAW_WORKSPACE" ]; then
   REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
@@ -29,29 +41,31 @@ done
 
 echo "Starting ClawMax Dashboard..."
 echo "Workspace: $OPENCLAW_WORKSPACE"
+echo "Backend: $API_ORIGIN"
+echo "Frontend: $FRONTEND_ORIGIN"
 echo ""
 
 # Check if already running
 BACKEND_RUNNING=false
 FRONTEND_RUNNING=false
 
-if lsof -ti:3001 > /dev/null 2>&1; then
+if lsof -ti:"$BACKEND_PORT" > /dev/null 2>&1; then
   BACKEND_RUNNING=true
-  echo "⚠ Backend already running on port 3001"
+  echo "⚠ Backend already running on port $BACKEND_PORT"
 else
-  echo "✓ Backend port 3001 is free"
+  echo "✓ Backend port $BACKEND_PORT is free"
 fi
 
-if lsof -ti:5173 > /dev/null 2>&1; then
+if lsof -ti:"$FRONTEND_PORT" > /dev/null 2>&1; then
   FRONTEND_RUNNING=true
-  echo "⚠ Frontend already running on port 5173"
+  echo "⚠ Frontend already running on port $FRONTEND_PORT"
 else
-  echo "✓ Frontend port 5173 is free"
+  echo "✓ Frontend port $FRONTEND_PORT is free"
 fi
 
 if [ "$BACKEND_RUNNING" = true ] && [ "$FRONTEND_RUNNING" = true ]; then
   echo ""
-  echo "Dashboard already running at http://localhost:5173"
+  echo "Dashboard already running at $FRONTEND_ORIGIN"
   exit 0
 fi
 
@@ -95,8 +109,8 @@ if [ "$USE_NGROK" = true ]; then
       echo ""
     fi
 
-    echo "Starting ngrok tunnel on $NGROK_URL -> localhost:5173..."
-    ngrok http --url=$NGROK_URL 5173 > /tmp/ngrok.log 2>&1 &
+    echo "Starting ngrok tunnel on $NGROK_URL -> localhost:$FRONTEND_PORT..."
+    ngrok http --url=$NGROK_URL "$FRONTEND_PORT" > /tmp/ngrok.log 2>&1 &
     NGROK_PID=$!
     sleep 2
 
@@ -123,7 +137,7 @@ if [ "$FOLLOW_LOGS" = true ]; then
   # Run in foreground with live logs
   echo ""
   echo "Running with live logs (Ctrl+C to stop)..."
-  echo "Dashboard will be available at http://localhost:5173"
+  echo "Dashboard will be available at $FRONTEND_ORIGIN"
   if [ "$USE_NGROK" = true ]; then
     echo "Public URL: https://$NGROK_URL"
   fi
@@ -152,12 +166,12 @@ else
   # Wait for servers to start
   for i in {1..15}; do
     sleep 1
-    if lsof -ti:3001 > /dev/null 2>&1 && lsof -ti:5173 > /dev/null 2>&1; then
+    if lsof -ti:"$BACKEND_PORT" > /dev/null 2>&1 && lsof -ti:"$FRONTEND_PORT" > /dev/null 2>&1; then
       echo ""
-      echo "✓ Backend running on port 3001"
-      echo "✓ Frontend running on port 5173"
+      echo "✓ Backend running on port $BACKEND_PORT"
+      echo "✓ Frontend running on port $FRONTEND_PORT"
       echo ""
-      echo "🚀 Dashboard ready at http://localhost:5173"
+      echo "🚀 Dashboard ready at $FRONTEND_ORIGIN"
       if [ "$USE_NGROK" = true ]; then
         echo "🌍 Public URL: https://$NGROK_URL"
         echo ""
