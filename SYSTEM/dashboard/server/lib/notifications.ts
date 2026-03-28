@@ -18,13 +18,25 @@ export type NotificationType =
   | 'agent-error'
   | 'agent-offline'
   | 'agent-needs-feedback'
+  | 'agent-needs-decision'
   | 'workflow-failed'
   | 'workflow-stuck'
+  | 'workflow-blocked'
+  | 'workflow-progress'
   | 'cost-warning'
   | 'cost-exceeded'
   | 'channel-activity'
 
 export type NotificationSeverity = 'critical' | 'warning' | 'info'
+
+export type NotificationActionType = 'approve' | 'reject' | 'choose' | 'input' | 'delegate' | 'pause' | 'restart' | 'view'
+
+export interface NotificationAction {
+  type: NotificationActionType
+  label: string
+  value?: string
+  agentId?: string
+}
 
 export interface Notification {
   id: string
@@ -38,14 +50,24 @@ export interface Notification {
   resolvedAt?: string
   dismissedAt?: string
   fingerprint: string
+  // Blocker/action support
+  actions?: NotificationAction[]
+  blockerType?: 'choice' | 'approval' | 'input' | 'delegation' | 'waiting'
+  blockerOptions?: string[]
+  blockerResolution?: { action: string; value?: string; resolvedBy?: string; resolvedAt?: string }
+  workflowId?: string
+  progress?: number // 0-100 for workflow-progress type
 }
 
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
   'agent-error': 'critical',
   'agent-offline': 'info',
   'agent-needs-feedback': 'warning',
+  'agent-needs-decision': 'warning',
   'workflow-failed': 'critical',
   'workflow-stuck': 'warning',
+  'workflow-blocked': 'warning',
+  'workflow-progress': 'info',
   'cost-warning': 'warning',
   'cost-exceeded': 'critical',
   'channel-activity': 'info',
@@ -87,12 +109,24 @@ export function createNotification(params: {
   entityId?: string
   entityType?: 'agent' | 'workflow' | 'budget' | 'channel'
   fingerprint: string
+  actions?: NotificationAction[]
+  blockerType?: Notification['blockerType']
+  blockerOptions?: string[]
+  workflowId?: string
+  progress?: number
 }): Notification | null {
   const notifications = loadNotifications()
 
   // Dedup: skip if active notification with same fingerprint exists
   const existing = notifications.find(n => n.fingerprint === params.fingerprint && !n.dismissedAt && !n.resolvedAt)
-  if (existing) return null
+  if (existing) {
+    // Update progress if it's a progress notification
+    if (params.progress !== undefined && existing.progress !== params.progress) {
+      existing.progress = params.progress
+      saveNotifications(notifications)
+    }
+    return null
+  }
 
   const notification: Notification = {
     id: crypto.randomUUID(),
@@ -104,11 +138,45 @@ export function createNotification(params: {
     entityType: params.entityType,
     createdAt: new Date().toISOString(),
     fingerprint: params.fingerprint,
+    actions: params.actions,
+    blockerType: params.blockerType,
+    blockerOptions: params.blockerOptions,
+    workflowId: params.workflowId,
+    progress: params.progress,
   }
 
   notifications.push(notification)
   saveNotifications(notifications)
   return notification
+}
+
+/**
+ * Resolve a notification with an action (e.g., approve, reject, choose).
+ * Used for blocker resolution and inline actions.
+ */
+export function resolveNotificationAction(id: string, action: string, value?: string, resolvedBy?: string): boolean {
+  const notifications = loadNotifications()
+  const n = notifications.find(n => n.id === id && !n.resolvedAt && !n.dismissedAt)
+  if (!n) return false
+
+  n.blockerResolution = {
+    action,
+    value,
+    resolvedBy: resolvedBy || 'user',
+    resolvedAt: new Date().toISOString(),
+  }
+  n.resolvedAt = new Date().toISOString()
+  saveNotifications(notifications)
+  return true
+}
+
+/**
+ * Get unresolved blockers for a specific workflow.
+ */
+export function getWorkflowBlockers(workflowId: string): Notification[] {
+  return getActiveNotifications().filter(n =>
+    n.workflowId === workflowId && (n.type === 'workflow-blocked' || n.type === 'agent-needs-decision')
+  )
 }
 
 export function dismissNotification(id: string): boolean {

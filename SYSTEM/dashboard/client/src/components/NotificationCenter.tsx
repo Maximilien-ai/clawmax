@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
+interface NotificationAction {
+  type: string
+  label: string
+  value?: string
+}
+
 interface Notification {
   id: string
   type: string
@@ -9,6 +15,11 @@ interface Notification {
   entityId?: string
   entityType?: 'agent' | 'workflow' | 'budget' | 'channel'
   createdAt: string
+  actions?: NotificationAction[]
+  blockerType?: 'choice' | 'approval' | 'input' | 'delegation' | 'waiting'
+  blockerOptions?: string[]
+  workflowId?: string
+  progress?: number
 }
 
 interface NotificationCenterProps {
@@ -195,8 +206,81 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{timeAgo(n.createdAt)}</span>
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</div>
+                          {/* Progress bar for workflow-progress */}
+                          {n.type === 'workflow-progress' && n.progress != null && (
+                            <div className="mt-1.5">
+                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${Math.min(n.progress, 100)}%` }} />
+                                </div>
+                                <span>{n.progress}%</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Blocker actions: approval */}
+                          {n.blockerType === 'approval' && (
+                            <div className="flex gap-1.5 mt-2">
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) })
+                                  fetchNotifications()
+                                }}
+                                className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reject' }) })
+                                  fetchNotifications()
+                                }}
+                                className="text-[11px] px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Blocker actions: choice */}
+                          {n.blockerType === 'choice' && n.blockerOptions && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {n.blockerOptions.map((opt: string) => (
+                                <button
+                                  key={opt}
+                                  onClick={async () => {
+                                    await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'choose', value: opt }) })
+                                    fetchNotifications()
+                                  }}
+                                  className="text-[11px] px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Custom actions from notification */}
+                          {n.actions && n.actions.length > 0 && !n.blockerType && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {n.actions.map((a: NotificationAction, idx: number) => (
+                                <button
+                                  key={idx}
+                                  onClick={async () => {
+                                    await fetch(`/api/notifications/${n.id}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: a.type, value: a.value }) })
+                                    fetchNotifications()
+                                  }}
+                                  className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors"
+                                >
+                                  {a.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Standard actions */}
                           <div className="flex items-center gap-2 mt-1.5">
-                            {n.entityId && (
+                            {n.entityId && !n.blockerType && (
                               <button
                                 onClick={() => handleAction(n)}
                                 className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"

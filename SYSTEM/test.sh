@@ -1217,6 +1217,24 @@ else
   fail "Dismiss invalid notification should return error"
 fi
 
+# POST /api/notifications/:id/action with invalid id
+response=$(apicurl -X POST "$API_BASE/api/notifications/invalid-id/action" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"approve"}')
+if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Action on invalid notification returns error"
+else
+  fail "Action on invalid notification should return error"
+fi
+
+# GET /api/notifications/blockers/:workflowId
+response=$(apicurl "$API_BASE/api/notifications/blockers/nonexistent-workflow")
+if echo "$response" | jq -e '.blockers' > /dev/null 2>&1; then
+  pass "Blockers endpoint returns array"
+else
+  fail "Blockers endpoint failed"
+fi
+
 echo ""
 
 # =========================================
