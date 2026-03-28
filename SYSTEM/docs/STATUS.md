@@ -1,21 +1,54 @@
 # ClawMax Status
 
-**Current Version**: v1.1.8
-**Last Updated**: March 22, 2026
-**Status**: Release shipped, CI stabilization in progress, next sprint queued
+**Current Version**: v1.1.16
+**Last Updated**: March 28, 2026
+**Status**: Deep Agents Hackathon features merged, all tests passing (121 integration + 25 unit)
 
 ---
 
 ## Current State
 
-- `v1.1.8` is released and pushed to GitHub
-- BYOK preview is in the dashboard and runtime execution now follows the intended user/system key policy
-- GitHub OAuth is working locally, including redirect back to the dashboard app
-- Local `./SYSTEM/test.sh` is passing again
-- GitHub Actions now runs on `main` pushes and `v*` tags
-- Latest follow-up work is focused on making clean-room CI deterministic
+- `v1.1.16` released — Deep Agents Hackathon (March 27) features merged to main
+- 14 organization templates across Business, Technical, and Personal categories
+- Template wizard, Shipables.dev skill marketplace, bulk operations, GitHub coordination
+- 121 integration tests + 25 unit tests all passing
+- AI generator works with both OpenAI and Anthropic keys
 
-## Shipped Recently
+## v1.1.16 — Deep Agents Hackathon Release
+
+Built at the [Deep Agents Hack](https://luma.com/deepagentshack) hackathon (March 27, 2026). Major template and skills infrastructure release.
+
+### Template System
+- **Template Wizard** — 5-step creation: Team Type, Composition, Communication, Workflows, Preview
+- **AI Generate** — describe a team in natural language, AI fills all wizard steps
+- **14 organization templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Specialty Retailer, Dev Team, Data Team, RAG Team, Engineering, Small Startup, Student Research, Technical Writing
+- **TEMPLATE.md format** — templates as YAML frontmatter + markdown (auto-detected alongside template.json)
+- **Category filters** — Business/Technical/Personal pill buttons on Templates page
+- **Kickoff workflows** — every template has a kickoff with user-fillable Project Configuration
+- **Editable workflow content** — customize all workflows (kickoff fields, instructions) before applying
+- **GitHub coordination toggle** — checkbox adds github/gh-issues skills + injects repo instructions into all workflows
+
+### Skills & Marketplace
+- **Shipables.dev integration** — search, browse, and install from 1,000+ skills registry
+- **Category browsing** — quick-filter pills (github, slack, api, data, ai, web, devops, crm)
+- **Bulk skill assignment** — add skills to multiple agents at once from Agents page
+- **One-click install** — install button per skill with "Installed" state tracking
+
+### Bug Fixes
+- **AI generator Anthropic fallback** — works with Anthropic-only BYOK keys (issue #49)
+- **Smart model defaults** — defaults to Anthropic model when only Anthropic key is set
+- **Null guard fixes** — Activity, Agents, Workflows, TopBar pages guarded against undefined API data
+- **OAuth default fix** — shows setup instructions instead of broken button when not configured
+- **Chat error styling** — ANSI code stripping, dark mode, error message detection, dismiss button
+- **Template import fix** — generates IDENTITY.md from template data when no agent files exist
+- **Workflow creation fix** — auto-assigns owner for managed workflows, accepts "once" schedule
+
+### Testing
+- 121 integration tests (up from 113)
+- 25 unit tests (up from 15)
+- New coverage: TEMPLATE.md parsing, template categories, Shipables registry, workflow overrides, bulk skills, defensive agent import
+
+## Shipped Previously
 
 ### Auth, BYOK, and Release Readiness
 - GitHub OAuth login/logout flow
