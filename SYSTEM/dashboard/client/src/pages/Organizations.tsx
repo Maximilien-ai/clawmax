@@ -164,7 +164,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
     // Extract communities
     for (const agent of activeAgents) {
-      for (const c of agent.communities) {
+      for (const c of agent.communities || []) {
         if (!communityMap.has(c.name)) {
           communityMap.set(c.name, {
             name: c.name,

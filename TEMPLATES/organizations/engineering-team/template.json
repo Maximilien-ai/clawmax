@@ -141,11 +141,9 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": [
-          "lead"
-        ],
+        "tags": [],
         "agents": [
-          "tech-lead"
+          "engineer"
         ]
       },
       "content": "# Engineering Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo]\n- **Focus areas:** [e.g., bug fixes, features, refactoring]\n- **Tech stack:** [e.g., TypeScript, Python, Go]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review the codebase\n3. Assign focus areas to engineers\n4. Set up standards and kick off first sprint",
