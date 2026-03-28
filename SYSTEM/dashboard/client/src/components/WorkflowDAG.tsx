@@ -387,10 +387,8 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
           </div>
         ))}
       </div>
-    </div>
-    </div>
-    </div>
-    </div>
+      </div>
+      </div>
     </div>
   )
 }
