@@ -239,3 +239,11 @@ Opik metering, cost badges, bulk pause/resume, dark mode audit, BYOK wizard with
 - Community rules + workflow sequencing are the coordination layer for enterprise use cases.
 - Skills ecosystem (weave-cli-skills) is the first SkillsHub contribution — model for future skills.
 - Full week March 23–31 to land P0–P5, stretch for P6–P7.
+
+### Gateway Process Management (CLI team — MUST)
+- [ ] **Process supervisor for gateway** — use pm2, systemd, or LaunchAgent with KeepAlive to ensure gateway auto-restarts on crash
+- [ ] **`stop.sh` should not kill gateway** — dashboard stop should only stop dashboard processes, not the shared gateway
+- [ ] **`start.sh` should verify gateway** — check gateway is running on startup, restart if needed
+- [ ] **Health check endpoint** — gateway should expose `/health` that the dashboard can poll
+- [ ] **Notification on gateway down** — dashboard should detect gateway offline and surface it as a critical notification
+- [ ] **Root cause**: `SYSTEM/stop.sh` kills all processes on common ports including the shared gateway (18789), leaving agents unable to communicate. Agent status shows offline even though the agent config is fine.
