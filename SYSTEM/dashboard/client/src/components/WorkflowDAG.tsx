@@ -131,8 +131,33 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
     )
   }
 
+  // Aggregate progress
+  const totalWorkflows = workflows.length
+  const completedCount = workflows.filter(w => w.status === 'completed').length
+  const runningCount = workflows.filter(w => w.status === 'running').length
+  const blockedCount = workflows.filter(w => w.status === 'blocked').length
+  const aggregateProgress = totalWorkflows > 0 ? Math.round((completedCount / totalWorkflows) * 100) : 0
+
   return (
     <div ref={containerRef} className="relative overflow-x-auto">
+      {/* Aggregate progress */}
+      <div className="px-4 pt-3 pb-1 flex items-center gap-3">
+        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${aggregateProgress >= 100 ? 'bg-emerald-500' : blockedCount > 0 ? 'bg-amber-500' : 'bg-sky-500'}`}
+            style={{ width: `${aggregateProgress}%` }}
+          />
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-gray-500 dark:text-gray-400 shrink-0">
+          <span>{aggregateProgress}%</span>
+          <span>·</span>
+          <span className="text-emerald-600">{completedCount} done</span>
+          {runningCount > 0 && <><span>·</span><span className="text-sky-600">{runningCount} running</span></>}
+          {blockedCount > 0 && <><span>·</span><span className="text-amber-600">{blockedCount} blocked</span></>}
+          <span>·</span>
+          <span>{totalWorkflows} total</span>
+        </div>
+      </div>
       {/* Connecting mode banner */}
       {connectingFrom && (
         <div className="bg-purple-100 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-700 px-4 py-2 flex items-center justify-between">
