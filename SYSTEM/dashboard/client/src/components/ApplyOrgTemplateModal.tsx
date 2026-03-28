@@ -42,6 +42,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [githubRepo, setGithubRepo] = useState('')
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
+  const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
@@ -386,6 +387,40 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {template.workflows.map((wf: any) => {
                     const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
                     const isEdited = wf.id in workflowOverrides
+                    const editingRaw = rawEditWorkflows.has(wf.id)
+
+                    // Parse [placeholder] fields from content
+                    const configFields: Array<{ label: string; placeholder: string; key: string }> = []
+                    const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+\[(.+?)\]/gm
+                    let match
+                    while ((match = fieldRegex.exec(wf.content || '')) !== null) {
+                      configFields.push({
+                        label: match[1],
+                        placeholder: match[2],
+                        key: match[1],
+                      })
+                    }
+
+                    // Get current field values from overrides
+                    const getFieldValue = (label: string): string => {
+                      const content = currentContent
+                      const lineRegex = new RegExp(`^-\\s+\\*\\*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\*\\*\\s+(.+)$`, 'm')
+                      const m = content.match(lineRegex)
+                      if (!m) return ''
+                      const val = m[1].trim()
+                      return val.startsWith('[') ? '' : val
+                    }
+
+                    const setFieldValue = (label: string, value: string) => {
+                      let content = currentContent
+                      const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                      const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
+                      if (lineRegex.test(content)) {
+                        content = content.replace(lineRegex, `$1 ${value}`)
+                      }
+                      setWorkflowOverrides(prev => ({ ...prev, [wf.id]: content }))
+                    }
+
                     return (
                       <div key={wf.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
@@ -405,14 +440,51 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               </button>
                             )}
                           </div>
+                          <button
+                            onClick={() => {
+                              const next = new Set(rawEditWorkflows)
+                              if (next.has(wf.id)) next.delete(wf.id); else next.add(wf.id)
+                              setRawEditWorkflows(next)
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          >
+                            {editingRaw ? 'Form view' : 'Edit markdown'}
+                          </button>
                         </div>
                         {wf.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{wf.description}</p>}
-                        <textarea
-                          value={currentContent}
-                          onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
-                          rows={Math.min(12, Math.max(4, currentContent.split('\n').length + 1))}
-                          className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
-                        />
+
+                        {editingRaw ? (
+                          <textarea
+                            value={currentContent}
+                            onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                            rows={Math.min(14, Math.max(4, currentContent.split('\n').length + 1))}
+                            className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                          />
+                        ) : configFields.length > 0 ? (
+                          <div className="space-y-2.5">
+                            {configFields.map(field => (
+                              <div key={field.key}>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                  {field.label}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={getFieldValue(field.label)}
+                                  onChange={e => setFieldValue(field.label, e.target.value)}
+                                  placeholder={field.placeholder}
+                                  className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <textarea
+                            value={currentContent}
+                            onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                            rows={Math.min(8, Math.max(3, currentContent.split('\n').length + 1))}
+                            className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                          />
+                        )}
                       </div>
                     )
                   })}
