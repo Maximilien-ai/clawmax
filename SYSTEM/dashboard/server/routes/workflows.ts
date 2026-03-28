@@ -557,4 +557,122 @@ router.delete('/:id/executions/:executionId', (req, res) => {
   }
 })
 
+// ============================================================================
+// Workflow v2: Progress & Dependencies
+// ============================================================================
+
+// POST /api/workflows/:id/progress — report workflow progress (0-100)
+router.post('/:id/progress', (req, res) => {
+  try {
+    const { id } = req.params
+    const { progress, detail, agentId } = req.body
+
+    if (typeof progress !== 'number' || progress < 0 || progress > 100) {
+      return res.status(400).json({ error: 'Progress must be 0-100' })
+    }
+
+    const workflow = getWorkflow(id)
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+    // Update workflow progress
+    const result = updateWorkflow(id, {
+      progress,
+      status: progress >= 100 ? 'completed' : 'running',
+    } as any)
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error })
+    }
+
+    // Create/update progress notification
+    const { createNotification } = require('../lib/notifications')
+    createNotification({
+      type: 'workflow-progress',
+      title: `${workflow.name}: ${progress}%`,
+      message: detail || `Progress: ${progress}%${agentId ? ` (reported by ${agentId})` : ''}`,
+      entityId: id,
+      entityType: 'workflow',
+      fingerprint: `workflow-progress:${id}`,
+      workflowId: id,
+      progress,
+    })
+
+    res.json({ ok: true, progress })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/workflows/:id/dependencies — check if dependencies are met
+router.get('/:id/dependencies', (req, res) => {
+  try {
+    const workflow = getWorkflow(req.params.id)
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+    const deps = (workflow as any).dependsOn || []
+    if (deps.length === 0) {
+      return res.json({ ok: true, met: true, dependencies: [] })
+    }
+
+    const depStatus = deps.map((depId: string) => {
+      const dep = getWorkflow(depId)
+      return {
+        id: depId,
+        name: dep?.name || depId,
+        status: (dep as any)?.status || 'idle',
+        progress: (dep as any)?.progress || 0,
+        met: (dep as any)?.status === 'completed' || (dep as any)?.progress >= 100,
+      }
+    })
+
+    const allMet = depStatus.every((d: any) => d.met)
+    res.json({ ok: true, met: allMet, dependencies: depStatus })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/workflows/:id/blocker — agent declares a blocker
+router.post('/:id/blocker', (req, res) => {
+  try {
+    const { id } = req.params
+    const { agentId, blockerType, title, message, options } = req.body
+
+    if (!agentId || !blockerType || !title) {
+      return res.status(400).json({ error: 'agentId, blockerType, and title are required' })
+    }
+
+    const workflow = getWorkflow(id)
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+    // Update workflow status to blocked
+    updateWorkflow(id, { status: 'blocked' } as any)
+
+    // Create blocker notification
+    const { createNotification } = require('../lib/notifications')
+    const actions = blockerType === 'approval'
+      ? [{ type: 'approve', label: 'Approve' }, { type: 'reject', label: 'Reject' }]
+      : blockerType === 'choice' && options
+        ? options.map((o: string) => ({ type: 'choose', label: o, value: o }))
+        : []
+
+    createNotification({
+      type: 'workflow-blocked',
+      title: `${workflow.name}: ${title}`,
+      message: message || `Agent ${agentId} needs a decision`,
+      entityId: agentId,
+      entityType: 'agent',
+      fingerprint: `blocker:${id}:${agentId}:${Date.now()}`,
+      actions,
+      blockerType,
+      blockerOptions: options,
+      workflowId: id,
+    })
+
+    res.json({ ok: true })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

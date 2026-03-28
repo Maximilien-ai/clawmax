@@ -31,6 +31,27 @@ parameters:
 ---
 ```
 
+#### Agent & Workflow Template References
+
+Agents in an org template can reference an **agent template** by adding a `template` field:
+
+```markdown
+| id | name | role | tags | skills | template |
+|----|------|------|------|--------|----------|
+| tech-lead | Tech Lead | Technical leadership | lead | github | senior-engineer |
+```
+
+When applied, the system looks up `TEMPLATES/agents/{template}/` for pre-built files (IDENTITY.md, SOUL.md, TOOLS.md). If the template exists, those files are copied to the new agent. If not, files are generated from the role/tags.
+
+Similarly, workflows can reference **workflow templates** stored in `WORKFLOWS/templates/`:
+
+```markdown
+### PR Review
+- **Template:** pr-review-standard
+```
+
+This allows reusable workflow definitions across multiple org templates.
+
 #### Required Fields
 
 | Field | Type | Description |

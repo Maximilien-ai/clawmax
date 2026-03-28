@@ -49,6 +49,11 @@ export interface Workflow {
   runCount?: number    // Current run count (persisted)
   cronJobId?: string   // OpenClaw cron job ID (when synced)
   content: string
+  // Workflow v2
+  dependsOn?: string[]   // Workflow IDs that must complete before this runs
+  type?: 'once' | 'recurring' | 'conditional'  // Workflow lifecycle type
+  progress?: number      // Current progress 0-100 (aggregated from agents)
+  status?: 'idle' | 'running' | 'completed' | 'blocked'  // Current workflow status
 }
 
 export interface WorkflowParticipant {
@@ -135,6 +140,10 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
       maxRuns: data.maxRuns || 0,
       runCount: data.runCount || 0,
       content: body.trim(),
+      dependsOn: data.dependsOn,
+      type: data.type,
+      progress: data.progress,
+      status: data.status,
     }
   } catch {
     return null
@@ -389,7 +398,11 @@ export function getWorkflow(id: string): Workflow | null {
       maxRuns: data.maxRuns || 0,
       runCount: data.runCount || 0,
       cronJobId: data.cronJobId,
-      content: content.trim()
+      content: content.trim(),
+      dependsOn: data.dependsOn,
+      type: data.type,
+      progress: data.progress,
+      status: data.status,
     }
   } catch (error) {
     console.error(`Error parsing workflow ${id}:`, error)

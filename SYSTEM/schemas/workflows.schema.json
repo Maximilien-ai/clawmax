@@ -52,6 +52,19 @@
       "minimum": 0,
       "description": "Maximum number of runs before auto-disabling. 0 = unlimited."
     },
+    "dependsOn": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "description": "Workflow IDs that must complete before this workflow can run"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["once", "recurring", "conditional"],
+      "description": "Workflow lifecycle type: 'once' runs once, 'recurring' repeats, 'conditional' waits for dependencies"
+    },
     "targeting": {
       "type": "object",
       "properties": {
