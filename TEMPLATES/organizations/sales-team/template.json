@@ -154,7 +154,8 @@
           "sales-lead"
         ]
       },
-      "content": "# Sales Team Kickoff\n\nYou are the Sales Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax enterprise multiagent platform]\n- **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]\n- **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]\n- **CRM:** [GitHub issues, Salesforce, HubSpot, Pipedrive, custom]\n- **Key competitors:** [e.g., competitor A, competitor B]\n\n## Your Tasks\n1. Introduce yourself in the Sales Team community\n2. Review the workspace for existing CRM data or pipeline info\n3. Assign territories or focus areas to each AE and SDR\n4. Set initial pipeline targets and quota expectations\n5. Kick off the first pipeline review in the Pipeline group"
+      "content": "# Sales Team Kickoff\n\nYou are the Sales Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax enterprise multiagent platform]\n- **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]\n- **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]\n- **CRM:** [GitHub issues, Salesforce, HubSpot, Pipedrive, custom]\n- **Key competitors:** [e.g., competitor A, competitor B]\n\n## Your Tasks\n1. Introduce yourself in the Sales Team community\n2. Review the workspace for existing CRM data or pipeline info\n3. Assign territories or focus areas to each AE and SDR\n4. Set initial pipeline targets and quota expectations\n5. Kick off the first pipeline review in the Pipeline group",
+      "type": "once"
     },
     {
       "id": "pipeline-review",
@@ -171,7 +172,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Pipeline Review\n\n1. Sales ops: pull current pipeline snapshot \u2014 total value, stage distribution, aging deals\n2. Each AE: report on top 3 deals \u2014 stage, next steps, blockers\n3. Flag any deals stuck in the same stage for 7+ days\n4. Sales lead: review forecast accuracy vs last week\n5. Post summary to Status group"
+      "content": "# Daily Pipeline Review\n\n1. Sales ops: pull current pipeline snapshot \u2014 total value, stage distribution, aging deals\n2. Each AE: report on top 3 deals \u2014 stage, next steps, blockers\n3. Flag any deals stuck in the same stage for 7+ days\n4. Sales lead: review forecast accuracy vs last week\n5. Post summary to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "lead-qualification",
@@ -188,7 +193,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Lead Qualification Cycle\n\n1. SDRs: review new inbound leads since last cycle\n2. Score each lead against ICP criteria (company size, industry, tech stack)\n3. For qualified leads: draft personalized outreach and schedule in sequence\n4. For hot leads (demo requests, pricing pages): immediately route to an AE\n5. Update lead status and log qualification notes"
+      "content": "# Lead Qualification Cycle\n\n1. SDRs: review new inbound leads since last cycle\n2. Score each lead against ICP criteria (company size, industry, tech stack)\n3. For qualified leads: draft personalized outreach and schedule in sequence\n4. For hot leads (demo requests, pricing pages): immediately route to an AE\n5. Update lead status and log qualification notes",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "deal-forecast",
@@ -205,7 +214,12 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Weekly Deal Forecast\n\n1. Sales ops: compile weighted pipeline by stage and close date\n2. Each AE: update confidence levels on their top opportunities\n3. Sales lead: compare forecast to quota \u2014 identify gaps\n4. Identify at-risk deals and plan recovery actions\n5. Post forecast summary with week-over-week delta to Status group"
+      "content": "# Weekly Deal Forecast\n\n1. Sales ops: compile weighted pipeline by stage and close date\n2. Each AE: update confidence levels on their top opportunities\n3. Sales lead: compare forecast to quota \u2014 identify gaps\n4. Identify at-risk deals and plan recovery actions\n5. Post forecast summary with week-over-week delta to Status group",
+      "dependsOn": [
+        "pipeline-review",
+        "lead-qualification"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "business"

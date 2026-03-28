@@ -132,6 +132,26 @@
   ],
   "workflows": [
     {
+      "id": "kickoff",
+      "name": "Team Kickoff",
+      "description": "Initialize the engineering team",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "tech-lead"
+        ]
+      },
+      "content": "# Engineering Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo]\n- **Focus areas:** [e.g., bug fixes, features, refactoring]\n- **Tech stack:** [e.g., TypeScript, Python, Go]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review the codebase\n3. Assign focus areas to engineers\n4. Set up standards and kick off first sprint",
+      "type": "once"
+    },
+    {
       "id": "daily-standup",
       "name": "Daily Standup",
       "description": "Engineering team daily sync",
@@ -146,7 +166,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Engineering Daily Standup\n\nProvide your update:\n\n### Yesterday\n- Code completed or PRs merged\n\n### Today\n- Tasks in progress\n\n### Blockers\n- Anything blocking your work?"
+      "content": "# Engineering Daily Standup\n\nProvide your update:\n\n### Yesterday\n- Code completed or PRs merged\n\n### Today\n- Tasks in progress\n\n### Blockers\n- Anything blocking your work?",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "code-review-reminder",
@@ -163,7 +187,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Code Review Reminder\n\nPlease review pending pull requests:\n\n1. Check your assigned PRs\n2. Prioritize PRs blocking others\n3. Provide constructive feedback\n4. Approve or request changes"
+      "content": "# Code Review Reminder\n\nPlease review pending pull requests:\n\n1. Check your assigned PRs\n2. Prioritize PRs blocking others\n3. Provide constructive feedback\n4. Approve or request changes",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "pr-review",
@@ -180,7 +208,11 @@
         ],
         "agents": []
       },
-      "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary"
+      "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "release-preparation",
@@ -197,7 +229,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item."
+      "content": "# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item.",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "technical"

@@ -190,6 +190,24 @@
   ],
   "workflows": [
     {
+      "id": "kickoff",
+      "name": "Team Kickoff",
+      "description": "Initialize the startup team",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": []
+      },
+      "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
+      "type": "once"
+    },
+    {
       "id": "daily-standup",
       "name": "Daily Standup",
       "description": "Morning sync \u2014 each team member shares progress, plans, and blockers",
@@ -204,7 +222,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Standup\n\nProvide your standup update:\n\n### 1. Yesterday\n- What did you complete?\n\n### 2. Today\n- What are your top priorities?\n\n### 3. Blockers\n- Anything blocking your work?\n\nKeep it concise (3-5 bullet points total)."
+      "content": "# Daily Standup\n\nProvide your standup update:\n\n### 1. Yesterday\n- What did you complete?\n\n### 2. Today\n- What are your top priorities?\n\n### 3. Blockers\n- Anything blocking your work?\n\nKeep it concise (3-5 bullet points total).",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "status-check",
@@ -221,7 +243,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Status Check\n\nProvide a brief status pulse:\n\n1. **Current task**: What are you working on right now?\n2. **Progress**: On track or any delays?\n3. **Need help?**: Anything you need from the team?\n\nKeep it to 2-3 sentences."
+      "content": "# Status Check\n\nProvide a brief status pulse:\n\n1. **Current task**: What are you working on right now?\n2. **Progress**: On track or any delays?\n3. **Need help?**: Anything you need from the team?\n\nKeep it to 2-3 sentences.",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "issue-triage",
@@ -238,7 +264,11 @@
         ],
         "agents": []
       },
-      "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group"
+      "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "pr-review",
@@ -255,7 +285,11 @@
         ],
         "agents": []
       },
-      "content": "# PR Review\n\nReview all open pull requests:\n\n## Tasks\n1. Check for open PRs that need review\n2. For each PR:\n   - Review code changes for correctness and quality\n   - Verify tests pass and coverage is adequate\n   - Check for TypeScript/lint errors\n   - Look for security issues or breaking changes\n   - Check dark mode styling if UI changes\n3. Provide feedback:\n   - Approve if ready to merge\n   - Request changes with specific, actionable feedback\n   - Comment on areas that need improvement\n\n## Output\n- GitHub review comment on each PR (approve or request changes)\n- Summary posted to Status group"
+      "content": "# PR Review\n\nReview all open pull requests:\n\n## Tasks\n1. Check for open PRs that need review\n2. For each PR:\n   - Review code changes for correctness and quality\n   - Verify tests pass and coverage is adequate\n   - Check for TypeScript/lint errors\n   - Look for security issues or breaking changes\n   - Check dark mode styling if UI changes\n3. Provide feedback:\n   - Approve if ready to merge\n   - Request changes with specific, actionable feedback\n   - Comment on areas that need improvement\n\n## Output\n- GitHub review comment on each PR (approve or request changes)\n- Summary posted to Status group",
+      "dependsOn": [
+        "coding"
+      ],
+      "type": "recurring"
     },
     {
       "id": "coding",
@@ -272,7 +306,11 @@
         ],
         "agents": []
       },
-      "content": "# Coding Sprint\n\nWork on your assigned GitHub issues:\n\n## Tasks\n1. Check your assigned issues (filter by your agent ID)\n2. For each assigned issue (prioritize by label: critical > bug > feature):\n   - Read the issue description and any comments\n   - Create a feature branch: `git checkout -b {issue-number}-{short-description}`\n   - Implement the fix or feature\n   - Write or update tests\n   - Run the test suite to verify\n   - Commit with clear message referencing the issue\n   - Create a pull request with description of changes\n3. If blocked, comment on the issue explaining the blocker\n\n## Output\n- PR link for each issue worked on\n- Status update posted to Status group\n- Comment on any issues where you're blocked"
+      "content": "# Coding Sprint\n\nWork on your assigned GitHub issues:\n\n## Tasks\n1. Check your assigned issues (filter by your agent ID)\n2. For each assigned issue (prioritize by label: critical > bug > feature):\n   - Read the issue description and any comments\n   - Create a feature branch: `git checkout -b {issue-number}-{short-description}`\n   - Implement the fix or feature\n   - Write or update tests\n   - Run the test suite to verify\n   - Commit with clear message referencing the issue\n   - Create a pull request with description of changes\n3. If blocked, comment on the issue explaining the blocker\n\n## Output\n- PR link for each issue worked on\n- Status update posted to Status group\n- Comment on any issues where you're blocked",
+      "dependsOn": [
+        "issue-triage"
+      ],
+      "type": "recurring"
     },
     {
       "id": "pr-merge",
@@ -289,7 +327,11 @@
         ],
         "agents": []
       },
-      "content": "# PR Merge\n\nMerge approved pull requests:\n\n## Tasks\n1. List all open PRs with approved reviews\n2. For each approved PR:\n   - Verify CI/CD checks pass (all green)\n   - Verify no merge conflicts\n   - Check PR is not labeled 'do-not-merge' or 'wip'\n   - Squash merge into main branch\n   - Delete the feature branch\n   - Comment on PR confirming merge\n   - Close related issue(s) if PR description references them\n3. If conflicts exist, notify the PR author\n\n## Output\n- List of merged PRs\n- List of PRs with issues (conflicts, failed CI)\n- Summary posted to Status group"
+      "content": "# PR Merge\n\nMerge approved pull requests:\n\n## Tasks\n1. List all open PRs with approved reviews\n2. For each approved PR:\n   - Verify CI/CD checks pass (all green)\n   - Verify no merge conflicts\n   - Check PR is not labeled 'do-not-merge' or 'wip'\n   - Squash merge into main branch\n   - Delete the feature branch\n   - Comment on PR confirming merge\n   - Close related issue(s) if PR description references them\n3. If conflicts exist, notify the PR author\n\n## Output\n- List of merged PRs\n- List of PRs with issues (conflicts, failed CI)\n- Summary posted to Status group",
+      "dependsOn": [
+        "pr-review"
+      ],
+      "type": "conditional"
     },
     {
       "id": "release",
@@ -307,7 +349,11 @@
         ],
         "agents": []
       },
-      "content": "# Release Preparation\n\nPrepare and publish a new release:\n\n## Pre-Release Checklist\n1. **Code freeze**: Verify all planned features are merged\n2. **CI/CD**: All tests passing on main branch\n3. **Open issues**: No critical/blocker issues open\n4. **Documentation**: README and CHANGELOG updated\n\n## Release Tasks\n1. Review all PRs merged since last release\n2. Update CHANGELOG.md with categorized changes (features, fixes, breaking)\n3. Bump version in package.json (semver: patch/minor/major)\n4. Create git tag (e.g., v1.2.0)\n5. Push tag to trigger release workflow\n6. Create GitHub release with release notes\n7. Verify release artifacts are published\n\n## Output\n- Updated CHANGELOG.md\n- New version tag pushed\n- GitHub release created\n- Summary posted to All Hands group"
+      "content": "# Release Preparation\n\nPrepare and publish a new release:\n\n## Pre-Release Checklist\n1. **Code freeze**: Verify all planned features are merged\n2. **CI/CD**: All tests passing on main branch\n3. **Open issues**: No critical/blocker issues open\n4. **Documentation**: README and CHANGELOG updated\n\n## Release Tasks\n1. Review all PRs merged since last release\n2. Update CHANGELOG.md with categorized changes (features, fixes, breaking)\n3. Bump version in package.json (semver: patch/minor/major)\n4. Create git tag (e.g., v1.2.0)\n5. Push tag to trigger release workflow\n6. Create GitHub release with release notes\n7. Verify release artifacts are published\n\n## Output\n- Updated CHANGELOG.md\n- New version tag pushed\n- GitHub release created\n- Summary posted to All Hands group",
+      "dependsOn": [
+        "pr-merge"
+      ],
+      "type": "conditional"
     }
   ],
   "category": "business"
