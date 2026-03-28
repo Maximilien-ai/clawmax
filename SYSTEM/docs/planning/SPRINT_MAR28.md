@@ -6,36 +6,36 @@
 
 ## Morning Block (3 hrs) — Specs & Formats
 
-### 1. Simplify TEMPLATE.md frontmatter (~30 min)
+### 1. Simplify TEMPLATE.md frontmatter (~30 min) DONE
 - [x] Audit: compare current TEMPLATE.md frontmatter with SKILL.md
-- [ ] Move heavy data (agents, workflows, communities, groups) into markdown body sections
-- [ ] Keep frontmatter minimal: name, type, version, category, author, tags, description
-- [ ] Structured body sections: `## Agents`, `## Communities`, `## Groups`, `## Workflows`
-- [ ] Update parser to handle both formats (backward compatible)
-- [ ] Regenerate all 14 TEMPLATE.md files with new format
-- [ ] Tests
+- [x] Move heavy data (agents, workflows, communities, groups) into markdown body sections
+- [x] Keep frontmatter minimal: name, type, version, category, author, tags
+- [x] Structured body sections: `## Agents`, `## Communities`, `## Groups`, `## Workflows`
+- [x] Update parser to handle both formats (backward compatible)
+- [x] Regenerate all 14 TEMPLATE.md files with new format (248→~19 lines frontmatter)
+- [x] Tests (28 unit tests, all passing)
 
-### 2. Create WORKFLOW.md format (~30 min)
-- [ ] Define WORKFLOW.md schema (YAML frontmatter + markdown body)
-- [ ] Frontmatter: name, schedule, executionMode, owner, targeting, enabled
-- [ ] Markdown body: workflow instructions (what agents do)
-- [ ] Parser: `gray-matter` to read, validate against workflow schema
-- [ ] Workflow system auto-detects .json vs .md
-- [ ] `workflowToMarkdown()` serializer
-- [ ] Tests
+### 2. Create WORKFLOW.md format (~30 min) DONE
+- [x] Define WORKFLOW.md schema (YAML frontmatter + markdown body)
+- [x] Frontmatter: name, schedule, executionMode, owner, targeting, enabled
+- [x] Markdown body: workflow instructions (what agents do)
+- [x] Parser: `parseWorkflowMd()` with `gray-matter`
+- [x] Workflow system already uses .md format natively
+- [x] `workflowToMarkdown()` serializer
+- [x] Round-trip tests passing
 
-### 3. Specs & Schemas (~30 min)
-- [ ] Create `SYSTEM/docs/specs/TEMPLATE_MD_SPEC.md` — formal spec for TEMPLATE.md format
-- [ ] Create `SYSTEM/docs/specs/WORKFLOW_MD_SPEC.md` — formal spec for WORKFLOW.md format
-- [ ] Both specs include: format overview, YAML schema, body structure, examples, validation rules
+### 3. Specs & Schemas (~30 min) DONE
+- [x] Create `SYSTEM/docs/specs/TEMPLATE_MD_SPEC.md` — formal spec
+- [x] Create `SYSTEM/docs/specs/WORKFLOW_MD_SPEC.md` — formal spec
+- [x] Both specs include: format overview, YAML schema, body structure, examples, validation rules
 - [ ] Add backlog item: publish specs to `Maximilien-ai/clawmax-specs` after April 4
 
-### 4. Import/Export via .md files (~30 min)
-- [ ] `POST /api/templates/import-md` — accept TEMPLATE.md content, validate, save
-- [ ] `GET /api/templates/:type/:slug/export-md` — export as TEMPLATE.md
-- [ ] `POST /api/workflows/import-md` — accept WORKFLOW.md content, validate, save
-- [ ] `GET /api/workflows/:id/export-md` — export as WORKFLOW.md
-- [ ] Schema validation on import for both formats
+### 4. Import/Export via .md files (~30 min) DONE
+- [x] `POST /api/templates/import-md` — accept TEMPLATE.md content, validate, save
+- [x] `GET /api/templates/:type/:slug/export-md` — export as TEMPLATE.md
+- [x] `POST /api/workflows/import-md` — accept WORKFLOW.md content, validate, save
+- [x] `GET /api/workflows/:id/export-md` — export as WORKFLOW.md
+- [x] Schema validation on import for both formats
 - [ ] UI: export button on template/workflow detail views
 
 ## Midday Block (2 hrs) — Template/Workflow Validation & UX
