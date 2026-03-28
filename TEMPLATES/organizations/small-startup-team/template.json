@@ -205,7 +205,8 @@
         "agents": []
       },
       "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
-      "type": "once"
+      "type": "once",
+      "dependsOn": []
     },
     {
       "id": "daily-standup",
@@ -287,12 +288,12 @@
       },
       "content": "# PR Review\n\nReview all open pull requests:\n\n## Tasks\n1. Check for open PRs that need review\n2. For each PR:\n   - Review code changes for correctness and quality\n   - Verify tests pass and coverage is adequate\n   - Check for TypeScript/lint errors\n   - Look for security issues or breaking changes\n   - Check dark mode styling if UI changes\n3. Provide feedback:\n   - Approve if ready to merge\n   - Request changes with specific, actionable feedback\n   - Comment on areas that need improvement\n\n## Output\n- GitHub review comment on each PR (approve or request changes)\n- Summary posted to Status group",
       "dependsOn": [
-        "coding"
+        "coding-sprint"
       ],
       "type": "recurring"
     },
     {
-      "id": "coding",
+      "id": "coding-sprint",
       "name": "Coding Sprint",
       "description": "Engineers pick up assigned issues and create PRs with fixes/features",
       "schedule": "0 10 * * 1-5",
