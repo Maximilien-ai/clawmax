@@ -1,8 +1,8 @@
 # ClawMax Status
 
-**Current Version**: v1.1.17
+**Current Version**: v1.1.20
 **Last Updated**: March 28, 2026
-**Status**: Workflow v2 sprint complete — specs, notifications, progress, DAG, dynamic UI
+**Status**: Workflow v2 complete — DAG visualization, execution engine, specs published to Maximilien-ai/templates + workflows
 
 ---
 
