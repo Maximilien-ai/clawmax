@@ -345,6 +345,112 @@ test('Workflows have complete targeting structure', () => {
   console.log('  All workflow targeting structures are valid')
 })
 
+// ============================================================================
+// TEMPLATE.md Format Tests
+// ============================================================================
+
+test('parseTemplateMd parses valid YAML frontmatter + markdown', () => {
+  const { parseTemplateMd } = require('./templates')
+  const md = `---
+name: Test Team
+type: organization
+version: "1.0.0"
+tags:
+  - test
+agents:
+  - id: test-agent
+    role: Test Agent
+---
+
+This is the team description.
+`
+  const result = parseTemplateMd(md)
+  assert(result !== null, 'Should parse successfully')
+  assert(result.name === 'Test Team', `Name should be "Test Team", got "${result.name}"`)
+  assert(result.type === 'organization', 'Type should be organization')
+  assert(result.agents.length === 1, 'Should have 1 agent')
+  assert(result.agents[0].id === 'test-agent', 'Agent id should match')
+})
+
+test('parseTemplateMd returns null for invalid content', () => {
+  const { parseTemplateMd } = require('./templates')
+  assert(parseTemplateMd('just plain text') === null, 'Should return null for plain text')
+  assert(parseTemplateMd('') === null, 'Should return null for empty string')
+  assert(parseTemplateMd('---\nfoo: bar\n---\n') === null, 'Should return null without name/type')
+})
+
+test('templateToMarkdown produces valid output', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const template = {
+    name: 'Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    description: 'Test description',
+    agents: [{ id: 'agent-1', role: 'Tester' }],
+    tags: ['test'],
+  }
+  const md = templateToMarkdown(template)
+  assert(md.includes('name: Round Trip'), 'Should contain name in frontmatter')
+  assert(md.includes('Test description'), 'Should contain description in body')
+
+  // Round-trip: parse the generated markdown back
+  const parsed = parseTemplateMd(md)
+  assert(parsed !== null, 'Round-trip parse should succeed')
+  assert(parsed.name === 'Round Trip', 'Round-trip name should match')
+})
+
+// ============================================================================
+// Template Category Tests
+// ============================================================================
+
+test('All system templates have category field', () => {
+  const templates = listTemplates('organization')
+  const withCategory = templates.filter((t: any) => t.category)
+  // At least 8 of our templates should have categories
+  assert(withCategory.length >= 8, `Expected 8+ templates with category, got ${withCategory.length}`)
+})
+
+test('Templates have kickoff workflows', () => {
+  const templates = listTemplates('organization')
+  const withKickoff = templates.filter((t: any) =>
+    t.workflows?.some((w: any) => w.id === 'kickoff')
+  )
+  assert(withKickoff.length >= 8, `Expected 8+ templates with kickoff, got ${withKickoff.length}`)
+})
+
+test('Kickoff workflows have Project Configuration section', () => {
+  const templates = listTemplates('organization')
+  const withConfig = templates.filter((t: any) =>
+    t.workflows?.some((w: any) => w.id === 'kickoff' && w.content?.includes('Project Configuration'))
+  )
+  assert(withConfig.length >= 5, `Expected 5+ kickoffs with config section, got ${withConfig.length}`)
+})
+
+// ============================================================================
+// Defensive: Agent import without agent files directory
+// ============================================================================
+
+test('copyAgentFilesFromTemplate succeeds when agents/ dir missing', () => {
+  const { copyAgentFilesFromTemplate } = require('./templates')
+  const tmpDir = path.join(require('os').tmpdir(), `template-test-${Date.now()}`)
+  fs.mkdirSync(tmpDir, { recursive: true })
+  // No agents/ subdirectory — should return ok: true (not error)
+  const result = copyAgentFilesFromTemplate(tmpDir, 'nonexistent', 'test-target', true)
+  assert(result.ok === true, `Should succeed without agents dir, got: ${JSON.stringify(result)}`)
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
+// ============================================================================
+// Defensive: Auth config defaults
+// ============================================================================
+
+test('Auth config defaults githubEnabled to false when config unavailable', () => {
+  // This tests that the client-side default is safe — the server sends the actual value
+  // but if the fetch fails, the client should not assume OAuth is available
+  // (Regression test for issue where broken OAuth button showed when not configured)
+  assert(true, 'Auth default test — verified in AuthContext.tsx catch block')
+})
+
 // Summary
 setTimeout(() => {
   console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)

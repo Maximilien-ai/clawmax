@@ -845,6 +845,37 @@ else
   warn "No agents found for skills assignment test"
 fi
 
+# Test bulk skill assignment
+if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
+   apicurl "$API_BASE/api/agents" | jq -e '.agents[1].id' > /dev/null 2>&1; then
+  agent1=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
+  agent2=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[1].id')
+
+  response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
+    -H 'Content-Type: application/json' \
+    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"github\"]}")
+
+  if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    updated=$(echo "$response" | jq -r '.updated')
+    pass "Bulk skill assignment succeeded ($updated agents)"
+  else
+    fail "Bulk skill assignment failed"
+  fi
+
+  # Test validation: invalid skills rejected
+  response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
+    -H 'Content-Type: application/json' \
+    -d "{\"agentIds\":[\"$agent1\"],\"addSkills\":[\"nonexistent-skill-xyz\"]}")
+
+  if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+    pass "Bulk skill assignment rejects invalid skills"
+  else
+    fail "Bulk skill assignment should reject invalid skills"
+  fi
+else
+  warn "Need 2+ agents for bulk skill assignment test"
+fi
+
 echo ""
 
 # =========================================
@@ -1295,6 +1326,110 @@ fi
 
 # Cleanup test directories
 rm -rf "$TEST_SKILL_DIR" "$TEST_INVALID_DIR" "$TEST_INVALID_DIR2"
+
+echo ""
+
+# =========================================
+# Section 22: Template Categories & TEMPLATE.md
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "22. Template Categories & TEMPLATE.md"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test that templates have category field
+templates_response=$(apicurl "$API_BASE/api/templates")
+if echo "$templates_response" | jq -e '.organizations | length > 0' > /dev/null 2>&1; then
+  pass "Templates API returns organizations"
+
+  # Check category field exists
+  has_category=$(echo "$templates_response" | jq '[.organizations[] | select(.category != null)] | length')
+  if [ "$has_category" -gt "0" ]; then
+    pass "Templates have category field ($has_category with category)"
+  else
+    fail "No templates have category field"
+  fi
+
+  # Check kickoff workflows exist
+  has_kickoff=$(echo "$templates_response" | jq '[.organizations[] | select(.workflows != null) | .workflows[] | select(.id == "kickoff")] | length')
+  if [ "$has_kickoff" -gt "0" ]; then
+    pass "Templates have kickoff workflows ($has_kickoff templates)"
+  else
+    warn "No templates with kickoff workflows found"
+  fi
+else
+  warn "No organization templates found"
+fi
+
+# Test TEMPLATE.md support (save a template and check both formats created)
+test_template='{"name":"Test MD Template","type":"organization","version":"1.0.0","agents":[{"id":"test-agent","role":"tester"}]}'
+test_slug="test-md-template"
+apicurl -X PUT "$API_BASE/api/templates/organizations/$test_slug" \
+  -H 'Content-Type: application/json' \
+  -d "$test_template" > /dev/null 2>&1
+
+if [ -f "WORKSPACES/default/TEMPLATES/organizations/$test_slug/template.json" ]; then
+  pass "Template save creates template.json"
+else
+  # Check global templates dir
+  if [ -f "TEMPLATES/organizations/$test_slug/template.json" ]; then
+    pass "Template save creates template.json (global)"
+  else
+    warn "template.json not found after save (may use different path)"
+  fi
+fi
+
+# Clean up test template
+apicurl -X DELETE "$API_BASE/api/templates/organizations/$test_slug" > /dev/null 2>&1
+
+# =========================================
+# Section 23: Shipables Registry API
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "23. Shipables Registry API"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test registry search (empty query returns all)
+registry_response=$(apicurl "$API_BASE/api/skills/registry/search?q=")
+if echo "$registry_response" | jq -e '.ok == true' > /dev/null 2>&1; then
+  result_count=$(echo "$registry_response" | jq '.results | length')
+  pass "Registry search returns results ($result_count skills)"
+else
+  warn "Registry search unavailable (Shipables CLI may not be installed)"
+fi
+
+# Test registry search with query
+registry_search=$(apicurl "$API_BASE/api/skills/registry/search?q=github")
+if echo "$registry_search" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Registry search with query works"
+else
+  warn "Registry search with query unavailable"
+fi
+
+# =========================================
+# Section 24: Workflow Content Overrides
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "24. Workflow Content Overrides"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test that the import endpoint accepts workflowOverrides
+# (We test the parameter parsing, not full import to avoid creating agents)
+override_response=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
+  -H 'Content-Type: application/json' \
+  -d '{"templateSlug":"nonexistent-template-xyz","workflowOverrides":{"kickoff":"custom content"}}')
+
+if echo "$override_response" | jq -e '.error' > /dev/null 2>&1; then
+  error_msg=$(echo "$override_response" | jq -r '.error')
+  if echo "$error_msg" | grep -qi "not found"; then
+    pass "Import endpoint accepts workflowOverrides parameter"
+  else
+    pass "Import endpoint responds correctly ($error_msg)"
+  fi
+else
+  fail "Import endpoint should return error for nonexistent template"
+fi
 
 echo ""
 

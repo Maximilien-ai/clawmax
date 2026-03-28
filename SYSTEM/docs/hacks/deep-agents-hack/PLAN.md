@@ -17,9 +17,9 @@ Templates should also be definable as **TEMPLATE.md** (YAML frontmatter + Markdo
 - Schema validation ensures correctness regardless of format
 
 **Implementation:**
-- [ ] Define TEMPLATE.md schema (YAML frontmatter with agents, communities, groups, workflows)
-- [ ] Parser: `gray-matter` to extract frontmatter, validate against schema
-- [ ] Template system accepts both template.json and TEMPLATE.md (auto-detect)
+- [x] Define TEMPLATE.md schema (YAML frontmatter with agents, communities, groups, workflows)
+- [x] Parser: `gray-matter` to extract frontmatter, validate against schema
+- [x] Template system accepts both template.json and TEMPLATE.md (auto-detect)
 - [ ] AI Generate outputs TEMPLATE.md format
 - [ ] Wizard exports as TEMPLATE.md
 
@@ -135,9 +135,9 @@ Pick 2-3 templates and deploy real teams:
 **Why:** Agents created from templates could install domain-specific skills from Shipables (e.g., CRM skills for Sales Team, ticketing skills for Support Team) without us building them.
 
 **Integration approach:**
-- [ ] **Import from Shipables** — add "Shipables Registry" tab in Import Skill dialog
-- [ ] **Search Shipables** — `npx @senso-ai/shipables search <query>` or API if available
-- [ ] **Install to workspace** — `npx @senso-ai/shipables install <skill>` → copy to workspace SKILLS/custom/
+- [x] **Import from Shipables** — add "Shipables Registry" tab in Import Skill dialog
+- [x] **Search Shipables** — `npx @senso-ai/shipables search <query>` via API
+- [x] **Install to workspace** — install + import via existing pipeline to SKILLS/custom/
 - [ ] **Browse in UI** — show Shipables catalog alongside bundled/workspace skills
 
 **Other registries to consider (same standard):**

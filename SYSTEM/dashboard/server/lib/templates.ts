@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import matter from 'gray-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
 import { execSync } from 'child_process'
@@ -206,6 +207,77 @@ export function slugify(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+// ============================================================================
+// TEMPLATE.md Support — YAML frontmatter + Markdown body
+// ============================================================================
+
+/**
+ * Parse a TEMPLATE.md file into a template object.
+ * YAML frontmatter contains the structured data; markdown body becomes the description.
+ */
+export function parseTemplateMd(content: string): Template | null {
+  try {
+    const { data, content: body } = matter(content)
+    if (!data.name || !data.type) return null
+
+    const template: any = {
+      name: data.name,
+      type: data.type,
+      version: data.version || '1.0.0',
+      description: data.description || body.trim() || '',
+      author: data.author || '',
+      tags: data.tags || [],
+      agents: data.agents || [],
+    }
+
+    if (data.parameters) template.parameters = data.parameters
+    if (data.communities) template.communities = data.communities
+    if (data.groups) template.groups = data.groups
+    if (data.workflows) template.workflows = data.workflows
+
+    return template as Template
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Convert a template object to TEMPLATE.md format (YAML frontmatter + Markdown body).
+ */
+export function templateToMarkdown(template: Template): string {
+  const { description, ...frontmatterData } = template as any
+
+  // Remove runtime-only fields from frontmatter
+  delete frontmatterData.source
+  delete frontmatterData.slug
+
+  return matter.stringify(description || '', frontmatterData)
+}
+
+/**
+ * Read a template from a directory, checking both template.json and TEMPLATE.md.
+ * template.json takes priority if both exist.
+ */
+function readTemplateFromDir(dir: string): Template | null {
+  // Try template.json first
+  const jsonPath = path.join(dir, 'template.json')
+  if (fs.existsSync(jsonPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
+    } catch {}
+  }
+
+  // Fall back to TEMPLATE.md
+  const mdPath = path.join(dir, 'TEMPLATE.md')
+  if (fs.existsSync(mdPath)) {
+    try {
+      return parseTemplateMd(fs.readFileSync(mdPath, 'utf-8'))
+    } catch {}
+  }
+
+  return null
+}
+
 /**
  * Save template to filesystem
  */
@@ -231,6 +303,10 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
     // Write template.json
     const templateJsonPath = path.join(templateDir, 'template.json')
     fs.writeFileSync(templateJsonPath, JSON.stringify(template, null, 2), 'utf-8')
+
+    // Also write TEMPLATE.md
+    const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
+    fs.writeFileSync(templateMdPath, templateToMarkdown(template), 'utf-8')
 
     return { ok: true, path: templateDir }
   } catch (err) {
@@ -285,16 +361,13 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
 
   for (const entry of dirs) {
     try {
-      const templateJsonPath = path.join(entry.dir, 'template.json')
-      if (fs.existsSync(templateJsonPath)) {
-        const template = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-        if (!templates.has(template.name)) {
-          templates.set(template.name, {
-            ...template,
-            source: entry.source,
-            slug: entry.slug,
-          })
-        }
+      const template = readTemplateFromDir(entry.dir)
+      if (template && !templates.has(template.name)) {
+        templates.set(template.name, {
+          ...template,
+          source: entry.source,
+          slug: entry.slug,
+        })
       }
     } catch (err) {
       console.error(`Failed to read template at ${entry.dir}:`, err)
@@ -316,15 +389,9 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
     ? path.join(getAgentTemplatesDir(), slug)
     : path.join(getOrgTemplatesDir(), slug)
 
-  const workspaceTemplatePath = path.join(workspaceTemplateDir, 'template.json')
-  if (fs.existsSync(workspaceTemplatePath)) {
-    try {
-      return {
-        ...JSON.parse(fs.readFileSync(workspaceTemplatePath, 'utf-8')),
-        source: 'workspace',
-        slug,
-      }
-    } catch {}
+  if (fs.existsSync(workspaceTemplateDir)) {
+    const template = readTemplateFromDir(workspaceTemplateDir)
+    if (template) return { ...template, source: 'workspace', slug }
   }
 
   // Check global templates second (system templates)
@@ -332,15 +399,9 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
     ? path.join(getGlobalAgentTemplatesDir(), slug)
     : path.join(getGlobalOrgTemplatesDir(), slug)
 
-  const globalTemplatePath = path.join(globalTemplateDir, 'template.json')
-  if (fs.existsSync(globalTemplatePath)) {
-    try {
-      return {
-        ...JSON.parse(fs.readFileSync(globalTemplatePath, 'utf-8')),
-        source: 'system',
-        slug,
-      }
-    } catch {}
+  if (fs.existsSync(globalTemplateDir)) {
+    const template = readTemplateFromDir(globalTemplateDir)
+    if (template) return { ...template, source: 'system', slug }
   }
 
   return null
@@ -445,7 +506,8 @@ export function copyAgentFilesFromTemplate(
     const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
 
     if (!fs.existsSync(templateAgentDir)) {
-      return { ok: false, error: `Template agent directory not found: ${templateAgentDir}` }
+      // No pre-built agent files — agent will be created with defaults
+      return { ok: true }
     }
 
     // Create target directory
@@ -880,6 +942,7 @@ export function importOrganizationTemplate(
     includeBuiltIn?: boolean
     modelOverride?: string
     agentCounts?: Record<string, number>
+    workflowOverrides?: Record<string, string>
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -962,17 +1025,35 @@ export function importOrganizationTemplate(
           throw new Error(`Failed to copy agent files: ${copyResult.error}`)
         }
 
-        // Update Name in IDENTITY.md if agent was expanded (e.g., engineer -> engineer1)
-        if (sourceAgentId !== templateAgent.id) {
-          const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
-          if (fs.existsSync(identityPath)) {
-            let content = fs.readFileSync(identityPath, 'utf-8')
-            content = content.replace(
-              /^-\s+\*\*Name:\*\*\s+.+$/m,
-              `- **Name:** ${templateAgent.name || targetAgentId}`
-            )
-            fs.writeFileSync(identityPath, content, 'utf-8')
-          }
+        // Generate IDENTITY.md from template data if none exists
+        const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
+        if (!fs.existsSync(identityPath)) {
+          fs.mkdirSync(targetAgentDir, { recursive: true })
+          const agentName = templateAgent.name || targetAgentId
+          const agentRole = templateAgent.role || 'AI Agent'
+          const agentTags = templateAgent.tags || []
+          const now = new Date().toISOString()
+          const identityContent = `# ${agentName}
+
+- **Name:** ${agentName}
+- **Role:** ${agentRole}
+- **Tags:** ${agentTags.length > 0 ? agentTags.join(', ') : 'none'}
+${options?.modelOverride ? `- **Model:** ${options.modelOverride}` : ''}
+
+## Creation Metadata
+- **Created:** ${now}
+- **Source Template:** ${template.name} (v${template.version})
+${template.author ? `- **Template Author:** ${template.author}` : ''}
+`
+          fs.writeFileSync(identityPath, identityContent, 'utf-8')
+        } else if (sourceAgentId !== templateAgent.id) {
+          // Update Name in IDENTITY.md if agent was expanded (e.g., engineer -> engineer1)
+          let content = fs.readFileSync(identityPath, 'utf-8')
+          content = content.replace(
+            /^-\s+\*\*Name:\*\*\s+.+$/m,
+            `- **Name:** ${templateAgent.name || targetAgentId}`
+          )
+          fs.writeFileSync(identityPath, content, 'utf-8')
         }
 
         // Override model in IDENTITY.md if specified
@@ -1454,20 +1535,27 @@ export function importOrganizationTemplate(
               agents: newAgents
             }
 
-            console.log(`[Template Import] Creating workflow "${wf.name}" with ${newAgents.length} agents`)
+            // For managed workflows, auto-assign owner from first targeted agent
+            const execMode = wf.executionMode || 'automated'
+            const owner = execMode === 'managed'
+              ? (newAgents[0] || createdAgents[0] || undefined)
+              : undefined
+
+            console.log(`[Template Import] Creating workflow "${wf.name}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
               name: wf.name,
               description: wf.description,
               schedule: wf.schedule,
               enabled: wf.enabled !== false,
-              executionMode: wf.executionMode || 'automated',
+              executionMode: execMode,
+              owner,
               targeting: updatedTargeting,
-              content: wf.content || 'Execute workflow tasks.',
+              content: options?.workflowOverrides?.[wf.id] || wf.content || 'Execute workflow tasks.',
               author: template.author || 'imported'
             })
 
             if (!result.success) {
-              console.warn(`Failed to create workflow ${wf.name}: ${result.error}`)
+              console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
               // Don't fail the whole import for workflow creation failures
             }
           }

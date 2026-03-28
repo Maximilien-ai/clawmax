@@ -38,6 +38,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [applying, setApplying] = useState(false)
   const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [useGithub, setUseGithub] = useState(false)
+  const [githubRepo, setGithubRepo] = useState('')
+  const [showWorkflowSection, setShowWorkflowSection] = useState(false)
+  const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
@@ -111,6 +115,18 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
       }, 800)
 
+      // Build final workflow overrides — inject GitHub context if enabled
+      const finalOverrides = { ...workflowOverrides }
+      if (useGithub && githubRepo.trim() && template.workflows) {
+        const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('GitHub Coordination')) {
+            finalOverrides[wf.id] = existing + ghBlock
+          }
+        }
+      }
+
       const resp = await fetch('/api/templates/organizations/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,6 +137,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           includeBuiltIn,
           modelOverride: modelOverride || undefined,
           agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
+          workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
         }),
       })
 
@@ -128,6 +145,29 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       clearInterval(progressInterval)
 
       if (resp.ok) {
+        const createdAgentIds: string[] = data.agentIds || []
+
+        // Add or remove github skills based on checkbox
+        if (createdAgentIds.length > 0) {
+          const githubSkills = ['github', 'gh-issues']
+          if (useGithub) {
+            setApplyProgress('Adding GitHub skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: githubSkills }),
+            }).catch(() => {})
+          } else {
+            // Remove github skills if user unchecked (template may have included them)
+            setApplyProgress('Finalizing skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: [], removeSkills: githubSkills }),
+            }).catch(() => {})
+          }
+        }
+
         showSuccess(`Template "${template.name}" applied successfully!`)
         setApplyProgress('Done! Refreshing workspace...')
         setTimeout(() => {
@@ -253,15 +293,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent ID Customization */}
-          <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-sky-900 mb-3">Agent ID Customization</h3>
-            <p className="text-xs text-sky-700 mb-3">
+          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-200 mb-3">Agent ID Customization</h3>
+            <p className="text-xs text-sky-700 dark:text-sky-400 mb-3">
               Add a prefix or suffix to avoid conflicts with existing agents. Leave blank to keep original IDs.
             </p>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Prefix
                 </label>
                 <input
@@ -269,12 +309,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={prefix}
                   onChange={e => setPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., proj1-"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Suffix
                 </label>
                 <input
@@ -282,18 +322,104 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   value={suffix}
                   onChange={e => setSuffix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder="e.g., -v2"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm dark:border-gray-600"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                 />
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 border border-sky-300 rounded p-2">
-              <div className="text-xs text-gray-500 mb-1">Preview:</div>
-              <div className="font-mono text-sm text-sky-700">
+            <div className="bg-white dark:bg-gray-800 border border-sky-300 dark:border-sky-700 rounded p-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Preview:</div>
+              <div className="font-mono text-sm text-sky-700 dark:text-sky-400">
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
               </div>
             </div>
           </div>
+
+          {/* GitHub Coordination */}
+          <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useGithub}
+                onChange={e => setUseGithub(e.target.checked)}
+                className="mt-0.5 rounded"
+              />
+              <div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Use GitHub for coordination</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Agents will use a GitHub repo for issues, PRs, file storage, and code review. Adds github + gh-issues skills to all agents.
+                </div>
+              </div>
+            </label>
+            {useGithub && (
+              <div className="mt-3 ml-7">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  GitHub Repository
+                </label>
+                <input
+                  type="text"
+                  value={githubRepo}
+                  onChange={e => setGithubRepo(e.target.value)}
+                  placeholder="owner/repo-name"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Agents will create issues, branches, and PRs in this repo</p>
+              </div>
+            )}
+          </div>
+
+          {/* Customize Workflows (collapsible) */}
+          {template.workflows && template.workflows.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowWorkflowSection(!showWorkflowSection)}
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Customize Workflows ({template.workflows.length} workflow{template.workflows.length !== 1 ? 's' : ''})
+                </h3>
+                <span className="text-gray-400 text-xs">{showWorkflowSection ? '▼' : '▶'}</span>
+              </button>
+              {showWorkflowSection && (
+                <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto">
+                  {template.workflows.map((wf: any) => {
+                    const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
+                    const isEdited = wf.id in workflowOverrides
+                    return (
+                      <div key={wf.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{wf.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-mono">{wf.schedule}</span>
+                            {isEdited && (
+                              <button
+                                onClick={() => {
+                                  const next = { ...workflowOverrides }
+                                  delete next[wf.id]
+                                  setWorkflowOverrides(next)
+                                }}
+                                className="text-[10px] text-sky-600 hover:text-sky-700"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {wf.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{wf.description}</p>}
+                        <textarea
+                          value={currentContent}
+                          onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                          rows={Math.min(12, Math.max(4, currentContent.split('\n').length + 1))}
+                          className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Agent List with Models (collapsible) */}
           <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">

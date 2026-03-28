@@ -23,9 +23,38 @@ interface Props {
   onSuccess?: () => void
 }
 
+// Strip ANSI escape codes from text
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '')
+}
+
+// Detect if content is an error/diagnostic message
+function isErrorContent(content: string): boolean {
+  return /\[diagnostic\]|lane task error|session file locked|Error:|error="/i.test(content)
+}
+
 // Strip OpenClaw internal data from message content
 function cleanMessageContent(content: string): string {
   if (!content) return content
+
+  // Strip ANSI codes first
+  content = stripAnsi(content)
+
+  // Detect raw gateway message payloads: [ { "id": "...", "content": "..." } ]
+  // Extract just the content fields
+  try {
+    const trimmed = content.trim()
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      const parsed = JSON.parse(trimmed)
+      const items = Array.isArray(parsed) ? parsed : [parsed]
+      if (items.length > 0 && items[0].content && items[0].from) {
+        return items.map(m => m.content).filter(Boolean).join('\n\n')
+      }
+      if (items.length > 0 && items[0].payloads) {
+        return items[0].payloads.map((p: any) => p.text).filter(Boolean).join('\n\n')
+      }
+    }
+  } catch {}
 
   // Process line by line — keep only human-readable content
   const lines = content.split('\n')
@@ -607,16 +636,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             </div>
           )}
 
-          {messages.map((msg, idx) => (
+          {messages.map((msg, idx) => {
+            const msgIsError = msg.role === 'assistant' && isErrorContent(msg.content)
+            return (
             <div
               key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`max-w-[80%] rounded-lg px-4 py-2 relative group ${
-                  msg.role === 'user'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
+                  msgIsError
+                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                    : msg.role === 'user'
+                      ? 'bg-sky-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
                 }`}
               >
                 {msg.role === 'assistant' ? (
@@ -704,15 +737,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
 
           <div ref={messagesEndRef} />
         </div>
 
         {/* Error */}
         {error && (
-          <div className="px-6 py-2 bg-red-50 border-t border-red-200">
-            <p className="text-sm text-red-600">{error}</p>
+          <div className="px-6 py-2 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800 flex items-center justify-between">
+            <p className="text-sm text-red-600 dark:text-red-400">{stripAnsi(error)}</p>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 dark:hover:text-red-300 text-xs ml-2 shrink-0">✕</button>
           </div>
         )}
 

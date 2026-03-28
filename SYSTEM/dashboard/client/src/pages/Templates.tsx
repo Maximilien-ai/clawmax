@@ -3,6 +3,7 @@ import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import TemplateWizard from '../components/TemplateWizard'
 
 interface AgentTemplate {
   name: string
@@ -111,6 +112,7 @@ export default function Templates() {
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal'>('all')
   const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
     const saved = localStorage.getItem('templates-view-mode')
     return saved === 'grid' ? 'grid' : 'list'
@@ -119,10 +121,7 @@ export default function Templates() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
-  const [showAiGenerate, setShowAiGenerate] = useState(false)
-  const [aiDescription, setAiDescription] = useState('')
-  const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiResult, setAiResult] = useState<any>(null)
+  const [showWizard, setShowWizard] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
@@ -247,9 +246,14 @@ export default function Templates() {
   }, [agentTemplates, searchQuery])
 
   const filteredOrgTemplates = React.useMemo(() => {
-    if (!searchQuery.trim()) return orgTemplates
+    let filtered = orgTemplates
+    // Category filter
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(t => (t as any).category === categoryFilter || t.tags?.includes(categoryFilter))
+    }
+    if (!searchQuery.trim()) return filtered
     const query = searchQuery.trim().toLowerCase()
-    return orgTemplates.filter(t =>
+    return filtered.filter(t =>
       t.name.toLowerCase().includes(query) ||
       t.description?.toLowerCase().includes(query) ||
       t.author?.toLowerCase().includes(query) ||
@@ -258,7 +262,7 @@ export default function Templates() {
       t.communities?.some(c => c.name.toLowerCase().includes(query)) ||
       t.groups?.some(g => g.name.toLowerCase().includes(query))
     )
-  }, [orgTemplates, searchQuery])
+  }, [orgTemplates, searchQuery, categoryFilter])
 
   const filteredWorkflowTemplates = React.useMemo(() => {
     if (!searchQuery.trim()) return workflowTemplates
@@ -506,6 +510,12 @@ export default function Templates() {
               </button>
             )}
             <button
+              onClick={() => setShowWizard(true)}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+            >
+              ✨ Create Template
+            </button>
+            <button
               onClick={fetchTemplates}
               className="text-sm font-medium transition-colors text-sky-600 hover:text-sky-800"
             >
@@ -514,6 +524,28 @@ export default function Templates() {
           </div>
         </div>
 
+      </div>
+
+      {/* Category filter */}
+      <div className="flex gap-2 mb-4">
+        {([
+          { key: 'all', label: 'All', icon: '' },
+          { key: 'business', label: 'Business', icon: '💼' },
+          { key: 'technical', label: 'Technical', icon: '⚙️' },
+          { key: 'personal', label: 'Personal', icon: '📚' },
+        ] as const).map(cat => (
+          <button
+            key={cat.key}
+            onClick={() => setCategoryFilter(cat.key)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+              categoryFilter === cat.key
+                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            {cat.icon && <span className="mr-1">{cat.icon}</span>}{cat.label}
+          </button>
+        ))}
       </div>
 
       {/* Search bar */}
@@ -729,6 +761,38 @@ export default function Templates() {
             setApplyingAgentTemplate(null)
             window.dispatchEvent(new CustomEvent('agents-updated'))
           }}
+        />
+      )}
+
+      {/* Template Wizard */}
+      {showWizard && (
+        <TemplateWizard
+          onClose={() => setShowWizard(false)}
+          onSave={async (template) => {
+            try {
+              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const resp = await fetch(`/api/templates/organizations/${slug}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(template),
+              })
+              if (resp.ok) {
+                showSuccess(`Template "${template.name}" saved!`)
+                setShowWizard(false)
+                fetchTemplates()
+              } else {
+                showError('Failed to save template')
+              }
+            } catch {
+              showError('Failed to save template')
+            }
+          }}
+          onApply={(template) => {
+            setApplyingTemplate(template as OrganizationTemplate)
+            setShowWizard(false)
+          }}
+          showSuccess={showSuccess}
+          showError={showError}
         />
       )}
 

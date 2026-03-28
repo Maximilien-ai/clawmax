@@ -5,6 +5,7 @@
   "description": "A complete startup team with CEO, product manager, engineers, QA, and release engineer. Includes 7 workflows covering the full development lifecycle: standups, status checks, issue triage, PR review, coding, merging, and releases.",
   "author": "ClawMax Team",
   "tags": [
+    "business",
     "startup",
     "small-team",
     "complete",
@@ -308,5 +309,6 @@
       },
       "content": "# Release Preparation\n\nPrepare and publish a new release:\n\n## Pre-Release Checklist\n1. **Code freeze**: Verify all planned features are merged\n2. **CI/CD**: All tests passing on main branch\n3. **Open issues**: No critical/blocker issues open\n4. **Documentation**: README and CHANGELOG updated\n\n## Release Tasks\n1. Review all PRs merged since last release\n2. Update CHANGELOG.md with categorized changes (features, fixes, breaking)\n3. Bump version in package.json (semver: patch/minor/major)\n4. Create git tag (e.g., v1.2.0)\n5. Push tag to trigger release workflow\n6. Create GitHub release with release notes\n7. Verify release artifacts are published\n\n## Output\n- Updated CHANGELOG.md\n- New version tag pushed\n- GitHub release created\n- Summary posted to All Hands group"
     }
-  ]
+  ],
+  "category": "business"
 }

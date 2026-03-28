@@ -4,7 +4,12 @@
   "version": "1.1.0",
   "description": "A complete engineering team with 2 engineers, QA engineer, and release engineer. Includes daily standups, code review reminders, and release preparation workflows.",
   "author": "ClawMax Team",
-  "tags": ["engineering", "software", "development"],
+  "tags": [
+    "technical",
+    "engineering",
+    "software",
+    "development"
+  ],
   "parameters": [
     {
       "agentId": "engineer",
@@ -19,59 +24,110 @@
       "id": "engineer",
       "name": "Engineer",
       "role": "Software Engineer",
-      "tags": ["engineer", "developer"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["Code Review", "Status"]
+      "tags": [
+        "engineer",
+        "developer"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Code Review",
+        "Status"
+      ]
     },
     {
       "id": "qa-engineer",
       "name": "QA Engineer",
       "role": "Quality Assurance Engineer",
-      "tags": ["engineer", "qa", "quality"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["Code Review", "Status"]
+      "tags": [
+        "engineer",
+        "qa",
+        "quality"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Code Review",
+        "Status"
+      ]
     },
     {
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release Engineer",
-      "tags": ["engineer", "release-manager", "github"],
-      "skills": ["github"],
-      "communities": ["Engineering Team"],
-      "groups": ["Release Team", "Status"]
+      "tags": [
+        "engineer",
+        "release-manager",
+        "github"
+      ],
+      "skills": [
+        "github"
+      ],
+      "communities": [
+        "Engineering Team"
+      ],
+      "groups": [
+        "Release Team",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Engineering Team",
       "description": "Software development, QA, and release management",
-      "tags": ["engineering", "development"],
-      "channels": ["whatsapp"]
+      "tags": [
+        "engineering",
+        "development"
+      ],
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Code Review",
       "description": "Engineers reviewing code and PRs",
-      "tags": ["code-review"],
+      "tags": [
+        "code-review"
+      ],
       "community": "Engineering Team",
-      "channels": ["whatsapp"]
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Release Team",
       "description": "Production release coordination",
-      "tags": ["release", "production"],
+      "tags": [
+        "release",
+        "production"
+      ],
       "community": "Engineering Team",
-      "channels": ["whatsapp"]
+      "channels": [
+        "whatsapp"
+      ]
     },
     {
       "name": "Status",
       "description": "Status updates and progress tracking",
-      "tags": ["status", "updates"],
+      "tags": [
+        "status",
+        "updates"
+      ],
       "community": "Engineering Team",
-      "channels": ["whatsapp"]
+      "channels": [
+        "whatsapp"
+      ]
     }
   ],
   "workflows": [
@@ -83,7 +139,9 @@
       "enabled": false,
       "executionMode": "automated",
       "targeting": {
-        "communities": ["Engineering Team"],
+        "communities": [
+          "Engineering Team"
+        ],
         "groups": [],
         "tags": [],
         "agents": []
@@ -99,7 +157,9 @@
       "executionMode": "automated",
       "targeting": {
         "communities": [],
-        "groups": ["Code Review"],
+        "groups": [
+          "Code Review"
+        ],
         "tags": [],
         "agents": []
       },
@@ -115,7 +175,9 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["qa"],
+        "tags": [
+          "qa"
+        ],
         "agents": []
       },
       "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary"
@@ -129,11 +191,14 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Release Team"],
+        "groups": [
+          "Release Team"
+        ],
         "tags": [],
         "agents": []
       },
       "content": "# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item."
     }
-  ]
+  ],
+  "category": "technical"
 }

@@ -347,7 +347,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
 
     // Validate cron expression (semantic check beyond schema)
     // Allow empty or "manual" for on-demand workflows
-    if (data.schedule && data.schedule !== 'manual') {
+    if (data.schedule && data.schedule !== 'manual' && data.schedule !== 'once') {
       const cronValidation = validateCron(data.schedule)
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }

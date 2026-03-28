@@ -347,6 +347,7 @@ export default function App() {
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                 onNavigateToSkills={(agentId) => { setInitialSkillsAgent(agentId); setPage('skills'); }}
                 onNavigateToWorkflows={() => { setPage('workflows'); }}
+                onNavigateToTemplates={() => { setPage('templates'); }}
                 initialAgentId={initialAgentId}
                 isActive={page === 'agents'}
               />

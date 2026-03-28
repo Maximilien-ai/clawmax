@@ -1,0 +1,229 @@
+{
+  "name": "Dev Team",
+  "type": "organization",
+  "version": "1.0.0",
+  "description": "A multiagent software development team with engineering, QA, and DevOps roles. Automates PR review, CI triage, release preparation, and daily standups.",
+  "author": "ClawMax Team",
+  "tags": [
+    "technical",
+    "engineering",
+    "software",
+    "devops",
+    "ci-cd"
+  ],
+  "parameters": [
+    {
+      "agentId": "engineer",
+      "label": "Number of Engineers",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "agents": [
+    {
+      "id": "tech-lead",
+      "name": "Tech Lead",
+      "role": "Technical leadership \u2014 sets architecture direction, reviews complex PRs, unblocks engineers, and manages technical debt priorities",
+      "tags": [
+        "lead",
+        "engineering",
+        "architecture"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Engineering",
+        "DevOps",
+        "Status"
+      ]
+    },
+    {
+      "id": "engineer",
+      "name": "Software Engineer",
+      "role": "Feature development \u2014 writes code, submits PRs, fixes bugs, writes tests, and participates in code review",
+      "tags": [
+        "engineering",
+        "development"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Engineering"
+      ]
+    },
+    {
+      "id": "qa-engineer",
+      "name": "QA Engineer",
+      "role": "Quality assurance \u2014 writes and runs test suites, performs regression testing, validates bug fixes, and tracks test coverage",
+      "tags": [
+        "engineering",
+        "qa",
+        "testing"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "QA",
+        "Engineering"
+      ]
+    },
+    {
+      "id": "devops",
+      "name": "DevOps Engineer",
+      "role": "Infrastructure & CI/CD \u2014 maintains build pipelines, monitors deployments, manages environments, and triages CI failures",
+      "tags": [
+        "engineering",
+        "devops",
+        "infrastructure"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "DevOps",
+        "Status"
+      ]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Dev Team",
+      "description": "All engineering team coordination and announcements"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Engineering",
+      "description": "Feature development, code review, and technical discussions",
+      "community": "Dev Team"
+    },
+    {
+      "name": "QA",
+      "description": "Test plans, bug reports, and regression tracking",
+      "community": "Dev Team"
+    },
+    {
+      "name": "DevOps",
+      "description": "CI/CD pipeline, deployments, and infrastructure",
+      "community": "Dev Team"
+    },
+    {
+      "name": "Status",
+      "description": "Daily standups and sprint progress",
+      "community": "Dev Team"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "kickoff",
+      "name": "Team Kickoff",
+      "description": "Initialize the dev team and assess the codebase",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "tech-lead"
+        ]
+      },
+      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [e.g., feature branches off main, GitFlow]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup"
+    },
+    {
+      "id": "pr-review",
+      "name": "PR Review",
+      "description": "Review open pull requests and provide feedback",
+      "schedule": "0 */2 * * *",
+      "enabled": true,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Engineering"
+        ],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# PR Review Cycle\n\n1. List all open PRs that need review\n2. For each PR: check code quality, test coverage, and adherence to patterns\n3. Leave specific, actionable review comments\n4. Approve PRs that meet standards; request changes on others\n5. Flag any PRs open longer than 48 hours for tech lead attention"
+    },
+    {
+      "id": "ci-triage",
+      "name": "CI Triage",
+      "description": "Monitor and triage CI/CD pipeline failures",
+      "schedule": "0 * * * *",
+      "enabled": true,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "DevOps"
+        ],
+        "tags": [],
+        "agents": [
+          "devops"
+        ]
+      },
+      "content": "# CI Triage\n\n1. Check CI pipeline for any failed builds or tests\n2. Categorize failures: flaky test, real regression, infrastructure issue\n3. For real regressions: identify the breaking commit and notify the author\n4. For flaky tests: log the pattern and create a fix ticket\n5. Post CI health summary to DevOps group"
+    },
+    {
+      "id": "release-prep",
+      "name": "Release Prep",
+      "description": "Prepare a release: changelog, version bump, final QA",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Engineering",
+          "QA"
+        ],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# Release Preparation\n\n1. QA engineer: run full regression suite and report results\n2. Tech lead: review all PRs merged since last release\n3. Compile changelog from commit messages and PR descriptions\n4. DevOps: prepare release branch and version bump\n5. Final sign-off from tech lead, then trigger deployment"
+    },
+    {
+      "id": "daily-standup",
+      "name": "Daily Standup",
+      "description": "Async daily standup \u2014 what was done, what's planned, blockers",
+      "schedule": "30 9 * * *",
+      "enabled": true,
+      "executionMode": "automated",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": []
+      },
+      "content": "# Daily Standup\n\n1. Each team member: post in Status group with three items:\n   - What you completed since last standup\n   - What you plan to work on today\n   - Any blockers or questions\n2. Tech lead: review blockers and assign help if needed\n3. DevOps: report on infrastructure health and pending deployments\n4. QA: report on test status and any new bugs found"
+    }
+  ],
+  "category": "technical"
+}

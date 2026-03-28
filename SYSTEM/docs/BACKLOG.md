@@ -39,13 +39,29 @@
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`
 
 ### Hackathon Deliverables
-- [ ] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
-- [ ] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
-- [ ] **Kickoff workflow** — `type: "once"` runs on template apply, auto-starts team (Workflow v2 P0)
+- [x] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
+- [x] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
+- [x] **Kickoff workflow** — manual trigger on template apply, user-fillable Project Configuration sections
 - [ ] **Basic blocker surfacing** — agents declare blockers, notification renders actionable UI (Workflow v2 P0)
 - [ ] **Workflow progress tracking** — agents report %, visible in Workflows page (Workflow v2 P1)
-- [ ] **10-12 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Specialty Retail, Dev Team, Data Team, Student Research, Technical Writing, RAG Team
+- [x] **10 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Dev Team, Student Research, Technical Writing, RAG Team (+ existing Engineering, Small Startup)
+- [x] **Shipables.dev integration** — search, browse, install skills from registry
+- [x] **Bulk skill assignment** — add skills to multiple agents at once
+- [x] **GitHub coordination toggle** — checkbox in Apply Template, injects repo instructions into all workflows
+- [x] **Editable workflow content** — customize kickoff and all workflows before applying
+- [x] **Template categories** — Business/Technical/Personal filter pills
+- [x] **TEMPLATE.md format** — parser + auto-detect alongside template.json
+- [x] **AI generator Anthropic fallback** — works with Anthropic-only keys (issue #49)
 - [ ] **Live execution** — deploy 2-3 teams, produce autonomous results
+
+### Backlog from Hackathon
+- [ ] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
+- [x] **Specialty Retailer template** — done
+- [x] **Data Team template** — done
+- [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
+- [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
+- [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
+- [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
 
 ## Next Sprint: March 31 – April 11
 
