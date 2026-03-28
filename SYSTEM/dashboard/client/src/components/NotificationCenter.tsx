@@ -75,6 +75,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const fetchNotifications = useCallback(async () => {
@@ -160,8 +161,14 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
     if (n.type === 'channel-activity') return 'communication'
     return n.entityType || 'agent'
   }
+  const filtered = searchQuery.trim()
+    ? notifications.filter(n => {
+        const q = searchQuery.toLowerCase()
+        return n.title.toLowerCase().includes(q) || n.message.toLowerCase().includes(q) || (n.entityId || '').toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
+      })
+    : notifications
   const grouped = CATEGORY_ORDER.reduce<Record<string, Notification[]>>((acc, cat) => {
-    const items = notifications.filter(n => getCategory(n) === cat)
+    const items = filtered.filter(n => getCategory(n) === cat)
     if (items.length > 0) acc[cat] = items
     return acc
   }, {})
@@ -211,6 +218,19 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
               </button>
             )}
           </div>
+
+          {/* Search */}
+          {activeCount > 3 && (
+            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search notifications..."
+                className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+          )}
 
           {/* Content */}
           {activeCount === 0 ? (
