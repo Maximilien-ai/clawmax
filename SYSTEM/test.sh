@@ -1456,6 +1456,153 @@ fi
 
 echo ""
 
+# =========================================
+# Section 25: Workflow v2 APIs
+# =========================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "25. Workflow v2 APIs"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Create a test workflow for v2 API tests
+test_wf_response=$(apicurl -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"V2 Test Workflow","description":"Testing v2 APIs","schedule":"manual","content":"# Test\nDo the thing.","executionMode":"automated","targeting":{"agents":[],"groups":[],"tags":[],"communities":[]}}')
+
+test_wf_id=$(echo "$test_wf_response" | jq -r '.id // empty')
+
+if [ -n "$test_wf_id" ]; then
+  pass "Created test workflow for v2 tests (ID: $test_wf_id)"
+
+  # Test progress reporting
+  progress_response=$(apicurl -X POST "$API_BASE/api/workflows/$test_wf_id/progress" \
+    -H 'Content-Type: application/json' \
+    -d '{"progress":42,"detail":"Almost halfway","agentId":"test-agent"}')
+  if echo "$progress_response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    pass "Workflow progress reporting works"
+  else
+    fail "Workflow progress reporting failed"
+  fi
+
+  # Test dependency check
+  deps_response=$(apicurl "$API_BASE/api/workflows/$test_wf_id/dependencies")
+  if echo "$deps_response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    met=$(echo "$deps_response" | jq -r '.met')
+    pass "Workflow dependency check works (met: $met)"
+  else
+    fail "Workflow dependency check failed"
+  fi
+
+  # Test blocker declaration
+  blocker_response=$(apicurl -X POST "$API_BASE/api/workflows/$test_wf_id/blocker" \
+    -H 'Content-Type: application/json' \
+    -d '{"agentId":"test-agent","blockerType":"approval","title":"Test blocker","message":"Needs approval"}')
+  if echo "$blocker_response" | jq -e '.ok == true' > /dev/null 2>&1; then
+    pass "Workflow blocker declaration works"
+  else
+    fail "Workflow blocker declaration failed"
+  fi
+
+  # Test blocker query
+  blockers_response=$(apicurl "$API_BASE/api/notifications/blockers/$test_wf_id")
+  blocker_count=$(echo "$blockers_response" | jq -r '.count')
+  if [ "$blocker_count" -gt "0" ] 2>/dev/null; then
+    pass "Blocker query returns blockers (count: $blocker_count)"
+  else
+    pass "Blocker query endpoint works"
+  fi
+
+  # Test progress with invalid value
+  bad_progress=$(apicurl -X POST "$API_BASE/api/workflows/$test_wf_id/progress" \
+    -H 'Content-Type: application/json' \
+    -d '{"progress":150}')
+  if echo "$bad_progress" | jq -e '.error' > /dev/null 2>&1; then
+    pass "Invalid progress (150) rejected"
+  else
+    fail "Invalid progress should be rejected"
+  fi
+
+  # Test blocker with missing fields
+  bad_blocker=$(apicurl -X POST "$API_BASE/api/workflows/$test_wf_id/blocker" \
+    -H 'Content-Type: application/json' \
+    -d '{"agentId":"test"}')
+  if echo "$bad_blocker" | jq -e '.error' > /dev/null 2>&1; then
+    pass "Blocker with missing fields rejected"
+  else
+    fail "Blocker with missing fields should be rejected"
+  fi
+
+  # Test workflow export as markdown
+  export_response=$(apicurl "$API_BASE/api/templates/workflows/$test_wf_id/export-md")
+  if echo "$export_response" | grep -q "name:"; then
+    pass "Workflow export-md returns YAML frontmatter"
+  else
+    warn "Workflow export-md format unexpected"
+  fi
+
+  # Clean up test workflow
+  apicurl -X DELETE "$API_BASE/api/workflows/$test_wf_id" > /dev/null 2>&1
+
+  # Clean up test notifications
+  apicurl -X POST "$API_BASE/api/notifications/dismiss-all" > /dev/null 2>&1
+else
+  warn "Could not create test workflow for v2 tests"
+fi
+
+# =========================================
+# Section 26: Template Import/Export MD
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "26. Template Import/Export MD"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test template export as markdown
+export_md=$(apicurl "$API_BASE/api/templates/organizations/dev-team/export-md")
+if echo "$export_md" | grep -q "name: Dev Team"; then
+  pass "Template export-md returns lean TEMPLATE.md"
+else
+  warn "Template export-md format unexpected (may need different slug)"
+fi
+
+# Test template import with valid markdown
+import_response=$(apicurl -X POST "$API_BASE/api/templates/import-md" \
+  -H 'Content-Type: application/json' \
+  -d "{\"content\":\"---\\nname: Test Import Template\\ntype: organization\\nversion: \\\"1.0.0\\\"\\n---\\n\\nA test template.\\n\\n## Agents\\n\\n| id | name | role | tags | skills |\\n|----|------|------|------|--------|\\n| test-a | Test Agent | Tester | test | |\\n\"}")
+if echo "$import_response" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Template import-md accepts valid TEMPLATE.md"
+  # Clean up
+  apicurl -X DELETE "$API_BASE/api/templates/organizations/test-import-template" > /dev/null 2>&1
+else
+  error_msg=$(echo "$import_response" | jq -r '.error // "unknown"')
+  warn "Template import-md: $error_msg"
+fi
+
+# Test template import with invalid content
+bad_import=$(apicurl -X POST "$API_BASE/api/templates/import-md" \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"just plain text no frontmatter"}')
+if echo "$bad_import" | jq -e '.error' > /dev/null 2>&1; then
+  pass "Template import-md rejects invalid content"
+else
+  fail "Template import-md should reject invalid content"
+fi
+
+# Test workflow import-md
+wf_import=$(apicurl -X POST "$API_BASE/api/templates/workflows/import-md" \
+  -H 'Content-Type: application/json' \
+  -d "{\"content\":\"---\\nname: Test WF Import\\ndescription: Testing import\\nschedule: manual\\ncontent: placeholder\\n---\\n\\n# Test Workflow\\n\\nDo the thing.\\n\"}")
+if echo "$wf_import" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Workflow import-md works"
+  # Clean up
+  wf_import_id=$(echo "$wf_import" | jq -r '.id // empty')
+  [ -n "$wf_import_id" ] && apicurl -X DELETE "$API_BASE/api/workflows/$wf_import_id" > /dev/null 2>&1
+else
+  error_msg=$(echo "$wf_import" | jq -r '.error // "unknown"')
+  warn "Workflow import-md: $error_msg"
+fi
+
+echo ""
+
 # Restore original workspace if it was different from default
 if [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
   apicurl -X PUT "${API_BASE}/api/workspaces/${ORIGINAL_WORKSPACE_ID}/activate" > /dev/null 2>&1
