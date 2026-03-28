@@ -1225,9 +1225,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     setEditingWorkflow(selectedWorkflow)
                     setShowDetailPanel(false)
                   }}
-                  className="px-3 py-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded transition-colors"
                 >
                   Edit
+                </button>
+                <button
+                  onClick={() => {
+                    window.open(`/api/templates/workflows/${selectedWorkflow.id}/export-md`, '_blank')
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                >
+                  Export .md
                 </button>
                 <button
                   onClick={() => setShowDetailPanel(false)}
