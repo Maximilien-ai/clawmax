@@ -388,14 +388,33 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                               <button
                                 onClick={async () => {
                                   setProcessingId(n.id)
-                                  await fetch(`/api/agents/${n.entityId}/restart`, { method: 'POST' }).catch(() => {})
+                                  try {
+                                    const res = await fetch(`/api/agents/${n.entityId}/restart`, { method: 'POST' })
+                                    const data = await res.json()
+                                    if (data.ok) {
+                                      await fetch('/api/notifications/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) })
+                                    }
+                                  } catch {}
                                   await fetchNotifications()
                                   setProcessingId(null)
                                 }}
                                 disabled={processingId === n.id}
                                 className="text-[11px] px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
                               >
-                                Restart
+                                {processingId === n.id ? 'Restarting...' : 'Restart'}
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setProcessingId(n.id)
+                                  await fetch('/api/agents/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentIds: [n.entityId] }) }).catch(() => {})
+                                  await fetch('/api/notifications/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) }).catch(() => {})
+                                  await fetchNotifications()
+                                  setProcessingId(null)
+                                }}
+                                disabled={processingId === n.id}
+                                className="text-[11px] px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-50"
+                              >
+                                Pause
                               </button>
                             </div>
                           )}
