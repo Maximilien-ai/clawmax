@@ -43,6 +43,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
+  const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const { showSuccess, showError: showToastError } = useToast()
 
   // Agent count parameters — initialize from template defaults
@@ -369,12 +370,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             )}
           </div>
 
-          {/* Customize Workflows (collapsible) */}
+          {/* Customize Workflows — paginated wizard */}
           {template.workflows && template.workflows.length > 0 && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               <button
                 type="button"
-                onClick={() => setShowWorkflowSection(!showWorkflowSection)}
+                onClick={() => { setShowWorkflowSection(!showWorkflowSection); setWorkflowStep(0) }}
                 className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -382,111 +383,174 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 </h3>
                 <span className="text-gray-400 text-xs">{showWorkflowSection ? '▼' : '▶'}</span>
               </button>
-              {showWorkflowSection && (
-                <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto">
-                  {template.workflows.map((wf: any) => {
-                    const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
-                    const isEdited = wf.id in workflowOverrides
-                    const editingRaw = rawEditWorkflows.has(wf.id)
+              {showWorkflowSection && (() => {
+                const workflows = template.workflows || []
+                const wf = workflows[workflowStep] as any
+                if (!wf) return null
 
-                    // Parse [placeholder] fields from content
-                    const configFields: Array<{ label: string; placeholder: string; key: string }> = []
-                    const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+\[(.+?)\]/gm
-                    let match
-                    while ((match = fieldRegex.exec(wf.content || '')) !== null) {
-                      configFields.push({
-                        label: match[1],
-                        placeholder: match[2],
-                        key: match[1],
-                      })
-                    }
+                const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
+                const isEdited = wf.id in workflowOverrides
+                const editingRaw = rawEditWorkflows.has(wf.id)
 
-                    // Get current field values from overrides
-                    const getFieldValue = (label: string): string => {
-                      const content = currentContent
-                      const lineRegex = new RegExp(`^-\\s+\\*\\*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\*\\*\\s+(.+)$`, 'm')
-                      const m = content.match(lineRegex)
-                      if (!m) return ''
-                      const val = m[1].trim()
-                      return val.startsWith('[') ? '' : val
-                    }
+                // Parse [placeholder] fields from content — detect field types
+                type ConfigField = { label: string; placeholder: string; key: string; type: 'text' | 'select' | 'checkbox' | 'textarea'; options?: string[] }
+                const configFields: ConfigField[] = []
+                const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+\[(.+?)\]/gm
+                let match
+                while ((match = fieldRegex.exec(wf.content || '')) !== null) {
+                  const label = match[1]
+                  const ph = match[2]
+                  let fieldType: ConfigField['type'] = 'text'
+                  let options: string[] | undefined
 
-                    const setFieldValue = (label: string, value: string) => {
-                      let content = currentContent
-                      const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                      const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
-                      if (lineRegex.test(content)) {
-                        content = content.replace(lineRegex, `$1 ${value}`)
-                      }
-                      setWorkflowOverrides(prev => ({ ...prev, [wf.id]: content }))
-                    }
+                  // Detect field type from placeholder hint
+                  const phLower = ph.toLowerCase()
+                  if (/^(yes|no|true|false|enabled|disabled)/i.test(phLower) || /\btrue\/false\b|\byes\/no\b/i.test(phLower)) {
+                    fieldType = 'checkbox'
+                  } else if (ph.includes(',') && ph.split(',').length >= 3 && ph.split(',').every(s => !s.includes(' '))) {
+                    // Multiple comma-separated short values = dropdown
+                    fieldType = 'select'
+                    options = ph.replace(/^e\.g\.\s*,?\s*/i, '').split(',').map(s => s.trim()).filter(Boolean)
+                  } else if (phLower.includes('list') || phLower.includes('multiple') || ph.length > 80) {
+                    fieldType = 'textarea'
+                  }
 
-                    return (
-                      <div key={wf.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{wf.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-mono">{wf.schedule}</span>
-                            {isEdited && (
-                              <button
-                                onClick={() => {
-                                  const next = { ...workflowOverrides }
-                                  delete next[wf.id]
-                                  setWorkflowOverrides(next)
-                                }}
-                                className="text-[10px] text-sky-600 hover:text-sky-700"
-                              >
-                                Reset
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => {
-                              const next = new Set(rawEditWorkflows)
-                              if (next.has(wf.id)) next.delete(wf.id); else next.add(wf.id)
-                              setRawEditWorkflows(next)
-                            }}
-                            className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                          >
-                            {editingRaw ? 'Form view' : 'Edit markdown'}
-                          </button>
+                  configFields.push({ label, placeholder: ph, key: label, type: fieldType, options })
+                }
+
+                const getFieldValue = (label: string): string => {
+                  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  const lineRegex = new RegExp(`^-\\s+\\*\\*${escaped}:\\*\\*\\s+(.+)$`, 'm')
+                  const m = currentContent.match(lineRegex)
+                  if (!m) return ''
+                  const val = m[1].trim()
+                  return val.startsWith('[') ? '' : val
+                }
+
+                const setFieldValue = (label: string, value: string) => {
+                  let content = currentContent
+                  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
+                  if (lineRegex.test(content)) {
+                    content = content.replace(lineRegex, `$1 ${value}`)
+                  }
+                  setWorkflowOverrides(prev => ({ ...prev, [wf.id]: content }))
+                }
+
+                return (
+                <div className="p-4">
+                  {/* Step indicator */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    {workflows.map((_: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => setWorkflowStep(idx)}
+                        className={`h-1.5 rounded-full transition-all ${idx === workflowStep ? 'bg-purple-500 w-6' : 'bg-gray-200 dark:bg-gray-700 w-3 hover:bg-gray-300'}`}
+                        title={workflows[idx].name}
+                      />
+                    ))}
+                    <span className="text-[10px] text-gray-400 ml-2">{workflowStep + 1} / {workflows.length}</span>
+                  </div>
+
+                  {/* Current workflow */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{wf.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-mono">{wf.schedule}</span>
+                      {isEdited && (
+                        <button onClick={() => { const next = { ...workflowOverrides }; delete next[wf.id]; setWorkflowOverrides(next) }} className="text-[10px] text-sky-600 hover:text-sky-700">Reset</button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { const next = new Set(rawEditWorkflows); if (next.has(wf.id)) next.delete(wf.id); else next.add(wf.id); setRawEditWorkflows(next) }}
+                      className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {editingRaw ? 'Form view' : 'Edit markdown'}
+                    </button>
+                  </div>
+                  {wf.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{wf.description}</p>}
+
+                  {editingRaw ? (
+                    <textarea
+                      value={currentContent}
+                      onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                      rows={Math.min(14, Math.max(4, currentContent.split('\n').length + 1))}
+                      className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                    />
+                  ) : configFields.length > 0 ? (
+                    <div className="space-y-3">
+                      {configFields.map(field => (
+                        <div key={field.key}>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+                          {field.type === 'checkbox' ? (
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={getFieldValue(field.label).toLowerCase() === 'true' || getFieldValue(field.label).toLowerCase() === 'yes'}
+                                onChange={e => setFieldValue(field.label, e.target.checked ? 'yes' : 'no')}
+                                className="rounded"
+                              />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">{field.placeholder}</span>
+                            </label>
+                          ) : field.type === 'select' && field.options ? (
+                            <select
+                              value={getFieldValue(field.label)}
+                              onChange={e => setFieldValue(field.label, e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            >
+                              <option value="">Select...</option>
+                              {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          ) : field.type === 'textarea' ? (
+                            <textarea
+                              value={getFieldValue(field.label)}
+                              onChange={e => setFieldValue(field.label, e.target.value)}
+                              placeholder={field.placeholder}
+                              rows={3}
+                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={getFieldValue(field.label)}
+                              onChange={e => setFieldValue(field.label, e.target.value)}
+                              placeholder={field.placeholder}
+                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            />
+                          )}
                         </div>
-                        {wf.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{wf.description}</p>}
+                      ))}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={currentContent}
+                      onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
+                      rows={Math.min(8, Math.max(3, currentContent.split('\n').length + 1))}
+                      className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
+                    />
+                  )}
 
-                        {editingRaw ? (
-                          <textarea
-                            value={currentContent}
-                            onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
-                            rows={Math.min(14, Math.max(4, currentContent.split('\n').length + 1))}
-                            className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
-                          />
-                        ) : configFields.length > 0 ? (
-                          <div className="space-y-2.5">
-                            {configFields.map(field => (
-                              <div key={field.key}>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                  {field.label}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={getFieldValue(field.label)}
-                                  onChange={e => setFieldValue(field.label, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <textarea
-                            value={currentContent}
-                            onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
-                            rows={Math.min(8, Math.max(3, currentContent.split('\n').length + 1))}
-                            className="w-full text-xs font-mono px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
-                          />
-                        )}
-                      </div>
-                    )
+                  {/* Navigation */}
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <button
+                      onClick={() => setWorkflowStep(Math.max(0, workflowStep - 1))}
+                      disabled={workflowStep === 0}
+                      className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
+                    >
+                      ← Previous
+                    </button>
+                    <span className="text-xs text-gray-400">{wf.name}</span>
+                    <button
+                      onClick={() => setWorkflowStep(Math.min(workflows.length - 1, workflowStep + 1))}
+                      disabled={workflowStep >= workflows.length - 1}
+                      className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+                )
+              })()}
                   })}
                 </div>
               )}
