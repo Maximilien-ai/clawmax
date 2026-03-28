@@ -154,7 +154,7 @@
           "sales-lead"
         ]
       },
-      "content": "# Sales Team Kickoff\n\nYou are the Sales Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax enterprise multiagent platform]\n- **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]\n- **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]\n- **CRM:** [e.g., Salesforce, HubSpot, GitHub issues for tracking]\n- **Key competitors:** [e.g., competitor A, competitor B]\n\n## Your Tasks\n1. Introduce yourself in the Sales Team community\n2. Review the workspace for existing CRM data or pipeline info\n3. Assign territories or focus areas to each AE and SDR\n4. Set initial pipeline targets and quota expectations\n5. Kick off the first pipeline review in the Pipeline group"
+      "content": "# Sales Team Kickoff\n\nYou are the Sales Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax enterprise multiagent platform]\n- **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]\n- **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]\n- **CRM:** [GitHub issues, Salesforce, HubSpot, Pipedrive, custom]\n- **Key competitors:** [e.g., competitor A, competitor B]\n\n## Your Tasks\n1. Introduce yourself in the Sales Team community\n2. Review the workspace for existing CRM data or pipeline info\n3. Assign territories or focus areas to each AE and SDR\n4. Set initial pipeline targets and quota expectations\n5. Kick off the first pipeline review in the Pipeline group"
     },
     {
       "id": "pipeline-review",

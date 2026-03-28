@@ -151,7 +151,7 @@
           "tech-lead"
         ]
       },
-      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [e.g., feature branches off main, GitFlow]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup"
+      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup"
     },
     {
       "id": "pr-review",
