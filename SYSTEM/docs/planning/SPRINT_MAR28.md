@@ -40,10 +40,10 @@
 
 ## Midday Block (2 hrs) — Template/Workflow Validation & UX
 
-### 5. Template-agent cross-validation (~20 min)
-- [ ] Validate all templates reference agents for which we have templates or valid IDs
-- [ ] Warn on import if template references unknown agents
-- [ ] Add validation to template save/import endpoints
+### 5. Template-agent cross-validation (~20 min) DONE
+- [x] validateTemplateReferences() — checks agents, groups, communities, workflows
+- [x] Warns on import if template references unknown agents/groups
+- [x] Added to import-md endpoint (returns warnings)
 - [x] 3 unit tests
 
 ### 6. Workflow customization UX (~40 min) DONE
@@ -52,7 +52,7 @@
 - [x] Paginated wizard: one workflow per page with Previous/Next navigation
 - [x] "Edit markdown" toggle for full control
 - [x] Structured dropdown options in 8 templates (SLA, CRM, ATS, branch strategy, etc.)
-- [ ] Pre-fill GitHub repo field from the GitHub coordination checkbox
+- [x] Pre-fill GitHub repo field from the GitHub coordination checkbox
 
 ### 7. Notification actions (~1 hr) DONE
 - [x] `POST /api/notifications/:id/action` endpoint — resolve with action
@@ -79,7 +79,16 @@
 - [ ] Execution engine: auto-check deps before starting — pending
 - [ ] DAG visualization — future
 
-### 10. Live execution & validation (~1 hr)
+### 10. Workflow DAG Visualization (~1 hr)
+- [ ] WorkflowDAG component — CSS grid + SVG connector lines
+- [ ] Group workflows into parallel lanes and sequential rows from dependsOn
+- [ ] Color-code by status: gray=idle, sky=running, emerald=completed, amber=blocked
+- [ ] Inline progress bars per workflow
+- [ ] Click to select/open workflow detail
+- [ ] Add to Workflows page as toggle view (list vs DAG)
+- [ ] Test with template that has dependencies
+
+### 11. Live execution & validation (~1 hr)
 - [ ] Apply Dev Team or Technical Writing template
 - [ ] Verify all workflows execute (kickoff, recurring, manual)
 - [ ] Test blocker surfacing with real agent
@@ -88,12 +97,12 @@
 
 ## End of Day (~30 min) — Cleanup
 
-### 11. Cleanup & release prep
-- [ ] Check off all completed backlog items
-- [ ] Update BACKLOG.md with new items
-- [ ] Run full test suite (target: 130+ tests)
+### 11. Cleanup & release prep DONE
+- [x] Check off all completed backlog items
+- [x] Update BACKLOG.md with new items (gateway process management)
+- [x] Run full test suite — 133 integration + 31 unit, all passing
 - [ ] Archive completed planning docs
-- [ ] Commit, push, consider point release if stable
+- [x] v1.1.17 released and tagged
 
 ## Dependencies & Order
 

@@ -153,7 +153,8 @@
           "editor"
         ]
       },
-      "content": "# Writing Team Kickoff\n\nYou are the Editor. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topics to cover:** [e.g., API docs, getting started guide, architecture overview]\n- **Target audience:** [e.g., developers, end users, internal team]\n- **Style guide:** [Microsoft Style Guide, Google Developer Docs, Di\u00e1taxis, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 leave blank if not using GitHub]\n- **Output format:** [Markdown, MDX, reStructuredText, HTML, custom]\n\n## Your Tasks\n1. Introduce yourself in the Writing Team community\n2. Review the workspace for existing documentation or content plans\n3. Create a content plan based on the topics above and assign to writers\n4. Brief the reviewer on quality standards and fact-checking expectations\n5. Set up the publishing calendar and post initial schedule to Status group\n6. If a GitHub repo is configured, create issues for each writing assignment"
+      "content": "# Writing Team Kickoff\n\nYou are the Editor. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topics to cover:** [e.g., API docs, getting started guide, architecture overview]\n- **Target audience:** [e.g., developers, end users, internal team]\n- **Style guide:** [Microsoft Style Guide, Google Developer Docs, Di\u00e1taxis, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 leave blank if not using GitHub]\n- **Output format:** [Markdown, MDX, reStructuredText, HTML, custom]\n\n## Your Tasks\n1. Introduce yourself in the Writing Team community\n2. Review the workspace for existing documentation or content plans\n3. Create a content plan based on the topics above and assign to writers\n4. Brief the reviewer on quality standards and fact-checking expectations\n5. Set up the publishing calendar and post initial schedule to Status group\n6. If a GitHub repo is configured, create issues for each writing assignment",
+      "type": "once"
     },
     {
       "id": "outline-review",
@@ -172,7 +173,10 @@
           "editor"
         ]
       },
-      "content": "# Outline Review\n\n1. Writers: submit proposed outlines with target audience, scope, and key sections\n2. Editor: review outline structure and alignment with content goals\n3. Check for overlap with existing published content\n4. Provide feedback on scope, depth, and approach\n5. Approve outline and set deadline for first draft"
+      "content": "# Outline Review\n\n1. Writers: submit proposed outlines with target audience, scope, and key sections\n2. Editor: review outline structure and alignment with content goals\n3. Check for overlap with existing published content\n4. Provide feedback on scope, depth, and approach\n5. Approve outline and set deadline for first draft",
+      "dependsOn": [
+        "kickoff"
+      ]
     },
     {
       "id": "draft-writing",
@@ -189,7 +193,10 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Draft Progress\n\n1. Each writer: post progress update on assigned drafts\n2. Flag any blockers (missing source material, unclear requirements)\n3. For completed drafts: move to Review group for fact-checking\n4. Editor: review pipeline and adjust priorities if needed\n5. Post content pipeline status to Status group"
+      "content": "# Daily Draft Progress\n\n1. Each writer: post progress update on assigned drafts\n2. Flag any blockers (missing source material, unclear requirements)\n3. For completed drafts: move to Review group for fact-checking\n4. Editor: review pipeline and adjust priorities if needed\n5. Post content pipeline status to Status group",
+      "dependsOn": [
+        "outline-review"
+      ]
     },
     {
       "id": "fact-check",
@@ -208,7 +215,10 @@
           "reviewer"
         ]
       },
-      "content": "# Fact Check & Technical Review\n\n1. Read the draft thoroughly for technical accuracy\n2. Test all code examples, commands, and API calls\n3. Verify facts, statistics, and external references\n4. Check for consistency with style guide and terminology\n5. Submit review with corrections, suggestions, and approval status"
+      "content": "# Fact Check & Technical Review\n\n1. Read the draft thoroughly for technical accuracy\n2. Test all code examples, commands, and API calls\n3. Verify facts, statistics, and external references\n4. Check for consistency with style guide and terminology\n5. Submit review with corrections, suggestions, and approval status",
+      "dependsOn": [
+        "draft-writing"
+      ]
     },
     {
       "id": "publish",
@@ -227,7 +237,11 @@
           "publisher"
         ]
       },
-      "content": "# Content Publishing\n\n1. Take approved, reviewed content from the Review group\n2. Format for the target platform (docs site, blog, wiki)\n3. Add SEO metadata: title, description, keywords, open graph tags\n4. Publish and verify the live page renders correctly\n5. Post publication confirmation with link to Status group"
+      "content": "# Content Publishing\n\n1. Take approved, reviewed content from the Review group\n2. Format for the target platform (docs site, blog, wiki)\n3. Add SEO metadata: title, description, keywords, open graph tags\n4. Publish and verify the live page renders correctly\n5. Post publication confirmation with link to Status group",
+      "dependsOn": [
+        "fact-check"
+      ],
+      "type": "conditional"
     }
   ],
   "category": "personal"
