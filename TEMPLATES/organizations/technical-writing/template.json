@@ -176,7 +176,8 @@
       "content": "# Outline Review\n\n1. Writers: submit proposed outlines with target audience, scope, and key sections\n2. Editor: review outline structure and alignment with content goals\n3. Check for overlap with existing published content\n4. Provide feedback on scope, depth, and approach\n5. Approve outline and set deadline for first draft",
       "dependsOn": [
         "kickoff"
-      ]
+      ],
+      "type": "recurring"
     },
     {
       "id": "draft-writing",
@@ -196,7 +197,8 @@
       "content": "# Daily Draft Progress\n\n1. Each writer: post progress update on assigned drafts\n2. Flag any blockers (missing source material, unclear requirements)\n3. For completed drafts: move to Review group for fact-checking\n4. Editor: review pipeline and adjust priorities if needed\n5. Post content pipeline status to Status group",
       "dependsOn": [
         "outline-review"
-      ]
+      ],
+      "type": "recurring"
     },
     {
       "id": "fact-check",
@@ -218,7 +220,8 @@
       "content": "# Fact Check & Technical Review\n\n1. Read the draft thoroughly for technical accuracy\n2. Test all code examples, commands, and API calls\n3. Verify facts, statistics, and external references\n4. Check for consistency with style guide and terminology\n5. Submit review with corrections, suggestions, and approval status",
       "dependsOn": [
         "draft-writing"
-      ]
+      ],
+      "type": "recurring"
     },
     {
       "id": "publish",
