@@ -88,6 +88,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
   const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>([])
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
   const [lastAction, setLastAction] = useState<{ type: 'add' | 'remove'; fromId: string; toId: string } | null>(null)
+  const [zoom, setZoom] = useState(1)
 
   // Escape key cancels connecting, Ctrl+Z undoes last action
   useEffect(() => {
@@ -169,7 +170,19 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
   const aggregateProgress = totalWorkflows > 0 ? Math.round((completedCount / totalWorkflows) * 100) : 0
 
   return (
-    <div ref={containerRef} className="relative overflow-x-auto">
+    <div className="relative">
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 z-30 flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm px-1 py-0.5">
+        <button onClick={() => setZoom(z => Math.max(0.25, z - 0.15))} className="w-6 h-6 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center justify-center">−</button>
+        <span className="text-[10px] text-gray-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom(z => Math.min(2, z + 0.15))} className="w-6 h-6 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center justify-center">+</button>
+        {zoom !== 1 && <button onClick={() => setZoom(1)} className="text-[10px] text-sky-500 hover:text-sky-700 px-1">Reset</button>}
+      </div>
+
+    <div ref={containerRef} className="relative overflow-auto" style={{ maxHeight: '70vh' }}
+      onWheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); setZoom(z => Math.max(0.25, Math.min(2, z - e.deltaY * 0.002))) } }}
+    >
+    <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: zoom < 1 ? `${100 / zoom}%` : undefined }}>
       {/* Aggregate progress */}
       <div className="px-4 pt-3 pb-1 flex items-center gap-3">
         <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -374,6 +387,10 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
           </div>
         ))}
       </div>
+    </div>
+    </div>
+    </div>
+    </div>
     </div>
   )
 }
