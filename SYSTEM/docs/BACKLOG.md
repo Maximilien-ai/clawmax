@@ -42,8 +42,8 @@
 - [x] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
 - [x] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
 - [x] **Kickoff workflow** — manual trigger on template apply, user-fillable Project Configuration sections
-- [ ] **Basic blocker surfacing** — agents declare blockers, notification renders actionable UI (Workflow v2 P0)
-- [ ] **Workflow progress tracking** — agents report %, visible in Workflows page (Workflow v2 P1)
+- [x] **Basic blocker surfacing** — 5 blocker types (approval, choice, input, delegation, waiting) with dynamic UI in NotificationCenter
+- [x] **Workflow progress tracking** — progress API, progress bars in Workflows page + DAG view + notifications
 - [x] **10 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Dev Team, Student Research, Technical Writing, RAG Team (+ existing Engineering, Small Startup)
 - [x] **Shipables.dev integration** — search, browse, install skills from registry
 - [x] **Bulk skill assignment** — add skills to multiple agents at once
@@ -69,9 +69,16 @@
 > Design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
 
 - [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution
-- [ ] **Workflow DAG + dependencies** — `depends_on`, parallel execution, sequential gates
+- [x] **Workflow DAG + dependencies** — `dependsOn` field, parallel lanes, sequential gates, DAG execution engine
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete
-- [ ] **Workflow DAG visualization** — Mermaid-style graph in Workflows page
+- [x] **Workflow DAG visualization** — interactive DAG view with dependency lines, zoom, edit mode, undo
+- [x] **TEMPLATE.md lean format** — 248→19 line frontmatter, structured markdown body
+- [x] **WORKFLOW.md format** — parse + serialize + round-trip, import/export APIs
+- [x] **Specs** — TEMPLATE_MD_SPEC.md + WORKFLOW_MD_SPEC.md formal specifications
+- [x] **Notification actions** — 5 blocker types with dynamic UI, search, restart/pause
+- [x] **Template cross-validation** — agent/group/community/workflow reference checking
+- [x] **Export buttons** — download TEMPLATE.md / WORKFLOW.md from detail views
+- [x] **Smart workflow customization** — paginated wizard with dropdowns, checkboxes, textareas
 
 ### Self-Management
 - [ ] **ClawMax Dev Team template** — qa-engineer, release-engineer, github-triage with kickoff workflow
