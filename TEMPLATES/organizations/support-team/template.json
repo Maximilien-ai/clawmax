@@ -147,7 +147,8 @@
           "support-lead"
         ]
       },
-      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas"
+      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas",
+      "type": "once"
     },
     {
       "id": "ticket-triage",
@@ -164,7 +165,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Ticket Triage Cycle\n\n1. Pull all unassigned tickets since last triage\n2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)\n3. P0/P1: immediately assign to escalation engineer and notify support lead\n4. P2/P3: assign to support agents based on current load and expertise\n5. Update ticket status and post triage summary to Triage group"
+      "content": "# Ticket Triage Cycle\n\n1. Pull all unassigned tickets since last triage\n2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)\n3. P0/P1: immediately assign to escalation engineer and notify support lead\n4. P2/P3: assign to support agents based on current load and expertise\n5. Update ticket status and post triage summary to Triage group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "sla-monitoring",
@@ -181,7 +186,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# SLA Monitoring\n\n1. Check all open tickets against SLA thresholds\n2. Flag tickets approaching SLA breach (80% of allowed time)\n3. For breached SLAs: notify support lead and escalate if needed\n4. Calculate current SLA compliance rate and CSAT score\n5. Post hourly SLA dashboard to Status group"
+      "content": "# SLA Monitoring\n\n1. Check all open tickets against SLA thresholds\n2. Flag tickets approaching SLA breach (80% of allowed time)\n3. For breached SLAs: notify support lead and escalate if needed\n4. Calculate current SLA compliance rate and CSAT score\n5. Post hourly SLA dashboard to Status group",
+      "dependsOn": [
+        "kickoff"
+      ],
+      "type": "recurring"
     },
     {
       "id": "kb-updates",
@@ -200,7 +209,12 @@
           "knowledge-mgr"
         ]
       },
-      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week \u2014 identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group"
+      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week \u2014 identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group",
+      "dependsOn": [
+        "ticket-triage",
+        "sla-monitoring"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "business"

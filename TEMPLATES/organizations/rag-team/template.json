@@ -194,7 +194,8 @@
       },
       "executionMode": "automated",
       "description": "Gather requirements, configure weave-cli, verify VDB health",
-      "content": "## RAG Setup\n\n1. Gather user requirements: What data sources? What query patterns? What quality bar?\n2. Recommend VDB based on requirements (run `weave vdb list` to show options)\n3. Run `weave config create --env` to initialize config.yaml and .env\n4. Run `weave doctor --fix` to verify all components healthy\n5. Run `weave health check` to confirm VDB connectivity\n6. Report setup status and recommended next steps to the Planning group"
+      "content": "## RAG Setup\n\n1. Gather user requirements: What data sources? What query patterns? What quality bar?\n2. Recommend VDB based on requirements (run `weave vdb list` to show options)\n3. Run `weave config create --env` to initialize config.yaml and .env\n4. Run `weave doctor --fix` to verify all components healthy\n5. Run `weave health check` to confirm VDB connectivity\n6. Report setup status and recommended next steps to the Planning group",
+      "type": "once"
     },
     {
       "id": "data-pipeline",
@@ -211,7 +212,11 @@
       },
       "executionMode": "automated",
       "description": "Create collections, ingest documents in parallel batches, backup",
-      "content": "## Data Pipeline\n\n1. Run `weave schema suggest` on the source data directory to get AI schema recommendations\n2. Run `weave chunking suggest` on a sample file for chunk size guidance\n3. Create collections: `weave collection create <name>`\n4. Dry-run ingestion: `weave pipeline ingest <source> --collection <name> --dry-run`\n5. Run full ingestion with parallelism: `weave pipeline ingest <source> --collection <name> --workers 4 --batch-size 100`\n6. Verify counts: `weave collection count <name>` and `weave document list <name>`\n7. Backup: `weave backup create <collection> --compress`\n8. Report ingestion stats to Data Pipeline group"
+      "content": "## Data Pipeline\n\n1. Run `weave schema suggest` on the source data directory to get AI schema recommendations\n2. Run `weave chunking suggest` on a sample file for chunk size guidance\n3. Create collections: `weave collection create <name>`\n4. Dry-run ingestion: `weave pipeline ingest <source> --collection <name> --dry-run`\n5. Run full ingestion with parallelism: `weave pipeline ingest <source> --collection <name> --workers 4 --batch-size 100`\n6. Verify counts: `weave collection count <name>` and `weave document list <name>`\n7. Backup: `weave backup create <collection> --compress`\n8. Report ingestion stats to Data Pipeline group",
+      "dependsOn": [
+        "rag-setup"
+      ],
+      "type": "recurring"
     },
     {
       "id": "search-tuning",
@@ -228,7 +233,11 @@
       },
       "executionMode": "automated",
       "description": "Configure agents, test queries, compare search modes and embeddings",
-      "content": "## Search Tuning\n\n1. Create a RAG agent: `weave agents create rag-agent --type rag`\n2. Create a QA agent: `weave agents create qa-agent --type qa`\n3. Test representative queries across search modes: semantic, BM25, hybrid\n4. Compare results: `weave collection query <name> \"test query\" --top-k 10`\n5. If quality is low, try re-embedding: `weave collection re-embed <name> --new-embedding <model>`\n6. Compare models: `weave collection compare <original> <re-embedded> --query \"test\" --report comparison.md`\n7. Report best search configuration to Search & QA group"
+      "content": "## Search Tuning\n\n1. Create a RAG agent: `weave agents create rag-agent --type rag`\n2. Create a QA agent: `weave agents create qa-agent --type qa`\n3. Test representative queries across search modes: semantic, BM25, hybrid\n4. Compare results: `weave collection query <name> \"test query\" --top-k 10`\n5. If quality is low, try re-embedding: `weave collection re-embed <name> --new-embedding <model>`\n6. Compare models: `weave collection compare <original> <re-embedded> --query \"test\" --report comparison.md`\n7. Report best search configuration to Search & QA group",
+      "dependsOn": [
+        "rag-setup"
+      ],
+      "type": "recurring"
     },
     {
       "id": "eval-cycle",
@@ -245,7 +254,12 @@
       },
       "executionMode": "automated",
       "description": "Run baseline evals, benchmark agents, report results and recommendations",
-      "content": "## Eval Cycle\n\n1. Create or verify baseline dataset (YAML with queries, expected answers, required concepts)\n2. Run baseline eval: `weave eval run --agent rag-agent --dataset baseline --collection <name>`\n3. Run benchmark across agent types: `weave eval benchmark --agents rag-agent,qa-agent --dataset baseline`\n4. Check scores: accuracy >= 0.70, citation >= 0.75, relevance >= 0.60\n5. If below threshold, recommend specific changes:\n   - Low relevance: try hybrid search or different embedding model\n   - Low accuracy: switch to QA agent with lower temperature\n   - Low citation: enable strict mode with must_cite\n6. Report results and recommendations to Quality group"
+      "content": "## Eval Cycle\n\n1. Create or verify baseline dataset (YAML with queries, expected answers, required concepts)\n2. Run baseline eval: `weave eval run --agent rag-agent --dataset baseline --collection <name>`\n3. Run benchmark across agent types: `weave eval benchmark --agents rag-agent,qa-agent --dataset baseline`\n4. Check scores: accuracy >= 0.70, citation >= 0.75, relevance >= 0.60\n5. If below threshold, recommend specific changes:\n   - Low relevance: try hybrid search or different embedding model\n   - Low accuracy: switch to QA agent with lower temperature\n   - Low citation: enable strict mode with must_cite\n6. Report results and recommendations to Quality group",
+      "dependsOn": [
+        "data-pipeline",
+        "search-tuning"
+      ],
+      "type": "recurring"
     },
     {
       "id": "deploy",
@@ -262,7 +276,11 @@
       },
       "executionMode": "automated",
       "description": "Initialize stack, deploy to k8s/podman, verify health, set up monitoring",
-      "content": "## Deploy\n\n1. Initialize stack config: `weave stack init`\n2. Validate: `weave stack validate`\n3. Deploy: `weave stack up --runtime kind` (local) or `--runtime eks` (cloud)\n4. Verify health: `weave stack status`\n5. Ingest data into stack: `weave stack ingest <source> --collection <name>`\n6. Open dashboard: `weave stack dashboard`\n7. Set up monitoring: `weave serve --metrics-port 9090`\n8. Configure backup schedule\n9. Report deployment status to Ops group"
+      "content": "## Deploy\n\n1. Initialize stack config: `weave stack init`\n2. Validate: `weave stack validate`\n3. Deploy: `weave stack up --runtime kind` (local) or `--runtime eks` (cloud)\n4. Verify health: `weave stack status`\n5. Ingest data into stack: `weave stack ingest <source> --collection <name>`\n6. Open dashboard: `weave stack dashboard`\n7. Set up monitoring: `weave serve --metrics-port 9090`\n8. Configure backup schedule\n9. Report deployment status to Ops group",
+      "dependsOn": [
+        "eval-cycle"
+      ],
+      "type": "conditional"
     },
     {
       "id": "daily-status",
@@ -279,7 +297,11 @@
       },
       "executionMode": "automated",
       "description": "Daily status check \u2014 each agent reports progress in their area",
-      "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief \u2014 2-3 sentences per item."
+      "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief \u2014 2-3 sentences per item.",
+      "dependsOn": [
+        "rag-setup"
+      ],
+      "type": "recurring"
     }
   ],
   "category": "technical"
