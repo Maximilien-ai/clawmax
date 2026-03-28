@@ -146,7 +146,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId }: Workflo
       </svg>
 
       {/* Lanes (columns) */}
-      <div className="flex gap-6 p-4 relative z-10 justify-center items-start" style={{ minHeight: 120 }}>
+      <div className="flex gap-6 p-4 relative z-10" style={{ minHeight: 120 }}>
         {lanes.map((lane, laneIdx) => (
           <div key={laneIdx} className="flex flex-col gap-3 min-w-[180px] justify-center">
             {/* Lane header */}
