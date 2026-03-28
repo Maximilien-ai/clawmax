@@ -1180,13 +1180,14 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     const gatewayConfig = getAgentGatewayConfig(id)
     let gatewayRunning = false
 
-    if (gatewayConfig && gatewayConfig.port) {
-      // Probe gateway port — try multiple methods for portability
+    // Check agent-specific port, or fall back to shared gateway (port 18789)
+    const probePort = (gatewayConfig && gatewayConfig.port) ? gatewayConfig.port : 18789
+    {
       const { execSync } = require('child_process')
       const portChecks = [
-        `lsof -ti:${gatewayConfig.port}`,
-        `bash -c 'echo > /dev/tcp/127.0.0.1/${gatewayConfig.port}' 2>/dev/null`,
-        `curl -s -o /dev/null --connect-timeout 1 http://127.0.0.1:${gatewayConfig.port}/`,
+        `lsof -ti:${probePort}`,
+        `bash -c 'echo > /dev/tcp/127.0.0.1/${probePort}' 2>/dev/null`,
+        `curl -s -o /dev/null --connect-timeout 1 http://127.0.0.1:${probePort}/`,
       ]
       for (const cmd of portChecks) {
         try {
