@@ -188,6 +188,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     return saved === 'list' ? 'list' : saved === 'dag' ? 'dag' : 'grid'
   })
   useEffect(() => { localStorage.setItem('workflows-view-mode', viewMode) }, [viewMode])
+  const [dagEditing, setDagEditing] = useState(false)
   const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [executionsPage, setExecutionsPage] = useState(1)
@@ -1085,11 +1086,26 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </div>
         ) : viewMode === 'dag' ? (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="flex items-center justify-between px-4 pt-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {dagEditing ? 'Click a node to add dependency, click × on a line to remove' : 'Workflow dependency graph'}
+              </span>
+              <button
+                onClick={() => setDagEditing(!dagEditing)}
+                className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                  dagEditing
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {dagEditing ? '✓ Done Editing' : 'Edit Dependencies'}
+              </button>
+            </div>
             <WorkflowDAG
               workflows={sortedWorkflows}
               selectedId={selectedWorkflow?.id}
               onSelect={(id) => fetchWorkflowDetails(id)}
-              editable
+              editable={dagEditing}
               onAddDependency={async (fromId, toId) => {
                 const wf = sortedWorkflows.find(w => w.id === toId)
                 const existing = wf?.dependsOn || []
