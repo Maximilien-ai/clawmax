@@ -1089,6 +1089,30 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               workflows={sortedWorkflows}
               selectedId={selectedWorkflow?.id}
               onSelect={(id) => fetchWorkflowDetails(id)}
+              editable
+              onAddDependency={async (fromId, toId) => {
+                const wf = sortedWorkflows.find(w => w.id === toId)
+                const existing = wf?.dependsOn || []
+                if (existing.includes(fromId)) return
+                await fetch(`/api/workflows/${toId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ dependsOn: [...existing, fromId] }),
+                })
+                showSuccess(`Added dependency: ${fromId} → ${toId}`)
+                fetchWorkflows()
+              }}
+              onRemoveDependency={async (fromId, toId) => {
+                const wf = sortedWorkflows.find(w => w.id === toId)
+                const updated = (wf?.dependsOn || []).filter(d => d !== fromId)
+                await fetch(`/api/workflows/${toId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ dependsOn: updated }),
+                })
+                showSuccess(`Removed dependency: ${fromId} → ${toId}`)
+                fetchWorkflows()
+              }}
             />
           </div>
         ) : viewMode === 'grid' ? (
