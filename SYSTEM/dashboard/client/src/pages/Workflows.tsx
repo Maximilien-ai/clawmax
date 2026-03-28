@@ -28,6 +28,9 @@ interface Workflow {
   targeting: AgentTargeting
   maxRuns?: number
   runCount?: number
+  progress?: number
+  status?: 'idle' | 'running' | 'completed' | 'blocked'
+  dependsOn?: string[]
 }
 
 interface WorkflowDetails extends Workflow {
@@ -2017,6 +2020,17 @@ function WorkflowsTable({
                     {workflow.maxRuns && workflow.maxRuns > 0
                       ? `${workflow.runCount || 0}/${workflow.maxRuns}`
                       : 'Unlimited'}
+                    {workflow.progress != null && workflow.progress > 0 && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${workflow.progress >= 100 ? 'bg-emerald-500' : workflow.status === 'blocked' ? 'bg-amber-500' : 'bg-sky-500'}`} style={{ width: `${Math.min(workflow.progress, 100)}%` }} />
+                        </div>
+                        <span className="text-[10px] text-gray-400 shrink-0">{workflow.progress}%</span>
+                      </div>
+                    )}
+                    {workflow.status === 'blocked' && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Blocked</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{new Date(workflow.modified).toLocaleDateString()}</td>
                   <td className="px-4 py-3">

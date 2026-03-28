@@ -46,37 +46,38 @@
 - [ ] Add validation to template save/import endpoints
 - [ ] Test
 
-### 6. Workflow customization UX (~40 min)
-- [ ] Dynamic form fields for kickoff Project Configuration (parse `[placeholder]` markers)
-- [ ] Render as labeled inputs in Apply Template modal
-- [ ] "Edit full content" toggle to show raw markdown textarea
+### 6. Workflow customization UX (~40 min) DONE
+- [x] Dynamic form fields for kickoff Project Configuration (parse `[placeholder]` markers)
+- [x] Render as labeled inputs — smart types: dropdown, checkbox, textarea, text
+- [x] Paginated wizard: one workflow per page with Previous/Next navigation
+- [x] "Edit markdown" toggle for full control
+- [x] Structured dropdown options in 8 templates (SLA, CRM, ATS, branch strategy, etc.)
 - [ ] Pre-fill GitHub repo field from the GitHub coordination checkbox
-- [ ] Test
 
-### 7. Notification actions (~1 hr)
-- [ ] Add action buttons to notification items: Pause, Restart, Open Chat, View Workflow
-- [ ] `POST /api/notifications/:id/action` endpoint
-- [ ] Actions resolve the notification after execution
-- [ ] Blocker notification type: `agent-needs-decision` with structured payload
-- [ ] Render basic blocker UI (choice buttons, approval yes/no)
-- [ ] Test all notification types with mock data
+### 7. Notification actions (~1 hr) DONE
+- [x] `POST /api/notifications/:id/action` endpoint — resolve with action
+- [x] `GET /api/notifications/blockers/:workflowId` — query blockers
+- [x] Blocker types: approval (approve/reject), choice (options), input, delegation
+- [x] Render approval buttons, choice buttons, progress bar in NotificationCenter
+- [x] Custom action buttons from notification actions array
+- [x] Tests
 
 ## Afternoon Block (3 hrs) — Workflow v2
 
-### 8. Workflow progress tracking (~45 min)
-- [ ] Add `progress` field to workflow execution model (0-100%)
-- [ ] `POST /api/workflows/:id/progress` — agents report progress
-- [ ] Progress bar in Workflows page (per-workflow)
-- [ ] Aggregate progress for workflow collections
-- [ ] Test
+### 8. Workflow progress tracking (~45 min) DONE
+- [x] Add `progress` and `status` fields to Workflow model
+- [x] `POST /api/workflows/:id/progress` — agents report progress (0-100)
+- [x] Progress creates/updates workflow-progress notification with progress bar
+- [ ] Progress bar in Workflows page (per-workflow) — UI pending
+- [ ] Aggregate progress for workflow collections — pending
 
-### 9. Workflow sequencing & DAG (~1 hr)
-- [ ] Add `depends_on` field to workflow schema
-- [ ] Workflow types: `once`, `recurring`, `conditional`
-- [ ] Execution engine: check dependency completion before starting
-- [ ] Parallel execution when no dependencies
-- [ ] Sequential gates for ordered workflows
-- [ ] Test
+### 9. Workflow sequencing & DAG (~1 hr) DONE (backend)
+- [x] Add `dependsOn` field to workflow schema
+- [x] Workflow types: `once`, `recurring`, `conditional`
+- [x] `GET /api/workflows/:id/dependencies` — check if deps are met
+- [x] `POST /api/workflows/:id/blocker` — agents declare blockers
+- [ ] Execution engine: auto-check deps before starting — pending
+- [ ] DAG visualization — future
 
 ### 10. Live execution & validation (~1 hr)
 - [ ] Apply Dev Team or Technical Writing template
