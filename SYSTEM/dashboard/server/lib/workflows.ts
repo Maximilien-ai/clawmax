@@ -459,7 +459,9 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       executionMode: data.executionMode || 'automated',
       maxRuns: data.maxRuns || 0,
       runCount: 0,
-      content
+      content,
+      dependsOn: data.dependsOn,
+      type: data.type,
     }
 
     // Create file with YAML frontmatter
@@ -477,6 +479,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       executionMode: workflow.executionMode,
       ...(workflow.maxRuns && workflow.maxRuns > 0 && { maxRuns: workflow.maxRuns }),
       ...(workflow.runCount && workflow.runCount > 0 && { runCount: workflow.runCount }),
+      ...(workflow.dependsOn?.length && { dependsOn: workflow.dependsOn }),
+      ...(workflow.type && { type: workflow.type }),
     }
     const fileContent = matter.stringify(workflow.content, frontmatter)
 
@@ -540,6 +544,10 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       ...((updated.maxRuns !== undefined && updated.maxRuns > 0) && { maxRuns: updated.maxRuns }),
       ...((updated.runCount !== undefined && updated.runCount > 0) && { runCount: updated.runCount }),
       ...(updated.cronJobId && { cronJobId: updated.cronJobId }),
+      ...(updated.dependsOn?.length && { dependsOn: updated.dependsOn }),
+      ...(updated.type && { type: updated.type }),
+      ...(updated.progress !== undefined && updated.progress > 0 && { progress: updated.progress }),
+      ...(updated.status && updated.status !== 'idle' && { status: updated.status }),
     }
     const fileContent = matter.stringify(updated.content, updateFrontmatter)
 
