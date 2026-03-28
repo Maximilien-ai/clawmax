@@ -88,7 +88,8 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Status Check\n\nProvide a brief status update:\n\n1. **Current state**: What are you working on?\n2. **Any issues**: Anything blocking you?\n3. **Next action**: What will you do next?\n\nKeep it concise (2-3 sentences)."
+      "content": "# Status Check\n\nProvide a brief status update:\n\n1. **Current state**: What are you working on?\n2. **Any issues**: Anything blocking you?\n3. **Next action**: What will you do next?\n\nKeep it concise (2-3 sentences).",
+      "type": "recurring"
     }
   ]
 }
