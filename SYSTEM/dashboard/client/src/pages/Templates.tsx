@@ -1340,6 +1340,14 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
                 ⚡ Apply Template
               </button>
             )}
+            {!isWorkflow && template.slug && (
+              <button
+                onClick={() => window.open(`/api/templates/organizations/${template.slug}/export-md`, '_blank')}
+                className="px-3 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md transition-colors text-sm font-medium"
+              >
+                Export .md
+              </button>
+            )}
             {isWorkflow && onInstantiate && (
               <button
                 onClick={onInstantiate}
