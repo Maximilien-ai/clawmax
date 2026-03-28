@@ -56,8 +56,8 @@
 
 ### Backlog from Hackathon
 - [ ] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
-- [ ] **Specialty Retailer template** — planned but not built
-- [ ] **Data Team template** — planned but not built
+- [x] **Specialty Retailer template** — done
+- [x] **Data Team template** — done
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
