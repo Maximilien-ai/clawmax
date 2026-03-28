@@ -1,8 +1,8 @@
 # ClawMax Status
 
-**Current Version**: v1.1.16
+**Current Version**: v1.1.20
 **Last Updated**: March 28, 2026
-**Status**: Deep Agents Hackathon features merged, all tests passing (121 integration + 25 unit)
+**Status**: Workflow v2 complete — DAG visualization, execution engine, specs published to Maximilien-ai/templates + workflows
 
 ---
 
