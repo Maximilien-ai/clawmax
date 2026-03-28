@@ -87,6 +87,33 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>([])
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
+  const [lastAction, setLastAction] = useState<{ type: 'add' | 'remove'; fromId: string; toId: string } | null>(null)
+
+  // Escape key cancels connecting, Ctrl+Z undoes last action
+  useEffect(() => {
+    if (!editable) return
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && lastAction) {
+        e.preventDefault()
+        if (lastAction.type === 'add') {
+          onRemoveDependency?.(lastAction.fromId, lastAction.toId)
+        } else {
+          onAddDependency?.(lastAction.fromId, lastAction.toId)
+        }
+        setLastAction(null)
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [editable, lastAction, onAddDependency, onRemoveDependency])
+
+  // Escape key cancels connecting mode
+  useEffect(() => {
+    if (!connectingFrom) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setConnectingFrom(null) }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [connectingFrom])
 
   // Calculate SVG connector lines after render
   useEffect(() => {
@@ -156,15 +183,38 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
           {blockedCount > 0 && <><span>·</span><span className="text-amber-600">{blockedCount} blocked</span></>}
           <span>·</span>
           <span>{totalWorkflows} total</span>
+          {editable && lastAction && (
+            <>
+              <span>·</span>
+              <button
+                onClick={() => {
+                  if (lastAction.type === 'add') {
+                    onRemoveDependency?.(lastAction.fromId, lastAction.toId)
+                  } else {
+                    onAddDependency?.(lastAction.fromId, lastAction.toId)
+                  }
+                  setLastAction(null)
+                }}
+                className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
+              >
+                Undo
+              </button>
+            </>
+          )}
         </div>
       </div>
       {/* Connecting mode banner */}
       {connectingFrom && (
-        <div className="bg-purple-100 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-700 px-4 py-2 flex items-center justify-between">
+        <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 rounded-lg mx-4 mt-2 px-4 py-2.5 flex items-center justify-between">
           <span className="text-xs text-purple-700 dark:text-purple-300 font-medium">
-            Click a workflow to add dependency from <strong>{connectingFrom}</strong> → ...
+            Click a target workflow to add: <strong>{connectingFrom}</strong> must complete before → ...
           </span>
-          <button onClick={() => setConnectingFrom(null)} className="text-xs text-purple-500 hover:text-purple-700">Cancel</button>
+          <button
+            onClick={() => setConnectingFrom(null)}
+            className="px-3 py-1 text-xs bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-300 dark:hover:bg-purple-700 font-medium"
+          >
+            Cancel (Esc)
+          </button>
         </div>
       )}
 
@@ -182,18 +232,25 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                 strokeWidth={2}
                 strokeDasharray={line.status === 'idle' ? '4 4' : undefined}
               />
-              {/* Clickable hit area for removing dependency */}
+              {/* Remove button on line midpoint */}
               {editable && onRemoveDependency && (
-                <path
-                  d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
-                  fill="none"
-                  stroke="transparent"
-                  strokeWidth={12}
-                  className="cursor-pointer"
-                  onClick={() => onRemoveDependency(line.fromId, line.toId)}
-                >
-                  <title>Click to remove: {line.fromId} → {line.toId}</title>
-                </path>
+                <>
+                  <path
+                    d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    className="cursor-pointer"
+                    onClick={() => { onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
+                  />
+                  <g
+                    className="cursor-pointer"
+                    onClick={() => { onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
+                  >
+                    <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={8} fill="white" stroke={color} strokeWidth={1} className="dark:fill-gray-800" opacity={0.9} />
+                    <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="#ef4444" fontWeight="bold">×</text>
+                  </g>
+                </>
               )}
             </g>
           )
@@ -222,9 +279,35 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                   ref={el => { if (el) nodeRefs.current.set(wf.id, el) }}
                   onClick={() => {
                     if (editable && connectingFrom) {
-                      if (connectingFrom !== wf.id) {
-                        onAddDependency?.(connectingFrom, wf.id)
+                      if (connectingFrom === wf.id) {
+                        // Can't depend on self
+                        setConnectingFrom(null)
+                        return
                       }
+                      // Check: already has this dependency?
+                      if (wf.dependsOn?.includes(connectingFrom)) {
+                        setConnectingFrom(null)
+                        return
+                      }
+                      // Check: would create a cycle? (from depends on to, directly or transitively)
+                      const wouldCycle = (fromId: string, toId: string): boolean => {
+                        const visited = new Set<string>()
+                        const check = (id: string): boolean => {
+                          if (id === toId) return true
+                          if (visited.has(id)) return false
+                          visited.add(id)
+                          const w = workflows.find(w => w.id === id)
+                          return (w?.dependsOn || []).some(d => check(d))
+                        }
+                        return check(fromId)
+                      }
+                      if (wouldCycle(wf.id, connectingFrom)) {
+                        // Would create cycle — don't add
+                        setConnectingFrom(null)
+                        return
+                      }
+                      onAddDependency?.(connectingFrom, wf.id)
+                      setLastAction({ type: 'add', fromId: connectingFrom, toId: wf.id })
                       setConnectingFrom(null)
                     } else {
                       onSelect?.(wf.id)
