@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useToast } from './Toast'
 
 interface NotificationAction {
   type: string
@@ -38,6 +39,7 @@ interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
+  onAgentRestarted?: (agentId: string) => void
 }
 
 function timeAgo(iso: string): string {
@@ -66,7 +68,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ['agent', 'workflow', 'communication', 'budget']
 
-export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage }: NotificationCenterProps) {
+export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onAgentRestarted }: NotificationCenterProps) {
+  const { showSuccess, showError } = useToast()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
   const [criticalCount, setCriticalCount] = useState(0)
@@ -392,9 +395,15 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                                     const res = await fetch(`/api/agents/${n.entityId}/restart`, { method: 'POST' })
                                     const data = await res.json()
                                     if (data.ok) {
+                                      showSuccess(`Restarting ${n.entityId}...`)
                                       await fetch('/api/notifications/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) })
+                                      onAgentRestarted?.(n.entityId!)
+                                    } else {
+                                      showError(`Failed to restart ${n.entityId}: ${data.error || 'unknown error'}`)
                                     }
-                                  } catch {}
+                                  } catch {
+                                    showError(`Failed to restart ${n.entityId}`)
+                                  }
                                   await fetchNotifications()
                                   setProcessingId(null)
                                 }}
@@ -406,8 +415,14 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                               <button
                                 onClick={async () => {
                                   setProcessingId(n.id)
-                                  await fetch('/api/agents/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentIds: [n.entityId] }) }).catch(() => {})
-                                  await fetch('/api/notifications/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) }).catch(() => {})
+                                  try {
+                                    await fetch('/api/agents/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentIds: [n.entityId] }) })
+                                    showSuccess(`Paused ${n.entityId}`)
+                                    await fetch('/api/notifications/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: n.id }) })
+                                    onAgentRestarted?.(n.entityId!)
+                                  } catch {
+                                    showError(`Failed to pause ${n.entityId}`)
+                                  }
                                   await fetchNotifications()
                                   setProcessingId(null)
                                 }}
