@@ -1,39 +1,26 @@
 #!/bin/bash
 # Stop ClawMax Dashboard servers
 
+BACKEND_PORT="${DASHBOARD_PORT:-3001}"
+FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
+
 echo "Stopping ClawMax Dashboard..."
+echo "Backend port: $BACKEND_PORT"
+echo "Frontend port: $FRONTEND_PORT"
 echo ""
 
 stopped=0
 
-# Kill backend server (ts-node)
-if pkill -f "ts-node server/index.ts" 2>/dev/null; then
-  echo "✓ Stopped backend server"
-  ((stopped++))
-fi
-
-# Kill frontend server (vite)
-if pkill -f "vite" 2>/dev/null; then
-  echo "✓ Stopped frontend server"
-  ((stopped++))
-fi
-
-# Kill npm run dev parent process
-if pkill -f "npm run dev" 2>/dev/null; then
-  echo "✓ Stopped dev process"
-  ((stopped++))
-fi
-
 # Force kill any remaining processes on the ports
-if lsof -ti:3001 > /dev/null 2>&1; then
-  lsof -ti:3001 | xargs kill -9 2>/dev/null
-  echo "✓ Freed port 3001"
+if lsof -ti:"$BACKEND_PORT" > /dev/null 2>&1; then
+  lsof -ti:"$BACKEND_PORT" | xargs kill -9 2>/dev/null
+  echo "✓ Freed port $BACKEND_PORT"
   ((stopped++))
 fi
 
-if lsof -ti:5173 > /dev/null 2>&1; then
-  lsof -ti:5173 | xargs kill -9 2>/dev/null
-  echo "✓ Freed port 5173"
+if lsof -ti:"$FRONTEND_PORT" > /dev/null 2>&1; then
+  lsof -ti:"$FRONTEND_PORT" | xargs kill -9 2>/dev/null
+  echo "✓ Freed port $FRONTEND_PORT"
   ((stopped++))
 fi
 

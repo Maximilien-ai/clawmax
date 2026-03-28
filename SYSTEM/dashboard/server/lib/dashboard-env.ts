@@ -46,7 +46,8 @@ export function getDashboardEnvRaw(): Record<string, string> {
 }
 
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
-  const lookup = isContainerMode
+  const allowProcessFallback = rawEnv === dashboardEnv && isContainerMode
+  const lookup = allowProcessFallback
     ? (key: string) => firstNonEmpty(rawEnv, key) || (process.env[key]?.trim() || undefined)
     : (key: string) => firstNonEmpty(rawEnv, key)
   return {

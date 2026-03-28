@@ -1,6 +1,8 @@
 #!/bin/bash
 # Start gateways for test agents (ceo, engineer, max0)
 
+FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
+
 echo "🚀 Starting agent gateways for workflow testing..."
 echo ""
 
@@ -31,7 +33,7 @@ echo ""
 echo "Verify gateways are listening:"
 echo "  lsof -ti:18890,18891,18892"
 echo ""
-echo "Dashboard: http://localhost:5173"
+echo "Dashboard: http://localhost:$FRONTEND_PORT"
 echo ""
 echo "To stop all gateways:"
 echo "  kill $CEO_PID $ENGINEER_PID $MAX0_PID"
