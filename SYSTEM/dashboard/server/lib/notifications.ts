@@ -117,8 +117,8 @@ export function createNotification(params: {
 }): Notification | null {
   const notifications = loadNotifications()
 
-  // Dedup: skip if active notification with same fingerprint exists
-  const existing = notifications.find(n => n.fingerprint === params.fingerprint && !n.dismissedAt && !n.resolvedAt)
+  // Dedup: skip if notification with same fingerprint is active or was dismissed (don't re-nag)
+  const existing = notifications.find(n => n.fingerprint === params.fingerprint && !n.resolvedAt)
   if (existing) {
     // Update progress if it's a progress notification
     if (params.progress !== undefined && existing.progress !== params.progress) {

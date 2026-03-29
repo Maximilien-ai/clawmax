@@ -835,6 +835,36 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.completedAt = new Date().toISOString()
           execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
 
+          // Detect blockers/questions from agent output
+          const { createNotification } = require('./notifications')
+          const textLower = agentText.toLowerCase()
+          const isQuestion = /\?\s*$/.test(agentText.trim()) || /what should|which (one|option)|ready for.*planning|need.*decision|waiting for|blocked by|please (choose|decide|confirm|approve)/i.test(agentText)
+          const isError = /error|failed|cannot|unable to|permission denied|access denied|rate limit/i.test(textLower) && agentText.length < 500
+
+          if (isQuestion) {
+            createNotification({
+              type: 'agent-needs-decision',
+              title: `${participant.agentId} needs input`,
+              message: agentText.slice(-200),
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `agent-question:${workflowId}:${participant.agentId}:${execution.id}`,
+              blockerType: 'input',
+              workflowId,
+            })
+            console.log(`[DAG] Agent ${participant.agentId} asked a question — notification created`)
+          } else if (isError) {
+            createNotification({
+              type: 'agent-error',
+              title: `${participant.agentId} reported an error`,
+              message: agentText.slice(0, 300),
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `agent-error:${workflowId}:${participant.agentId}:${execution.id}`,
+              workflowId,
+            })
+          }
+
           // Update intermediate progress based on % of participants done
           const completedCount = execution.participants.filter(p => p.status === 'completed' || p.status === 'failed').length
           const totalCount = execution.participants.length
