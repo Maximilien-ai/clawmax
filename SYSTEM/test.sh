@@ -1683,7 +1683,7 @@ done
 # Apply system-test template with gpt-4o-mini
 apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
   -H 'Content-Type: application/json' \
-  -d '{"templateSlug":"system-test","modelOverride":"openai/gpt-4o-mini"}')
+  -d '{"templateSlug":"system-test","modelOverride":"openai/gpt-4o-mini","agentCounts":{"test-agent":2}}')
 
 if echo "$apply_result" | jq -e '.ok == true' > /dev/null 2>&1; then
   agent_count=$(echo "$apply_result" | jq '.agentIds | length')
@@ -1779,10 +1779,20 @@ apicurl -X PUT "$API_BASE/api/workflows/test-parallel-b" -H 'Content-Type: appli
 apicurl -X PUT "$API_BASE/api/workflows/test-final" -H 'Content-Type: application/json' -d '{"dependsOn":["test-parallel-a","test-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
 pass "DAG dependencies configured"
 
-# Trigger kickoff
+# Read BYOK keys from dashboard .env for agent execution
+BYOK_ANTHROPIC=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
+BYOK_OPENAI=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
+BYOK_JSON="{}"
+if [ -n "$BYOK_OPENAI" ]; then
+  BYOK_JSON="{\"openai\":\"$BYOK_OPENAI\"}"
+elif [ -n "$BYOK_ANTHROPIC" ]; then
+  BYOK_JSON="{\"anthropic\":\"$BYOK_ANTHROPIC\"}"
+fi
+
+# Trigger kickoff with BYOK keys
 trigger_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/trigger" \
   -H 'Content-Type: application/json' \
-  -d '{"manual":true}')
+  -d "{\"manual\":true,\"byok\":$BYOK_JSON}")
 
 if echo "$trigger_result" | jq -e '.executionId' > /dev/null 2>&1; then
   pass "Kickoff workflow triggered"
