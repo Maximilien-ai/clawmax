@@ -1683,7 +1683,7 @@ done
 # Apply system-test template with gpt-4o-mini
 apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
   -H 'Content-Type: application/json' \
-  -d '{"templateSlug":"system-test","modelOverride":"openai/gpt-4o-mini","agentCounts":{"test-agent":2}}')
+  -d '{"templateSlug":"clawmax-system-test","modelOverride":"openai/gpt-4o-mini","agentCounts":{"test-agent":2}}')
 
 if echo "$apply_result" | jq -e '.ok == true' > /dev/null 2>&1; then
   agent_count=$(echo "$apply_result" | jq '.agentIds | length')
