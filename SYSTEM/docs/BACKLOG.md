@@ -76,6 +76,15 @@
 - [x] **Agent blocker detection from output** — questions and errors auto-create notifications
 - [x] **Kickoff targets all agents** — every team member gets project context
 
+### Discovered During Manual + CLI Testing (March 29)
+- [ ] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
+- [ ] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
+- [ ] **Activity page column sorting** — no way to sort by columns (age, agent, type, file) in the Activity page
+- [ ] **Test skill: workspace ls** — add a test skill to system-test agents that lists their workspace directory, captures output, and can share results. Useful for verifying agent file access
+- [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
+- [ ] **DAG run/restart button** — green ▶ icon on each node in DAG view to start (if idle) or restart (if completed). Currently must use "Run Now" from detail panel
+- [ ] **DAG execution count per node** — show number of executions (runCount) on each workflow node in DAG view
+
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
 
