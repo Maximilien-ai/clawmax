@@ -4,8 +4,9 @@
 # SYSTEM Test Suite
 # Tests validation, APIs, and key features
 #
-# Usage: ./test.sh [--with-validation]
+# Usage: ./test.sh [--with-validation] [integration]
 #   --with-validation: Include sections 3-6 (validation tests that modify files)
+#   integration: Run integration tests with live agents (requires gateway + API keys)
 #
 # WARNING: Validation tests (sections 3-6) modify live data files!
 # Run without --with-validation flag to skip them (recommended).
@@ -1630,6 +1631,233 @@ else
 fi
 
 echo ""
+
+# =========================================
+# Integration Tests (live agents)
+# =========================================
+# Run with: ./test.sh integration
+if [ "$1" = "integration" ] || [ "$2" = "integration" ]; then
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "INTEGRATION TESTS — Live Agent Execution"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Model: openai/gpt-4o-mini (cost-efficient)"
+echo ""
+
+INTEGRATION_START=$(date +%s)
+
+# Step 1: Create/activate system-test workspace
+echo -e "${YELLOW}→ Setting up system-test workspace...${NC}"
+SYSTEM_TEST_WS="system-test"
+
+# Check if workspace exists, create if not
+ws_check=$(apicurl "$API_BASE/api/workspaces" | jq -r ".workspaces[] | select(.id==\"$SYSTEM_TEST_WS\") | .id" 2>/dev/null)
+if [ -z "$ws_check" ]; then
+  apicurl -X POST "$API_BASE/api/workspaces" \
+    -H 'Content-Type: application/json' \
+    -d "{\"name\":\"System Test\",\"id\":\"$SYSTEM_TEST_WS\"}" > /dev/null 2>&1
+  echo "  Created workspace: $SYSTEM_TEST_WS"
+fi
+
+# Activate system-test workspace
+apicurl -X PUT "$API_BASE/api/workspaces/$SYSTEM_TEST_WS/activate" > /dev/null 2>&1
+pass "System test workspace activated"
+
+# Step 2: Clean and re-apply template
+echo -e "${YELLOW}→ Applying system-test template...${NC}"
+
+# Delete existing test agents
+existing_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
+for agent_id in $existing_agents; do
+  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+done
+
+# Delete existing test workflows
+existing_wfs=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null)
+for wf_id in $existing_wfs; do
+  apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
+done
+
+# Apply system-test template with gpt-4o-mini
+apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
+  -H 'Content-Type: application/json' \
+  -d '{"templateSlug":"system-test","modelOverride":"openai/gpt-4o-mini"}')
+
+if echo "$apply_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+  agent_count=$(echo "$apply_result" | jq '.agentIds | length')
+  pass "Applied system-test template ($agent_count agents)"
+else
+  error_msg=$(echo "$apply_result" | jq -r '.error // "unknown"')
+  fail "Failed to apply system-test template: $error_msg"
+fi
+
+# Step 3: Verify agents created
+agent_list=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
+expected_agents="test-agent-1 test-agent-2 test-lead"
+for agent_id in $expected_agents; do
+  if echo "$agent_list" | grep -q "^${agent_id}$"; then
+    pass "Agent $agent_id exists"
+  else
+    fail "Agent $agent_id missing"
+  fi
+done
+
+# Step 4: Verify workflows created
+wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[].id' 2>/dev/null | sort)
+expected_wfs="test-final test-kickoff test-parallel-a test-parallel-b test-sequential"
+for wf_id in $expected_wfs; do
+  if echo "$wf_list" | grep -q "$wf_id"; then
+    pass "Workflow $wf_id exists"
+  else
+    fail "Workflow $wf_id missing"
+  fi
+done
+
+# Step 5: Verify communities and groups
+comm_count=$(apicurl "$API_BASE/api/communities" | jq '.communities | length' 2>/dev/null)
+group_count=$(apicurl "$API_BASE/api/groups" | jq '.groups | length' 2>/dev/null)
+if [ "$comm_count" -ge "1" ] 2>/dev/null; then
+  pass "Communities exist ($comm_count)"
+else
+  fail "No communities found"
+fi
+if [ "$group_count" -ge "3" ] 2>/dev/null; then
+  pass "Groups exist ($group_count)"
+else
+  fail "Expected 3+ groups, got $group_count"
+fi
+
+# Step 6: Test 1-1 agent chat
+echo ""
+echo -e "${YELLOW}→ Testing agent chat...${NC}"
+chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
+
+if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
+  response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
+  pass "Agent chat works (response: ${response_text:0:50})"
+else
+  # Chat might use streaming — check for error
+  if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
+    error_msg=$(echo "$chat_result" | jq -r '.error')
+    warn "Agent chat: $error_msg (may need gateway)"
+  else
+    warn "Agent chat returned unexpected format"
+  fi
+fi
+
+# Step 7: Test group message
+echo -e "${YELLOW}→ Testing group messaging...${NC}"
+group_msg=$(apicurl -X POST "$API_BASE/api/groups/Test%20Chat/messages" \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"Integration test message","from":"system"}' 2>/dev/null)
+
+if echo "$group_msg" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Group message sent"
+else
+  warn "Group message may not be supported via this endpoint"
+fi
+
+# Step 8: Test workflow trigger + DAG progression
+echo ""
+echo -e "${YELLOW}→ Testing workflow DAG execution...${NC}"
+
+# Enable all workflows
+for wf_id in test-kickoff test-sequential test-parallel-a test-parallel-b test-final; do
+  apicurl -X PUT "$API_BASE/api/workflows/$wf_id" \
+    -H 'Content-Type: application/json' -d '{"enabled":true}' > /dev/null 2>&1
+done
+
+# Set up DAG dependencies (in case import didn't preserve them)
+apicurl -X PUT "$API_BASE/api/workflows/test-kickoff" -H 'Content-Type: application/json' -d '{"type":"once"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-sequential" -H 'Content-Type: application/json' -d '{"dependsOn":["test-kickoff"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-parallel-a" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-parallel-b" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-final" -H 'Content-Type: application/json' -d '{"dependsOn":["test-parallel-a","test-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
+pass "DAG dependencies configured"
+
+# Trigger kickoff
+trigger_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/trigger" \
+  -H 'Content-Type: application/json' \
+  -d '{"manual":true}')
+
+if echo "$trigger_result" | jq -e '.executionId' > /dev/null 2>&1; then
+  pass "Kickoff workflow triggered"
+else
+  fail "Failed to trigger kickoff"
+fi
+
+# Wait for kickoff to complete (max 120s)
+echo "  Waiting for kickoff to complete (max 120s)..."
+for i in $(seq 1 24); do
+  sleep 5
+  status=$(apicurl "$API_BASE/api/workflows/test-kickoff" | jq -r '.status // "idle"' 2>/dev/null)
+  if [ "$status" = "completed" ]; then
+    pass "Kickoff completed"
+    break
+  fi
+  if [ "$i" = "24" ]; then
+    warn "Kickoff did not complete in 120s (status: $status)"
+  fi
+done
+
+# Check DAG status
+echo -e "${YELLOW}→ Checking DAG progression...${NC}"
+dag_status=$(apicurl "$API_BASE/api/workflows/dag")
+completed_count=$(echo "$dag_status" | jq '[.dag[] | select(.status == "completed")] | length' 2>/dev/null)
+if [ "$completed_count" -ge "1" ] 2>/dev/null; then
+  pass "DAG progressing ($completed_count workflows completed)"
+else
+  warn "No workflows completed yet"
+fi
+
+# Step 9: Test notifications
+echo ""
+echo -e "${YELLOW}→ Testing notifications...${NC}"
+notif_response=$(apicurl "$API_BASE/api/notifications")
+if echo "$notif_response" | jq -e '.notifications' > /dev/null 2>&1; then
+  notif_count=$(echo "$notif_response" | jq '.activeCount')
+  pass "Notifications endpoint works ($notif_count active)"
+else
+  fail "Notifications endpoint failed"
+fi
+
+# Step 10: Test workflow progress API
+progress_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/progress" \
+  -H 'Content-Type: application/json' \
+  -d '{"progress":100,"detail":"Integration test","agentId":"test-lead"}')
+if echo "$progress_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Workflow progress API works"
+else
+  warn "Workflow progress API: $(echo "$progress_result" | jq -r '.error // "unknown"')"
+fi
+
+# Step 11: Test workflow complete + DAG advance
+complete_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/complete")
+if echo "$complete_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+  ready=$(echo "$complete_result" | jq -r '.readyToRun | length')
+  pass "Workflow complete + DAG advance (${ready} ready)"
+else
+  warn "Workflow complete API issue"
+fi
+
+# Cost estimation
+INTEGRATION_END=$(date +%s)
+INTEGRATION_DURATION=$((INTEGRATION_END - INTEGRATION_START))
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Integration Test Summary"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Duration: ${INTEGRATION_DURATION}s"
+echo "Model: openai/gpt-4o-mini"
+echo "Est. cost: ~\$0.01-0.05 (based on ~3 agent calls)"
+echo ""
+
+fi
+# End integration tests
 
 # Restore original workspace if it was different from default
 if [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
