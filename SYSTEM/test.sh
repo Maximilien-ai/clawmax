@@ -1706,7 +1706,7 @@ done
 
 # Step 4: Verify workflows created
 wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[].id' 2>/dev/null | sort)
-expected_wfs="test-final test-kickoff test-parallel-a test-parallel-b test-sequential"
+expected_wfs="test-final test-kickoff test-parallel-a test-parallel-b test-sequential-step"
 for wf_id in $expected_wfs; do
   if echo "$wf_list" | grep -q "$wf_id"; then
     pass "Workflow $wf_id exists"
@@ -1773,9 +1773,9 @@ done
 
 # Set up DAG dependencies (in case import didn't preserve them)
 apicurl -X PUT "$API_BASE/api/workflows/test-kickoff" -H 'Content-Type: application/json' -d '{"type":"once"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-sequential" -H 'Content-Type: application/json' -d '{"dependsOn":["test-kickoff"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-parallel-a" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-parallel-b" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-sequential-step" -H 'Content-Type: application/json' -d '{"dependsOn":["test-kickoff"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-parallel-a" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential-step"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-parallel-b" -H 'Content-Type: application/json' -d '{"dependsOn":["test-sequential-step"],"type":"recurring"}' > /dev/null 2>&1
 apicurl -X PUT "$API_BASE/api/workflows/test-final" -H 'Content-Type: application/json' -d '{"dependsOn":["test-parallel-a","test-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
 pass "DAG dependencies configured"
 
@@ -1857,6 +1857,20 @@ fi
 # Cost estimation
 INTEGRATION_END=$(date +%s)
 INTEGRATION_DURATION=$((INTEGRATION_END - INTEGRATION_START))
+# Step 12: Cleanup — delete test agents and workflows
+echo ""
+echo -e "${YELLOW}→ Cleaning up system-test workspace...${NC}"
+for wf_id in $(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null); do
+  apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
+done
+for agent_id in $(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null); do
+  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+done
+# Dismiss all test notifications
+apicurl -X POST "$API_BASE/api/notifications/dismiss-all" > /dev/null 2>&1
+pass "System-test workspace cleaned up"
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Integration Test Summary"
