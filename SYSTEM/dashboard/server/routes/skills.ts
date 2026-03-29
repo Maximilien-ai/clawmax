@@ -2,12 +2,14 @@ import express from 'express'
 import {
   listAvailableSkills,
   getSkillById,
+  getSkillContent,
   getAgentSkills,
   setAgentSkills,
   validateSkills,
   createCustomSkill,
   importWorkspaceSkill,
-  deleteWorkspaceSkill
+  deleteWorkspaceSkill,
+  updateSkillContent
 } from '../lib/skills'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -81,6 +83,47 @@ router.get('/', (req, res) => {
   } catch (err) {
     console.error('Error listing skills:', err)
     res.status(500).json({ error: 'Failed to load skills' })
+  }
+})
+
+// GET /api/skills/:skillId/content - Get raw SKILL.md content
+router.get('/:skillId/content', (req, res) => {
+  try {
+    const { skillId } = req.params
+    const result = getSkillContent(skillId)
+
+    if (!result) {
+      return res.status(404).json({ error: `Skill '${skillId}' not found` })
+    }
+
+    res.json(result)
+  } catch (err) {
+    console.error('Error getting skill content:', err)
+    res.status(500).json({ error: 'Failed to load skill content' })
+  }
+})
+
+// PUT /api/skills/:skillId/content - Update raw SKILL.md content
+router.put('/:skillId/content', (req, res) => {
+  try {
+    const { skillId } = req.params
+    const { content } = req.body
+
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'content must be a string' })
+    }
+
+    const result = updateSkillContent(skillId, content)
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    console.error('Error updating skill content:', err)
+    if (err.message?.includes('read-only')) {
+      return res.status(403).json({ error: err.message })
+    }
+    if (err.message?.includes('not found')) {
+      return res.status(404).json({ error: err.message })
+    }
+    res.status(500).json({ error: err.message || 'Failed to update skill content' })
   }
 })
 

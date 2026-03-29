@@ -235,7 +235,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
       )}
 
       {/* SVG connector lines */}
-      <svg className="absolute inset-0 w-full h-full" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: 'none', zIndex: editable ? 20 : 0 }}>
+      <svg className="absolute inset-0 w-full h-full" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: editable ? 'auto' : 'none', zIndex: editable ? 20 : 5 }}>
         {lines.map((line, idx) => {
           const midX = (line.x1 + line.x2) / 2
           const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
@@ -345,6 +345,12 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                     <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
                     <span className={`text-sm font-medium truncate ${colors.text}`}>{wf.name}</span>
                   </div>
+
+                  {!!wf.dependsOn?.length && (
+                    <div className="mb-1.5 text-[10px] text-purple-600 dark:text-purple-400">
+                      Depends on: {wf.dependsOn.map(depId => workflows.find(w => w.id === depId)?.name || depId).join(', ')}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
                     <span>{wf.schedule === 'manual' || (wf as any).type === 'once' ? '▶' : (wf as any).type === 'conditional' ? '◆' : '↻'}</span>

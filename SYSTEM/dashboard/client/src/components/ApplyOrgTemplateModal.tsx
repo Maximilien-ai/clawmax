@@ -27,6 +27,17 @@ interface ApplyOrgTemplateModalProps {
   onSuccess: () => void
 }
 
+const FALLBACK_MODELS = [
+  'openai/gpt-5',
+  'openai/gpt-4.1',
+  'openai/gpt-4.1-mini',
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
+  'anthropic/claude-sonnet-4-20250514',
+  'anthropic/claude-opus-4-20250514',
+  'anthropic/claude-3-5-sonnet-20241022',
+]
+
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
@@ -34,12 +45,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
+  const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null)
   const [showModelSection, setShowModelSection] = useState(false)
   const [applying, setApplying] = useState(false)
   const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [useGithub, setUseGithub] = useState(false)
   const [githubRepo, setGithubRepo] = useState('')
+  const [useSenso, setUseSenso] = useState(false)
+  const [sensoFolder, setSensoFolder] = useState('')
+  const [useWorkspaceFs, setUseWorkspaceFs] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
@@ -59,13 +75,24 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   // Fetch available models
   React.useEffect(() => {
-    fetch('/api/agents/models')
-      .then(r => r.json())
-      .then(d => {
-        setAvailableModels(d.models || [])
-        setModelsByProvider(d.modelsByProvider || {})
+    fetch('/api/agents/models', { credentials: 'include', cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load models')
+        return r.json()
       })
-      .catch(() => {})
+      .then(d => {
+        const models = Array.isArray(d.models) ? d.models : []
+        const byProvider = d.modelsByProvider || {}
+        setAvailableModels(models.length > 0 ? models : FALLBACK_MODELS)
+        setModelsByProvider(byProvider)
+        setModelLoadError(models.length === 0 && Object.keys(byProvider).length === 0 ? 'No discovered models found' : null)
+      })
+      .catch(err => {
+        setAvailableModels(FALLBACK_MODELS)
+        setModelsByProvider({})
+        setModelLoadError(err?.message || 'Failed to load models')
+      })
+      .finally(() => setModelsLoaded(true))
   }, [])
 
   // Expand parameterized agents based on counts
@@ -91,6 +118,28 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
   const previewId = `${prefix}${exampleAgentId}${suffix}`
+
+  async function ensureWorkspaceSkills(skillSpecs: Array<{ name: string; registryName?: string }>) {
+    const skillsResp = await fetch('/api/skills')
+    const skillsData = await skillsResp.json()
+    const installedNames = new Set(Array.isArray(skillsData.skills) ? skillsData.skills.map((s: any) => s.name) : [])
+
+    for (const skill of skillSpecs) {
+      if (installedNames.has(skill.name) || !skill.registryName) continue
+
+      setApplyProgress(`Installing skill: ${skill.name}...`)
+      const installResp = await fetch('/api/skills/registry/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: skill.registryName }),
+      })
+      const installData = await installResp.json().catch(() => ({}))
+
+      if (!installResp.ok || installData.ok === false) {
+        throw new Error(installData.error || `Failed to install skill: ${skill.name}`)
+      }
+    }
+  }
 
   const handleApply = async () => {
     setApplying(true)
@@ -128,6 +177,32 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           }
         }
       }
+      if (useSenso && template.workflows) {
+        const sensoBlock = `\n\n---\n**Senso Shared Context:** Use Senso as the shared evidence and memory layer for this team.\n- Ingest new documents, screenshots, notes, and other evidence into Senso\n- Search Senso for prior incidents, briefs, and related context before acting\n- Generate concise summaries and handoff notes grounded in Senso evidence\n- Write back outcomes, lessons learned, and updated briefs to Senso\n${sensoFolder.trim() ? `- Preferred Senso folder/context: \`${sensoFolder.trim()}\`\n` : ''}---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('Senso Shared Context')) {
+            finalOverrides[wf.id] = existing + sensoBlock
+          }
+        }
+      }
+      if (useWorkspaceFs && template.workflows) {
+        const fsBlock = `\n\n---\n**Workspace File System:** Use the shared workspace filesystem for working artifacts and coordination.\n- Save drafts, notes, research snapshots, and intermediate outputs in the workspace\n- Read existing workspace files before duplicating work\n- Treat the workspace as a shared artifact layer across agents\n- Keep filenames and folders clear so other agents can reuse your work\n---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('Workspace File System')) {
+            finalOverrides[wf.id] = existing + fsBlock
+          }
+        }
+      }
+
+      if (useSenso) {
+        await ensureWorkspaceSkills([
+          { name: 'senso-ingest', registryName: 'senso-ai/senso-ingest' },
+          { name: 'senso-search', registryName: 'senso-ai/senso-search' },
+          { name: 'senso-content-gen', registryName: 'senso-ai/senso-content-gen' },
+        ])
+      }
 
       const resp = await fetch('/api/templates/organizations/import', {
         method: 'POST',
@@ -152,6 +227,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         // Add or remove github skills based on checkbox
         if (createdAgentIds.length > 0) {
           const githubSkills = ['github', 'gh-issues']
+          const sensoSkills = ['senso-ingest', 'senso-search', 'senso-content-gen']
           if (useGithub) {
             setApplyProgress('Adding GitHub skills...')
             await fetch('/api/skills/bulk-assign', {
@@ -166,6 +242,22 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ agentIds: createdAgentIds, addSkills: [], removeSkills: githubSkills }),
+            }).catch(() => {})
+          }
+
+          if (useSenso) {
+            setApplyProgress('Adding Senso skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: sensoSkills }),
+            }).catch(() => {})
+          } else {
+            setApplyProgress('Finalizing skills...')
+            await fetch('/api/skills/bulk-assign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentIds: createdAgentIds, addSkills: [], removeSkills: sensoSkills }),
             }).catch(() => {})
           }
         }
@@ -337,54 +429,107 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             </div>
           </div>
 
-          {/* GitHub Coordination */}
+          {/* External Context & Coordination */}
           <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useGithub}
-                onChange={e => setUseGithub(e.target.checked)}
-                className="mt-0.5 rounded"
-              />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">External Context & Coordination</h3>
+            <div className="space-y-4">
               <div>
-                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Use GitHub for coordination</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Agents will use a GitHub repo for issues, PRs, file storage, and code review. Adds github + gh-issues skills to all agents.
-                </div>
-              </div>
-            </label>
-            {useGithub && (
-              <div className="mt-3 ml-7">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  GitHub Repository
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useGithub}
+                    onChange={e => setUseGithub(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">GitHub</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Use a GitHub repo for issues, PRs, code review, and shared code history. Adds `github` + `gh-issues` to all agents.
+                    </div>
+                  </div>
                 </label>
-                <input
-                  type="text"
-                  value={githubRepo}
-                  onChange={e => {
-                      setGithubRepo(e.target.value)
-                      // Auto-fill GitHub repo in any kickoff workflow that has the field
-                      if (e.target.value && template.workflows) {
-                        const newOverrides = { ...workflowOverrides }
-                        for (const wf of template.workflows) {
-                          const content = newOverrides[wf.id] ?? (wf as any).content ?? ''
-                          if (content.includes('**GitHub repo:**')) {
-                            const updated = content.replace(
-                              /^(-\s+\*\*GitHub repo:\*\*)\s+.*$/m,
-                              `$1 ${e.target.value}`
-                            )
-                            if (updated !== content) newOverrides[wf.id] = updated
+                {useGithub && (
+                  <div className="mt-3 ml-7">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      GitHub Repository
+                    </label>
+                    <input
+                      type="text"
+                      value={githubRepo}
+                      onChange={e => {
+                        const value = e.target.value
+                        setGithubRepo(value)
+                        if (value && template.workflows) {
+                          const newOverrides = { ...workflowOverrides }
+                          for (const wf of template.workflows) {
+                            const content = newOverrides[wf.id] ?? (wf as any).content ?? ''
+                            if (content.includes('**GitHub repo:**')) {
+                              const updated = content.replace(
+                                /^(-\s+\*\*GitHub repo:\*\*)\s+.*$/m,
+                                `$1 ${value}`
+                              )
+                              if (updated !== content) newOverrides[wf.id] = updated
+                            }
                           }
+                          setWorkflowOverrides(newOverrides)
                         }
-                        setWorkflowOverrides(newOverrides)
-                      }
-                    }}
-                  placeholder="owner/repo-name"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">Agents will create issues, branches, and PRs in this repo</p>
+                      }}
+                      placeholder="owner/repo-name"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Agents will create issues, branches, and PRs in this repo</p>
+                  </div>
+                )}
               </div>
-            )}
+
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useSenso}
+                    onChange={e => setUseSenso(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Senso Shared Context</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Use Senso as the shared memory and evidence layer. Installs Senso skills into the workspace first so they show up in the Skills tab, then adds them to all agents.
+                    </div>
+                  </div>
+                </label>
+                {useSenso && (
+                  <div className="mt-3 ml-7">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Preferred Senso Folder / Context
+                    </label>
+                    <input
+                      type="text"
+                      value={sensoFolder}
+                      onChange={e => setSensoFolder(e.target.value)}
+                      placeholder="Optional label for evidence and briefs"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useWorkspaceFs}
+                    onChange={e => setUseWorkspaceFs(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Workspace File System</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Tell agents to use the shared workspace files for drafts, notes, intermediate outputs, and cross-agent coordination artifacts.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Customize Workflows — paginated wizard */}
@@ -405,7 +550,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 const wf = workflows[workflowStep] as any
                 if (!wf) return null
 
-                const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
+                const currentContent = typeof (workflowOverrides[wf.id] ?? wf.content) === 'string'
+                  ? (workflowOverrides[wf.id] ?? wf.content)
+                  : ''
                 const isEdited = wf.id in workflowOverrides
                 const editingRaw = rawEditWorkflows.has(wf.id)
 
@@ -637,19 +784,33 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   <select
                     value={modelOverride}
                     onChange={e => setModelOverride(e.target.value)}
+                    disabled={!modelsLoaded}
                     className="w-full mt-1 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value="">Use template defaults</option>
-                    {Object.keys(modelsByProvider).length > 0 ? (
+                    <option value="">{modelsLoaded ? 'Use template defaults' : 'Loading models...'}</option>
+                    {modelsLoaded && Object.keys(modelsByProvider).length > 0 ? (
                       Object.entries(modelsByProvider).map(([providerId, provider]) => (
                         <optgroup key={providerId} label={provider.name || providerId}>
                           {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
                         </optgroup>
                       ))
-                    ) : (
+                    ) : modelsLoaded ? (
                       availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                    ) : null}
+                    {modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
+                      <option value="" disabled>No models available</option>
                     )}
                   </select>
+                  {modelLoadError && (
+                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                      {modelLoadError}. You can still apply with template defaults.
+                    </p>
+                  )}
+                  {!modelLoadError && modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
+                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                      No discovered models are available right now. You can still apply with template defaults.
+                    </p>
+                  )}
                   {modelOverride && (
                     <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
                       ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.

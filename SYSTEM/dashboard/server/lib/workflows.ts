@@ -904,6 +904,14 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.status = 'failed' as any
           ;(participant as any).error = err.message
           execution.logs.push(`Agent ${participant.agentId} failed: ${err.message}`)
+
+          const completedCount = execution.participants.filter(p => p.status === 'completed').length
+          const failedCount = execution.participants.filter(p => p.status === 'failed').length
+          const progress = Math.round(((completedCount + failedCount) / Math.max(execution.participants.length, 1)) * 100)
+          updateWorkflow(workflowId, {
+            status: 'blocked',
+            progress,
+          } as any)
         }
         fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
       }
@@ -913,6 +921,10 @@ export function triggerWorkflow(workflowId: string, options?: {
       execution.completedAt = new Date().toISOString()
       execution.logs.push(`Workflow completed at ${execution.completedAt}`)
       fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+      updateWorkflow(workflowId, {
+        status: execution.status === 'completed' ? 'completed' : 'blocked',
+        progress: 100,
+      } as any)
 
       // Auto-advance DAG: mark workflow completed and trigger ready dependents
       if (execution.status === 'completed') {

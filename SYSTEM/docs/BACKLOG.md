@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 25, 2026
+> Last updated: March 28, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -62,6 +62,25 @@
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
+
+## Multimodal Frontier Hack — March 28 (immediate)
+> Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
+
+### Hackathon Deliverables
+- [x] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
+- [x] **Senso-first foundation execution** — `Real-Time Research Desk` template, Senso-backed intake, and demo artifacts created
+- [ ] **3 showcase templates implemented** — Visual QA Lab, Customer Signal Desk, Retail Watchtower
+- [x] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
+- [x] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
+- [x] **Missing skill publication** — published `senso-ingest-clawmax` and `senso-search-clawmax`
+- [x] **Live execution results** — foundation flow reached live demo state with captured Senso evidence IDs and fallback final brief
+- [x] **Demo packaging** — screenshots, outputs, sponsor-tool mapping, final brief, and 3-minute talking points
+
+### Backlog from Hackathon
+- [x] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
+- [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
+- [ ] **Template breadth publication** — publish remaining 6 non-showcase template specs after the selected flows stabilize
+- [ ] **Finalist/demo hardening** — re-run foundation workflow end-to-end without manual unblocks, clean workspace/runtime mismatches, and verify DAG/progress rendering fully
 
 ## Next Sprint: March 31 – April 11
 
