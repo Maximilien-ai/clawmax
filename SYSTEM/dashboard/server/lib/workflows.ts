@@ -714,9 +714,9 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
 
-    // Increment run count
+    // Increment run count + mark as running
     const newRunCount = (workflow.runCount || 0) + 1
-    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running', progress: 0 } as any)
+    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running' } as any)
 
     // Check if this run will hit the limit — disable after this run
     if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {
@@ -790,7 +790,14 @@ export function triggerWorkflow(workflowId: string, options?: {
                 let stderr = ''
                 const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
 
-                proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+                let progressTicks = 0
+                proc.stdout.on('data', (d: Buffer) => {
+                  stdout += d.toString()
+                  // Estimate progress from output activity (caps at 90%)
+                  progressTicks++
+                  const estimated = Math.min(10 + progressTicks * 15, 90)
+                  updateWorkflow(workflowId, { progress: estimated } as any)
+                })
                 proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
                 proc.on('close', (code: number) => {
                   clearTimeout(timer)
@@ -828,13 +835,42 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.completedAt = new Date().toISOString()
           execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
 
-          const completedCount = execution.participants.filter(p => p.status === 'completed').length
-          const failedCount = execution.participants.filter(p => p.status === 'failed').length
-          const progress = Math.round(((completedCount + failedCount) / Math.max(execution.participants.length, 1)) * 100)
-          updateWorkflow(workflowId, {
-            status: failedCount > 0 ? 'blocked' : 'running',
-            progress,
-          } as any)
+          // Detect blockers/questions from agent output
+          const { createNotification } = require('./notifications')
+          const textLower = agentText.toLowerCase()
+          const isQuestion = /\?\s*$/.test(agentText.trim()) || /what should|which (one|option)|ready for.*planning|need.*decision|waiting for|blocked by|please (choose|decide|confirm|approve)/i.test(agentText)
+          const isError = /error|failed|cannot|unable to|permission denied|access denied|rate limit/i.test(textLower) && agentText.length < 500
+
+          if (isQuestion) {
+            createNotification({
+              type: 'agent-needs-decision',
+              title: `${participant.agentId} needs input`,
+              message: agentText.slice(-200),
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `agent-question:${workflowId}:${participant.agentId}:${execution.id}`,
+              blockerType: 'input',
+              workflowId,
+            })
+            console.log(`[DAG] Agent ${participant.agentId} asked a question — notification created`)
+          } else if (isError) {
+            createNotification({
+              type: 'agent-error',
+              title: `${participant.agentId} reported an error`,
+              message: agentText.slice(0, 300),
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `agent-error:${workflowId}:${participant.agentId}:${execution.id}`,
+              workflowId,
+            })
+          }
+
+          // Update intermediate progress based on % of participants done
+          const completedCount = execution.participants.filter(p => p.status === 'completed' || p.status === 'failed').length
+          const totalCount = execution.participants.length
+          const intermediateProgress = Math.round((completedCount / totalCount) * 100)
+          updateWorkflow(workflowId, { progress: Math.min(intermediateProgress, 99) } as any)
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
 
           // Trace individual agent call to Opik
           traceAgentChat(participant.agentId, workflow.content || '', agentText, {
@@ -889,6 +925,39 @@ export function triggerWorkflow(workflowId: string, options?: {
         status: execution.status === 'completed' ? 'completed' : 'blocked',
         progress: 100,
       } as any)
+
+      // Auto-advance DAG: mark workflow completed and trigger ready dependents
+      if (execution.status === 'completed') {
+        const { readyToRun } = completeWorkflow(workflowId)
+        if (readyToRun.length > 0) {
+          execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+          // Auto-trigger enabled workflows with BYOK keys passed through
+          for (const nextId of readyToRun) {
+            const nextWf = getWorkflow(nextId)
+            if (nextWf?.enabled) {
+              console.log(`[DAG] Auto-triggering ${nextId}`)
+              triggerWorkflow(nextId, { manual: false, byok: options?.byok })
+              updateWorkflow(nextId, { status: 'running' } as any)
+            }
+          }
+        }
+      } else {
+        // Failed — update workflow status
+        updateWorkflow(workflowId, { status: 'blocked' } as any)
+        // Create notification for failure
+        const { createNotification } = require('./notifications')
+        createNotification({
+          type: 'workflow-failed',
+          title: `${workflow.name} failed`,
+          message: execution.logs.slice(-1)[0] || 'Workflow execution failed',
+          entityId: workflowId,
+          entityType: 'workflow',
+          fingerprint: `wf-failed:${workflowId}:${execution.id}`,
+          workflowId,
+        })
+      }
 
       // Trace to Opik
       const execDuration = new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()
@@ -949,7 +1018,7 @@ export function completeWorkflow(workflowId: string): { readyToRun: string[] } {
 
   for (const wf of allWorkflows) {
     if (!wf.dependsOn?.includes(workflowId)) continue
-    if (wf.status === 'completed' || wf.status === 'running') continue
+    if (wf.status === 'running') continue // skip already-running, but allow re-run of completed
 
     const { met } = areDependenciesMet(wf.id)
     if (met) {

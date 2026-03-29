@@ -190,7 +190,13 @@
         ],
         "communities": [],
         "groups": [],
-        "agents": []
+        "agents": [
+          "planner",
+          "data-engineer",
+          "search-engineer",
+          "eval-engineer",
+          "ops-engineer"
+        ]
       },
       "executionMode": "automated",
       "description": "Gather requirements, configure weave-cli, verify VDB health",

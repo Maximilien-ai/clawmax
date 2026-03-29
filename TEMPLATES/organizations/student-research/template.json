@@ -137,7 +137,10 @@
           "lead"
         ],
         "agents": [
-          "research-lead"
+          "research-lead",
+          "lit-reviewer",
+          "data-analyst",
+          "writer"
         ]
       },
       "content": "# Research Group Kickoff\n\nYou are the Research Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research topic:** [e.g., Impact of LLMs on software engineering productivity]\n- **Research question:** [e.g., How do AI coding assistants affect code quality?]\n- **Scope:** [literature review, empirical study, meta-analysis, systematic review, custom]\n- **Key databases:** [Google Scholar + arXiv, Google Scholar + IEEE + ACM, PubMed + Google Scholar, custom]\n- **Deadline:** [e.g., April 15, 2026]\n- **GitHub repo:** [e.g., owner/repo \u2014 for paper drafts and data]\n\n## Your Tasks\n1. Introduce yourself in the Research Group community\n2. Define the research question, scope, and methodology\n3. Assign initial literature search topics to the lit reviewer\n4. Brief the data analyst on expected data sources\n5. Set milestones: lit review, analysis, first draft, submission",

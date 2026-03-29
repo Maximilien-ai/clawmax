@@ -146,7 +146,10 @@
           "lead"
         ],
         "agents": [
-          "marketing-lead"
+          "marketing-lead",
+          "content-writer",
+          "seo-analyst",
+          "social-mgr"
         ]
       },
       "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai \u2014 multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group",
