@@ -544,14 +544,18 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
   try {
     ensureTemplateDirs()
 
+    // Check reserved names
+    const slug = slugify(template.name)
+    const RESERVED_SLUGS = ['clawmax-system-test', 'system-test', 'test-template']
+    if (RESERVED_SLUGS.includes(slug)) {
+      return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
+    }
+
     // Validate template
     const validation = validateTemplate(template)
     if (!validation.valid) {
       return { ok: false, error: `Validation failed: ${validation.errors?.join(', ')}` }
     }
-
-    // Determine storage path
-    const slug = slugify(template.name)
     const templateDir = template.type === 'agent'
       ? path.join(getAgentTemplatesDir(), slug)
       : path.join(getOrgTemplatesDir(), slug)
