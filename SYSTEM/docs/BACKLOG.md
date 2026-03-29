@@ -52,7 +52,7 @@
 - [x] **Template categories** — Business/Technical/Personal filter pills
 - [x] **TEMPLATE.md format** — parser + auto-detect alongside template.json
 - [x] **AI generator Anthropic fallback** — works with Anthropic-only keys (issue #49)
-- [ ] **Live execution** — deploy 2-3 teams, produce autonomous results
+- [x] **Live execution** — deployed Small Startup on weave-cli, DAG cascading, progress tracking working
 
 ### Backlog from Hackathon
 - [ ] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
@@ -62,6 +62,19 @@
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
+
+### Backlog from March 28 Sprint + Live Execution
+- [ ] **Workflow import should use template's id field** — currently auto-generates from name, breaking dependsOn references
+- [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to IDENTITY.md so agents remember across sessions
+- [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
+- [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
+- [ ] **DAG auto-advance on cron triggers** — currently only manual triggers cascade; cron-triggered completions should also advance DAG
+- [x] **DAG auto-advance on execution complete** — done, workflows cascade automatically
+- [x] **DAG auto-refresh** — 10s silent polling in DAG view
+- [x] **Intermediate progress estimation** — stdout-based progress for single-agent, participant-based for multi-agent
+- [x] **Dismissed notifications stay dismissed** — monitor no longer recreates dismissed notifications
+- [x] **Agent blocker detection from output** — questions and errors auto-create notifications
+- [x] **Kickoff targets all agents** — every team member gets project context
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
