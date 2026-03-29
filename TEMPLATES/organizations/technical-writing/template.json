@@ -150,7 +150,10 @@
           "lead"
         ],
         "agents": [
-          "editor"
+          "editor",
+          "writer",
+          "reviewer",
+          "publisher"
         ]
       },
       "content": "# Writing Team Kickoff\n\nYou are the Editor. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topics to cover:** [e.g., API docs, getting started guide, architecture overview]\n- **Target audience:** [e.g., developers, end users, internal team]\n- **Style guide:** [Microsoft Style Guide, Google Developer Docs, Di\u00e1taxis, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 leave blank if not using GitHub]\n- **Output format:** [Markdown, MDX, reStructuredText, HTML, custom]\n\n## Your Tasks\n1. Introduce yourself in the Writing Team community\n2. Review the workspace for existing documentation or content plans\n3. Create a content plan based on the topics above and assign to writers\n4. Brief the reviewer on quality standards and fact-checking expectations\n5. Set up the publishing calendar and post initial schedule to Status group\n6. If a GitHub repo is configured, create issues for each writing assignment",
