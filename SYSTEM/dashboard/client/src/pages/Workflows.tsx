@@ -85,7 +85,8 @@ interface WorkflowsProps {
 }
 
 // Helper function to strip YAML frontmatter from markdown content
-function stripFrontmatter(content: string): string {
+function stripFrontmatter(content?: string | null): string {
+  if (typeof content !== 'string') return ''
   // Match YAML frontmatter: starts with ---, ends with ---
   const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
   const match = content.match(frontmatterRegex)
@@ -217,6 +218,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         setLoading(false)
       })
   }
+
+  const selectedWorkflowTargeting = selectedWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
+  const executionWorkflowTargeting = executionWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
 
   useEffect(() => {
     fetchWorkflows()
@@ -367,6 +371,31 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
         // Update tracked executions with the new Map
         setTrackedExecutions(next)
+        fetch('/api/workflows')
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (Array.isArray(data?.workflows)) {
+              setWorkflows(data.workflows)
+            } else {
+              setWorkflows(current =>
+                current.map(workflow => {
+                  const latestStatus = latestStatuses[workflow.id]
+                  const isRunning = running.has(workflow.id)
+                  return {
+                    ...workflow,
+                    status: latestStatus === 'failed'
+                      ? 'blocked'
+                      : latestStatus === 'completed'
+                        ? 'completed'
+                        : isRunning
+                          ? 'running'
+                          : workflow.status,
+                  }
+                })
+              )
+            }
+          })
+          .catch(() => {})
 
         // Show toasts for completed executions
         for (const toast of toastQueue) {
@@ -1318,10 +1347,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   Target Agents ({selectedWorkflow.participantCount})
                 </h3>
                 <div className="space-y-2">
-                  {selectedWorkflow.targeting.communities.length > 0 && (
+                  {selectedWorkflowTargeting.communities.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Communities:</span>{' '}
-                      {selectedWorkflow.targeting.communities.map((community, idx) => (
+                      {selectedWorkflowTargeting.communities.map((community, idx) => (
                         <React.Fragment key={community}>
                           {idx > 0 && ', '}
                           <button
@@ -1334,10 +1363,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       ))}
                     </div>
                   )}
-                  {selectedWorkflow.targeting.groups.length > 0 && (
+                  {selectedWorkflowTargeting.groups.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Groups:</span>{' '}
-                      {selectedWorkflow.targeting.groups.map((group, idx) => (
+                      {selectedWorkflowTargeting.groups.map((group, idx) => (
                         <React.Fragment key={group}>
                           {idx > 0 && ', '}
                           <button
@@ -1350,16 +1379,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       ))}
                     </div>
                   )}
-                  {selectedWorkflow.targeting.tags.length > 0 && (
+                  {selectedWorkflowTargeting.tags.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Tags:</span>{' '}
-                      <span className="text-gray-900 dark:text-gray-100">{selectedWorkflow.targeting.tags.join(', ')}</span>
+                      <span className="text-gray-900 dark:text-gray-100">{selectedWorkflowTargeting.tags.join(', ')}</span>
                     </div>
                   )}
-                  {selectedWorkflow.targeting.agents.length > 0 && (
+                  {selectedWorkflowTargeting.agents.length > 0 && (
                     <div className="text-sm">
                       <span className="text-gray-500">Specific Agents:</span>{' '}
-                      {selectedWorkflow.targeting.agents.map((agent, idx) => (
+                      {selectedWorkflowTargeting.agents.map((agent, idx) => (
                         <React.Fragment key={agent}>
                           {idx > 0 && ', '}
                           <button
@@ -1617,10 +1646,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         ))}
                       </div>
                     )}
-                    {executionWorkflow.targeting.communities.length > 0 && (
+                    {executionWorkflowTargeting.communities.length > 0 && (
                       <div className="text-sm">
                         <span className="text-gray-500">Communities:</span>{' '}
-                        {executionWorkflow.targeting.communities.map((community, idx) => (
+                        {executionWorkflowTargeting.communities.map((community, idx) => (
                           <React.Fragment key={community}>
                             {idx > 0 && ', '}
                             <button
@@ -1633,10 +1662,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         ))}
                       </div>
                     )}
-                    {executionWorkflow.targeting.tags.length > 0 && (
+                    {executionWorkflowTargeting.tags.length > 0 && (
                       <div className="text-sm">
                         <span className="text-gray-500">Tags:</span>{' '}
-                        <span className="text-gray-900 dark:text-gray-100">{executionWorkflow.targeting.tags.join(', ')}</span>
+                        <span className="text-gray-900 dark:text-gray-100">{executionWorkflowTargeting.tags.join(', ')}</span>
                       </div>
                     )}
                   </div>

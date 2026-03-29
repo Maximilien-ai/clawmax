@@ -56,7 +56,7 @@ End the day with:
   Implement `Visual QA Lab`, `Customer Signal Desk`, and `Retail Watchtower`
 - [x] **Template breadth**
   Draft the remaining 6 templates so the full slate exists in repo history
-- [ ] **Demo packaging**
+- [x] **Demo packaging**
   Capture outputs, screenshots, and sponsor-tool proof points
 
 ### Review points
@@ -219,37 +219,38 @@ Every selected template should follow the same Senso-centric loop:
 - [x] Confirm Senso as primary sponsor integration and choose 2-3 supporting sponsor tools per selected template
 - [x] Define artifact format for each template: agents, workflows, skills, and expected demo inputs
 
-### Phase 1: Foundation (60-90 min)
-- [x] Create hackathon docs and backlog
-- [x] Define shared Senso-backed skill set
-- [x] Decide one common Senso-centric workflow pattern for all selected templates
-- [x] Search Shipables.dev / SkillsHub for required skills before building new ones
-- [x] Wire `SENSO_API_KEY` locally without committing secrets
-- [ ] Write scoring rubric so we reject weak template ideas quickly
-- [ ] Implement the simpler Senso-first foundation execution target
+### Phase 1: Foundation execution
+- [x] Create `Real-Time Research Desk` as a concrete org template asset
+- [x] Add a hack data pack with kickoff inputs, screenshots, and test notes
+- [x] Wire Senso into org-template apply flow as a first-class option
+- [x] Create `senso-ingest-clawmax` and `senso-search-clawmax`
+- [x] Publish the two ClawMax Senso adapter skills to Shipables
+- [x] Run a live Evidence Intake flow and capture Senso content IDs
+- [x] Produce a fallback final brief artifact for demo safety
+- [x] Produce short demo talking points for the 3-minute presentation
 
-### Phase 2: Template design pass (2-3 hrs)
-- [x] Draft 10 template briefs with role list, workflows, skills, sponsor-tool mapping
-- [x] Mark each template by complexity, demo speed, and sponsor coverage
-- [x] Downselect final simple / medium / hard showcase trio
+### Phase 2: Stabilization for finalist/demo follow-up
+- [ ] Clean up workflow DAG dependency line rendering
+- [ ] Validate active workspace selection so repo skills and active demo workspace match
+- [ ] Re-run full `Real-Time Research Desk` end-to-end without manual unblocking
+- [ ] Decide what hackathon changes are safe to keep vs revert before merge/push
 
-### Phase 3: Build selected trio (3-4 hrs)
-- [ ] Implement **Visual QA Lab**
-- [ ] Implement **Customer Signal Desk**
-- [ ] Implement **Retail Watchtower**
-- [ ] Ensure each has kickoff workflow and visible outputs
-- [ ] Create any missing reusable skill and prepare it for publication if needed
+## Outcome
 
-### Phase 4: Execution & iteration (2-3 hrs)
-- [ ] Run the foundation Senso-first template end-to-end
-- [ ] Run each selected template in a real workspace
-- [ ] Capture blockers, tighten prompts, fix workflow gaps
-- [ ] Track what agents learned or adapted during execution
+- [x] Top-10 finish and live demo completed
+- [x] `Real-Time Research Desk` used as the hackathon foundation template
+- [x] Senso-backed workflow path demonstrated with captured evidence and fallback brief
+- [x] ClawMax-specific Senso adapter skills created and published
+- [x] Demo assets, screenshots, brief, talking points, and one-page follow-up page created
+- [ ] Full selected-trio implementation completed
+- [ ] Fully autonomous end-to-end rerun completed without manual unblocking
 
-### Phase 5: Demo packaging (60 min)
-- [ ] Prepare 3-minute story: problem → agents observe → agents act → measurable output
-- [ ] Capture screenshots / chat / workflow traces
-- [ ] Prepare special GitHub repo or demo branch artifacts if needed
+## Validation
+
+- [x] `npm run typecheck` in `SYSTEM/dashboard`
+- [x] Local `./SYSTEM/test.sh` run green outside this session
+- [x] Current `main` CI green on GitHub Actions
+- [ ] Branch-specific CI run after PR submission
 
 ## Selection Rubric
 

@@ -27,6 +27,17 @@ interface ApplyOrgTemplateModalProps {
   onSuccess: () => void
 }
 
+const FALLBACK_MODELS = [
+  'openai/gpt-5',
+  'openai/gpt-4.1',
+  'openai/gpt-4.1-mini',
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
+  'anthropic/claude-sonnet-4-20250514',
+  'anthropic/claude-opus-4-20250514',
+  'anthropic/claude-3-5-sonnet-20241022',
+]
+
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
@@ -34,6 +45,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
+  const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null)
   const [showModelSection, setShowModelSection] = useState(false)
   const [applying, setApplying] = useState(false)
   const [applyProgress, setApplyProgress] = useState<string | null>(null)
@@ -62,13 +75,24 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   // Fetch available models
   React.useEffect(() => {
-    fetch('/api/agents/models')
-      .then(r => r.json())
-      .then(d => {
-        setAvailableModels(d.models || [])
-        setModelsByProvider(d.modelsByProvider || {})
+    fetch('/api/agents/models', { credentials: 'include', cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load models')
+        return r.json()
       })
-      .catch(() => {})
+      .then(d => {
+        const models = Array.isArray(d.models) ? d.models : []
+        const byProvider = d.modelsByProvider || {}
+        setAvailableModels(models.length > 0 ? models : FALLBACK_MODELS)
+        setModelsByProvider(byProvider)
+        setModelLoadError(models.length === 0 && Object.keys(byProvider).length === 0 ? 'No discovered models found' : null)
+      })
+      .catch(err => {
+        setAvailableModels(FALLBACK_MODELS)
+        setModelsByProvider({})
+        setModelLoadError(err?.message || 'Failed to load models')
+      })
+      .finally(() => setModelsLoaded(true))
   }, [])
 
   // Expand parameterized agents based on counts
@@ -526,7 +550,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 const wf = workflows[workflowStep] as any
                 if (!wf) return null
 
-                const currentContent = workflowOverrides[wf.id] ?? wf.content ?? ''
+                const currentContent = typeof (workflowOverrides[wf.id] ?? wf.content) === 'string'
+                  ? (workflowOverrides[wf.id] ?? wf.content)
+                  : ''
                 const isEdited = wf.id in workflowOverrides
                 const editingRaw = rawEditWorkflows.has(wf.id)
 
@@ -758,19 +784,33 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   <select
                     value={modelOverride}
                     onChange={e => setModelOverride(e.target.value)}
+                    disabled={!modelsLoaded}
                     className="w-full mt-1 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white dark:bg-gray-800 dark:border-amber-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value="">Use template defaults</option>
-                    {Object.keys(modelsByProvider).length > 0 ? (
+                    <option value="">{modelsLoaded ? 'Use template defaults' : 'Loading models...'}</option>
+                    {modelsLoaded && Object.keys(modelsByProvider).length > 0 ? (
                       Object.entries(modelsByProvider).map(([providerId, provider]) => (
                         <optgroup key={providerId} label={provider.name || providerId}>
                           {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
                         </optgroup>
                       ))
-                    ) : (
+                    ) : modelsLoaded ? (
                       availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                    ) : null}
+                    {modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
+                      <option value="" disabled>No models available</option>
                     )}
                   </select>
+                  {modelLoadError && (
+                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                      {modelLoadError}. You can still apply with template defaults.
+                    </p>
+                  )}
+                  {!modelLoadError && modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
+                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                      No discovered models are available right now. You can still apply with template defaults.
+                    </p>
+                  )}
                   {modelOverride && (
                     <p className="text-xs text-amber-600 mt-2 dark:text-amber-400">
                       ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.

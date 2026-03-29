@@ -12,7 +12,7 @@
 - [x] Define shared Senso-backed skills
 - [x] Confirm Senso workspace strategy for shared memory and evidence
 - [x] Define sponsor-tool mapping for each selected template
-- [ ] Create demo data packs for selected templates
+- [x] Create demo data packs for selected templates
 - [x] Add local `SENSO_API_KEY` without committing it
 - [x] Search Shipables.dev / SkillsHub for required skills
 
@@ -53,15 +53,36 @@
 ## Demo Infrastructure
 
 - [ ] Decide whether demo artifacts live in this repo or a special GitHub repo
-- [ ] Prepare screenshots / workflow traces / prompt snippets for the 3-minute demo
+- [x] Prepare screenshots / workflow traces / prompt snippets for the 3-minute demo
 - [ ] Make sponsor-tool usage explicit in UI and docs
-- [ ] Prepare “before / after / acted” narrative for each selected template
+- [x] Prepare “before / after / acted” narrative for each selected template
+- [x] Create a one-page ClawMax.ai follow-up presentation with QR code in the hack folder
 
 ## Skill Ecosystem
 
 - [x] Reuse Shipables.dev skills wherever they fit
 - [x] Reuse SkillsHub/workspace skills wherever they fit
-- [ ] Publish any missing generally useful hackathon skill we create
+- [x] Publish any missing generally useful hackathon skill we create
+
+## Completed Today
+
+- [x] `Real-Time Research Desk` concrete template asset
+- [x] Hackathon screenshot pack curated for the research desk demo
+- [x] Fallback final brief artifact created for demo safety
+- [x] Short live-demo talking points created
+- [x] `senso-ingest-clawmax` visible in the active demo workspace
+- [x] `senso-search-clawmax` visible in the active demo workspace
+
+## Cleanup / Test Tomorrow
+
+- [ ] Verify `Real-Time Research Desk` applies cleanly into the active workspace without path mismatches
+- [ ] Re-test workflow dependency rendering and remove temporary DAG fallbacks if the real lines render correctly
+- [ ] Re-run kickoff -> intake -> retrieval -> brief with no manual operator hints
+- [ ] Confirm workflow progress updates visually during live runs
+- [ ] Confirm Senso auth/env propagation works for agent runtime without host-side intervention
+- [ ] Confirm agent membership and targeting match active `openclaw.json`
+- [ ] Decide which hackathon-only files should be kept, cleaned up, or published
+- [ ] Run branch CI after PR creation and resolve any branch-only failures
 
 ## Stretch
 

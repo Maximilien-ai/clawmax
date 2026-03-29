@@ -716,7 +716,7 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     // Increment run count
     const newRunCount = (workflow.runCount || 0) + 1
-    updateWorkflow(workflowId, { runCount: newRunCount })
+    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running', progress: 0 } as any)
 
     // Check if this run will hit the limit — disable after this run
     if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {
@@ -828,6 +828,14 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.completedAt = new Date().toISOString()
           execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
 
+          const completedCount = execution.participants.filter(p => p.status === 'completed').length
+          const failedCount = execution.participants.filter(p => p.status === 'failed').length
+          const progress = Math.round(((completedCount + failedCount) / Math.max(execution.participants.length, 1)) * 100)
+          updateWorkflow(workflowId, {
+            status: failedCount > 0 ? 'blocked' : 'running',
+            progress,
+          } as any)
+
           // Trace individual agent call to Opik
           traceAgentChat(participant.agentId, workflow.content || '', agentText, {
             model: agentMeta.model,
@@ -860,6 +868,14 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.status = 'failed' as any
           ;(participant as any).error = err.message
           execution.logs.push(`Agent ${participant.agentId} failed: ${err.message}`)
+
+          const completedCount = execution.participants.filter(p => p.status === 'completed').length
+          const failedCount = execution.participants.filter(p => p.status === 'failed').length
+          const progress = Math.round(((completedCount + failedCount) / Math.max(execution.participants.length, 1)) * 100)
+          updateWorkflow(workflowId, {
+            status: 'blocked',
+            progress,
+          } as any)
         }
         fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
       }
@@ -869,6 +885,10 @@ export function triggerWorkflow(workflowId: string, options?: {
       execution.completedAt = new Date().toISOString()
       execution.logs.push(`Workflow completed at ${execution.completedAt}`)
       fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+      updateWorkflow(workflowId, {
+        status: execution.status === 'completed' ? 'completed' : 'blocked',
+        progress: 100,
+      } as any)
 
       // Trace to Opik
       const execDuration = new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()

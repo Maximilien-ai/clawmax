@@ -82,6 +82,7 @@ export interface OrganizationTemplateAgent {
   id: string
   name?: string
   role: string
+  model?: string
   tags?: string[]
   skills?: string[]
   communities?: string[]
@@ -110,6 +111,8 @@ export interface Workflow {
   schedule: string
   enabled: boolean
   executionMode: 'automated' | 'managed'
+  dependsOn?: string[]
+  type?: 'once' | 'recurring' | 'conditional'
   targeting: {
     communities: string[]
     groups: string[]
@@ -1258,6 +1261,7 @@ export function importOrganizationTemplate(
       for (const templateAgent of agentsToCreate) {
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+        const appliedModel = options?.modelOverride || templateAgent.model
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
@@ -1294,7 +1298,7 @@ export function importOrganizationTemplate(
 - **Name:** ${agentName}
 - **Role:** ${agentRole}
 - **Tags:** ${agentTags.length > 0 ? agentTags.join(', ') : 'none'}
-${options?.modelOverride ? `- **Model:** ${options.modelOverride}` : ''}
+${appliedModel ? `- **Model:** ${appliedModel}` : ''}
 
 ## Creation Metadata
 - **Created:** ${now}
@@ -1312,8 +1316,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           fs.writeFileSync(identityPath, content, 'utf-8')
         }
 
-        // Override model in IDENTITY.md if specified
-        if (options?.modelOverride) {
+        // Apply model from override or template defaults into IDENTITY.md
+        if (appliedModel) {
           const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
           if (fs.existsSync(identityPath)) {
             let content = fs.readFileSync(identityPath, 'utf-8')
@@ -1321,16 +1325,16 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               // Replace existing model line
               content = content.replace(
                 /^-\s+\*\*Model:\*\*\s+.*$/m,
-                `- **Model:** ${options.modelOverride}`
+                `- **Model:** ${appliedModel}`
               )
             } else {
               // No model line exists — add it after the header
               const lines = content.split('\n')
               const insertIdx = lines.findIndex(l => /^#+\s/.test(l) && lines.indexOf(l) > 0)
               if (insertIdx > 0) {
-                lines.splice(insertIdx, 0, `- **Model:** ${options.modelOverride}`, '')
+                lines.splice(insertIdx, 0, `- **Model:** ${appliedModel}`, '')
               } else {
-                lines.push('', `- **Model:** ${options.modelOverride}`)
+                lines.push('', `- **Model:** ${appliedModel}`)
               }
               content = lines.join('\n')
             }
@@ -1731,10 +1735,12 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       if (template.workflows && template.workflows.length > 0) {
         const existingWorkflows = listWorkflows()
         const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.name, w]))
+        const workflowIdMap: Record<string, string> = {}
 
         for (const wf of template.workflows) {
           // Update targeting to use new agent IDs if prefix/suffix was applied
           const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
+          const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || dep)
 
           const existing = existingWorkflowMap.get(wf.name)
           if (existing) {
@@ -1752,31 +1758,49 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             const mergedGroups = [...new Set([...existingGroups, ...newGroups])]
             const mergedCommunities = [...new Set([...existingCommunities, ...newCommunities])]
             const mergedTags = [...new Set([...existingTags, ...newTags])]
+            const existingDependsOn = existing.dependsOn || []
+            const dependencyChanged = JSON.stringify(existingDependsOn) !== JSON.stringify(mappedDependsOn || [])
+            const typeChanged = existing.type !== wf.type
+            const scheduleChanged = existing.schedule !== wf.schedule
+            const executionModeChanged = existing.executionMode !== (wf.executionMode || 'automated')
 
             // Check if there are any new targets to add
-            const hasNewTargets =
+            const needsUpdate =
               mergedAgents.length > existingAgents.length ||
               mergedGroups.length > existingGroups.length ||
               mergedCommunities.length > existingCommunities.length ||
-              mergedTags.length > existingTags.length
+              mergedTags.length > existingTags.length ||
+              dependencyChanged ||
+              typeChanged ||
+              scheduleChanged ||
+              executionModeChanged
 
-            if (hasNewTargets) {
+            if (needsUpdate) {
               const { updateWorkflow } = require('./workflows')
               const result = updateWorkflow(existing.id, {
+                schedule: wf.schedule,
+                executionMode: wf.executionMode || 'automated',
                 targeting: {
                   agents: mergedAgents,
                   groups: mergedGroups,
                   communities: mergedCommunities,
                   tags: mergedTags
-                }
+                },
+                dependsOn: mappedDependsOn,
+                type: wf.type,
               })
 
               if (result.success) {
+                workflowIdMap[wf.id] = existing.id
                 const changes = []
                 if (mergedAgents.length > existingAgents.length) changes.push(`${mergedAgents.length - existingAgents.length} agent(s)`)
                 if (mergedGroups.length > existingGroups.length) changes.push(`${mergedGroups.length - existingGroups.length} group(s)`)
                 if (mergedCommunities.length > existingCommunities.length) changes.push(`${mergedCommunities.length - existingCommunities.length} communit${mergedCommunities.length - existingCommunities.length > 1 ? 'ies' : 'y'}`)
                 if (mergedTags.length > existingTags.length) changes.push(`${mergedTags.length - existingTags.length} tag(s)`)
+                if (dependencyChanged) changes.push('dependencies')
+                if (typeChanged) changes.push('type')
+                if (scheduleChanged) changes.push('schedule')
+                if (executionModeChanged) changes.push('execution mode')
                 console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
               } else {
                 console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
@@ -1807,12 +1831,16 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               owner,
               targeting: updatedTargeting,
               content: options?.workflowOverrides?.[wf.id] || wf.content || 'Execute workflow tasks.',
-              author: template.author || 'imported'
+              author: template.author || 'imported',
+              dependsOn: mappedDependsOn,
+              type: wf.type,
             })
 
             if (!result.success) {
               console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
               // Don't fail the whole import for workflow creation failures
+            } else if (result.id) {
+              workflowIdMap[wf.id] = result.id
             }
           }
         }

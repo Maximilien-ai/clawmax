@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClawMax x Senso | Multimodal Frontier Hackathon</title>
+    <style>
+      :root {
+        --bg: #0b0f14;
+        --panel: rgba(10, 14, 20, 0.78);
+        --panel-border: rgba(255, 255, 255, 0.08);
+        --text: #e5ece8;
+        --muted: #aab6b0;
+        --accent: #9e2939;
+        --accent-strong: #c34b58;
+        --line: rgba(148, 163, 184, 0.12);
+      }
+
+      body.light {
+        --bg: #f6f2ed;
+        --panel: rgba(255, 255, 255, 0.82);
+        --panel-border: rgba(121, 52, 52, 0.12);
+        --text: #0f172a;
+        --muted: #475569;
+        --accent: #a53a3a;
+        --accent-strong: #8f2f2f;
+        --line: rgba(148, 163, 184, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        overflow: hidden;
+      }
+
+      .page {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background:
+          radial-gradient(ellipse at 50% 0%, rgba(158, 41, 57, 0.08) 0%, transparent 60%),
+          var(--bg);
+      }
+
+      body.light .page {
+        background: linear-gradient(180deg, #f7f3ee 0%, #efe7de 100%);
+      }
+
+      .hero-image,
+      .hero-overlay,
+      .hero-radial,
+      .hero-grid {
+        position: absolute;
+        inset: 0;
+      }
+
+      .hero-image {
+        background-image: url("../../../dashboard/client/src/assets/clawmax-front-back-offices.jpg");
+        background-size: cover;
+        background-position: center top;
+        opacity: 0.35;
+      }
+
+      .hero-overlay {
+        background: linear-gradient(to bottom, rgba(11, 15, 20, 0.28), rgba(11, 15, 20, 0.52), rgba(11, 15, 20, 0.88));
+      }
+
+      body.light .hero-overlay {
+        background: linear-gradient(to bottom, rgba(247, 243, 238, 0.2), rgba(247, 243, 238, 0.36), rgba(247, 243, 238, 0.78));
+      }
+
+      .hero-radial {
+        background: radial-gradient(circle at 50% 24%, transparent 0%, transparent 26%, rgba(11, 15, 20, 0.12) 54%, rgba(11, 15, 20, 0.62) 100%);
+      }
+
+      body.light .hero-radial {
+        background: radial-gradient(circle_at_50%_24%, transparent 0%, transparent 26%, rgba(255,255,255,0.08) 54%, rgba(244,237,229,0.58) 100%);
+      }
+
+      .hero-grid {
+        opacity: 0.14;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 72px 72px;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+        width: min(1120px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      .hero-screen {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        width: 100%;
+        position: relative;
+      }
+
+      .masthead {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin: 14px 0 18px;
+        padding: 18px 24px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(14px);
+        align-self: center;
+      }
+
+      body.light .masthead {
+        border-color: rgba(121, 52, 52, 0.1);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+      }
+
+      .brand img {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+      }
+
+      .nav {
+        display: none;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        font-size: 28px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+        white-space: nowrap;
+      }
+
+      body.light .eyebrow {
+        color: rgba(3, 105, 161, 0.85);
+      }
+
+      .theme-toggle {
+        appearance: none;
+        border: 1px solid rgba(158, 41, 57, 0.24);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        backdrop-filter: blur(12px);
+        position: absolute;
+        right: 0;
+        top: 0;
+      }
+
+      body.light .theme-toggle {
+        background: rgba(255, 255, 255, 0.72);
+        border-color: rgba(15, 23, 42, 0.12);
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 980px;
+        font-size: clamp(44px, 7vw, 96px);
+        line-height: 0.9;
+        letter-spacing: -0.05em;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      h1 .accent {
+        color: var(--accent);
+      }
+
+      .hero-main-title {
+        display: block;
+      }
+
+      .hero-main-title .line {
+        display: block;
+        white-space: nowrap;
+        word-break: keep-all;
+      }
+
+      .subhead {
+        margin: 18px 0 0;
+        max-width: 860px;
+        font-size: 28px;
+        line-height: 1.36;
+        color: #1f2937;
+        text-align: center;
+        font-weight: 500;
+      }
+
+      .hero-band {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(121, 52, 52, 0.16);
+        background: rgba(255, 255, 255, 0.82);
+        color: #172033;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      body:not(.light) .hero-chip {
+        background: rgba(10, 14, 20, 0.62);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: #f3f4f6;
+      }
+
+      .hero-chip strong {
+        color: white;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.72fr) minmax(270px, 0.88fr);
+        gap: 20px;
+        margin-top: 28px;
+      }
+
+      .hero-stage {
+        position: absolute;
+        inset: 0;
+        border-radius: 28px;
+        overflow: hidden;
+      }
+
+      .hero-stage-image,
+      .hero-stage-overlay,
+      .hero-stage-grid {
+        position: absolute;
+        inset: 0;
+      }
+
+      .hero-stage-image {
+        background-image: url("./clawmax-front-back-offices.jpg");
+        background-size: cover;
+        background-position: center top;
+        transform: scale(1.02);
+      }
+
+      .hero-stage-overlay {
+        background:
+          linear-gradient(180deg, rgba(250, 247, 242, 0.22) 0%, rgba(250, 247, 242, 0.5) 55%, rgba(250, 247, 242, 0.78) 100%);
+      }
+
+      body.light .hero-stage-overlay {
+        background:
+          linear-gradient(180deg, rgba(250, 247, 242, 0.12) 0%, rgba(250, 247, 242, 0.42) 52%, rgba(250, 247, 242, 0.72) 100%);
+      }
+
+      .hero-stage-grid {
+        opacity: 0.08;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 48px 48px;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 0 34px;
+        width: min(1120px, calc(100vw - 40px));
+        margin: 0 auto;
+      }
+
+      .hero-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        margin-top: 16px;
+        padding: 20px 22px;
+        max-width: 980px;
+        border-radius: 24px;
+        border: 1px solid rgba(121, 52, 52, 0.12);
+        background: rgba(255, 255, 255, 0.26);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+        backdrop-filter: blur(14px);
+      }
+
+      body:not(.light) .hero-info {
+        background: rgba(10, 14, 20, 0.22);
+        border-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .hero-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 22px;
+        flex-wrap: wrap;
+      }
+
+      .hero-qr {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 8px;
+        padding: 12px 14px;
+        max-width: 460px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.52);
+        border: 1px solid rgba(15, 23, 42, 0.1);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(16px);
+      }
+
+      body:not(.light) .hero-qr {
+        background: rgba(10, 14, 20, 0.42);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .hero-qr img {
+        width: 94px;
+        height: 94px;
+        display: block;
+        border-radius: 12px;
+        background: white;
+        padding: 8px;
+      }
+
+      .hero-qr-copy {
+        max-width: 320px;
+        text-align: left;
+      }
+
+      .hero-qr-copy strong {
+        display: block;
+        font-size: 20px;
+        color: var(--text);
+      }
+
+      .hero-qr-copy span {
+        display: block;
+        margin-top: 4px;
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .primary-btn,
+      .secondary-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 176px;
+        padding: 14px 22px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .primary-btn {
+        background: var(--accent);
+        color: white;
+        box-shadow: 0 16px 34px rgba(158, 41, 57, 0.24);
+      }
+
+      .secondary-btn {
+        border: 1px solid rgba(15, 23, 42, 0.14);
+        background: rgba(255, 255, 255, 0.76);
+        color: #0f172a;
+      }
+
+      body:not(.light) .secondary-btn {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: white;
+      }
+
+      .panel {
+        border: 1px solid var(--panel-border);
+        background: var(--panel);
+        border-radius: 22px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(18px);
+      }
+
+      .story {
+        padding: 24px 26px;
+      }
+
+      .story h2,
+      .sidebar h2 {
+        margin: 0 0 12px;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+      }
+
+      .story p {
+        margin: 0 0 16px;
+        font-size: 16px;
+        line-height: 1.62;
+        color: #e2e8f0;
+      }
+
+      .details-section {
+        padding: 10px 0 40px;
+      }
+
+      body.light .story p {
+        color: #334155;
+      }
+
+      .bullets {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .bullet {
+        padding: 12px 14px;
+        border: 1px solid rgba(125, 211, 252, 0.16);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.46);
+      }
+
+      body.light .bullet {
+        background: rgba(248, 250, 252, 0.88);
+        border-color: rgba(165, 58, 58, 0.12);
+      }
+
+      .bullet strong {
+        color: #f8fafc;
+      }
+
+      .bullet span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .sidebar {
+        padding: 20px;
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        justify-items: stretch;
+      }
+
+      .qr-card {
+        text-align: center;
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      body.light .qr-card,
+      body.light .link-card {
+        background: rgba(255, 255, 255, 0.76);
+        border-color: rgba(15, 23, 42, 0.08);
+      }
+
+      .qr-card img {
+        width: 190px;
+        max-width: 100%;
+        display: block;
+        margin: 0 auto 10px;
+        border-radius: 14px;
+        background: white;
+        padding: 12px;
+      }
+
+      .qr-card p,
+      .link-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 14px;
+      }
+
+      .link-card {
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .cta {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 11px 15px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.16);
+        border: 1px solid rgba(56, 189, 248, 0.28);
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      body.light .cta {
+        background: rgba(2, 132, 199, 0.12);
+        border-color: rgba(2, 132, 199, 0.22);
+        color: #0f172a;
+      }
+
+      .footer-note {
+        margin-top: 14px;
+        font-size: 12px;
+        color: rgba(203, 213, 225, 0.8);
+      }
+
+      @media (max-width: 960px) {
+        body {
+          overflow: auto;
+        }
+
+        .topbar {
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .theme-toggle {
+          position: static;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .content {
+          width: min(100% - 28px, 1180px);
+          padding: 22px 0 28px;
+        }
+
+        .hero-main-title .line {
+          white-space: normal;
+        }
+
+        .subhead {
+          font-size: 22px;
+        }
+
+        .hero-info {
+          padding: 16px 14px;
+        }
+
+        .hero-qr {
+          flex-direction: column;
+          text-align: center;
+        }
+
+        .hero-qr-copy {
+          text-align: center;
+        }
+
+        .masthead {
+          margin-top: 10px;
+        }
+
+        .story,
+        .sidebar {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body class="light">
+    <main class="page">
+      <div class="hero-image"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-radial"></div>
+      <div class="hero-grid"></div>
+
+      <div class="content">
+        <section class="hero-screen">
+          <div class="hero-stage">
+            <div class="hero-stage-image"></div>
+            <div class="hero-stage-overlay"></div>
+            <div class="hero-stage-grid"></div>
+          </div>
+          <div class="hero-copy">
+          <div class="topbar">
+            <p class="eyebrow">ClawMax.ai x Senso | Multimodal Frontier Hackathon</p>
+          </div>
+            <div class="masthead">
+              <div class="brand">
+                <img src="./clawmax-logo.jpg" alt="ClawMax logo" />
+                <span>ClawMax.ai</span>
+              </div>
+            </div>
+            <h1 class="hero-main-title">
+              <span class="line">Open<span class="accent">Claw</span> to the</span>
+              <span class="line"><span class="accent">Max.</span></span>
+            </h1>
+            <div class="hero-info">
+              <div class="hero-band">
+                <div class="hero-chip">AI Agent Orchestration Platform</div>
+                <div class="hero-chip">Hack spotlight: Senso-backed multimodal workflows</div>
+              </div>
+              <p class="subhead">
+                Visual management, workflow automation, and execution tracking for your AI agent teams. Manage 100s of agents
+                like you manage 10. For the hack, we extended that with <strong>Real-Time Research Desk</strong>, a Senso-backed
+                multimodal team that turns raw evidence into action.
+              </p>
+              <div class="hero-actions">
+                <a class="primary-btn" href="https://clawmax.ai">Get Early Access</a>
+                <a class="secondary-btn" href="https://github.com/Maximilien-ai/clawmax">View on GitHub</a>
+              </div>
+              <div class="hero-qr">
+                <img src="data:image/png;base64,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" alt="ClawMax.ai QR code" />
+                <div class="hero-qr-copy">
+                  <strong>Scan for ClawMax.ai</strong>
+                  <span>Sign up fast and explore the product right after the demo.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="details-section">
+        <section class="layout">
+          <article class="panel story">
+            <h2>The Problem We Solved</h2>
+            <p>
+              Real-Time Research Desk ingests screenshots, notes, and docs into Senso as shared memory, lets specialized
+              agents retrieve and ground their analysis in prior context, and then produces a concise decision brief with a
+              recommended next step.
+            </p>
+            <p>
+              We also built <strong>`senso-ingest-clawmax`</strong> and <strong>`senso-search-clawmax`</strong> to remove
+              workflow friction between raw multimodal evidence, shared context, and action-oriented agent handoffs inside
+              ClawMax.
+            </p>
+
+            <div class="bullets">
+              <div class="bullet">
+                <strong>Senso shared context</strong>
+                <span>Evidence is ingested once, stored as shared memory, and retrieved with grounded context across agents.</span>
+              </div>
+              <div class="bullet">
+                <strong>ClawMax workflow orchestration</strong>
+                <span>Agents coordinate through org templates, workflows, groups, and a visible execution path.</span>
+              </div>
+              <div class="bullet">
+                <strong>Lower-friction skills</strong>
+                <span>`senso-*-clawmax` skills encode the operating pattern so teams can move from evidence to action faster.</span>
+              </div>
+            </div>
+          </article>
+
+          <aside class="panel sidebar">
+            <div class="qr-card">
+              <img src="data:image/png;base64,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" alt="ClawMax.ai QR code" />
+              <p>Scan to visit <a href="https://clawmax.ai">ClawMax.ai</a> and join the early access list.</p>
+              <a class="cta" href="https://clawmax.ai">Sign up for ClawMax.ai</a>
+            </div>
+
+            <div class="link-card">
+              <h2>Hack Link</h2>
+              <p>
+                Event page:
+                <a href="https://luma.com/multimodalhack?tk=oFWmAB">luma.com/multimodalhack</a>
+              </p>
+            </div>
+
+            <div class="link-card">
+              <h2>Why It Matters</h2>
+              <p>
+                This is not just an agent thinking about inputs. It is a coordinated team acting on multimodal evidence,
+                learning through shared context, and producing a visible next step.
+              </p>
+              <p class="footer-note">ClawMax.ai turns single-agent experiments into real multi-agent organizations.</p>
+            </div>
+          </aside>
+        </section>
+        </section>
+      </div>
+    </main>
+  </body>
+  </html>
