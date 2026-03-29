@@ -228,6 +228,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }).catch(() => {})
   }, [])
 
+  // Auto-refresh in DAG view (10s polling for live progress)
+  useEffect(() => {
+    if (viewMode !== 'dag') return
+    const interval = setInterval(fetchWorkflows, 10000)
+    return () => clearInterval(interval)
+  }, [viewMode])
+
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
   const selectedWorkflowRef = useRef(selectedWorkflow)
