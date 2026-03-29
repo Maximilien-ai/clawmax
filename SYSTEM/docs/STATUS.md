@@ -1,18 +1,21 @@
 # ClawMax Status
 
 **Current Version**: v1.1.20
-**Last Updated**: March 28, 2026
-**Status**: Workflow v2 complete — DAG visualization, execution engine, specs published to Maximilien-ai/templates + workflows
+**Last Updated**: March 29, 2026
+**Status**: Workflow v2 + testing sprint complete — DAG, notifications, 155 tests, system test workspace
 
 ---
 
 ## Current State
 
-- `v1.1.16` released — Deep Agents Hackathon (March 27) features merged to main
-- 14 organization templates across Business, Technical, and Personal categories
-- Template wizard, Shipables.dev skill marketplace, bulk operations, GitHub coordination
-- 121 integration tests + 25 unit tests all passing
-- AI generator works with both OpenAI and Anthropic keys
+- `v1.1.20` released — Workflow v2 DAG, notifications, testing infrastructure
+- 15 organization templates (14 + system-test) across Business, Technical, Personal
+- Interactive DAG visualization with edit mode, zoom, progress bars
+- DAG execution engine: auto-advance pipeline on workflow completion
+- 5 blocker types with dynamic notification UI
+- 137 API tests + 78 unit tests + 18 integration tests = 155+ total
+- Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+- ClawMax System Test workspace for automated + manual testing
 
 ## v1.1.16 — Deep Agents Hackathon Release
 

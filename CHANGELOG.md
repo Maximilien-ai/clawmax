@@ -2,6 +2,64 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.1.20] - 2026-03-29
+
+### Features — Workflow v2
+- **Workflow DAG Visualization** — interactive dependency graph with parallel lanes, connecting lines, zoom controls, and edit mode
+- **DAG Execution Engine** — auto-advance pipeline when workflows complete, check dependencies, trigger ready dependents with BYOK keys
+- **Interactive DAG Editing** — click to add/remove dependencies, cycle detection, undo (Ctrl+Z), visible × on lines
+- **Workflow Progress Tracking** — intermediate progress from stdout activity + participant completion, progress bars in DAG view and Workflows page
+- **Blocker Surfacing** — 5 blocker types (approval, choice, input, delegation, waiting) with dynamic UI in NotificationCenter
+- **WORKFLOW.md Format** — parse + serialize + round-trip, import/export APIs
+- **Workflow Types** — `once`, `recurring`, `conditional` with `dependsOn` array for DAG sequencing
+- **All templates have DAG dependencies** — kickoff → fan-out → pipeline → fan-in patterns
+
+### Features — Templates
+- **Lean TEMPLATE.md** — frontmatter reduced from 248 to ~19 lines, structured markdown body with ## Agents, ## Communities, ## Groups, ## Workflows sections
+- **14 Organization Templates** — Business (7), Technical (4), Personal (3) with kickoff workflows targeting all agents
+- **Smart Workflow Customization** — paginated wizard with dynamic form fields (dropdowns for known values, checkboxes for yes/no, textareas for multi-line)
+- **GitHub Coordination Toggle** — checkbox adds github/gh-issues skills + injects repo instructions
+- **Template Cross-Validation** — agent/group/community/workflow reference checking on import
+- **Export Buttons** — download TEMPLATE.md / WORKFLOW.md from detail views
+
+### Features — Notifications
+- **Dynamic Blocker UI** — approval buttons, choice pills, input field + submit, agent picker dropdown, waiting indicator
+- **Inline Agent Actions** — restart + pause from notifications with toast feedback and status refresh
+- **Notification Search** — filter by title, message, entity, type (shows at 4+ notifications)
+- **Auto-detect Agent Blockers** — questions and errors from agent output create notifications automatically
+- **Dismissed Stay Dismissed** — monitor no longer recreates dismissed notifications
+
+### Features — Skills
+- **Shipables.dev Registry** — search, browse categories, install with one click, "Installed" state tracking
+- **Bulk Skill Assignment** — add skills to multiple agents from Agents page
+- **AI Generator Anthropic Fallback** — works with Anthropic-only BYOK keys (issue #49)
+
+### Features — Testing
+- **78 Unit Tests** — notifications (15), workflows (23), validator (9), templates (31), plus existing suites
+- **ClawMax System Test Template** — dedicated template with 3 test agents, 5 DAG workflows, scalable 1-10
+- **Integration Test Runner** — `./SYSTEM/test.sh integration` creates workspace, applies template, tests live agents
+- **Cost Tracking** — integration tests estimate ~$0.01-0.05/run on gpt-4o-mini
+
+### Bug Fixes
+- **Agent status checks shared gateway** — fixes offline status for agents without dedicated port
+- **Guard `.toFixed()` / `.communities` / `system.*`** — prevent undefined access crashes across all pages
+- **OAuth default** — shows setup instructions instead of broken button when not configured
+- **Chat error styling** — ANSI stripping, dark mode, error detection, dismiss button
+- **Template import generates IDENTITY.md** — agents get proper name/role/tags from template data
+- **Workflow creation** — auto-assigns owner for managed mode, accepts "once" schedule
+
+### Specs Published
+- `SYSTEM/docs/specs/TEMPLATE_MD_SPEC.md` — formal TEMPLATE.md specification
+- `SYSTEM/docs/specs/WORKFLOW_MD_SPEC.md` — formal WORKFLOW.md specification
+- Published to [github.com/Maximilien-ai/templates](https://github.com/Maximilien-ai/templates) and [github.com/Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows)
+
+### Releases
+- v1.1.16 (Mar 27) — Deep Agents Hackathon
+- v1.1.17 (Mar 28) — Workflow v2 specs + notifications
+- v1.1.18 (Mar 28) — DAG visualization + templates
+- v1.1.19 (Mar 28) — Aggregate progress + export buttons
+- v1.1.20 (Mar 28) — DAG editing + zoom + fixes
+
 ## [v1.1.8] - 2026-03-22
 
 ### Fixes

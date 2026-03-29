@@ -1,12 +1,12 @@
-# ClawMax Dashboard
+# ClawMax
 
-**The visual management dashboard for OpenClaw multiagent systems**
+**Multiagent orchestration platform for OpenClaw**
 
-ClawMax provides a powerful web-based interface to manage, monitor, and orchestrate OpenClaw AI agents. Build teams of specialized agents, assign skills, create workflows, and track activity across your entire agent ecosystem.
+ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team templates, visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.8-green.svg)](https://github.com/Maximilien-ai/clawmax)
-[![Tests](https://img.shields.io/badge/tests-local%20and%20CI-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.1.20-green.svg)](https://github.com/Maximilien-ai/clawmax)
+[![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
@@ -31,11 +31,38 @@ ClawMax provides a powerful web-based interface to manage, monitor, and orchestr
 - **BYOK Preview** - Users can provide their own model keys for their agents and workflows
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
 
-### Workflows & Automation
+### Workflows & DAG
+- **Workflow DAG Visualization** - Interactive dependency graph with parallel lanes and connecting lines
+- **DAG Execution Engine** - Auto-advance pipeline: complete → check deps → trigger next
 - **Workflow Designer** - Create scheduled or manual workflows
+- **Progress Tracking** - Real-time progress bars from agent stdout activity
+- **Blocker Surfacing** - Agents declare blockers, rendered as actionable notifications
 - **Agent Targeting** - Route workflows by tags, groups, or communities
 - **Execution History** - Track workflow runs and results
 - **Cron Scheduling** - Set recurring workflows with flexible schedules
+- **WORKFLOW.md Format** - Define workflows as YAML frontmatter + markdown
+
+### Templates
+- **14 Organization Templates** - Sales, HR, Support, Legal, Marketing, Dev Team, Data Team, RAG, and more
+- **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
+- **AI Generate** - Describe a team, AI fills all wizard steps
+- **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
+- **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows
+- **Category Filters** - Business, Technical, Personal template categories
+- **TEMPLATE.md Format** - Lean markdown format with structured body sections
+- **Import/Export** - Download and upload templates and workflows as `.md` files
+
+### Skills Marketplace
+- **50+ Built-in Skills** - github, slack, web-search, code-review, and more
+- **Shipables.dev Registry** - Search, browse, and install from 1,000+ skills
+- **Bulk Assignment** - Add skills to multiple agents at once
+- **Custom Skills** - Import from local directory or GitHub
+
+### Notifications
+- **Dynamic Blocker UI** - Approval buttons, choice pills, input fields, delegation picker
+- **Agent Actions** - Restart, pause agents directly from notifications
+- **Progress Bars** - Workflow progress in notification dropdown
+- **Search** - Filter notifications by title, message, or type
 
 ### Multi-Workspace Support
 - **Workspace Switching** - Manage multiple isolated agent environments
