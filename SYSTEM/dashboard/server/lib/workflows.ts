@@ -790,7 +790,14 @@ export function triggerWorkflow(workflowId: string, options?: {
                 let stderr = ''
                 const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
 
-                proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+                let progressTicks = 0
+                proc.stdout.on('data', (d: Buffer) => {
+                  stdout += d.toString()
+                  // Estimate progress from output activity (caps at 90%)
+                  progressTicks++
+                  const estimated = Math.min(10 + progressTicks * 15, 90)
+                  updateWorkflow(workflowId, { progress: estimated } as any)
+                })
                 proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
                 proc.on('close', (code: number) => {
                   clearTimeout(timer)
@@ -827,6 +834,13 @@ export function triggerWorkflow(workflowId: string, options?: {
           ;(participant as any).response = agentText
           participant.completedAt = new Date().toISOString()
           execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
+
+          // Update intermediate progress based on % of participants done
+          const completedCount = execution.participants.filter(p => p.status === 'completed' || p.status === 'failed').length
+          const totalCount = execution.participants.length
+          const intermediateProgress = Math.round((completedCount / totalCount) * 100)
+          updateWorkflow(workflowId, { progress: Math.min(intermediateProgress, 99) } as any)
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
 
           // Trace individual agent call to Opik
           traceAgentChat(participant.agentId, workflow.content || '', agentText, {
