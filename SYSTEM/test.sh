@@ -234,8 +234,8 @@ echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-templates.out; then
-  template_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-templates.out)
-  pass "Templates API unit tests ($template_count tests)"
+  template_count=$(grep "Passed:" /tmp/clawmax-templates.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Templates API unit tests (${template_count:-?} tests)"
 else
   fail "Templates API unit tests"
 fi
@@ -243,8 +243,8 @@ fi
 echo -e "${YELLOW}→ Running Notifications unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/notifications.test.ts > /tmp/clawmax-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
-  notif_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-notifications.out)
-  pass "Notifications unit tests ($notif_count tests)"
+  notif_count=$(grep "Passed:" /tmp/clawmax-notifications.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Notifications unit tests (${notif_count:-?} tests)"
 else
   fail "Notifications unit tests"
 fi
@@ -252,8 +252,8 @@ fi
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
-  wf_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-workflows.out)
-  pass "Workflows unit tests ($wf_count tests)"
+  wf_count=$(grep "Passed:" /tmp/clawmax-workflows.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Workflows unit tests (${wf_count:-?} tests)"
 else
   fail "Workflows unit tests"
 fi
@@ -261,8 +261,8 @@ fi
 echo -e "${YELLOW}→ Running Validator unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/validator.test.ts > /tmp/clawmax-validator.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-validator.out; then
-  val_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-validator.out)
-  pass "Validator unit tests ($val_count tests)"
+  val_count=$(grep "Passed:" /tmp/clawmax-validator.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Validator unit tests (${val_count:-?} tests)"
 else
   fail "Validator unit tests"
 fi
