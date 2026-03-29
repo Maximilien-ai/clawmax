@@ -1,89 +1,71 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-03-22
-**Current Version**: v1.1.8
-
-This document tracks current known issues, limitations, and the intended next move.
+**Last Updated**: 2026-03-29
+**Current Version**: v1.1.20
 
 ---
 
-## Critical / Near-Term
+## Active Issues
 
-### 1. GitHub Actions clean-room stability
+### 1. Gateway process management
 **Severity**: High
-**Status**: Recently improved; monitor for regressions
+**Status**: Documented, needs CLI team fix
 
-**Description**:
-CI now runs on `main` and the clean-room path is much healthier, but it should still be treated as an actively monitored area rather than permanently solved.
+`SYSTEM/stop.sh` kills the shared gateway (port 18789), leaving agents unable to communicate. Agents show offline even though config is fine. Workaround: `openclaw gateway restart` after stop/start.
 
-**Current direction**:
-- isolate filesystem-sensitive unit tests
-- keep `SYSTEM/test.sh` strict on contracts, but not on optional seeded content
-- confirm a full green `main` run before treating GitHub CI as release-trustworthy
+**Fix needed**: Process supervisor (pm2/systemd), stop.sh should not kill gateway, start.sh should verify gateway.
 
 ---
 
-### 2. OAuth clean-room verification
+### 2. Workflow import doesn't use template's ID field
 **Severity**: Medium
-**Status**: Pending final verification
+**Status**: Known bug
 
-**Description**:
-GitHub OAuth is working locally, but still needs one full clean-room setup pass on a fresh machine/environment.
+When importing a template, workflow IDs are auto-generated from names instead of using the template's `id` field. This breaks `dependsOn` references if the generated ID differs from the template ID (e.g., `coding` → `coding-sprint`).
 
-**Notes**:
-- callback stays on dashboard server origin
-- app redirect should return to dashboard app origin
-- logout/login loop stability needs one final explicit clean-room check
+**Workaround**: Ensure template workflow IDs match what the name-to-ID generator produces (kebab-case of name).
 
 ---
 
-## Product / UX Gaps
-
-### 3. Workflow table view for scale
+### 3. DAG dependencies not persisted during template import
 **Severity**: Medium
-**Status**: Planned
+**Status**: Known bug
 
-**Description**:
-Agents, templates, and communication now have stronger large-scale list/table handling. Workflows still need the same treatment for sorting, selection, and bulk management at higher counts.
+`dependsOn` and `type` fields from template workflows are not passed through to `createWorkflow()` during import. Dependencies must be set manually after apply.
 
----
-
-### 4. Secure per-user BYOK storage
-**Severity**: Medium
-**Status**: Deferred by design
-
-**Description**:
-Current BYOK is a preview/dev flow. It proves execution policy and UI, but it is not final secure multi-user secret storage.
-
-**Current behavior**:
-- browser preview storage for testing
-- `USER_*` env defaults supported
-- `SYSTEM_*` env vars reserved for dashboard/system-owned actions
-
-**Next step**:
-- define durable secret storage model before calling BYOK production-ready
+**Workaround**: Set dependencies via API or DAG edit mode after template apply.
 
 ---
 
-### 5. Workflow cron reliability
-**Severity**: Medium
-**Status**: Open
+### 4. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
+**Severity**: Low
+**Status**: By design
 
-**Description**:
-Workflow cron exists, but consolidation and long-term reliability are still unresolved. Current backlog item remains to decide whether to keep the current path or migrate more fully to OpenClaw-native scheduling.
+Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, or `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true` in `.env`. Without this, agents fail with "No execution API keys configured".
 
 ---
 
-## Stale Issue Tracker Warning
+### 5. DAG connector lines overlap nodes on complex layouts
+**Severity**: Low (cosmetic)
+**Status**: Known limitation
 
-Several GitHub issues remain open even though code has already landed locally and on `main`. Before triaging new work, verify issue state against:
+SVG bezier curves can pass through nodes when the layout has many parallel workflows at different vertical positions. Planned fix: route lines around node bounding boxes.
 
-- `CHANGELOG.md`
-- `SYSTEM/docs/BACKLOG.md`
-- latest `main`
+---
 
-Likely stale/fixed issues to close soon:
-- `#38`
-- `#31`
-- `#30`
-- `#28`
+## Resolved Recently (v1.1.16–v1.1.20)
+
+- **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
+- **OAuth button when not configured** — shows setup instructions instead of broken button
+- **System.* null access in TopBar** — all system fields use optional chaining
+- **Agent import without files** — generates IDENTITY.md from template data
+- **Workflow creation for managed mode** — auto-assigns owner
+- **Dismissed notifications reappearing** — dedup now includes dismissed
+- **Agent status offline for shared gateway** — probes port 18789 as fallback
+- **AI generator with Anthropic-only keys** — auto-detects provider, maps models
+
+## Source of Truth
+
+- Active backlog: [BACKLOG.md](./BACKLOG.md)
+- Current state: [STATUS.md](./STATUS.md)
+- Testing: [TESTING_GUIDE.md](./TESTING_GUIDE.md)

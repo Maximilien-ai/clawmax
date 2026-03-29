@@ -1,32 +1,41 @@
-# SYSTEM Documentation
+# ClawMax Documentation
 
-**Last Updated**: 2026-03-23
+> Last updated: March 29, 2026 (v1.1.20)
 
-## Start Here
+## Active Documents
 
-- [STATUS.md](./STATUS.md) — current system state and tomorrow-start guidance
-- [BACKLOG.md](./BACKLOG.md) — active priorities and next sprint candidates
-- [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) — current risks and limitations
-- [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) — release smoke path
-- [OAUTH_SETUP.md](./OAUTH_SETUP.md) — dashboard GitHub OAuth and env setup
-- monitoring, budget, and BYOK details are primarily documented from the product-level [../README.md](../README.md)
+| Document | Description |
+|----------|-------------|
+| [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
+| [TESTING_GUIDE.md](TESTING_GUIDE.md) | Unit, API, integration, and manual testing guide |
+| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |
+| [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
+| [SECURITY.md](SECURITY.md) | Security architecture and policies |
+| [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 
-## Core References
+## Specifications (External)
 
-- [SECURITY.md](./SECURITY.md)
-- [WORKFLOWS.md](./WORKFLOWS.md)
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md)
-- [ROADMAP.md](./ROADMAP.md)
-- [FEATURES.md](./FEATURES.md)
+| Spec | Repository |
+|------|------------|
+| [TEMPLATE.md Format](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md) | [Maximilien-ai/templates](https://github.com/Maximilien-ai/templates) |
+| [WORKFLOW.md Format](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md) | [Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows) |
 
-## Historical
+## Hackathon Notes
 
-- [archive/](./archive/) — completed plans, sprint notes, and superseded docs
-- archived older docs:
-  - [README_2026-02-25.md](./archive/README_2026-02-25.md)
-  - [FEATURES_2026-03-15.md](./archive/FEATURES_2026-03-15.md)
-  - [ROADMAP_2026-03-15.md](./archive/ROADMAP_2026-03-15.md)
+| Event | Date | Plan |
+|-------|------|------|
+| [Deep Agents Hack](hacks/deep-agents-hack/PLAN.md) | March 27, 2026 | Template wizard, 14 templates, Shipables |
+| [Multimodal Frontier Hack](hacks/multimodal-frontier-hack-mar28/PLAN.md) | March 28, 2026 | Research desk template, multimodal |
+| [OpenClaw Hack Day](hacks/openclaw-hack-day-mar25/SESSION_SUMMARY.md) | March 25, 2026 | RAG team, weave-cli skills |
 
-## Working Rule
+## Other
 
-Keep only active docs at the top level. Move superseded snapshots into `archive/`.
+| Directory | Contents |
+|-----------|----------|
+| `architecture/` | System design docs |
+| `features/` | Feature design docs |
+| `operations/` | Ops and deployment guides |
+| `planning/` | Sprint plans (current in root, completed in `archive/`) |
+| `presentations/` | Demo and talk materials |
+| `archive/` | Historical docs no longer actively maintained |

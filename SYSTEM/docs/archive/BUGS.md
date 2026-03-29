@@ -1,126 +1,125 @@
 # Known Bugs
 
-## Community/Group Highlight on Navigation Not Working
+This file tracks active or still-actionable bugs. Older historical issues should stay in `archive/` once they are clearly no longer useful to current operators.
 
-**Status**: Open
-**Priority**: Medium
-**Created**: 2025-02-23
+## Legacy Agents - Missing Module Error
+
+**Severity:** Medium
+**Status:** Open
+**Date Reported:** 2026-03-13
 
 ### Description
-When clicking a community or group from an agent card, the navigation to the Communication page works, but the channel card doesn't scroll into view or highlight.
+Legacy agents created before recent OpenClaw updates are responding with a "missing module" error when receiving chat messages. The agents report:
+
+> "I encountered an error trying to check the status. It seems there's a missing module. Would you like me to assist with troubleshooting this issue?"
+
+### Affected Agents
+- All agents created before 2026-03-13
+- Examples: max0, qa-engineer, release-engineer, product-owner, agent-manager, dave, hernan, todd, jim, jim0, alexy, test20, test0, saroop, clawmax-assistant, template-optimizer, organization-architect, workflow-debugger, agent0, allie
 
 ### Root Cause
-React doesn't render the channel cards when the Communication page div has the `hidden` class (when on Agents page). Even after switching pages and waiting, the DOM elements aren't available.
+The error appears to be related to a missing `tool-loop-detection-CaSQeaOT.js` module in OpenClaw's runtime. This is an internal OpenClaw issue, not a ClawMax dashboard issue.
 
-**Technical Details**:
-- App.tsx uses `className={page === 'communication' ? '' : 'hidden'}` for page switching
-- The `hidden` class prevents React from rendering child components
-- By the time the useEffect runs, `document.querySelectorAll('[id^="channel-card-"]')` returns empty array
-- Even with 1.3s total delay (300ms + 1000ms retry), elements never appear
+When testing via CLI:
+```bash
+openclaw agent --to engineer --message "status?"
+```
 
-### Attempted Fixes
-1. ✗ Increased timeout delays (100ms → 300ms → 500ms)
-2. ✗ Added retry mechanism with 1000ms delay
-3. ✗ Used `requestAnimationFrame` to wait for paint
-4. ✗ Added `isActive` prop to track page visibility
-5. ✗ Added `!loading` check to wait for data
-
-### Possible Solutions
-1. **Remove hidden class approach** - Render all pages but use `display: none` or `visibility: hidden` instead
-2. **Conditional rendering with keys** - Force remount when page changes
-3. **Use React Router** - Proper page routing instead of hidden divs
-4. **MutationObserver** - Watch for DOM changes and trigger scroll when element appears
-5. **Store scroll intent** - Let Communication page handle scroll on its own mount/visibility change
-
-### Files Affected
-- `SYSTEM/dashboard/client/src/App.tsx` (line 164)
-- `SYSTEM/dashboard/client/src/pages/Communication.tsx` (lines 87-106)
+Response includes:
+> "I'm unable to provide a detailed status report right now due to a missing module in the system. It appears there's an error related to a missing file: tool-loop-detection-CaSQeaOT.js, which is preventing session status checks."
 
 ### Workaround
-For now, users can:
-1. Click the community/group from agent card (navigates to Communication page)
-2. Manually find the channel in the list
+Newly created agents work correctly. To fix an affected agent:
+1. Remove the old agent directory from `AGENTS/`
+2. Recreate the agent using template import via dashboard
+3. The new agent will work properly with chat functionality
 
-The navigation works, just not the scroll/highlight feature.
+### Impact
+- Old agents can still be messaged but respond with error
+- New agents work correctly
+- Dashboard chat functionality works for newly created agents
+- Does not block demo or production use (just recreate affected agents)
+
+### Next Steps
+- Monitor if OpenClaw releases a fix for the missing module issue
+- Consider bulk recreation of old agents from templates if needed
+- Keep this here only while it is still being seen in active dev/test environments
+
+### Related
+- OpenClaw gateway integration (agents.ts:1073, chat.ts:68)
+- Agent registration in `~/.openclaw/openclaw.json`
 
 ---
 
-## Gateway RPC Authentication Scope Issue
+## Schema Validation Errors in Dashboard
 
-**Status**: Open
-**Priority**: P1 (High - affects core Dashboard → OpenClaw integration)
-**Created**: 2026-02-26
+**Severity:** Low
+**Status:** Open
+**Date Reported:** 2026-03-14
 
 ### Description
-Dashboard's Gateway RPC client cannot perform admin operations (config.patch, skills updates, agent registration) because simple token authentication doesn't grant the required `operator.admin` scope.
+Dashboard server logs show schema validation errors when loading agents. The validator is looking for schema files in the wrong location:
+
+```
+Failed to load schema agents: Error: ENOENT: no such file or directory,
+open '/Users/maximilien/github/Maximilien-ai/clawmax-private/WORKSPACES/default/SYSTEM/schemas/agents.schema.json'
+```
 
 ### Root Cause
-OpenClaw Gateway requires `operator.admin` scope for all config modification methods:
-- `config.patch` - Update configuration
-- `config.set` - Replace configuration
-- `config.apply` - Apply and restart
-- Agent management operations
-- Skills configuration
+The validator in `server/lib/validator.ts:21` is looking for schemas in `WORKSPACES/default/SYSTEM/schemas/` but they should be in `SYSTEM/schemas/` at the repo root.
 
-The CLI uses device-based authentication which automatically grants:
-```typescript
-scopes: ["operator.admin", "operator.approvals", "operator.pairing"]
-```
+### Impact
+- Dashboard still functions correctly
+- Schema validation is skipped (no validation warnings shown)
+- Console logs are cluttered with errors
+- Non-blocking for production use
 
-NOTE: is this related to the Token Usage issue? More reasons to change OpenClaw and fix this?
+### Fix Required
+Update `validator.ts` to resolve schema paths from repo root SYSTEM directory instead of workspace SYSTEM directory.
 
-However, simple token auth (using `gateway.auth.token` from openclaw.json) does not grant any scopes by default, causing all admin RPC calls to fail with "missing scope: operator.admin" or connection closed errors.
+---
 
-### Current Workaround
-Dashboard uses direct writes to `~/.openclaw/openclaw.json` with **metadata stamping** to ensure OpenClaw CLI compatibility:
+## Test Message Accumulation in general.json
 
-```typescript
-// Stamp metadata (critical for OpenClaw compatibility)
-const now = new Date().toISOString()
-config.meta = {
-  ...config.meta,
-  lastTouchedVersion: 'dashboard-0.1.0',
-  lastTouchedAt: now
-}
-```
+**Severity:** Low
+**Status:** Open
+**Date Reported:** 2026-03-14
 
-**Provides:**
-- ✅ Metadata stamping (lastTouchedVersion, lastTouchedAt)
-- ✅ Fast, reliable operation
-- ✅ OpenClaw CLI can read configs without errors
-- ❌ No Zod schema validation
-- ❌ No environment variable preservation
-- ❌ No merge patch conflict resolution
-- ❌ No audit trail via Gateway
+### Description
+Test suite writes messages to `WORKSPACES/default/SYSTEM/messages/groups/general.json` but doesn't clean them up after test completion.
 
-### Proper Solution
-Implement device-based authentication for Dashboard → Gateway communication.
+### Impact
+- Test messages accumulate in general.json
+- Requires manual cleanup between test runs
+- Not blocking, just annoying
 
-**Option A: Device Identity (Recommended)**
-1. Use OpenClaw's `loadOrCreateDeviceIdentity()` function
-2. Generate device keypair and sign auth payload
-3. Request `operator.admin` scope during connection
-4. Store device identity in Dashboard config
+### Fix Required
+Add cleanup step to test suite to reset message files to empty arrays after tests complete.
 
-**Option B: Extended Token Auth**
-- Modify Gateway to support scope-granting tokens
-- Add scope configuration to `gateway.auth.token` in openclaw.json
-- Requires upstream OpenClaw changes
+---
 
-### Files Affected
-- `dashboard/server/lib/gateway-rpc.ts` - RPC client implementation
-- `dashboard/server/lib/skills.ts` - Skills management (currently using direct writes)
-- `dashboard/server/routes/agents.ts` - Agent registration (currently using direct writes)
+## TODO: Test Public Repo Fresh Install
 
-### References
-- Gateway auth code: `/Users/maximilien/github/maximilien/openclaw/src/gateway/auth.ts`
-- Device identity: `/Users/maximilien/github/maximilien/openclaw/src/infra/device-identity.ts`
-- CLI client example: `/Users/maximilien/github/maximilien/openclaw/src/gateway/call.ts:272`
+**Priority:** High
+**Status:** TODO
+**Date:** 2026-03-15 (Tomorrow)
 
-### Testing
-Once implemented, verify with:
-```bash
-./test.sh  # Section 15: Gateway RPC Compatibility
-```
+### Task
+Test the public clawmax repository on a fresh machine or new user account to replicate new user experience:
 
-Expected: All tests pass, config.patch calls succeed, metadata stamped by Gateway.
+1. Clone public repo: `git clone https://github.com/Maximilien-ai/clawmax.git`
+2. Run `setup.sh` from scratch
+3. Verify all prerequisites are checked correctly
+4. Test API key configuration
+5. Test dashboard startup
+6. Test template application
+7. Test agent creation
+8. Test workflows
+9. Document any issues encountered
+10. Fix any gaps in setup process or documentation
+
+### Why This Matters
+- Screens issues that only appear on fresh installations
+- Validates setup.sh works correctly for new users
+- Ensures documentation is accurate
+- Catches hardcoded paths or missing dependencies
