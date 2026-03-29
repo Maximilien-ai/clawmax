@@ -233,9 +233,37 @@ echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-templates.out; then
-  pass "Templates API unit tests (15 tests)"
+  template_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-templates.out)
+  pass "Templates API unit tests ($template_count tests)"
 else
   fail "Templates API unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Notifications unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/notifications.test.ts > /tmp/clawmax-notifications.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
+  notif_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-notifications.out)
+  pass "Notifications unit tests ($notif_count tests)"
+else
+  fail "Notifications unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
+  wf_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-workflows.out)
+  pass "Workflows unit tests ($wf_count tests)"
+else
+  fail "Workflows unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Validator unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/validator.test.ts > /tmp/clawmax-validator.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-validator.out; then
+  val_count=$(grep "Passed:" | sed "s/.*Passed: //" | tr -d "\\\\n" /tmp/clawmax-validator.out)
+  pass "Validator unit tests ($val_count tests)"
+else
+  fail "Validator unit tests"
 fi
 
 echo ""
