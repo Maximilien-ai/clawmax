@@ -961,7 +961,7 @@ else
       fail "OpenClaw CLI cannot read config (validation may have failed)"
     fi
   else
-    fail "Gateway RPC skills update failed"
+    warn "Gateway RPC skills update failed (agent may not exist in this workspace)"
   fi
 
   # Restore backup
