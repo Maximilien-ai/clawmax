@@ -141,7 +141,10 @@
           "lead"
         ],
         "agents": [
-          "owner"
+          "owner",
+          "buyer",
+          "merchandiser",
+          "customer-service"
         ]
       },
       "content": "# Specialty Retailer Kickoff\n\nYou are the Store Owner. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Store type:** [e.g., boutique clothing, artisan coffee, craft supplies]\n- **Product categories:** [e.g., women's apparel, accessories, home goods]\n- **Key suppliers:** [e.g., local artisans, wholesale distributors]\n- **Target customers:** [e.g., young professionals, gift shoppers]\n- **GitHub repo:** [e.g., owner/repo \u2014 for catalog and inventory tracking]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing product data or supplier contacts\n3. Brief the buyer on sourcing priorities and budget\n4. Set merchandising goals with the merchandiser\n5. Establish customer service standards and response times",

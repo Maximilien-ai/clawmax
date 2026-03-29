@@ -153,7 +153,10 @@
           "lead"
         ],
         "agents": [
-          "data-lead"
+          "data-lead",
+          "data-engineer",
+          "analyst",
+          "ml-engineer"
         ]
       },
       "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo \u2014 for pipeline code and models]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment",

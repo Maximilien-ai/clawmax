@@ -144,7 +144,10 @@
           "lead"
         ],
         "agents": [
-          "support-lead"
+          "support-lead",
+          "support-agent",
+          "escalation-eng",
+          "knowledge-mgr"
         ]
       },
       "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas",
