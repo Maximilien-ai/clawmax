@@ -1695,7 +1695,7 @@ fi
 
 # Step 3: Verify agents created
 agent_list=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
-expected_agents="test-agent-1 test-agent-2 test-lead"
+expected_agents="test-agent1 test-agent2 test-lead"
 for agent_id in $expected_agents; do
   if echo "$agent_list" | grep -q "^${agent_id}$"; then
     pass "Agent $agent_id exists"

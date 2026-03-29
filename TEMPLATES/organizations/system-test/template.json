@@ -6,6 +6,9 @@
   "description": "Integration test workspace template. Creates test agents, workflows, communities, and groups for automated and manual system testing. All agents use gpt-4o-mini for cost efficiency.",
   "author": "ClawMax Team",
   "tags": ["test", "system-test", "integration"],
+  "parameters": [
+    { "agentId": "test-agent", "label": "Number of Test Agents", "default": 2, "min": 1, "max": 10 }
+  ],
   "agents": [
     {
       "id": "test-lead",
@@ -17,18 +20,9 @@
       "groups": ["Test Status", "Test Chat"]
     },
     {
-      "id": "test-agent-1",
-      "name": "Test Agent 1",
+      "id": "test-agent",
+      "name": "Test Agent",
       "role": "General test agent — participates in chat tests, workflow tests, and group messaging",
-      "tags": ["test", "worker"],
-      "skills": [],
-      "communities": ["Test Team"],
-      "groups": ["Test Chat", "Test Work"]
-    },
-    {
-      "id": "test-agent-2",
-      "name": "Test Agent 2",
-      "role": "Secondary test agent — used for parallel workflow tests and multi-agent scenarios",
       "tags": ["test", "worker"],
       "skills": [],
       "communities": ["Test Team"],
@@ -53,7 +47,7 @@
       "executionMode": "managed",
       "owner": "test-lead",
       "type": "once",
-      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-lead", "test-agent-1", "test-agent-2"] },
+      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-lead", "test-agent1", "test-agent2"] },
       "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team. Respond with a brief status:\n1. Confirm your agent ID and role\n2. List the groups you belong to\n3. Say 'READY' to confirm you are operational\n\nKeep response under 50 words."
     },
     {
@@ -77,7 +71,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": ["test-sequential"],
-      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-agent-1"] },
+      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-agent1"] },
       "content": "# Parallel Test A\n\nYou are test-agent-1 running parallel test A.\n1. Say 'PARALLEL A RUNNING'\n2. Count to 3\n3. Say 'PARALLEL A COMPLETE'\n\nKeep response under 20 words."
     },
     {
@@ -89,7 +83,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": ["test-sequential"],
-      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-agent-2"] },
+      "targeting": { "communities": [], "groups": [], "tags": [], "agents": ["test-agent2"] },
       "content": "# Parallel Test B\n\nYou are test-agent-2 running parallel test B.\n1. Say 'PARALLEL B RUNNING'\n2. Count to 3\n3. Say 'PARALLEL B COMPLETE'\n\nKeep response under 20 words."
     },
     {
