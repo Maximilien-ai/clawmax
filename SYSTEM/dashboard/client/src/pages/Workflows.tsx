@@ -203,8 +203,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     onConfirm: () => Promise<void>
   } | null>(null)
 
-  const fetchWorkflows = () => {
-    setLoading(true)
+  const fetchWorkflows = (silent = false) => {
+    if (!silent) setLoading(true)
     fetch('/api/workflows')
       .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load workflows')))
       .then(data => {
@@ -212,8 +212,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         setLoading(false)
       })
       .catch(() => {
-        setWorkflows([])
-        showError('Failed to load workflows')
+        if (!silent) {
+          setWorkflows([])
+          showError('Failed to load workflows')
+        }
         setLoading(false)
       })
   }
@@ -228,10 +230,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }).catch(() => {})
   }, [])
 
-  // Auto-refresh in DAG view (10s polling for live progress)
+  // Auto-refresh in DAG view (10s silent polling for live progress)
   useEffect(() => {
     if (viewMode !== 'dag') return
-    const interval = setInterval(fetchWorkflows, 10000)
+    const interval = setInterval(() => fetchWorkflows(true), 10000)
     return () => clearInterval(interval)
   }, [viewMode])
 
