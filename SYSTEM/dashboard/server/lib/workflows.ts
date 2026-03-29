@@ -962,7 +962,7 @@ export function completeWorkflow(workflowId: string): { readyToRun: string[] } {
 
   for (const wf of allWorkflows) {
     if (!wf.dependsOn?.includes(workflowId)) continue
-    if (wf.status === 'completed' || wf.status === 'running') continue
+    if (wf.status === 'running') continue // skip already-running, but allow re-run of completed
 
     const { met } = areDependenciesMet(wf.id)
     if (met) {
