@@ -714,9 +714,9 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
 
-    // Increment run count
+    // Increment run count + mark as running
     const newRunCount = (workflow.runCount || 0) + 1
-    updateWorkflow(workflowId, { runCount: newRunCount })
+    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running' } as any)
 
     // Check if this run will hit the limit — disable after this run
     if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {
@@ -869,6 +869,39 @@ export function triggerWorkflow(workflowId: string, options?: {
       execution.completedAt = new Date().toISOString()
       execution.logs.push(`Workflow completed at ${execution.completedAt}`)
       fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+      // Auto-advance DAG: mark workflow completed and trigger ready dependents
+      if (execution.status === 'completed') {
+        const { readyToRun } = completeWorkflow(workflowId)
+        if (readyToRun.length > 0) {
+          execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+
+          // Auto-trigger enabled workflows with BYOK keys passed through
+          for (const nextId of readyToRun) {
+            const nextWf = getWorkflow(nextId)
+            if (nextWf?.enabled) {
+              console.log(`[DAG] Auto-triggering ${nextId}`)
+              triggerWorkflow(nextId, { manual: false, byok: options?.byok })
+              updateWorkflow(nextId, { status: 'running' } as any)
+            }
+          }
+        }
+      } else {
+        // Failed — update workflow status
+        updateWorkflow(workflowId, { status: 'blocked' } as any)
+        // Create notification for failure
+        const { createNotification } = require('./notifications')
+        createNotification({
+          type: 'workflow-failed',
+          title: `${workflow.name} failed`,
+          message: execution.logs.slice(-1)[0] || 'Workflow execution failed',
+          entityId: workflowId,
+          entityType: 'workflow',
+          fingerprint: `wf-failed:${workflowId}:${execution.id}`,
+          workflowId,
+        })
+      }
 
       // Trace to Opik
       const execDuration = new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()
