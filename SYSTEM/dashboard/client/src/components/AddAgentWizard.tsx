@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys } from '../lib/byok'
+import { readStoredByokKeys, fetchModelsWithByok } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 const PREDEFINED_TAGS = [
@@ -87,9 +87,8 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
-    // Fetch available models based on API keys
-    fetch('/api/agents/models')
-      .then(r => r.json())
+    // Fetch available models based on API keys (includes BYOK)
+    fetchModelsWithByok()
       .then(d => {
         const models = d.models || []
         setAvailableModels(models)

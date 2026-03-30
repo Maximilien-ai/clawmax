@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
+import { fetchModelsWithByok } from '../lib/byok'
 
 interface AgentTemplate {
   name: string
@@ -26,8 +27,7 @@ export default function ApplyAgentTemplateModal({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/agents/models')
-      .then(r => r.json())
+    fetchModelsWithByok()
       .then(d => setAvailableModels(d.models || []))
       .catch(() => {})
   }, [])
