@@ -1320,7 +1320,7 @@ router.post('/:id/chat/messages', async (req, res) => {
     const sessionId = actualSessionId || sessionKey
 
     // Run the agent turn with the message
-    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json']
+    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', '--local']
     const proc = spawn('openclaw', args, { env: safeEnv() })
 
     let stdout = ''
