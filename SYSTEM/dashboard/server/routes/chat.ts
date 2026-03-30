@@ -3,6 +3,7 @@ import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
+import { isGatewayConfigured } from '../lib/gateway-rpc'
 import { traceAgentChat } from '../lib/opik'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -133,8 +134,9 @@ router.post('/:id/chat', (req, res) => {
     try { res.write(': keepalive\n\n') } catch {}
   }, 2000)
 
-  // Spawn openclaw agent CLI (--local bypasses gateway, uses API keys directly)
-  const args = ['agent', '--agent', id, '--message', message, '--json', '--local']
+  // Use gateway when configured (enables skills/tool-use), fall back to --local
+  const useLocal = !isGatewayConfigured()
+  const args = ['agent', '--agent', id, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   let procExited = false

@@ -6,7 +6,7 @@ import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
-import { getGatewayClient } from '../lib/gateway-rpc'
+import { getGatewayClient, isGatewayConfigured } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
@@ -1320,7 +1320,8 @@ router.post('/:id/chat/messages', async (req, res) => {
     const sessionId = actualSessionId || sessionKey
 
     // Run the agent turn with the message
-    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', '--local']
+    const useLocal = !isGatewayConfigured()
+    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
     const proc = spawn('openclaw', args, { env: safeEnv() })
 
     let stdout = ''

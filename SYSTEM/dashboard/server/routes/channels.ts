@@ -7,6 +7,7 @@ import { safeEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
+import { isGatewayConfigured } from '../lib/gateway-rpc'
 
 const router = Router()
 
@@ -161,8 +162,9 @@ router.delete('/groups/:name', (req, res) => {
 /** Call an agent with a message and return the response */
 async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string }): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Use --local to bypass gateway (avoids empty payload issues with some agents)
-    const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
+    // Use gateway when configured (enables skills/tool-use), fall back to --local
+    const useLocal = !isGatewayConfigured()
+    const args = ['agent', '--agent', agentId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
     // Merge BYOK keys into env if provided (fall back to server keys)
     const env = { ...safeEnv() }
     if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
