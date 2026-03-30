@@ -212,11 +212,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         setWorkflows(Array.isArray(data.workflows) ? data.workflows : [])
         setLoading(false)
       })
-      .catch(() => {
-        if (!silent) {
-          setWorkflows([])
-          showError('Failed to load workflows')
-        }
+      .catch((err) => {
+        console.warn('Failed to load workflows:', err)
+        setWorkflows([])
         setLoading(false)
       })
   }

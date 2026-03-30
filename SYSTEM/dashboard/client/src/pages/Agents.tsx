@@ -171,8 +171,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         setLoadingMore(false)
         setLastRefreshed(Date.now())
       })
-      .catch(() => {
-        setError('Failed to load agents')
+      .catch((err) => {
+        // Don't show error on initial load of empty workspace
+        console.warn('Failed to load agents:', err)
         setLoading(false)
         setLoadingMore(false)
       })
