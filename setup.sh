@@ -65,12 +65,12 @@ offer_install() {
 
   if [ "$INTERACTIVE" = true ]; then
     echo ""
-    echo "  ${BOLD}$name is required but not installed.${NC}"
+    echo -e "  ${BOLD}$name is required but not installed.${NC}"
     echo ""
     if command -v brew &> /dev/null && [ -n "$brew_pkg" ]; then
-      echo "  Press ${BOLD}Enter${NC} to install via Homebrew (brew install $brew_pkg)"
-      echo "  Press ${BOLD}s${NC} to skip and install manually"
-      echo "  Get it from: $url"
+      echo -e "  Press ${BOLD}Enter${NC} to install via Homebrew (brew install $brew_pkg)"
+      echo -e "  Press ${BOLD}s${NC} to skip and install manually"
+      echo -e "  Get it from: $url"
       echo ""
       read -p "  [Enter/s]: " -n 1 -r; echo
       if [[ -z "$REPLY" || "$REPLY" == $'\n' ]]; then
@@ -84,8 +84,8 @@ offer_install() {
         fi
       fi
     else
-      echo "  Install from: $url"
-      echo "  Press ${BOLD}Enter${NC} after installing, or ${BOLD}s${NC} to skip"
+      echo -e "  Install from: $url"
+      echo -e "  Press ${BOLD}Enter${NC} after installing, or ${BOLD}s${NC} to skip"
       read -p "  [Enter/s]: " -n 1 -r; echo
       if [[ -z "$REPLY" || "$REPLY" == $'\n' ]]; then
         # Check again after user says they installed
