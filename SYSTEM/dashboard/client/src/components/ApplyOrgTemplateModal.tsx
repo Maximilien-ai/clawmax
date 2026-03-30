@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useToast } from './Toast'
+import { fetchModelsWithByok } from '../lib/byok'
 
 interface TemplateParameter {
   agentId: string
@@ -75,11 +76,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   // Fetch available models
   React.useEffect(() => {
-    fetch('/api/agents/models', { credentials: 'include', cache: 'no-store' })
-      .then(r => {
-        if (!r.ok) throw new Error('Failed to load models')
-        return r.json()
-      })
+    fetchModelsWithByok()
       .then(d => {
         const models = Array.isArray(d.models) ? d.models : []
         const byProvider = d.modelsByProvider || {}

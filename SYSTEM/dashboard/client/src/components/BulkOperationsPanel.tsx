@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { fetchModelsWithByok } from '../lib/byok'
 
 interface Agent {
   id: string
@@ -246,7 +247,7 @@ export default function BulkOperationsPanel({
                       if (operation === 'model') { setOperation(null) } else {
                         setOperation('model')
                         if (availableModels.length === 0) {
-                          fetch('/api/agents/models').then(r => r.json()).then(d => setAvailableModels(d.models || [])).catch(() => {})
+                          fetchModelsWithByok().then(d => setAvailableModels(d.models || [])).catch(() => {})
                         }
                       }
                     }}

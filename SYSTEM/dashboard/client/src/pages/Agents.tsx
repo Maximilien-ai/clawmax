@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
+import { fetchModelsWithByok, refreshModelsWithByok } from '../lib/byok'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import ArchiveAgentPanel from '../components/ArchiveAgentPanel'
 import UnarchiveAgentPanel from '../components/UnarchiveAgentPanel'
@@ -2069,10 +2070,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         if (!r.ok) throw new Error('Failed to load identity metadata')
         return r.json()
       }),
-      fetch('/api/agents/models').then(r => {
-        if (!r.ok) throw new Error('Failed to load models')
-        return r.json()
-      }),
+      fetchModelsWithByok(),
     ])
       .then(([configData, identityData, modelsData]) => {
         setIdentity(configData.identity || '')
@@ -2246,12 +2244,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     type="button"
                     onClick={async () => {
                       try {
-                        const res = await fetch('/api/agents/models/refresh', { method: 'POST' })
-                        if (res.ok) {
-                          const data = await res.json()
-                          setAvailableModels(Array.isArray(data.models) ? data.models : [])
-                          setModelsByProvider(data.modelsByProvider || {})
-                        }
+                        const data = await refreshModelsWithByok()
+                        setAvailableModels(Array.isArray(data.models) ? data.models : [])
+                        setModelsByProvider(data.modelsByProvider || {})
                       } catch {}
                     }}
                     className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors"

@@ -300,9 +300,13 @@ router.post('/validate-provision', (req, res) => {
 
 // GET /api/agents/models — dynamic discovery from provider APIs (cached 1hr)
 // Must be defined before /:id routes.
-router.get('/models', async (_req, res) => {
+router.get('/models', async (req, res) => {
   try {
-    const result = await discoverModels()
+    const byokKeys = {
+      openai: req.query.openaiKey as string | undefined,
+      anthropic: req.query.anthropicKey as string | undefined,
+    }
+    const result = await discoverModels(byokKeys.openai || byokKeys.anthropic ? byokKeys : undefined)
     res.json(result)
   } catch (err) {
     console.error('Model discovery failed:', err)
@@ -311,10 +315,11 @@ router.get('/models', async (_req, res) => {
 })
 
 // POST /api/agents/models/refresh — force-clear cache and re-fetch
-router.post('/models/refresh', async (_req, res) => {
+router.post('/models/refresh', async (req, res) => {
   clearModelCache()
   try {
-    const result = await discoverModels()
+    const byokKeys = req.body as { openai?: string; anthropic?: string } | undefined
+    const result = await discoverModels(byokKeys?.openai || byokKeys?.anthropic ? byokKeys : undefined)
     res.json(result)
   } catch (err) {
     console.error('Model refresh failed:', err)
