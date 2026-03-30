@@ -10,11 +10,13 @@ interface Workflow {
   dependsOn?: string[]
   progress?: number
   status?: 'idle' | 'running' | 'completed' | 'blocked'
+  runCount?: number
 }
 
 interface WorkflowDAGProps {
   workflows: Workflow[]
   onSelect?: (workflowId: string) => void
+  onTrigger?: (workflowId: string) => void
   selectedId?: string
   editable?: boolean
   onAddDependency?: (fromId: string, toId: string) => void
@@ -119,7 +121,7 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
   blocked: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
 }
 
-export default function WorkflowDAG({ workflows, onSelect, selectedId, editable, onAddDependency, onRemoveDependency }: WorkflowDAGProps) {
+export default function WorkflowDAG({ workflows, onSelect, selectedId, editable, onAddDependency, onRemoveDependency, onTrigger }: WorkflowDAGProps) {
   const forests = useMemo(() => findForests(workflows), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -414,11 +416,32 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                   )}
 
                   {/* Status badge */}
-                  {status !== 'idle' && (
-                    <div className={`mt-1.5 text-[10px] font-medium ${colors.text} capitalize`}>
-                      {status}
+                  {/* Status + run count + trigger button */}
+                  <div className="flex items-center justify-between mt-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {status !== 'idle' && (
+                        <span className={`text-[10px] font-medium ${colors.text} capitalize`}>{status}</span>
+                      )}
+                      {(wf.runCount || 0) > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                          {wf.runCount}x
+                        </span>
+                      )}
                     </div>
-                  )}
+                    {onTrigger && status !== 'running' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+                          status === 'completed'
+                            ? 'text-sky-600 hover:bg-sky-100 dark:hover:bg-sky-900/30'
+                            : 'text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                        }`}
+                        title={status === 'completed' ? 'Re-run workflow' : 'Start workflow'}
+                      >
+                        {status === 'completed' ? '↻' : '▶'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

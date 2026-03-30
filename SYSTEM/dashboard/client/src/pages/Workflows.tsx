@@ -1167,6 +1167,20 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 showSuccess(`Removed dependency: ${fromId} → ${toId}`)
                 fetchWorkflows()
               }}
+              onTrigger={async (id) => {
+                const resp = await fetch(`/api/workflows/${id}/trigger`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ manual: true }),
+                })
+                const data = await resp.json()
+                if (data.executionId) {
+                  showSuccess(`Triggered ${id}`)
+                } else {
+                  showError(data.error || `Failed to trigger ${id}`)
+                }
+                fetchWorkflows(true)
+              }}
             />
           </div>
         ) : viewMode === 'grid' ? (
