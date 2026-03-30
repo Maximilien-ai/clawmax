@@ -790,7 +790,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
-            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json']
+            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json', '--local']
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
