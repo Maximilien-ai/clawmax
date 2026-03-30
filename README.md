@@ -171,6 +171,13 @@ cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
    - Set schedule, target agents, and content
    - Save and enable
 
+5. **Explore Templates & DAG**
+   - Go to **Templates** and browse 15+ team templates by category (Business, Technical, Personal)
+   - Try **"Technical Writing"** — creates a full writing team with editor, writers, reviewer, and publisher
+   - Try **"ClawMax System Test"** — a test template with 3 agents and a 5-step workflow DAG (kickoff → sequential → parallel → final)
+   - After applying a template, go to **Workflows** → click the **◇ DAG view** button to see the dependency graph
+   - Each template creates a complete team: agents, communities, groups, and interconnected workflows with kickoff
+
 ---
 
 ## 🔑 API Key Configuration
