@@ -87,7 +87,8 @@
 - [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
 - [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
 - [x] **DAG forest SVG lines cross pipelines** — fixed: SVG scoped per pipeline with forestRefs
-- [ ] **DAG dependency labels overlap** — "Depends on: X" text on nodes can overlap with connector lines and other nodes. Consider moving to tooltip or smaller font
+- [x] **DAG dependency labels overlap** — removed redundant text, lines show deps visually
+- [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
