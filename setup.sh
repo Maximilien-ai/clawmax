@@ -167,11 +167,11 @@ else
   if [ "$INTERACTIVE" = true ]; then
     echo -e "  Choose an installation method:"
     echo ""
-    echo -e "  ${BOLD}1)${NC} Homebrew (Maximilien-ai tap) ${GREEN}← recommended${NC}"
-    echo "     brew tap maximilien-ai/openclaw && brew install openclaw"
-    echo ""
-    echo -e "  ${BOLD}2)${NC} npm global install"
+    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended (fastest)${NC}"
     echo "     npm install -g openclaw"
+    echo ""
+    echo -e "  ${BOLD}2)${NC} Homebrew (Maximilien-ai tap)"
+    echo "     brew tap maximilien-ai/openclaw && brew install openclaw"
     echo ""
     echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
     echo ""
@@ -184,26 +184,33 @@ else
     REPLY=${REPLY:-1}
     case $REPLY in
       1|"")
+        print_info "Installing OpenClaw via npm (fastest)..."
+        if npm install -g openclaw; then
+          hash -r 2>/dev/null || true
+          OPENCLAW_INSTALLED=true
+          print_success "OpenClaw CLI installed"
+        else
+          print_warning "npm install failed — trying Homebrew..."
+          brew tap maximilien-ai/openclaw || true
+          if brew install --formula maximilien-ai/openclaw/openclaw; then
+            hash -r 2>/dev/null || true
+            OPENCLAW_INSTALLED=true
+            print_success "OpenClaw CLI installed via Homebrew"
+          else
+            print_warning "Installation failed"
+            echo "  Try manually: npm install -g openclaw"
+          fi
+        fi
+        ;;
+      2)
         print_info "Installing OpenClaw via Homebrew..."
         brew tap maximilien-ai/openclaw || true
         if brew install --formula maximilien-ai/openclaw/openclaw; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
-          print_success "OpenClaw installed via Homebrew"
+          print_success "OpenClaw CLI installed via Homebrew"
         else
-          print_warning "Homebrew install failed"
-          echo "  Try: brew install --formula maximilien-ai/openclaw/openclaw"
-          echo "  Or: npm install -g openclaw"
-        fi
-        ;;
-      2)
-        print_info "Installing OpenClaw via npm..."
-        if npm install -g openclaw; then
-          hash -r 2>/dev/null || true
-          OPENCLAW_INSTALLED=true
-          print_success "OpenClaw installed via npm"
-        else
-          print_warning "npm install failed — try: npm install -g openclaw"
+          print_warning "Homebrew install failed — try: npm install -g openclaw"
         fi
         ;;
       *)
@@ -211,8 +218,28 @@ else
         ;;
     esac
   else
-    print_info "Non-interactive: skipping OpenClaw install"
+    # Non-interactive: try npm install automatically
+    print_info "Installing OpenClaw CLI..."
+    if npm install -g openclaw 2>/dev/null; then
+      hash -r 2>/dev/null || true
+      OPENCLAW_INSTALLED=true
+      print_success "OpenClaw CLI installed"
+    else
+      print_warning "OpenClaw install failed — try: npm install -g openclaw"
+    fi
   fi
+fi
+
+# Verify installation
+if [ "$OPENCLAW_INSTALLED" = false ] && command -v openclaw &> /dev/null; then
+  OPENCLAW_INSTALLED=true
+fi
+if [ "$OPENCLAW_INSTALLED" = true ]; then
+  OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "installed")
+  print_success "OpenClaw CLI ready: $OPENCLAW_VER"
+elif [ "$OPENCLAW_INSTALLED" = false ]; then
+  print_warning "OpenClaw CLI not installed — agent start/stop/chat will not work"
+  echo -e "  Install later: ${BOLD}npm install -g openclaw${NC}"
 fi
 
 echo ""
