@@ -1169,7 +1169,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 const resp = await fetch(`/api/workflows/${id}/trigger`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ manual: true }),
+                  body: JSON.stringify({ manual: true, byok: readStoredByokKeys() }),
                 })
                 const data = await resp.json()
                 if (data.executionId) {
