@@ -380,12 +380,6 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                     <span className={`text-sm font-medium truncate ${colors.text}`}>{wf.name}</span>
                   </div>
 
-                  {!!wf.dependsOn?.length && (
-                    <div className="mb-1.5 text-[10px] text-purple-600 dark:text-purple-400">
-                      Depends on: {wf.dependsOn.map(depId => workflows.find(w => w.id === depId)?.name || depId).join(', ')}
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
                     <span>{wf.schedule === 'manual' || (wf as any).type === 'once' ? '▶' : (wf as any).type === 'conditional' ? '◆' : '↻'}</span>
                     <span className="font-mono">{wf.schedule === 'manual' ? 'manual' : wf.schedule === 'once' ? 'once' : 'cron'}</span>
