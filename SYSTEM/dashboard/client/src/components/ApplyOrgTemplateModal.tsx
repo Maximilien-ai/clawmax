@@ -59,6 +59,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [useWorkspaceFs, setUseWorkspaceFs] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
+  // Local field values for controlled inputs — synced to markdown on blur
+  const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const { showSuccess, showError: showToastError } = useToast()
@@ -580,7 +582,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   configFields.push({ label, placeholder: ph, key: label, type: fieldType, options })
                 }
 
+                const fieldKey = (label: string) => `${wf.id}::${label}`
+
                 const getFieldValue = (label: string): string => {
+                  // Use local input state if available, otherwise parse from markdown
+                  const localVal = fieldInputs[fieldKey(label)]
+                  if (localVal !== undefined) return localVal
                   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                   const lineRegex = new RegExp(`^-\\s+\\*\\*${escaped}:\\*\\*\\s+(.+)$`, 'm')
                   const m = currentContent.match(lineRegex)
@@ -590,14 +597,24 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 }
 
                 const setFieldValue = (label: string, value: string) => {
+                  // Update local state immediately for responsive typing
+                  setFieldInputs(prev => ({ ...prev, [fieldKey(label)]: value }))
+                }
+
+                // Sync local field value back to markdown content
+                const syncFieldToMarkdown = (label?: string) => {
                   setWorkflowOverrides(prev => {
                     let content = typeof (prev[wf.id] ?? wf.content) === 'string'
                       ? (prev[wf.id] ?? wf.content) : ''
-                    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                    // Match the line with either a [placeholder] value or a plain value
-                    const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
-                    if (lineRegex.test(content)) {
-                      content = content.replace(lineRegex, `$1 ${value || '[...]'}`)
+                    const fieldsToSync = label ? [{ label }] : configFields
+                    for (const f of fieldsToSync) {
+                      const val = fieldInputs[fieldKey(f.label)]
+                      if (val === undefined) continue
+                      const escaped = f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                      const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
+                      if (lineRegex.test(content)) {
+                        content = content.replace(lineRegex, `$1 ${val || '[...]'}`)
+                      }
                     }
                     return { ...prev, [wf.id]: content }
                   })
@@ -653,7 +670,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               <input
                                 type="checkbox"
                                 checked={getFieldValue(field.label).toLowerCase() === 'true' || getFieldValue(field.label).toLowerCase() === 'yes'}
-                                onChange={e => setFieldValue(field.label, e.target.checked ? 'yes' : 'no')}
+                                onChange={e => { setFieldValue(field.label, e.target.checked ? 'yes' : 'no'); setTimeout(() => syncFieldToMarkdown(field.label)) }}
                                 className="rounded"
                               />
                               <span className="text-sm text-gray-600 dark:text-gray-400">{field.placeholder}</span>
@@ -661,7 +678,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                           ) : field.type === 'select' && field.options ? (
                             <select
                               value={getFieldValue(field.label)}
-                              onChange={e => setFieldValue(field.label, e.target.value)}
+                              onChange={e => { setFieldValue(field.label, e.target.value); setTimeout(() => syncFieldToMarkdown(field.label)) }}
                               className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             >
                               <option value="">Select...</option>
@@ -671,6 +688,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                             <textarea
                               value={getFieldValue(field.label)}
                               onChange={e => setFieldValue(field.label, e.target.value)}
+                              onBlur={() => syncFieldToMarkdown(field.label)}
                               placeholder={field.placeholder}
                               rows={3}
                               className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
@@ -680,6 +698,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               type="text"
                               value={getFieldValue(field.label)}
                               onChange={e => setFieldValue(field.label, e.target.value)}
+                              onBlur={() => syncFieldToMarkdown(field.label)}
                               placeholder={field.placeholder}
                               className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             />
@@ -699,7 +718,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {/* Navigation */}
                   <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                     <button
-                      onClick={() => setWorkflowStep(Math.max(0, workflowStep - 1))}
+                      onClick={() => { syncFieldToMarkdown(); setWorkflowStep(Math.max(0, workflowStep - 1)) }}
                       disabled={workflowStep === 0}
                       className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
                     >
@@ -707,7 +726,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                     </button>
                     <span className="text-xs text-gray-400">{wf.name}</span>
                     <button
-                      onClick={() => setWorkflowStep(Math.min(workflows.length - 1, workflowStep + 1))}
+                      onClick={() => { syncFieldToMarkdown(); setWorkflowStep(Math.min(workflows.length - 1, workflowStep + 1)) }}
                       disabled={workflowStep >= workflows.length - 1}
                       className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
                     >
