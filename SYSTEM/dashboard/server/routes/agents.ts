@@ -453,12 +453,21 @@ router.post('/provision', (req, res) => {
     send('log', `Normalized model from "${validatedModel}" to "${normalizedModel}"\n`)
   }
 
-  // Validate model is available - if not, use first available model
-  if (normalizedModel && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai)\//, ''))) {
+  // Validate model is available - if not, use a sensible fallback
+  if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai)\//, ''))) {
     const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
-    send('log', `⚠️  Model "${normalizedModel}" is not available with current API keys\n`)
+    send('log', `⚠️  Model "${normalizedModel}" is not available with system API keys\n`)
     send('log', `Using fallback model: "${fallbackModel}"\n`)
     normalizedModel = fallbackModel
+  }
+  // When no system keys configured (BYOK-only), trust the client's model choice
+  if (availableModels.length === 0 && normalizedModel) {
+    send('log', `Using BYOK model: ${normalizedModel}\n`)
+  }
+  // Ultimate fallback if no model at all
+  if (!normalizedModel) {
+    normalizedModel = 'anthropic/claude-sonnet-4-20250514'
+    send('log', `No model specified, using default: ${normalizedModel}\n`)
   }
 
   const args: string[] = ['agents', 'add', validatedName, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
