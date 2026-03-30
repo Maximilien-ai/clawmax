@@ -1188,7 +1188,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       )}
 
       {error && (
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800">{error}</div>
       )}
 
       {!loading && !error && agents.length === 0 && (

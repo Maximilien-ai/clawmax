@@ -93,6 +93,12 @@
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Testing & validation** — verify all notification types fire correctly with real agent activity
 
+### First-Time UX Improvements
+- [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip "Configure API keys" when no system/user/BYOK keys set. Enable once keys detected
+- [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo (resize to 32x32)
+- [x] **Suppress error toasts on empty workspace** — done
+- [x] **Error text dark mode** — agents error display now dark-mode aware
+
 ### P1: Agent List Pagination
 
 ### P2: Template Apply Bug
