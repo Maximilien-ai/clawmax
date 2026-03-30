@@ -95,6 +95,8 @@
 
 ### First-Time UX Improvements
 - [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip "Configure API keys" when no system/user/BYOK keys set. Enable once keys detected
+- [ ] **System agents use best available model** — when creating agents, default to latest model for configured keys (opus-4-6 for Anthropic, gpt-5 for OpenAI) instead of gpt-4o-mini
+- [ ] **BYOK provider preference** — when user has both OpenAI + Anthropic keys, show "Preferred provider" dropdown in BYOK wizard. System agents and AI generation use the preferred provider's best model
 - [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo (resize to 32x32)
 - [x] **Suppress error toasts on empty workspace** — done
 - [x] **Error text dark mode** — agents error display now dark-mode aware
