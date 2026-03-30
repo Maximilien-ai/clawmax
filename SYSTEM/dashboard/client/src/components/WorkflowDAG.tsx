@@ -21,7 +21,45 @@ interface WorkflowDAGProps {
   onRemoveDependency?: (fromId: string, toId: string) => void
 }
 
-// Topological sort + lane assignment
+// Split workflows into connected components (separate DAG trees)
+function findForests(workflows: Workflow[]): Workflow[][] {
+  const byId = new Map(workflows.map(w => [w.id, w]))
+  const visited = new Set<string>()
+  const forests: Workflow[][] = []
+
+  // Build adjacency (both directions for connected components)
+  const adj = new Map<string, Set<string>>()
+  for (const w of workflows) adj.set(w.id, new Set())
+  for (const w of workflows) {
+    for (const dep of w.dependsOn || []) {
+      if (byId.has(dep)) {
+        adj.get(w.id)?.add(dep)
+        adj.get(dep)?.add(w.id)
+      }
+    }
+  }
+
+  for (const w of workflows) {
+    if (visited.has(w.id)) continue
+    // BFS to find connected component
+    const component: string[] = []
+    const queue = [w.id]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      if (visited.has(id)) continue
+      visited.add(id)
+      component.push(id)
+      for (const neighbor of adj.get(id) || []) {
+        if (!visited.has(neighbor)) queue.push(neighbor)
+      }
+    }
+    forests.push(component.map(id => byId.get(id)!).filter(Boolean))
+  }
+
+  return forests
+}
+
+// Topological sort + lane assignment for a single DAG tree
 function layoutDAG(workflows: Workflow[]): { lanes: Workflow[][]; edges: Array<{ from: string; to: string }> } {
   const byId = new Map(workflows.map(w => [w.id, w]))
   const edges: Array<{ from: string; to: string }> = []
@@ -82,7 +120,8 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
 }
 
 export default function WorkflowDAG({ workflows, onSelect, selectedId, editable, onAddDependency, onRemoveDependency }: WorkflowDAGProps) {
-  const { lanes, edges } = useMemo(() => layoutDAG(workflows), [workflows])
+  const forests = useMemo(() => findForests(workflows), [workflows])
+  const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>([])
@@ -125,7 +164,8 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
       const rect = container.getBoundingClientRect()
       const newLines: typeof lines = []
 
-      for (const edge of edges) {
+      const allEdges = forestLayouts.flatMap(f => f.edges)
+      for (const edge of allEdges) {
         const fromEl = nodeRefs.current.get(edge.from)
         const toEl = nodeRefs.current.get(edge.to)
         if (!fromEl || !toEl) continue
@@ -152,7 +192,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
     }, 50)
 
     return () => clearTimeout(timer)
-  }, [lanes, edges, workflows])
+  }, [forestLayouts, workflows])
 
   if (workflows.length === 0) {
     return (
@@ -273,13 +313,22 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
         })}
       </svg>
 
-      {/* Lanes (columns) */}
-      <div className="flex gap-6 p-4 relative z-10" style={{ minHeight: 120 }}>
-        {lanes.map((lane, laneIdx) => (
+      {/* Forest of DAGs — each connected component rendered separately */}
+      {forestLayouts.map((forest, forestIdx) => (
+      <div key={forestIdx}>
+        {forestLayouts.length > 1 && (
+          <div className="px-4 pt-2 pb-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700 pb-1 mb-0">
+              Pipeline {forestIdx + 1} ({forest.workflows.length} workflows)
+            </div>
+          </div>
+        )}
+      <div className="flex gap-6 p-4 relative z-10" style={{ minHeight: 100 }}>
+        {forest.lanes.map((lane, laneIdx) => (
           <div key={laneIdx} className="flex flex-col gap-3 min-w-[180px] justify-center">
             {/* Lane header */}
             <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 text-center">
-              {laneIdx === 0 && lanes.length > 1 ? 'Start' : laneIdx === lanes.length - 1 && lanes.length > 1 ? 'End' : `Step ${laneIdx + 1}`}
+              {laneIdx === 0 && forest.lanes.length > 1 ? 'Start' : laneIdx === forest.lanes.length - 1 && forest.lanes.length > 1 ? 'End' : `Step ${laneIdx + 1}`}
               {lane.length > 1 && <span className="ml-1 text-purple-400">(parallel)</span>}
             </div>
 
@@ -393,6 +442,8 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
           </div>
         ))}
       </div>
+      </div>
+      ))}
     </div>
     </div>
     </div>

@@ -10,6 +10,16 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ---
 
+## 🔥 What's New in v1.1.21
+
+- **Workflow DAG Visualization** — interactive dependency graphs with parallel lanes, zoom, edit mode, and stacked forest view for multiple pipelines
+- **15 Team Templates** — deploy complete multiagent teams in minutes with [TEMPLATE.md](https://github.com/Maximilien-ai/templates) open format
+- **18 Workflow Definitions** — kickoff, triage, review, deploy pipelines with [WORKFLOW.md](https://github.com/Maximilien-ai/workflows) open format
+- **Notification Blockers** — 5 actionable blocker types (approval, choice, input, delegation, waiting) rendered inline
+- **Shipables.dev Integration** — browse and install from 1,000+ agent skills
+
+---
+
 ## 🌟 Features
 
 ### Agent Management
