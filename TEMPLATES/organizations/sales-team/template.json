@@ -138,7 +138,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the sales team and set targets",
       "schedule": "manual",
@@ -177,7 +177,7 @@
       },
       "content": "# Daily Pipeline Review\n\n1. Sales ops: pull current pipeline snapshot \u2014 total value, stage distribution, aging deals\n2. Each AE: report on top 3 deals \u2014 stage, next steps, blockers\n3. Flag any deals stuck in the same stage for 7+ days\n4. Sales lead: review forecast accuracy vs last week\n5. Post summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -198,7 +198,7 @@
       },
       "content": "# Lead Qualification Cycle\n\n1. SDRs: review new inbound leads since last cycle\n2. Score each lead against ICP criteria (company size, industry, tech stack)\n3. For qualified leads: draft personalized outreach and schedule in sequence\n4. For hot leads (demo requests, pricing pages): immediately route to an AE\n5. Update lead status and log qualification notes",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },

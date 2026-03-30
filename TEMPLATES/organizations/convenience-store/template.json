@@ -89,7 +89,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the store team and assess current operations",
       "schedule": "manual",
@@ -111,7 +111,7 @@
       "type": "once"
     },
     {
-      "id": "daily-inventory",
+      "id": "daily-inventory-count",
       "name": "Daily Inventory Count",
       "description": "Morning inventory check and restock planning",
       "schedule": "0 6 * * *",
@@ -129,7 +129,7 @@
       },
       "content": "# Daily Inventory Count\n\n1. Walk the store and count stock levels for all tracked categories\n2. Compare counts against minimum stock thresholds\n3. Flag any items below restock threshold or approaching expiry\n4. Generate restock order draft for manager approval\n5. Post inventory summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -150,7 +150,7 @@
       },
       "content": "# Restock Alert Check\n\n1. Check fast-moving items against minimum stock levels\n2. Flag any critical shortages (items at zero or near-zero)\n3. For critical items: notify store manager immediately\n4. Check pending restock orders and expected delivery dates\n5. Update inventory tracking with any received deliveries",
       "dependsOn": [
-        "daily-inventory"
+        "daily-inventory-count"
       ],
       "type": "recurring"
     },
@@ -173,7 +173,7 @@
       },
       "content": "# Weekly Shift Schedule\n\n1. Review next week's expected traffic (weekdays vs weekends, any events)\n2. Draft shift schedule ensuring coverage for all operating hours\n3. Assign cashier lead to peak hours\n4. Post draft schedule to Floor Operations group for team review\n5. Finalize and post confirmed schedule to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     }

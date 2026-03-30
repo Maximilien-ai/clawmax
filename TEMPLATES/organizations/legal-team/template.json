@@ -105,7 +105,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the legal team and assess current obligations",
       "schedule": "manual",
@@ -143,7 +143,7 @@
       },
       "content": "# Contract Review\n\n1. Pull pending contracts from the review queue\n2. Analyze key terms: liability caps, indemnification, IP ownership, termination clauses\n3. Flag non-standard or high-risk clauses with redline suggestions\n4. Score overall contract risk (low/medium/high)\n5. Route high-risk contracts to legal lead for final approval",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -166,7 +166,7 @@
       },
       "content": "# Daily Compliance Check\n\n1. Scan for new regulatory updates in relevant jurisdictions\n2. Cross-reference against current internal policies\n3. Flag any gaps between new requirements and existing compliance posture\n4. Check upcoming compliance deadlines (filings, certifications, renewals)\n5. Post compliance status summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },

@@ -135,7 +135,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the dev team and assess the codebase",
       "schedule": "manual",
@@ -174,7 +174,7 @@
       },
       "content": "# PR Review Cycle\n\n1. List all open PRs that need review\n2. For each PR: check code quality, test coverage, and adherence to patterns\n3. Leave specific, actionable review comments\n4. Approve PRs that meet standards; request changes on others\n5. Flag any PRs open longer than 48 hours for tech lead attention",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -197,7 +197,7 @@
       },
       "content": "# CI Triage\n\n1. Check CI pipeline for any failed builds or tests\n2. Categorize failures: flaky test, real regression, infrastructure issue\n3. For real regressions: identify the breaking commit and notify the author\n4. For flaky tests: log the pattern and create a fix ticket\n5. Post CI health summary to DevOps group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -241,7 +241,7 @@
       },
       "content": "# Daily Standup\n\n1. Each team member: post in Status group with three items:\n   - What you completed since last standup\n   - What you plan to work on today\n   - Any blockers or questions\n2. Tech lead: review blockers and assign help if needed\n3. DevOps: report on infrastructure health and pending deployments\n4. QA: report on test status and any new bugs found",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     }

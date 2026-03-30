@@ -131,7 +131,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the support team and set SLA targets",
       "schedule": "manual",
@@ -170,7 +170,7 @@
       },
       "content": "# Ticket Triage Cycle\n\n1. Pull all unassigned tickets since last triage\n2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)\n3. P0/P1: immediately assign to escalation engineer and notify support lead\n4. P2/P3: assign to support agents based on current load and expertise\n5. Update ticket status and post triage summary to Triage group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -191,12 +191,12 @@
       },
       "content": "# SLA Monitoring\n\n1. Check all open tickets against SLA thresholds\n2. Flag tickets approaching SLA breach (80% of allowed time)\n3. For breached SLAs: notify support lead and escalate if needed\n4. Calculate current SLA compliance rate and CSAT score\n5. Post hourly SLA dashboard to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
     {
-      "id": "kb-updates",
+      "id": "knowledge-base-updates",
       "name": "Knowledge Base Updates",
       "description": "Weekly KB gap analysis and article updates",
       "schedule": "0 10 * * 5",
