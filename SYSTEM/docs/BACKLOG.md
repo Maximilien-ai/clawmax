@@ -7,25 +7,13 @@
 ## CRITICAL — Dashboard Ready by March 26 (Wed)
 
 ### Immediate Demo / Release Blockers
-- [x] **Issue #38: production root route returns `Cannot GET /`** — fix static client serving / SPA fallback in production container
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
-- [x] **CI green on `main`** — clean-room CI is passing again on GitHub Actions
 
 ### Security (Sprint Priority #1)
-- [x] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. 27 issues found, critical/high fixed in v1.1.6.
-- [x] **API rate limiting** — express-rate-limit: 200 req/min global, 10 req/min auth
-- [x] **Input sanitization** — port validation, agent ID validation, GitHub URL validation, path traversal fix
-- [x] **Audit logging** — all API requests logged with timestamp, method, path, status, token hash, duration
-- [x] **Env var whitelisting** — child processes receive only whitelisted env vars
-- [x] **GitHub authentication** — OAuth login via GitHub. JWT sessions, login page, user avatar, logout, allowed-user whitelist.
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
 
 ### Cost Management (Sprint Priority #2)
-- [x] **Workspace cost budget** — per-workspace USD budget with progress bar, yellow at 80%, red when exceeded, auto-pause agents + block workflows
-- [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
-- [x] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause/resume via selection. Paused agents show badge & block new interactions.
-- [x] **Bulk pause agents** — selection-mode action to pause/resume many agents safely without deleting them.
 - [ ] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
 - [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
@@ -39,25 +27,9 @@
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`
 
 ### Hackathon Deliverables
-- [x] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
-- [x] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
-- [x] **Kickoff workflow** — manual trigger on template apply, user-fillable Project Configuration sections
-- [x] **Basic blocker surfacing** — 5 blocker types (approval, choice, input, delegation, waiting) with dynamic UI in NotificationCenter
-- [x] **Workflow progress tracking** — progress API, progress bars in Workflows page + DAG view + notifications
-- [x] **10 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Dev Team, Student Research, Technical Writing, RAG Team (+ existing Engineering, Small Startup)
-- [x] **Shipables.dev integration** — search, browse, install skills from registry
-- [x] **Bulk skill assignment** — add skills to multiple agents at once
-- [x] **GitHub coordination toggle** — checkbox in Apply Template, injects repo instructions into all workflows
-- [x] **Editable workflow content** — customize kickoff and all workflows before applying
-- [x] **Template categories** — Business/Technical/Personal filter pills
-- [x] **TEMPLATE.md format** — parser + auto-detect alongside template.json
-- [x] **AI generator Anthropic fallback** — works with Anthropic-only keys (issue #49)
-- [x] **Live execution** — deployed Small Startup on weave-cli, DAG cascading, progress tracking working
 
 ### Backlog from Hackathon
 - [ ] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
-- [x] **Specialty Retailer template** — done
-- [x] **Data Team template** — done
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
@@ -69,25 +41,10 @@
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
 - [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
 - [ ] **DAG auto-advance on cron triggers** — currently only manual triggers cascade; cron-triggered completions should also advance DAG
-- [x] **DAG auto-advance on execution complete** — done, workflows cascade automatically
-- [x] **DAG auto-refresh** — 10s silent polling in DAG view
-- [x] **Intermediate progress estimation** — stdout-based progress for single-agent, participant-based for multi-agent
-- [x] **Dismissed notifications stay dismissed** — monitor no longer recreates dismissed notifications
-- [x] **Agent blocker detection from output** — questions and errors auto-create notifications
-- [x] **Kickoff targets all agents** — every team member gets project context
 
 ### Discovered During Manual + CLI Testing (March 29)
 - [ ] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
 - [ ] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
-- [x] **Activity page column sorting** — already implemented: clickable headers with sort indicators
-- [x] **Test skill: workspace-ls** — skill added to SKILLS/custom/ and system-test template
-- [x] **Test: agent memory creation** — integration test verifies IDENTITY.md, skills, and memory file write/delete
-- [x] **DAG run/restart button** — ▶ to start, ↻ to re-run, hidden while running
-- [x] **DAG execution count per node** — "Nx" badge on each workflow node
-- [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
-- [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
-- [x] **DAG forest SVG lines cross pipelines** — fixed: SVG scoped per pipeline with forestRefs
-- [x] **DAG dependency labels overlap** — removed redundant text, lines show deps visually
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
 ### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
@@ -97,24 +54,14 @@
 - [ ] **Integration test** — round-trip: create → export → import → verify identity, skills, groups preserved
 
 ### Spec Team Issues (clawmax #52, #53)
-- [x] **#52 Template source drift** — regenerated TEMPLATE.md for engineering-team + small-startup-team
-- [x] **#53 Align workflow IDs with WORKFLOW.md spec** — 20 IDs renamed, dependsOn updated, external repos synced
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
 
 ### Hackathon Deliverables
-- [x] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
-- [x] **Senso-first foundation execution** — `Real-Time Research Desk` template, Senso-backed intake, and demo artifacts created
 - [ ] **3 showcase templates implemented** — Visual QA Lab, Customer Signal Desk, Retail Watchtower
-- [x] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
-- [x] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
-- [x] **Missing skill publication** — published `senso-ingest-clawmax` and `senso-search-clawmax`
-- [x] **Live execution results** — foundation flow reached live demo state with captured Senso evidence IDs and fallback final brief
-- [x] **Demo packaging** — screenshots, outputs, sponsor-tool mapping, final brief, and 3-minute talking points
 
 ### Backlog from Hackathon
-- [x] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
 - [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
 - [ ] **Template breadth publication** — publish remaining 6 non-showcase template specs after the selected flows stabilize
 - [ ] **Finalist/demo hardening** — re-run foundation workflow end-to-end without manual unblocks, clean workspace/runtime mismatches, and verify DAG/progress rendering fully
@@ -125,16 +72,7 @@
 > Design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
 
 - [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution
-- [x] **Workflow DAG + dependencies** — `dependsOn` field, parallel lanes, sequential gates, DAG execution engine
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete
-- [x] **Workflow DAG visualization** — interactive DAG view with dependency lines, zoom, edit mode, undo
-- [x] **TEMPLATE.md lean format** — 248→19 line frontmatter, structured markdown body
-- [x] **WORKFLOW.md format** — parse + serialize + round-trip, import/export APIs
-- [x] **Specs** — TEMPLATE_MD_SPEC.md + WORKFLOW_MD_SPEC.md formal specifications
-- [x] **Notification actions** — 5 blocker types with dynamic UI, search, restart/pause
-- [x] **Template cross-validation** — agent/group/community/workflow reference checking
-- [x] **Export buttons** — download TEMPLATE.md / WORKFLOW.md from detail views
-- [x] **Smart workflow customization** — paginated wizard with dropdowns, checkboxes, textareas
 
 ### Self-Management
 - [ ] **ClawMax Dev Team template** — qa-engineer, release-engineer, github-triage with kickoff workflow
@@ -152,35 +90,20 @@
 > Central workspace awareness — the missing glue between "I have agents" and "I know what's happening."
 > **Status:** Core implemented. Channel activity bug fixed Mar 26. Needs testing + polish.
 
-- [x] **Notification center UI** — bell icon in top nav with count badge (red/amber/blue by severity), dropdown with grouped notifications
-- [x] **Workspace monitor** — 60s scan: agent health, workflow health, budget, per-agent costs, channel activity
-- [x] **Notification types** — agent-error, agent-offline, agent-needs-feedback, workflow-failed, workflow-stuck, cost-warning, cost-exceeded, channel-activity
-- [x] **Grouped display** — notifications grouped by category (Agents, Workflows, Communication, Budget) with timestamps and action links
-- [x] **Auto-clear** — notifications auto-resolve when underlying issue is fixed
-- [x] **Badge refresh** — polls every 30s
-- [x] **Dedup** — fingerprint-based deduplication prevents duplicate active notifications
-- [x] **Auto-prune** — dismissed/resolved notifications cleaned after 7 days
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Testing & validation** — verify all notification types fire correctly with real agent activity
 
 ### P1: Agent List Pagination
-- [x] **Agent list pagination** — client-side pagination with 10 per page, page controls, auto-reset on filter change
 
 ### P2: Template Apply Bug
-- [x] **Template apply: GROUPS.md/COMMUNITIES.md intermittent** — fixed case-insensitive matching + fallback write ensures files always created
 
 ### P3: Per-Agent Cost Limits
-- [x] **Per-agent cost limits** — individual agent USD limits stored in agent-state.json, auto-pause when exceeded, editable in agent detail panel, notification on breach
 
 ### P4: Forward to Group (Issue #29)
-- [x] **Forward to group** — forward button on every chat message, group/community picker dropdown, forwarded messages show origin context
 
 ### P5: Group Chat Empty Response Bug
-- [x] **Group chat: 2nd agent empty response** — auto-retry on empty, group context prefix, visible error messages instead of silent failure
 
 ### P6: System Agents — Creators
-- [x] **System agent: workflow creator** — POST /api/workflows/generate (NL to workflow JSON)
-- [x] **System agent: org creator** — POST /api/templates/generate (NL to org template JSON)
 - [ ] **Template wizard** — UI wizard to create templates from existing agents, workflows, communities, groups
 - [ ] **System agent: template creator** — create templates from existing agents and workflows via NL
 
@@ -205,16 +128,10 @@
 - [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
 
 ## High Priority (UX) — Completed or In Progress
-- [x] **Activity metering loading state** — shimmer placeholder in cost column while metering data loads
-- [x] **Issue #31** Templates list view — with select/select-all/bulk-delete
-- [x] **Workflow next-run visibility** — next scheduled run + "coming up / running now" view
-- [x] **Dark mode audit (Issue #12)** — systematic fixes across agents, templates, workflows, bulk ops
-- [x] **BYOK wizard** — 2-step flow: LLM keys + Opik monitoring
 - [ ] **UI/UX refinement pass** — polish once workspaces are running with real agents
 
 ## High Priority (Quality / Test Automation)
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching
-- [x] **System template contract tests** — `TEMPLATES/*` under strict validation in CI
 - [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
@@ -310,3 +227,92 @@ Opik metering, cost badges, bulk pause/resume, dark mode audit, BYOK wizard with
 - [ ] **Health check endpoint** — gateway should expose `/health` that the dashboard can poll
 - [ ] **Notification on gateway down** — dashboard should detect gateway offline and surface it as a critical notification
 - [ ] **Root cause**: `SYSTEM/stop.sh` kills all processes on common ports including the shared gateway (18789), leaving agents unable to communicate. Agent status shows offline even though the agent config is fine.
+
+
+## Completed Items (Archive)
+
+> 83 items completed and archived from active backlog.
+
+- [x] **Issue #38: production root route returns `Cannot GET /`** — fix static client serving / SPA fallback in production container
+- [x] **CI green on `main`** — clean-room CI is passing again on GitHub Actions
+- [x] **Security audit** — full audit of dashboard, API endpoints, agent execution, file access, env vars. 27 issues found, critical/high fixed in v1.1.6.
+- [x] **API rate limiting** — express-rate-limit: 200 req/min global, 10 req/min auth
+- [x] **Input sanitization** — port validation, agent ID validation, GitHub URL validation, path traversal fix
+- [x] **Audit logging** — all API requests logged with timestamp, method, path, status, token hash, duration
+- [x] **Env var whitelisting** — child processes receive only whitelisted env vars
+- [x] **GitHub authentication** — OAuth login via GitHub. JWT sessions, login page, user avatar, logout, allowed-user whitelist.
+- [x] **Workspace cost budget** — per-workspace USD budget with progress bar, yellow at 80%, red when exceeded, auto-pause agents + block workflows
+- [x] **Budget enforcement** — toggle enforce on/off, editable limit from Activity page
+- [x] **Pause/disable agent** — toggle enabled/disabled (orange badge). Bulk pause/resume via selection. Paused agents show badge & block new interactions.
+- [x] **Bulk pause agents** — selection-mode action to pause/resume many agents safely without deleting them.
+- [x] **Template wizard** — multi-step UI: team type → composition → communication → workflows → preview
+- [x] **Template AI Generate** — AI fills wizard steps from NL description, human confirms
+- [x] **Kickoff workflow** — manual trigger on template apply, user-fillable Project Configuration sections
+- [x] **Basic blocker surfacing** — 5 blocker types (approval, choice, input, delegation, waiting) with dynamic UI in NotificationCenter
+- [x] **Workflow progress tracking** — progress API, progress bars in Workflows page + DAG view + notifications
+- [x] **10 org templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Dev Team, Student Research, Technical Writing, RAG Team (+ existing Engineering, Small Startup)
+- [x] **Shipables.dev integration** — search, browse, install skills from registry
+- [x] **Bulk skill assignment** — add skills to multiple agents at once
+- [x] **GitHub coordination toggle** — checkbox in Apply Template, injects repo instructions into all workflows
+- [x] **Editable workflow content** — customize kickoff and all workflows before applying
+- [x] **Template categories** — Business/Technical/Personal filter pills
+- [x] **TEMPLATE.md format** — parser + auto-detect alongside template.json
+- [x] **AI generator Anthropic fallback** — works with Anthropic-only keys (issue #49)
+- [x] **Live execution** — deployed Small Startup on weave-cli, DAG cascading, progress tracking working
+- [x] **Specialty Retailer template** — done
+- [x] **Data Team template** — done
+- [x] **DAG auto-advance on execution complete** — done, workflows cascade automatically
+- [x] **DAG auto-refresh** — 10s silent polling in DAG view
+- [x] **Intermediate progress estimation** — stdout-based progress for single-agent, participant-based for multi-agent
+- [x] **Dismissed notifications stay dismissed** — monitor no longer recreates dismissed notifications
+- [x] **Agent blocker detection from output** — questions and errors auto-create notifications
+- [x] **Kickoff targets all agents** — every team member gets project context
+- [x] **Activity page column sorting** — already implemented: clickable headers with sort indicators
+- [x] **Test skill: workspace-ls** — skill added to SKILLS/custom/ and system-test template
+- [x] **Test: agent memory creation** — integration test verifies IDENTITY.md, skills, and memory file write/delete
+- [x] **DAG run/restart button** — ▶ to start, ↻ to re-run, hidden while running
+- [x] **DAG execution count per node** — "Nx" badge on each workflow node
+- [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
+- [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
+- [x] **DAG forest SVG lines cross pipelines** — fixed: SVG scoped per pipeline with forestRefs
+- [x] **DAG dependency labels overlap** — removed redundant text, lines show deps visually
+- [x] **#52 Template source drift** — regenerated TEMPLATE.md for engineering-team + small-startup-team
+- [x] **#53 Align workflow IDs with WORKFLOW.md spec** — 20 IDs renamed, dependsOn updated, external repos synced
+- [x] **10 multimodal template specs** — full slate across business, technical, public sector, healthcare, and creative categories
+- [x] **Senso-first foundation execution** — `Real-Time Research Desk` template, Senso-backed intake, and demo artifacts created
+- [x] **Shared Senso-backed skills** — ingest, search, generate, triage, routing, learning-loop, MCP access
+- [x] **Shipables.dev / SkillsHub reuse pass** — search the sponsor ecosystem before building any new skills
+- [x] **Missing skill publication** — published `senso-ingest-clawmax` and `senso-search-clawmax`
+- [x] **Live execution results** — foundation flow reached live demo state with captured Senso evidence IDs and fallback final brief
+- [x] **Demo packaging** — screenshots, outputs, sponsor-tool mapping, final brief, and 3-minute talking points
+- [x] **Senso integration path in dashboard/templates** — make Senso-backed skills and memory wiring first-class in template flow
+- [x] **Workflow DAG + dependencies** — `dependsOn` field, parallel lanes, sequential gates, DAG execution engine
+- [x] **Workflow DAG visualization** — interactive DAG view with dependency lines, zoom, edit mode, undo
+- [x] **TEMPLATE.md lean format** — 248→19 line frontmatter, structured markdown body
+- [x] **WORKFLOW.md format** — parse + serialize + round-trip, import/export APIs
+- [x] **Specs** — TEMPLATE_MD_SPEC.md + WORKFLOW_MD_SPEC.md formal specifications
+- [x] **Notification actions** — 5 blocker types with dynamic UI, search, restart/pause
+- [x] **Template cross-validation** — agent/group/community/workflow reference checking
+- [x] **Export buttons** — download TEMPLATE.md / WORKFLOW.md from detail views
+- [x] **Smart workflow customization** — paginated wizard with dropdowns, checkboxes, textareas
+- [x] **Notification center UI** — bell icon in top nav with count badge (red/amber/blue by severity), dropdown with grouped notifications
+- [x] **Workspace monitor** — 60s scan: agent health, workflow health, budget, per-agent costs, channel activity
+- [x] **Notification types** — agent-error, agent-offline, agent-needs-feedback, workflow-failed, workflow-stuck, cost-warning, cost-exceeded, channel-activity
+- [x] **Grouped display** — notifications grouped by category (Agents, Workflows, Communication, Budget) with timestamps and action links
+- [x] **Auto-clear** — notifications auto-resolve when underlying issue is fixed
+- [x] **Badge refresh** — polls every 30s
+- [x] **Dedup** — fingerprint-based deduplication prevents duplicate active notifications
+- [x] **Auto-prune** — dismissed/resolved notifications cleaned after 7 days
+- [x] **Agent list pagination** — client-side pagination with 10 per page, page controls, auto-reset on filter change
+- [x] **Template apply: GROUPS.md/COMMUNITIES.md intermittent** — fixed case-insensitive matching + fallback write ensures files always created
+- [x] **Per-agent cost limits** — individual agent USD limits stored in agent-state.json, auto-pause when exceeded, editable in agent detail panel, notification on breach
+- [x] **Forward to group** — forward button on every chat message, group/community picker dropdown, forwarded messages show origin context
+- [x] **Group chat: 2nd agent empty response** — auto-retry on empty, group context prefix, visible error messages instead of silent failure
+- [x] **System agent: workflow creator** — POST /api/workflows/generate (NL to workflow JSON)
+- [x] **System agent: org creator** — POST /api/templates/generate (NL to org template JSON)
+- [x] **Activity metering loading state** — shimmer placeholder in cost column while metering data loads
+- [x] **Issue #31** Templates list view — with select/select-all/bulk-delete
+- [x] **Workflow next-run visibility** — next scheduled run + "coming up / running now" view
+- [x] **Dark mode audit (Issue #12)** — systematic fixes across agents, templates, workflows, bulk ops
+- [x] **BYOK wizard** — 2-step flow: LLM keys + Opik monitoring
+- [x] **System template contract tests** — `TEMPLATES/*` under strict validation in CI
