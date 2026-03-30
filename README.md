@@ -64,6 +64,15 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Progress Bars** - Workflow progress in notification dropdown
 - **Search** - Filter notifications by title, message, or type
 
+### Open Template & Workflow Registries
+
+ClawMax templates and workflows are open source and community-driven:
+
+- **[Maximilien-ai/templates](https://github.com/Maximilien-ai/templates)** — 15+ organization templates with [TEMPLATE.md spec](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)
+- **[Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows)** — 18+ workflow definitions with [WORKFLOW.md spec](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md)
+
+**Contribute your own!** Submit a PR with your TEMPLATE.md or WORKFLOW.md — help the community build better multiagent teams.
+
 ### Multi-Workspace Support
 - **Workspace Switching** - Manage multiple isolated agent environments
 - **Workspace Tagging** - Color-code and label workspaces
