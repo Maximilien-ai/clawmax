@@ -181,13 +181,20 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
 
     proc.on('close', (code: number) => {
       clearTimeout(timer)
-      if (code !== 0) {
-        reject(new Error(`Agent command failed: ${stderr}`))
+      if (code !== 0 && !stdout.trim() && !stderr.includes('"payloads"')) {
+        reject(new Error(`Agent command failed: ${stderr.slice(0, 200)}`))
         return
       }
 
       try {
-        const result = JSON.parse(stdout)
+        // CLI may output JSON to stdout or stderr (with warning lines); try both
+        let jsonText = stdout.trim()
+        if (!jsonText) {
+          const start = stderr.indexOf('{')
+          const end = stderr.lastIndexOf('}')
+          if (start >= 0 && end > start) jsonText = stderr.slice(start, end + 1)
+        }
+        const result = JSON.parse(jsonText || '{}')
         const payloads = result?.payloads || result?.result?.payloads || []
         // Collect text from ALL payloads (not just first)
         const responseText = payloads
