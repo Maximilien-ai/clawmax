@@ -696,6 +696,17 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Check workspace budget before executing
     const budgetBlock = checkBudgetBlock()
     if (budgetBlock) {
+      // Create budget notification
+      const { createNotification } = require('./notifications')
+      createNotification({
+        type: 'cost-exceeded',
+        title: 'Workflow blocked by budget',
+        message: budgetBlock,
+        entityId: workflowId,
+        entityType: 'workflow',
+        fingerprint: `budget-block:${workflowId}:${Date.now()}`,
+        workflowId,
+      })
       return { success: false, error: budgetBlock }
     }
 

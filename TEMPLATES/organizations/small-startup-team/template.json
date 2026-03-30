@@ -208,7 +208,7 @@
           "release-engineer"
         ]
       },
-      "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
+      "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
       "type": "once",
       "dependsOn": []
     },
