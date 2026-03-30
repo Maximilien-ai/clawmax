@@ -123,7 +123,7 @@
           "compliance-officer"
         ]
       },
-      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
+      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
       "type": "once"
     },
     {
