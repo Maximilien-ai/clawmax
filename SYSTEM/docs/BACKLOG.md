@@ -80,7 +80,7 @@
 - [ ] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
 - [ ] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
 - [x] **Activity page column sorting** — already implemented: clickable headers with sort indicators
-- [ ] **Test skill: workspace ls** — add a test skill to system-test agents that lists their workspace directory, captures output, and can share results. Useful for verifying agent file access
+- [x] **Test skill: workspace-ls** — skill added to SKILLS/custom/ and system-test template
 - [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
 - [x] **DAG run/restart button** — ▶ to start, ↻ to re-run, hidden while running
 - [x] **DAG execution count per node** — "Nx" badge on each workflow node
@@ -91,7 +91,7 @@
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
 ### Spec Team Issues (clawmax #52, #53)
-- [ ] **#52 Template source drift** — engineering-team and small-startup-team TEMPLATE.md missing kickoff workflows that exist in template.json. Regenerate TEMPLATE.md from JSON for both
+- [x] **#52 Template source drift** — regenerated TEMPLATE.md for engineering-team + small-startup-team
 - [ ] **#53 Align workflow IDs with WORKFLOW.md spec** — template workflows use legacy IDs (e.g., `kickoff`, `kb-updates`) not matching published spec requirement for slugified-name IDs. Need: `id` required in frontmatter, IDs match slugified name, sync to Maximilien-ai/workflows + templates repos
 
 ## Multimodal Frontier Hack — March 28 (immediate)
