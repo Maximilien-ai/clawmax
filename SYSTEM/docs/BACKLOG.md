@@ -90,9 +90,15 @@
 - [x] **DAG dependency labels overlap** — removed redundant text, lines show deps visually
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
+### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
+- [ ] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
+- [ ] **Export ClawMax agent to OpenClaw** — export agent as zip or to `~/.openclaw/agents/` with all config + skills
+- [ ] **Bulk import/export** — multiple agents at once
+- [ ] **Integration test** — round-trip: create → export → import → verify identity, skills, groups preserved
+
 ### Spec Team Issues (clawmax #52, #53)
 - [x] **#52 Template source drift** — regenerated TEMPLATE.md for engineering-team + small-startup-team
-- [x] **#53 Align workflow IDs with WORKFLOW.md spec** — template workflows use legacy IDs (e.g., `kickoff`, `kb-updates`) not matching published spec requirement for slugified-name IDs. Need: `id` required in frontmatter, IDs match slugified name, sync to Maximilien-ai/workflows + templates repos
+- [x] **#53 Align workflow IDs with WORKFLOW.md spec** — 20 IDs renamed, dependsOn updated, external repos synced
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
