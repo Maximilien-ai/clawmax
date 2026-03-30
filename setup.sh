@@ -167,13 +167,17 @@ else
   if [ "$INTERACTIVE" = true ]; then
     echo -e "  Choose an installation method:"
     echo ""
-    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended${NC}"
+    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended for getting started${NC}"
     echo "     npm install -g openclaw"
     echo ""
     echo -e "  ${BOLD}2)${NC} Homebrew (OpenClaw community)"
     echo "     brew install openclaw/tap/openclaw"
     echo ""
     echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
+    echo ""
+    echo -e "  ${YELLOW}Note:${NC} This installs the current OpenClaw release. For production,"
+    echo "  we recommend tracking the upstream OpenClaw project directly:"
+    echo "  https://github.com/openclaw/openclaw"
     echo ""
     echo -e "  Press ${BOLD}Enter${NC} for option 1 (recommended)"
     read -p "  Choice (1/2/3) [1]: " -n 1 -r; echo
