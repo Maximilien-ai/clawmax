@@ -133,7 +133,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the marketing team and set campaign goals",
       "schedule": "manual",
@@ -172,7 +172,7 @@
       },
       "content": "# Weekly Content Calendar\n\n1. Marketing lead: review this week's content themes and business priorities\n2. SEO analyst: share top keyword opportunities and trending topics\n3. Assign blog posts, emails, and social content to writers with deadlines\n4. Content writers: confirm assignments and flag any research needs\n5. Post finalized calendar to Content group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },

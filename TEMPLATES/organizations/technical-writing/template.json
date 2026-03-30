@@ -137,7 +137,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the writing team and set editorial direction",
       "schedule": "manual",
@@ -178,7 +178,7 @@
       },
       "content": "# Outline Review\n\n1. Writers: submit proposed outlines with target audience, scope, and key sections\n2. Editor: review outline structure and alignment with content goals\n3. Check for overlap with existing published content\n4. Provide feedback on scope, depth, and approach\n5. Approve outline and set deadline for first draft",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },

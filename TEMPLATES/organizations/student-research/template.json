@@ -124,7 +124,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "research-kickoff",
       "name": "Research Kickoff",
       "description": "Initialize the research group and define the research question",
       "schedule": "manual",
@@ -165,7 +165,7 @@
       },
       "content": "# Daily Literature Search\n\n1. Search academic databases for papers matching research keywords\n2. Screen titles and abstracts for relevance to research question\n3. For relevant papers: read and extract key findings, methods, and citations\n4. Update the literature matrix with new entries\n5. Post daily search summary to Literature group \u2014 flag any breakthrough papers",
       "dependsOn": [
-        "kickoff"
+        "research-kickoff"
       ],
       "type": "recurring"
     },

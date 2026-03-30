@@ -190,7 +190,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the startup team",
       "schedule": "manual",
@@ -229,7 +229,7 @@
       },
       "content": "# Daily Standup\n\nProvide your standup update:\n\n### 1. Yesterday\n- What did you complete?\n\n### 2. Today\n- What are your top priorities?\n\n### 3. Blockers\n- Anything blocking your work?\n\nKeep it concise (3-5 bullet points total).",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -250,7 +250,7 @@
       },
       "content": "# Status Check\n\nProvide a brief status pulse:\n\n1. **Current task**: What are you working on right now?\n2. **Progress**: On track or any delays?\n3. **Need help?**: Anything you need from the team?\n\nKeep it to 2-3 sentences.",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -271,7 +271,7 @@
       },
       "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },

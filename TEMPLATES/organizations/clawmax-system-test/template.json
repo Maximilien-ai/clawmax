@@ -106,7 +106,7 @@
       "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team. Respond with a brief status:\n1. Confirm your agent ID and role\n2. List the groups you belong to\n3. Say 'READY' to confirm you are operational\n\nKeep response under 50 words."
     },
     {
-      "id": "test-sequential",
+      "id": "test-sequential-step",
       "name": "Test Sequential Step",
       "description": "Sequential workflow test \u2014 runs after kickoff completes",
       "schedule": "manual",
@@ -135,7 +135,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-sequential"
+        "test-sequential-step"
       ],
       "targeting": {
         "communities": [],
@@ -156,7 +156,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-sequential"
+        "test-sequential-step"
       ],
       "targeting": {
         "communities": [],
