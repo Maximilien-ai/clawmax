@@ -458,12 +458,22 @@ Visit **[ClawMax.ai](https://clawmax.ai)** for commercial offerings:
 - Shipables.dev skill marketplace integration
 - No infrastructure to manage
 
+**ClawMax On-Premise**
+- Run ClawMax entirely on your own infrastructure
+- Full data sovereignty — all agent data, conversations, and API keys stay within your network
+- Works behind corporate firewalls with no external dependencies
+- Deploy via Docker, Kubernetes, or bare metal
+- Connect to your own LLM endpoints (Azure OpenAI, AWS Bedrock, self-hosted models)
+- Integrate with internal tools (Jira, Confluence, Slack, custom APIs) via skills
+- Ideal for regulated industries (finance, healthcare, government) requiring data residency
+
 **ClawMax Enterprise**
-- Self-hosted on your infrastructure
-- Custom agent templates and workflows
-- Priority support and SLA
+- Everything in On-Premise, plus:
+- Custom agent templates and workflows tailored to your organization
+- Priority support with SLA
 - SSO/SAML authentication
 - Dedicated success manager
+- Training and onboarding for your teams
 
 For pricing and inquiries: **contact@clawmax.ai** | **[clawmax.ai](https://clawmax.ai)**
 
