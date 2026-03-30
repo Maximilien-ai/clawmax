@@ -140,10 +140,10 @@ export default function Templates() {
         setLoading(false)
       })
       .catch(() => {
+        console.warn('Failed to load templates')
         setAgentTemplates([])
         setOrgTemplates([])
         setWorkflowTemplates([])
-        showError('Failed to load templates')
         setLoading(false)
       })
   }
