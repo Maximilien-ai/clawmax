@@ -39,6 +39,13 @@ for arg in "$@"; do
   fi
 done
 
+# Auto-install deps if node_modules is missing
+if [ ! -d "node_modules" ]; then
+  echo "First run detected — installing dependencies..."
+  npm install --no-audit --no-fund 2>&1 | tail -1
+  echo ""
+fi
+
 echo "Starting ClawMax Dashboard..."
 echo "Workspace: $OPENCLAW_WORKSPACE"
 echo "Backend: $API_ORIGIN"

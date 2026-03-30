@@ -115,7 +115,7 @@ export default function Templates() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal'>('all')
   const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
     const saved = localStorage.getItem('templates-view-mode')
-    return saved === 'grid' ? 'grid' : 'list'
+    return saved === 'list' ? 'list' : 'grid'
   })
   useEffect(() => { localStorage.setItem('templates-view-mode', viewMode) }, [viewMode])
   const [selectionMode, setSelectionMode] = useState(false)

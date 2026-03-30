@@ -186,7 +186,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'dag'>(() => {
     const saved = localStorage.getItem('workflows-view-mode')
-    return saved === 'list' ? 'list' : saved === 'dag' ? 'dag' : 'grid'
+    return saved === 'list' ? 'list' : saved === 'grid' ? 'grid' : 'dag'
   })
   useEffect(() => { localStorage.setItem('workflows-view-mode', viewMode) }, [viewMode])
   const [dagEditing, setDagEditing] = useState(false)
