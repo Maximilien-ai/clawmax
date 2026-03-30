@@ -185,8 +185,8 @@ else
     case $REPLY in
       1|"")
         print_info "Installing OpenClaw via Homebrew..."
-        brew tap maximilien-ai/openclaw 2>&1 || true
-        if brew install openclaw 2>&1; then
+        brew tap maximilien-ai/openclaw || true
+        if brew install openclaw; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed via Homebrew"
@@ -198,7 +198,7 @@ else
         ;;
       2)
         print_info "Installing OpenClaw via npm..."
-        if npm install -g openclaw 2>&1; then
+        if npm install -g openclaw; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed via npm"
