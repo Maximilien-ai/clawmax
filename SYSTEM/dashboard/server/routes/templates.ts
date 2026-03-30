@@ -241,6 +241,18 @@ router.post('/organizations/import', (req, res) => {
 // Markdown Import/Export
 // ============================================================================
 
+// GET /api/templates/workflows/:id/export-md — Export workflow as WORKFLOW.md
+// NOTE: must be before /:type/:slug/export-md to avoid being caught by it
+router.get('/workflows/:id/export-md', (req, res) => {
+  const workflow = getWorkflow(req.params.id)
+  if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
+
+  const md = workflowToMarkdown(workflow)
+  res.setHeader('Content-Type', 'text/markdown')
+  res.setHeader('Content-Disposition', `attachment; filename="${workflow.id}.md"`)
+  res.send(md)
+})
+
 // GET /api/templates/:type/:slug/export-md — Export template as TEMPLATE.md
 router.get('/:type/:slug/export-md', (req, res) => {
   const { type, slug } = req.params
@@ -291,17 +303,6 @@ router.post('/import-md', (req, res) => {
   }
 })
 
-// GET /api/workflows/:id/export-md — Export workflow as WORKFLOW.md
-router.get('/workflows/:id/export-md', (req, res) => {
-  const workflow = getWorkflow(req.params.id)
-  if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
-
-  const md = workflowToMarkdown(workflow)
-  res.setHeader('Content-Type', 'text/markdown')
-  res.setHeader('Content-Disposition', `attachment; filename="${workflow.id}.md"`)
-  res.send(md)
-})
-
 // POST /api/workflows/import-md — Import workflow from WORKFLOW.md content
 router.post('/workflows/import-md', (req, res) => {
   try {
@@ -314,6 +315,9 @@ router.post('/workflows/import-md', (req, res) => {
     if (!parsed) {
       return res.status(400).json({ error: 'Failed to parse WORKFLOW.md — ensure it has valid YAML frontmatter with name' })
     }
+
+    // Default author if not provided
+    if (!parsed.author) parsed.author = 'imported'
 
     const result = createWorkflow(parsed)
     if (!result.success) {
