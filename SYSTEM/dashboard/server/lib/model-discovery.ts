@@ -159,9 +159,9 @@ function resolveApiKey(provider: 'openai' | 'anthropic'): string | undefined {
 }
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
-export async function discoverModels(): Promise<ModelsResponse> {
-  const openaiKey = resolveApiKey('openai')
-  const anthropicKey = resolveApiKey('anthropic')
+export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string }): Promise<ModelsResponse> {
+  const openaiKey = byokKeys?.openai || resolveApiKey('openai')
+  const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []
 
