@@ -162,9 +162,9 @@ router.delete('/groups/:name', (req, res) => {
 /** Call an agent with a message and return the response */
 async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string }): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Use gateway when configured (enables skills/tool-use), fall back to --local
-    const useLocal = !isGatewayConfigured()
-    const args = ['agent', '--agent', agentId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+    // Always use --local for group chat callAgent — gateway mode doesn't reliably output --json format
+    // Skills/tool-use will work through 1:1 chat and workflows via gateway
+    const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
     // Merge BYOK keys into env if provided (fall back to server keys)
     const env = { ...safeEnv() }
     if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
