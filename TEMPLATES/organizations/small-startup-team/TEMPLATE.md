@@ -54,6 +54,30 @@ A complete startup team with CEO, product manager, engineers, QA, and release en
 
 ## Workflows
 
+### Team Kickoff
+- **Schedule:** manual
+- **Mode:** managed
+- **Targets:** agents: ceo, product-manager, engineer, qa-engineer, release-engineer
+
+# Startup Team Kickoff
+
+Your team just came online.
+
+## Project Configuration
+> **Customize these before applying:**
+
+- **Company:** [e.g., Acme Corp — early stage startup]
+- **Product:** [e.g., SaaS platform for X]
+- **Priorities:** [e.g., MVP launch, fundraising, hiring]
+- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]
+
+## Your Tasks
+1. Introduce yourself in the team community
+2. Review workspace and existing work
+3. Assign roles and priorities
+4. Set up communication channels
+5. Kick off first sprint
+
 ### Daily Standup
 - **Schedule:** 0 9 * * 1-5
 - **Mode:** automated
