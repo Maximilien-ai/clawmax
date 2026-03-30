@@ -1250,19 +1250,23 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
       if (gatewayRunning && ageMins < 1440) {
         // Gateway running + activity in last 24h = online
         status = 'online'
+      } else if (ageMins < 30) {
+        // Recent activity in last 30 mins (e.g. just chatted) = online
+        status = 'online'
       } else if (gatewayRunning) {
         // Gateway running but no recent activity = offline
         status = 'offline'
-      } else if (ageMins < 10080) {
-        // No gateway but recent activity = offline (was active in last week)
+      } else if (ageMins < 1440) {
+        // Activity in last 24h without gateway = offline (ready but idle)
         status = 'offline'
       } else {
-        // No gateway and stale = unknown
+        // No recent activity = unknown
         status = 'unknown'
       }
     } else {
-      // No file activity at all
-      status = gatewayRunning ? 'offline' : 'unknown'
+      // No file activity at all — check if agent has workspace files (freshly created)
+      const hasIdentity = fs.existsSync(path.join(agentDir, 'IDENTITY.md'))
+      status = hasIdentity ? 'offline' : 'unknown'
     }
 
     // Update cache with fresh status
