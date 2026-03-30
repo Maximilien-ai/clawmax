@@ -86,6 +86,8 @@
 - [ ] **DAG execution count per node** — show number of executions (runCount) on each workflow node in DAG view
 - [ ] **Workspace switching not refreshing data** — switching workspaces in the UI shows different name but agents/workflows/groups don't change. Need to reload all data on workspace switch
 - [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
+- [ ] **DAG forest SVG lines cross pipelines** — connector lines are drawn globally so lines from Pipeline 1 bleed into Pipeline 2. Need SVG per pipeline or scoped line calculation
+- [ ] **DAG dependency labels overlap** — "Depends on: X" text on nodes can overlap with connector lines and other nodes. Consider moving to tooltip or smaller font
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
