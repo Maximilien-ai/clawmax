@@ -96,25 +96,36 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         setModelsLoaded(true)
         setModelsByProvider(d.modelsByProvider || {})
 
-        // Pick default model based on available keys
+        // Pick best model based on configured keys
         if (models.length > 0) {
-          const byok = readStoredByokKeys()
-          const hasOpenAiKey = !!(byok.openai || d.modelsByProvider?.openai?.length)
-          const hasAnthropicKey = !!(byok.anthropic || d.modelsByProvider?.anthropic?.length)
+          // Use server-recommended model from auth config
+          fetch('/api/auth/config').then(r => r.json()).then(cfg => {
+            const recommended = cfg.recommendedModel
+            if (recommended && models.includes(recommended)) {
+              setForm(f => ({ ...f, model: recommended }))
+            } else {
+              // Fallback: check BYOK keys
+              const byok = readStoredByokKeys()
+              const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
+              const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
 
-          let defaultModel: string
-          if (hasOpenAiKey) {
-            defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
-              || models.find((m: string) => m.startsWith('openai/'))
-              || models[0]
-          } else if (hasAnthropicKey) {
-            defaultModel = models.find((m: string) => m.includes('claude-sonnet') || m.includes('claude-opus'))
-              || models.find((m: string) => m.startsWith('anthropic/'))
-              || models[0]
-          } else {
-            defaultModel = models[0]
-          }
-          setForm(f => ({ ...f, model: defaultModel }))
+              let defaultModel: string
+              if (hasAnthropicKey) {
+                defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
+                  || models.find((m: string) => m.startsWith('anthropic/'))
+                  || models[0]
+              } else if (hasOpenAiKey) {
+                defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
+                  || models.find((m: string) => m.startsWith('openai/'))
+                  || models[0]
+              } else {
+                defaultModel = models[0]
+              }
+              setForm(f => ({ ...f, model: defaultModel }))
+            }
+          }).catch(() => {
+            setForm(f => ({ ...f, model: models[0] }))
+          })
         }
       })
       .catch(() => { setModelsLoaded(true) })

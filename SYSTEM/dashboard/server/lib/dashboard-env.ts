@@ -86,6 +86,27 @@ export function resolveUserExecutionProviderKeys(
   return allowSystemKeysForUserExecution(rawEnv) ? getSystemProviderKeys(rawEnv) : {}
 }
 
+/**
+ * Get the best available model based on configured API keys.
+ * Prefers Anthropic (better for coding/reasoning) when both available.
+ */
+export function getBestAvailableModel(rawEnv: Record<string, string> = dashboardEnv): string {
+  const keys = resolveSystemExecutionProviderKeys(rawEnv)
+  if (keys.anthropic) return 'anthropic/claude-opus-4-6'
+  if (keys.openai) return 'openai/gpt-5'
+  return 'anthropic/claude-sonnet-4-20250514' // fallback — may fail without keys
+}
+
+/**
+ * Get a cost-efficient model for bulk/test operations.
+ */
+export function getCostEfficientModel(rawEnv: Record<string, string> = dashboardEnv): string {
+  const keys = resolveSystemExecutionProviderKeys(rawEnv)
+  if (keys.openai) return 'openai/gpt-4o-mini'
+  if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
+  return 'openai/gpt-4o-mini'
+}
+
 export function resolveSystemExecutionProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
   const systemKeys = getSystemProviderKeys(rawEnv)
   if (hasAnyProviderKey(systemKeys)) {

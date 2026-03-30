@@ -28,7 +28,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured } from './l
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel } from './lib/dashboard-env'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -162,6 +162,8 @@ app.get('/api/auth/config', (_req, res) => {
       anthropic: !!userKeys.anthropic,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
+    recommendedModel: getBestAvailableModel(),
+    costEfficientModel: getCostEfficientModel(),
   })
 })
 
