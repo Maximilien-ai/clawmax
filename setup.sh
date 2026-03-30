@@ -186,13 +186,13 @@ else
       1|"")
         print_info "Installing OpenClaw via Homebrew..."
         brew tap maximilien-ai/openclaw || true
-        if brew install openclaw; then
+        if brew install --formula maximilien-ai/openclaw/openclaw; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed via Homebrew"
         else
           print_warning "Homebrew install failed"
-          echo "  Try: brew tap maximilien-ai/openclaw && brew install openclaw"
+          echo "  Try: brew install --formula maximilien-ai/openclaw/openclaw"
           echo "  Or: npm install -g openclaw"
         fi
         ;;
