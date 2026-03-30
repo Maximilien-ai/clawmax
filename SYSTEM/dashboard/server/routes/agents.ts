@@ -726,8 +726,8 @@ router.get('/usage', async (req, res) => {
 
     res.json({ agentUsage, days })
   } catch (err: any) {
-    // Suppress "missing scope: operator.admin" errors (expected - dashboard lacks admin scope)
-    if (!err.message?.includes('missing scope: operator.admin')) {
+    // Suppress expected errors: no gateway config, missing admin scope
+    if (!err.message?.includes('missing scope: operator.admin') && !err.message?.includes('Gateway not available')) {
       console.error('Failed to fetch agent usage:', err.message)
     }
 
