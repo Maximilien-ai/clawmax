@@ -165,12 +165,12 @@ else
   echo ""
 
   if [ "$INTERACTIVE" = true ]; then
-    echo -e "  Choose an installation source:"
+    echo -e "  Choose an installation method:"
     echo ""
-    echo -e "  ${BOLD}1)${NC} Maximilien-ai fork (tested with ClawMax v1.1.21) ${GREEN}← recommended${NC}"
-    echo "     brew install maximilien-ai/homebrew-openclaw/openclaw"
+    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended${NC}"
+    echo "     npm install -g openclaw"
     echo ""
-    echo -e "  ${BOLD}2)${NC} OpenClaw community (latest release — may have compatibility issues)"
+    echo -e "  ${BOLD}2)${NC} Homebrew (OpenClaw community)"
     echo "     brew install openclaw/tap/openclaw"
     echo ""
     echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
@@ -181,28 +181,25 @@ else
     REPLY=${REPLY:-1}
     case $REPLY in
       1|"")
-        print_info "Installing from Maximilien-ai fork..."
-        brew tap maximilien-ai/homebrew-openclaw 2>/dev/null || true
-        if brew install maximilien-ai/homebrew-openclaw/openclaw 2>&1; then
+        print_info "Installing OpenClaw via npm..."
+        if npm install -g openclaw 2>&1; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
-          print_success "OpenClaw installed from Maximilien-ai fork"
+          print_success "OpenClaw installed via npm"
         else
-          print_warning "Homebrew install failed"
-          echo "  Try manually:"
-          echo "    brew tap maximilien-ai/homebrew-openclaw"
-          echo "    brew install openclaw"
+          print_warning "npm install failed"
+          echo "  Try manually: npm install -g openclaw"
+          echo "  Or visit: https://docs.openclaw.ai"
         fi
         ;;
       2)
-        print_info "Installing from OpenClaw community..."
+        print_info "Installing from OpenClaw community Homebrew..."
         if brew install openclaw/tap/openclaw 2>&1; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
-          print_success "OpenClaw installed from community"
-          print_warning "Community version may have compatibility differences — test carefully"
+          print_success "OpenClaw installed via Homebrew"
         else
-          print_warning "Install failed — try manually: brew tap openclaw/tap && brew install openclaw"
+          print_warning "Install failed — try: brew tap openclaw/tap && brew install openclaw"
         fi
         ;;
       *)
