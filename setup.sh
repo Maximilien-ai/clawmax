@@ -543,8 +543,25 @@ print_header "Setup Complete!"
 
 echo -e "${GREEN}✓ ClawMax is ready!${NC}\n"
 
-echo -e "  ${BOLD}Start the dashboard:${NC}"
-echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
+# Offer to start the dashboard
+if [ "$INTERACTIVE" = true ]; then
+  if ask_yn "Start the dashboard now?"; then
+    print_info "Starting ClawMax dashboard..."
+    ./SYSTEM/start.sh
+    echo ""
+    echo -e "  ${GREEN}Dashboard is running!${NC}"
+    echo -e "  Open ${CYAN}http://localhost:5173${NC} in your browser"
+    echo ""
+  else
+    echo ""
+    echo -e "  To start later, run:"
+    echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
+    echo ""
+  fi
+else
+  echo -e "  ${BOLD}Start the dashboard:${NC}"
+  echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
+fi
 echo ""
 echo -e "  ${BOLD}Open in browser:${NC}"
 echo -e "    ${CYAN}http://localhost:5173${NC}"
