@@ -258,8 +258,20 @@ app.get('/api/system/logs', protect, (_req, res) => {
     'Connection': 'keep-alive',
   })
 
-  const child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
-    env: safeEnv(),
+  let child: ReturnType<typeof spawn>
+  try {
+    child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
+      env: safeEnv(),
+    })
+  } catch {
+    res.write(`data: ${JSON.stringify({ error: 'openclaw CLI not found — install it to see live logs' })}\n\n`)
+    res.end()
+    return
+  }
+
+  child.on('error', (err: NodeJS.ErrnoException) => {
+    res.write(`data: ${JSON.stringify({ error: `openclaw CLI not available: ${err.code === 'ENOENT' ? 'not installed' : err.message}` })}\n\n`)
+    res.end()
   })
 
   child.stdout.on('data', (data: Buffer) => {
