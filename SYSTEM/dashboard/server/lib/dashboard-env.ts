@@ -7,11 +7,28 @@ export interface ProviderKeys {
   anthropic?: string
 }
 
-export const DASHBOARD_ENV_PATH = path.resolve(__dirname, '..', '..', '.env')
+// Try multiple paths to find .env — handles different working directories
+function findEnvPath(): string {
+  const candidates = [
+    path.resolve(__dirname, '..', '..', '.env'),           // from server/lib/
+    path.resolve(process.cwd(), '.env'),                    // from SYSTEM/dashboard/
+    path.resolve(process.cwd(), 'SYSTEM', 'dashboard', '.env'), // from repo root
+  ]
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p
+  }
+  return candidates[0] // fallback
+}
+
+export const DASHBOARD_ENV_PATH = findEnvPath()
 
 function readDashboardEnvFile(): Record<string, string> {
   try {
-    if (!fs.existsSync(DASHBOARD_ENV_PATH)) return {}
+    if (!fs.existsSync(DASHBOARD_ENV_PATH)) {
+      console.warn(`Dashboard .env not found at ${DASHBOARD_ENV_PATH}`)
+      return {}
+    }
+    console.log(`Loading .env from: ${DASHBOARD_ENV_PATH}`)
     return dotenv.parse(fs.readFileSync(DASHBOARD_ENV_PATH, 'utf-8'))
   } catch (err) {
     console.warn('Failed to parse dashboard .env file:', err)
