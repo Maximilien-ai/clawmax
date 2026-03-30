@@ -1,7 +1,7 @@
 # ClawMax Status
 
-**Current Version**: v1.1.20
-**Last Updated**: March 29, 2026
+**Current Version**: v1.1.21
+**Last Updated**: March 30, 2026
 **Status**: Workflow v2 + testing sprint complete — DAG, notifications, 155 tests, system test workspace
 
 ---
