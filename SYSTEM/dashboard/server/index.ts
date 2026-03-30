@@ -469,6 +469,37 @@ app.listen(PORT, HOST, () => {
   logToFile(`Server started successfully on port ${PORT}`)
   logToFile(`Workspace: ${WORKSPACE}`)
 
+  // Auto-register unregistered workspace agents with openclaw CLI
+  try {
+    const { execSync } = require('child_process')
+    execSync('which openclaw', { stdio: 'pipe' })
+    // CLI available — check for unregistered agents
+    const agentsDir = path.join(getWorkspacePath(), 'AGENTS')
+    if (fs.existsSync(agentsDir)) {
+      const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+      const registeredIds = new Set<string>()
+      try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        for (const a of config?.agents?.list || []) { if (a.id) registeredIds.add(a.id) }
+      } catch {}
+
+      const dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
+      let fixed = 0
+      for (const d of dirs) {
+        if (!d.isDirectory() || d.name.startsWith('.') || d.name === 'archive') continue
+        if (registeredIds.has(d.name)) continue
+        try {
+          const ws = path.join(agentsDir, d.name)
+          const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
+          fs.mkdirSync(ad, { recursive: true })
+          execSync(`openclaw agents add ${d.name} --workspace "${ws}" --agent-dir "${ad}" --non-interactive`, { stdio: 'pipe', timeout: 10000 })
+          fixed++
+        } catch {}
+      }
+      if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
+    }
+  } catch {}
+
   // Start workflow scheduler after server is ready
   startScheduler()
 
