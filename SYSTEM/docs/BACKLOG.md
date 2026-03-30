@@ -82,8 +82,8 @@
 - [ ] **Activity page column sorting** — no way to sort by columns (age, agent, type, file) in the Activity page
 - [ ] **Test skill: workspace ls** — add a test skill to system-test agents that lists their workspace directory, captures output, and can share results. Useful for verifying agent file access
 - [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
-- [ ] **DAG run/restart button** — green ▶ icon on each node in DAG view to start (if idle) or restart (if completed). Currently must use "Run Now" from detail panel
-- [ ] **DAG execution count per node** — show number of executions (runCount) on each workflow node in DAG view
+- [x] **DAG run/restart button** — ▶ to start, ↻ to re-run, hidden while running
+- [x] **DAG execution count per node** — "Nx" badge on each workflow node
 - [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
 - [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
 - [x] **DAG forest SVG lines cross pipelines** — fixed: SVG scoped per pipeline with forestRefs
