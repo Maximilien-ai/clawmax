@@ -330,7 +330,23 @@ let gatewayClient: GatewayRPCClient | null = null
 
 export function getGatewayClient(): GatewayRPCClient {
   if (!gatewayClient) {
-    gatewayClient = new GatewayRPCClient()
+    try {
+      gatewayClient = new GatewayRPCClient()
+    } catch (err: any) {
+      // Gateway not configured — expected on fresh installs
+      throw new Error(`Gateway not available: ${err.message}`)
+    }
   }
   return gatewayClient
+}
+
+export function isGatewayConfigured(): boolean {
+  try {
+    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+    const content = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(content)
+    return !!(config.gateway?.port && config.gateway?.auth?.token)
+  } catch {
+    return false
+  }
 }
