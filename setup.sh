@@ -1,49 +1,36 @@
 #!/bin/bash
 
-# ClawMax Setup Script
-# Automated installation and setup for ClawMax Dashboard
+# ClawMax Setup Script v2
+# Automated installation and configuration for ClawMax Dashboard
+# Supports: dev mode (bypass OAuth) and production mode (GitHub OAuth)
 
-set -e  # Exit on error
+set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-# Tested OpenClaw version
-OPENCLAW_VERSION="v0.3.0"
-OPENCLAW_COMMIT="55c2aaf"
+print_header() { echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n${BLUE}$1${NC}\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"; }
+print_success() { echo -e "${GREEN}✓${NC} $1"; }
+print_error() { echo -e "${RED}✗${NC} $1"; }
+print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
+print_info() { echo -e "${BLUE}ℹ${NC} $1"; }
+ask_yn() { read -p "  $1 (y/N): " -n 1 -r; echo; [[ $REPLY =~ ^[Yy]$ ]]; }
 
-# Print functions
-print_header() {
-    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
-}
-
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}✗${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
-}
-
-# Welcome message
-if [ -t 1 ] && [ -n "${TERM:-}" ]; then
-    clear
+# Non-interactive mode (CI)
+INTERACTIVE=true
+if [ ! -t 0 ] || [ "$CI" = "true" ] || [ "$1" = "--non-interactive" ]; then
+  INTERACTIVE=false
 fi
-echo -e "${BLUE}"
+
+# Welcome
+if [ -t 1 ] && [ -n "${TERM:-}" ]; then clear 2>/dev/null || true; fi
+echo -e "${CYAN}"
 cat << "EOF"
    ____ _               __  __
   / ___| | __ ___      _|  \/  | __ ___  __
@@ -51,418 +38,488 @@ cat << "EOF"
  | |___| | (_| |\ V  V /| |  | | (_| |>  <
   \____|_|\__,_| \_/\_/ |_|  |_|\__,_/_/\_\
 
-  Visual Management Dashboard for OpenClaw
+  Multiagent Orchestration Platform
 EOF
 echo -e "${NC}"
-print_info "ClawMax v1.0.1 Setup"
+print_info "ClawMax v1.1.21 Setup"
 echo ""
 
+# Must be in ClawMax directory
+if [ ! -d "SYSTEM/dashboard" ]; then
+  print_error "Not in a ClawMax directory. Please run from the clawmax repo root."
+  exit 1
+fi
+CLAWMAX_DIR="$(pwd)"
+
 # ============================================================================
-# 1. Check Prerequisites
+# 1. Prerequisites
 # ============================================================================
 
-print_header "Checking Prerequisites"
+print_header "1. Checking Prerequisites"
 
-# Check Node.js
+# Node.js
 if command -v node &> /dev/null; then
-    NODE_VERSION=$(node --version)
-    print_success "Node.js: $NODE_VERSION"
-
-    # Check if version is 18+
-    NODE_MAJOR=$(node --version | cut -d'.' -f1 | sed 's/v//')
-    if [ "$NODE_MAJOR" -lt 18 ]; then
-        print_error "Node.js 18+ required (found v$NODE_MAJOR)"
-        print_info "Install from: https://nodejs.org/"
-        exit 1
-    fi
-else
-    print_error "Node.js not found"
+  NODE_VERSION=$(node --version)
+  NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
+  if [ "$NODE_MAJOR" -lt 18 ]; then
+    print_error "Node.js 18+ required (found $NODE_VERSION)"
     print_info "Install from: https://nodejs.org/"
     exit 1
+  fi
+  print_success "Node.js: $NODE_VERSION"
+else
+  print_error "Node.js not found — install from https://nodejs.org/"
+  exit 1
 fi
 
-# Check npm
+# npm
 if command -v npm &> /dev/null; then
-    NPM_VERSION=$(npm --version)
-    print_success "npm: v$NPM_VERSION"
+  print_success "npm: v$(npm --version)"
 else
-    print_error "npm not found"
-    exit 1
+  print_error "npm not found"
+  exit 1
 fi
 
-# Check git
+# git
 if command -v git &> /dev/null; then
-    GIT_VERSION=$(git --version | cut -d' ' -f3)
-    print_success "git: v$GIT_VERSION"
+  print_success "git: v$(git --version | cut -d' ' -f3)"
 else
-    print_error "git not found"
-    print_info "Install from: https://git-scm.com/"
-    exit 1
+  print_error "git not found — install from https://git-scm.com/"
+  exit 1
 fi
 
-# Check OpenClaw
+echo ""
+
+# ============================================================================
+# 2. OpenClaw CLI
+# ============================================================================
+
+print_header "2. OpenClaw CLI"
+
 OPENCLAW_INSTALLED=false
 if command -v openclaw &> /dev/null; then
-    OPENCLAW_INSTALLED=true
-    print_success "OpenClaw: installed"
+  OPENCLAW_INSTALLED=true
+  OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
+  print_success "OpenClaw CLI: $OPENCLAW_VER"
+else
+  print_warning "OpenClaw CLI not found — required for agent management"
+  echo ""
 
-    # Check version
-    OPENCLAW_DIR="$HOME/github/maximilien/openclaw"
-    if [ -d "$OPENCLAW_DIR/.git" ]; then
-        cd "$OPENCLAW_DIR"
-        CURRENT_COMMIT=$(git rev-parse --short HEAD)
+  if [ "$INTERACTIVE" = true ]; then
+    echo "  Choose an installation source:"
+    echo ""
+    echo "  ${BOLD}1)${NC} Maximilien-ai fork (tested with ClawMax v1.1.21)"
+    echo "     brew install maximilien-ai/openclaw/openclaw"
+    echo ""
+    echo "  ${BOLD}2)${NC} OpenClaw community (latest release — may have compatibility issues)"
+    echo "     brew install openclaw/tap/openclaw"
+    echo "     If issues arise, please submit at: https://github.com/Maximilien-ai/clawmax/issues"
+    echo ""
+    echo "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
+    echo ""
+    read -p "  Choice (1/2/3): " -n 1 -r; echo
 
-        if [ "$CURRENT_COMMIT" = "$OPENCLAW_COMMIT" ]; then
-            print_success "OpenClaw version: $OPENCLAW_COMMIT (tested)"
+    case $REPLY in
+      1)
+        print_info "Installing from Maximilien-ai fork..."
+        if brew install maximilien-ai/openclaw/openclaw 2>/dev/null; then
+          OPENCLAW_INSTALLED=true
+          print_success "OpenClaw installed from Maximilien-ai fork"
         else
-            print_warning "OpenClaw commit: $CURRENT_COMMIT (tested: $OPENCLAW_COMMIT)"
-            print_info "ClawMax v1.0.1 is tested with OpenClaw commit $OPENCLAW_COMMIT"
+          print_warning "Homebrew install failed — try manually: brew tap maximilien-ai/openclaw && brew install openclaw"
         fi
-        cd - > /dev/null
+        ;;
+      2)
+        print_info "Installing from OpenClaw community..."
+        if brew install openclaw/tap/openclaw 2>/dev/null; then
+          OPENCLAW_INSTALLED=true
+          print_success "OpenClaw installed from community"
+          print_warning "Community version may have compatibility differences — test carefully"
+        else
+          print_warning "Install failed — try manually: brew tap openclaw/tap && brew install openclaw"
+        fi
+        ;;
+      *)
+        print_info "Skipped OpenClaw installation"
+        ;;
+    esac
+  else
+    print_info "Non-interactive: skipping OpenClaw install"
+  fi
+fi
+
+echo ""
+
+# ============================================================================
+# 3. Mode Selection
+# ============================================================================
+
+print_header "3. Setup Mode"
+
+DEV_MODE=false
+if [ "$INTERACTIVE" = true ]; then
+  echo "  ${BOLD}Development mode:${NC} Bypass OAuth, faster iteration"
+  echo "  ${BOLD}Production mode:${NC}  GitHub OAuth login required"
+  echo ""
+  if ask_yn "Use development mode? (recommended for local dev)"; then
+    DEV_MODE=true
+    print_success "Development mode selected (OAuth bypassed)"
+  else
+    print_success "Production mode selected (GitHub OAuth required)"
+  fi
+else
+  DEV_MODE=true
+  print_info "Non-interactive: using development mode"
+fi
+
+echo ""
+
+# ============================================================================
+# 4. API Keys Configuration
+# ============================================================================
+
+print_header "4. API Keys"
+
+echo "  ClawMax uses AI model APIs for agent creation and execution."
+echo "  You need at least one provider key."
+echo ""
+echo "  ${BOLD}Key scopes:${NC}"
+echo "    SYSTEM_* keys — used by dashboard features (AI generate, templates)"
+echo "    USER_* keys   — used by your agents and workflows"
+echo "    BYOK           — users can also provide keys in-browser"
+echo ""
+
+SYSTEM_OPENAI_KEY=""
+SYSTEM_ANTHROPIC_KEY=""
+OPIK_KEY=""
+
+if [ "$INTERACTIVE" = true ]; then
+  # OpenAI
+  echo -e "  ${CYAN}OpenAI${NC} — for GPT models (gpt-4o, gpt-4o-mini, gpt-5)"
+  echo "  Get key: https://platform.openai.com/api-keys"
+  read -p "  SYSTEM_OPENAI_API_KEY (paste or Enter to skip): " SYSTEM_OPENAI_KEY
+  if [ -n "$SYSTEM_OPENAI_KEY" ]; then
+    print_success "OpenAI key configured"
+  else
+    print_info "Skipped OpenAI (can add later in .env)"
+  fi
+  echo ""
+
+  # Anthropic
+  echo -e "  ${CYAN}Anthropic${NC} — for Claude models (claude-sonnet-4, claude-opus-4-6)"
+  echo "  Get key: https://console.anthropic.com/settings/keys"
+  read -p "  SYSTEM_ANTHROPIC_API_KEY (paste or Enter to skip): " SYSTEM_ANTHROPIC_KEY
+  if [ -n "$SYSTEM_ANTHROPIC_KEY" ]; then
+    print_success "Anthropic key configured"
+  else
+    print_info "Skipped Anthropic (can add later in .env)"
+  fi
+  echo ""
+
+  if [ -z "$SYSTEM_OPENAI_KEY" ] && [ -z "$SYSTEM_ANTHROPIC_KEY" ]; then
+    print_warning "No API keys configured — AI features will be limited"
+    print_info "Add keys later: edit SYSTEM/dashboard/.env"
+  fi
+  echo ""
+
+  # Opik (optional monitoring)
+  echo -e "  ${CYAN}Comet Opik${NC} — optional agent monitoring and cost tracking"
+  echo "  Get key: https://www.comet.com/signup (free tier available)"
+  if ask_yn "Configure Opik monitoring?"; then
+    read -p "  OPIK_API_KEY: " OPIK_KEY
+    if [ -n "$OPIK_KEY" ]; then
+      read -p "  OPIK_WORKSPACE (default: clawmax): " OPIK_WORKSPACE
+      OPIK_WORKSPACE=${OPIK_WORKSPACE:-clawmax}
+      print_success "Opik configured"
     fi
-else
-    print_warning "OpenClaw not found"
-    print_info "ClawMax requires OpenClaw to manage agents"
-    print_info "Install from: https://openclaw.ai or https://github.com/openclaw/openclaw"
-    echo ""
-    print_info "Continuing setup to install dashboard dependencies..."
-    echo ""
+  else
+    print_info "Skipped Opik (can add later)"
+  fi
 fi
 
 echo ""
 
 # ============================================================================
-# 2. Detect or Set Workspace
+# 5. GitHub OAuth (Production Mode)
 # ============================================================================
 
-print_header "Workspace Configuration"
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
 
-# Check if we're already in a ClawMax directory
-if [ -d "SYSTEM/dashboard" ]; then
-    CLAWMAX_DIR="$(pwd)"
-    print_success "Found ClawMax in current directory"
+if [ "$DEV_MODE" = false ] && [ "$INTERACTIVE" = true ]; then
+  print_header "5. GitHub OAuth"
+
+  echo "  Production mode requires GitHub OAuth for login."
+  echo ""
+  echo "  ${BOLD}Setup steps:${NC}"
+  echo "  1. Go to: https://github.com/settings/developers"
+  echo "  2. Click 'New OAuth App'"
+  echo "  3. Set Homepage URL: http://localhost:5173"
+  echo "  4. Set Callback URL: http://localhost:3001/api/auth/github/callback"
+  echo "  5. Copy Client ID and Client Secret"
+  echo ""
+  echo "  For detailed guide: SYSTEM/docs/OAUTH_SETUP.md"
+  echo ""
+
+  read -p "  GITHUB_CLIENT_ID: " GITHUB_CLIENT_ID
+  read -p "  GITHUB_CLIENT_SECRET: " GITHUB_CLIENT_SECRET
+
+  if [ -n "$GITHUB_CLIENT_ID" ] && [ -n "$GITHUB_CLIENT_SECRET" ]; then
+    print_success "GitHub OAuth configured"
+  else
+    print_warning "OAuth credentials incomplete — falling back to dev mode"
+    DEV_MODE=true
+  fi
 else
-    print_error "Not in a ClawMax directory"
-    print_info "Please run this script from the ClawMax root directory"
-    exit 1
-fi
-
-# Determine workspace path
-# v1.0.2+ uses WORKSPACES/ directory structure
-if [ -n "$OPENCLAW_WORKSPACE" ]; then
-    WORKSPACE="$OPENCLAW_WORKSPACE"
-    print_info "Using existing workspace: $WORKSPACE"
-else
-    # Default to WORKSPACES/default
-    WORKSPACE="$CLAWMAX_DIR/WORKSPACES/default"
-    print_info "Setting workspace to: $WORKSPACE"
-fi
-
-# Create WORKSPACES directory if it doesn't exist
-if [ ! -d "$CLAWMAX_DIR/WORKSPACES" ]; then
-    mkdir -p "$CLAWMAX_DIR/WORKSPACES/default"
-    print_success "Created WORKSPACES/ directory structure"
-fi
-
-# Verify workspace structure
-if [ ! -d "$WORKSPACE/AGENTS" ]; then
-    mkdir -p "$WORKSPACE/AGENTS"
-    print_success "Created AGENTS/ directory"
-fi
-
-if [ ! -d "$WORKSPACE/WORKFLOWS" ]; then
-    mkdir -p "$WORKSPACE/WORKFLOWS"
-    print_success "Created WORKFLOWS/ directory"
-fi
-
-if [ ! -d "$WORKSPACE/ORG" ]; then
-    mkdir -p "$WORKSPACE/ORG"
-    print_success "Created ORG/ directory"
-fi
-
-if [ ! -d "$WORKSPACE/TEMPLATES" ]; then
-    mkdir -p "$WORKSPACE/TEMPLATES"
-    print_success "Created TEMPLATES/ directory"
-fi
-
-if [ ! -d "$WORKSPACE/SKILLS/custom" ]; then
-    mkdir -p "$WORKSPACE/SKILLS/custom"
-    print_success "Created SKILLS/custom/ directory"
+  if [ "$DEV_MODE" = true ]; then
+    print_info "Dev mode: OAuth bypassed (BYPASS_OAUTH=true)"
+  fi
 fi
 
 echo ""
 
 # ============================================================================
-# 3. Check OpenClaw Configuration
+# 6. Workspace Setup
 # ============================================================================
 
-print_header "OpenClaw Configuration"
+print_header "6. Workspace Configuration"
 
+WORKSPACE="$CLAWMAX_DIR/WORKSPACES/default"
+
+# Create workspace structure
+for dir in WORKSPACES/default WORKSPACES/default/AGENTS WORKSPACES/default/WORKFLOWS WORKSPACES/default/ORG WORKSPACES/default/TEMPLATES WORKSPACES/default/SKILLS/custom WORKSPACES/default/SYSTEM; do
+  mkdir -p "$CLAWMAX_DIR/$dir"
+done
+print_success "Workspace structure created: $WORKSPACE"
+
+# OpenClaw config
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
-
 if [ ! -f "$OPENCLAW_CONFIG" ]; then
-    print_warning "OpenClaw config not found at $OPENCLAW_CONFIG"
-    print_info "Creating minimal OpenClaw configuration..."
-
-    mkdir -p "$HOME/.openclaw"
-
-    cat > "$OPENCLAW_CONFIG" << 'EOF'
+  mkdir -p "$HOME/.openclaw"
+  cat > "$OPENCLAW_CONFIG" << 'OCEOF'
 {
-  "agents": {
-    "list": []
-  },
-  "meta": {
-    "version": "0.3.0",
-    "lastTouchedAt": "2026-03-15T00:00:00.000Z"
-  }
+  "agents": {},
+  "meta": { "version": "0.3.0" }
 }
-EOF
-    print_success "Created openclaw.json"
+OCEOF
+  print_success "Created OpenClaw config"
 else
-    print_success "OpenClaw config exists"
-fi
-
-# Check for API keys
-MISSING_KEYS=()
-
-if ! grep -q "ANTHROPIC_API_KEY" "$OPENCLAW_CONFIG" 2>/dev/null && [ -z "$ANTHROPIC_API_KEY" ]; then
-    MISSING_KEYS+=("ANTHROPIC_API_KEY")
-fi
-
-if ! grep -q "OPENAI_API_KEY" "$OPENCLAW_CONFIG" 2>/dev/null && [ -z "$OPENAI_API_KEY" ]; then
-    MISSING_KEYS+=("OPENAI_API_KEY")
-fi
-
-if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
-    print_warning "Missing API keys — AI models will not load without them"
-    echo ""
-    echo "ClawMax requires API keys for agent creation and AI model access:"
-    echo ""
-
-    for key in "${MISSING_KEYS[@]}"; do
-        echo "  • $key"
-    done
-
-    echo ""
-    print_info "Add keys to SYSTEM/dashboard/.env or export as environment variables"
-    echo ""
-    echo "Option 1: Add to SYSTEM/dashboard/.env (recommended):"
-    echo "  ANTHROPIC_API_KEY=sk-ant-..."
-    echo "  OPENAI_API_KEY=sk-..."
-    echo ""
-    echo "Option 2: Export environment variables:"
-    echo "  export ANTHROPIC_API_KEY='your-key-here'"
-    echo "  export OPENAI_API_KEY='your-key-here'"
-    echo ""
-
-    print_info "Agents and AI models will not be available until keys are set."
-    print_info "Continuing setup..."
-else
-    print_success "API keys configured"
+  print_success "OpenClaw config exists"
 fi
 
 echo ""
 
 # ============================================================================
-# 4. Install Dashboard Dependencies
+# 7. Install Dependencies
 # ============================================================================
 
-print_header "Installing Dashboard Dependencies"
+print_header "7. Installing Dashboard Dependencies"
 
 cd "$CLAWMAX_DIR/SYSTEM/dashboard"
-
-if [ -d "node_modules" ]; then
-    print_info "node_modules already exists"
-
-    # Check if we need to update
-    if [ "package.json" -nt "node_modules" ]; then
-        print_warning "package.json is newer than node_modules — updating..."
-        npm install
-        print_success "Dependencies updated"
-    else
-        print_success "Dependencies up to date"
-    fi
+if [ -d "node_modules" ] && [ ! "package.json" -nt "node_modules" ]; then
+  print_success "Dependencies up to date"
 else
-    print_info "Running npm install (this may take a few minutes)..."
-    npm install
-    print_success "Dependencies installed"
+  print_info "Running npm install..."
+  npm install --loglevel warn
+  print_success "Dependencies installed"
 fi
-
 cd "$CLAWMAX_DIR"
-echo ""
-
-# ============================================================================
-# 5. Configure Dashboard Token
-# ============================================================================
-
-print_header "Dashboard Authentication"
-
-TOKEN_FILE="$CLAWMAX_DIR/SYSTEM/dashboard/.dashboard-token"
-
-if [ -f "$TOKEN_FILE" ]; then
-    print_success "Dashboard token already exists"
-else
-    # Generate random token
-    if command -v openssl &> /dev/null; then
-        TOKEN=$(openssl rand -hex 32)
-    else
-        TOKEN=$(cat /dev/urandom | LC_ALL=C tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
-    fi
-
-    echo "$TOKEN" > "$TOKEN_FILE"
-    chmod 600 "$TOKEN_FILE"
-    print_success "Generated dashboard token"
-fi
 
 echo ""
 
 # ============================================================================
-# 6. Environment Setup
+# 8. Generate .env
 # ============================================================================
 
-print_header "Environment Configuration"
+print_header "8. Environment Configuration"
 
-# Create .env file if it doesn't exist
 ENV_FILE="$CLAWMAX_DIR/SYSTEM/dashboard/.env"
 
-if [ -f "$ENV_FILE" ]; then
-    print_success ".env file already exists"
-else
-    cat > "$ENV_FILE" << EOF
-# ClawMax Dashboard Environment
+# Always regenerate to capture new settings
+cat > "$ENV_FILE" << ENVEOF
+# ClawMax Dashboard Environment — generated by setup.sh
+# Edit this file to update keys and settings
+
+# Workspace
 OPENCLAW_WORKSPACE=$WORKSPACE
 NODE_ENV=development
-PORT=3001
-VITE_PORT=5173
-# For solo local development without GitHub OAuth:
-# BYPASS_OAUTH=true
+DASHBOARD_PORT=3001
+CORS_ORIGIN=http://localhost:5173
+DASHBOARD_APP_URL=http://localhost:5173
 
-# AI Model API Keys (required for agent creation)
-# ANTHROPIC_API_KEY=sk-ant-...
-# OPENAI_API_KEY=sk-...
-# GOOGLE_API_KEY=...
-EOF
-    print_success "Created .env file"
-    print_info "Edit SYSTEM/dashboard/.env to add your API keys for AI model access"
-fi
+# Auth mode
+ENVEOF
 
-print_info "Workspace: $WORKSPACE"
-print_info "Backend: http://localhost:3001"
-print_info "Frontend: http://localhost:5173"
-
-echo ""
-
-# ============================================================================
-# 7. Gateway Setup (Optional)
-# ============================================================================
-
-print_header "OpenClaw Gateway (Optional)"
-
-if command -v openclaw &> /dev/null; then
-    # Check if gateway is installed
-    if openclaw gateway status &> /dev/null || [ -f "$HOME/.openclaw/.gateway-installed" ]; then
-        print_success "Gateway already installed"
-    else
-        print_info "The OpenClaw Gateway enables real-time agent chat"
-        read -p "Install gateway now? (recommended) (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Installing gateway..."
-            if openclaw gateway install; then
-                print_success "Gateway installed"
-                touch "$HOME/.openclaw/.gateway-installed"
-            else
-                print_warning "Gateway installation failed (optional feature)"
-            fi
-        else
-            print_info "Skipped gateway installation (you can install later with: openclaw gateway install)"
-        fi
-    fi
-fi
-
-echo ""
-
-# ============================================================================
-# 8. Verify Setup
-# ============================================================================
-
-print_header "Verifying Setup"
-
-# Check all components
-SETUP_VALID=true
-
-if [ ! -d "$WORKSPACE/AGENTS" ]; then
-    print_error "Workspace AGENTS directory missing"
-    SETUP_VALID=false
-fi
-
-if [ ! -d "$CLAWMAX_DIR/SYSTEM/dashboard/node_modules" ]; then
-    print_error "Dashboard dependencies not installed"
-    SETUP_VALID=false
-fi
-
-if [ ! -f "$TOKEN_FILE" ]; then
-    print_error "Dashboard token missing"
-    SETUP_VALID=false
-fi
-
-if [ "$SETUP_VALID" = true ]; then
-    print_success "All components verified"
+if [ "$DEV_MODE" = true ]; then
+  cat >> "$ENV_FILE" << 'ENVEOF'
+BYPASS_OAUTH=true
+# ⚠ Dev mode: no login required. Do NOT use in production.
+ENVEOF
 else
-    print_error "Setup incomplete - please review errors above"
-    exit 1
+  cat >> "$ENV_FILE" << ENVEOF
+BYPASS_OAUTH=false
+GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
+ENVEOF
+fi
+
+cat >> "$ENV_FILE" << ENVEOF
+
+# API Keys — at least one provider required for AI features
+ENVEOF
+
+if [ -n "$SYSTEM_OPENAI_KEY" ]; then
+  echo "SYSTEM_OPENAI_API_KEY=$SYSTEM_OPENAI_KEY" >> "$ENV_FILE"
+else
+  echo "# SYSTEM_OPENAI_API_KEY=sk-..." >> "$ENV_FILE"
+fi
+
+if [ -n "$SYSTEM_ANTHROPIC_KEY" ]; then
+  echo "SYSTEM_ANTHROPIC_API_KEY=$SYSTEM_ANTHROPIC_KEY" >> "$ENV_FILE"
+else
+  echo "# SYSTEM_ANTHROPIC_API_KEY=sk-ant-..." >> "$ENV_FILE"
+fi
+
+cat >> "$ENV_FILE" << 'ENVEOF'
+
+# Allow system keys for user agent execution (dev convenience)
+ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
+
+# BYOK: users can also provide keys in-browser via the BYOK wizard
+ENVEOF
+
+# Opik
+if [ -n "$OPIK_KEY" ]; then
+  cat >> "$ENV_FILE" << ENVEOF
+
+# Comet Opik — agent monitoring and cost tracking
+OPIK_API_KEY=$OPIK_KEY
+OPIK_WORKSPACE="${OPIK_WORKSPACE:-clawmax}"
+OPIK_PROJECT_NAME="ClawMax"
+ENVEOF
+else
+  cat >> "$ENV_FILE" << 'ENVEOF'
+
+# Comet Opik — optional monitoring (https://www.comet.com/signup)
+# OPIK_API_KEY=
+# OPIK_WORKSPACE=clawmax
+# OPIK_PROJECT_NAME=ClawMax
+ENVEOF
+fi
+
+print_success "Created .env file"
+
+# Dashboard token
+TOKEN_FILE="$WORKSPACE/.dashboard-token"
+if [ ! -f "$TOKEN_FILE" ]; then
+  TOKEN=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | LC_ALL=C tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+  echo "$TOKEN" > "$TOKEN_FILE"
+  chmod 600 "$TOKEN_FILE"
+  print_success "Generated dashboard token"
+else
+  print_success "Dashboard token exists"
 fi
 
 echo ""
 
 # ============================================================================
-# 9. Summary and Next Steps
+# 9. Gateway (Optional)
+# ============================================================================
+
+print_header "9. OpenClaw Gateway (Optional)"
+
+if [ "$OPENCLAW_INSTALLED" = true ]; then
+  if openclaw gateway status 2>&1 | grep -q "running"; then
+    print_success "Gateway already running"
+  elif [ "$INTERACTIVE" = true ]; then
+    print_info "The gateway enables real-time agent chat via WebSocket"
+    if ask_yn "Install and start gateway?"; then
+      openclaw gateway install 2>/dev/null && print_success "Gateway installed" || print_warning "Gateway install failed (optional)"
+      openclaw gateway restart 2>/dev/null && print_success "Gateway started" || true
+    else
+      print_info "Skipped (install later: openclaw gateway install)"
+    fi
+  else
+    print_info "Non-interactive: skipping gateway"
+  fi
+else
+  print_info "Gateway requires OpenClaw CLI — install OpenClaw first"
+fi
+
+echo ""
+
+# ============================================================================
+# 10. Verify
+# ============================================================================
+
+print_header "10. Verifying Setup"
+
+VALID=true
+[ ! -d "$WORKSPACE/AGENTS" ] && print_error "AGENTS/ missing" && VALID=false
+[ ! -d "$CLAWMAX_DIR/SYSTEM/dashboard/node_modules" ] && print_error "Dependencies missing" && VALID=false
+[ ! -f "$ENV_FILE" ] && print_error ".env missing" && VALID=false
+
+if [ "$VALID" = true ]; then
+  print_success "All components verified"
+else
+  print_error "Setup incomplete — review errors above"
+  exit 1
+fi
+
+echo ""
+
+# ============================================================================
+# 11. Summary
 # ============================================================================
 
 print_header "Setup Complete!"
 
-echo -e "${GREEN}✓ ClawMax is ready to use!${NC}\n"
+echo -e "${GREEN}✓ ClawMax is ready!${NC}\n"
 
-echo "Next steps:"
+echo "  ${BOLD}Start the dashboard:${NC}"
+echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
 echo ""
-echo "  1. Start the dashboard:"
-echo -e "     ${BLUE}./SYSTEM/start.sh${NC}"
+echo "  ${BOLD}Open in browser:${NC}"
+echo -e "    ${CYAN}http://localhost:5173${NC}"
 echo ""
-echo "  2. Open in browser:"
-echo -e "     ${BLUE}http://localhost:5173${NC}"
+echo "  ${BOLD}Run tests:${NC}"
+echo -e "    ${CYAN}./SYSTEM/test.sh${NC}              # API + unit tests"
+echo -e "    ${CYAN}./SYSTEM/test.sh integration${NC}  # + live agent tests"
 echo ""
-echo "  3. Import a template:"
-echo "     - Go to Templates → Organizations"
-echo "     - Try 'Small Startup Team' to get started"
+echo "  ${BOLD}Deploy a team:${NC}"
+echo "    Templates → pick a template → Apply"
+echo "    Try 'Small Startup Team' or 'Dev Team' to get started"
 echo ""
-echo "  4. Create your first agent:"
-echo "     - Go to Templates → Agents"
-echo "     - Choose a template (dave, golang-engineer, etc.)"
-echo "     - Customize and import"
-echo ""
-echo "  5. Check the docs:"
-echo "     - README.md - Getting started"
-echo "     - SYSTEM/docs/WORKFLOWS.md - Creating workflows"
-echo "     - SYSTEM/docs/TESTING_GUIDE.md - Running tests"
+
+MODE_STR="Dev mode (no login)"
+[ "$DEV_MODE" = false ] && MODE_STR="Production mode (GitHub OAuth)"
+
+echo "  ${BOLD}Configuration:${NC}"
+echo "    Mode:      $MODE_STR"
+echo "    Workspace: $WORKSPACE"
+echo "    Backend:   http://localhost:3001"
+echo "    Frontend:  http://localhost:5173"
+echo "    .env:      SYSTEM/dashboard/.env"
 echo ""
 
 if [ "$OPENCLAW_INSTALLED" = false ]; then
-    print_warning "OpenClaw CLI is not installed — agent management requires it"
-    echo "  Install from: https://openclaw.ai or https://github.com/openclaw/openclaw"
-    echo ""
+  print_warning "OpenClaw CLI not installed — agent features require it"
+  echo ""
 fi
 
-if [ ${#MISSING_KEYS[@]} -gt 0 ]; then
-    print_warning "Remember to configure API keys for agent functionality"
-    echo "  See: SYSTEM/docs/KNOWN_ISSUES.md"
-    echo ""
-fi
-
-print_info "Useful commands:"
-echo "  ./SYSTEM/stop.sh   - Stop dashboard"
-echo "  ./SYSTEM/status.sh - Check status"
-echo "  ./SYSTEM/test.sh   - Run tests"
-
+echo "  ${BOLD}Documentation:${NC}"
+echo "    README:           ./README.md"
+echo "    Known Issues:     ./SYSTEM/docs/KNOWN_ISSUES.md"
+echo "    Testing Guide:    ./SYSTEM/docs/TESTING_GUIDE.md"
+echo "    OAuth Setup:      ./SYSTEM/docs/OAUTH_SETUP.md"
 echo ""
-echo -e "${BLUE}🦞 Happy agent orchestration!${NC}"
+echo "  ${BOLD}Specs & Registries:${NC}"
+echo "    Templates:  https://github.com/Maximilien-ai/templates"
+echo "    Workflows:  https://github.com/Maximilien-ai/workflows"
+echo ""
+echo "  ${BOLD}Commercial:${NC}"
+echo "    Cloud, On-Premise, Enterprise: https://clawmax.ai"
+echo "    Contact: contact@clawmax.ai"
+echo ""
+echo -e "${CYAN}🦞 Happy agent orchestration!${NC}"
 echo ""
