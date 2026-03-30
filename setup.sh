@@ -392,8 +392,7 @@ if [ ! -f "$OPENCLAW_CONFIG" ]; then
   mkdir -p "$HOME/.openclaw"
   cat > "$OPENCLAW_CONFIG" << 'OCEOF'
 {
-  "agents": {},
-  "meta": { "version": "0.3.0" }
+  "agents": {}
 }
 OCEOF
   print_success "Created OpenClaw config"
