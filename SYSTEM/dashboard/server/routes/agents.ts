@@ -468,6 +468,80 @@ router.post('/provision', (req, res) => {
   // Profile support removed - not currently used
 
   send('start', `Creating agent: ${validatedName}`)
+
+  // Helper: save creation metadata to IDENTITY.md
+  function saveCreationMetadata() {
+    try {
+      const identityPath = path.join(getAgentsDir(), validatedName, 'IDENTITY.md')
+      let identityContent = fs.readFileSync(identityPath, 'utf-8')
+
+      if (identityContent.includes('## Creation Metadata')) {
+        send('log', 'Creation Metadata already exists in IDENTITY.md, skipping\n')
+      } else {
+        const metadata = `
+
+## Creation Metadata
+
+- **Created:** ${new Date().toISOString()}
+- **Created By:** ClawMax Dashboard
+- **Model:** ${model || 'default'}
+- **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
+- **Cloned From:** ${cloneFrom || 'N/A'}
+- **AI Description:** ${aiDescription || 'N/A'}
+`
+        identityContent += metadata
+        fs.writeFileSync(identityPath, identityContent)
+        send('log', 'Saved creation metadata to IDENTITY.md\n')
+      }
+    } catch (err: any) {
+      send('log', `Warning: Could not save metadata: ${err.message}\n`)
+    }
+  }
+
+  // Check if openclaw CLI is available
+  let hasOpenclawCli = false
+  try {
+    require('child_process').execSync('which openclaw', { stdio: 'pipe' })
+    hasOpenclawCli = true
+  } catch {}
+
+  if (!hasOpenclawCli) {
+    // Register agent without CLI — just ensure directory structure exists
+    send('log', `Registering agent without openclaw CLI...\n`)
+
+    try {
+      // Ensure agent dir exists in ~/.openclaw/agents/<name>/agent/
+      fs.mkdirSync(agentDirArg, { recursive: true })
+
+      // Create a minimal config.yaml for the agent
+      const configPath = path.join(agentDirArg, '..', 'config.yaml')
+      if (!fs.existsSync(configPath)) {
+        const configContent = [
+          `name: ${validatedName}`,
+          `model: ${normalizedModel || 'anthropic/claude-sonnet-4-20250514'}`,
+          `workspace: ${workspaceArg}`,
+          `created: ${new Date().toISOString()}`,
+        ].join('\n')
+        fs.writeFileSync(configPath, configContent, 'utf-8')
+        send('log', `Wrote agent config: ${configPath}\n`)
+      }
+
+      send('log', `Agent ${validatedName} registered successfully (without openclaw CLI)\n`)
+      send('log', `ℹ️  Install openclaw CLI for full agent management: brew tap maximilien-ai/openclaw && brew install openclaw\n`)
+    } catch (err: any) {
+      send('error', `Failed to register agent: ${err.message}`)
+      res.end()
+      return
+    }
+
+    send('log', `Agent ${validatedName} created successfully\n`)
+    saveCreationMetadata()
+    send('done', 'ok')
+    res.end()
+    return
+  }
+
+  // openclaw CLI available — use it
   send('log', `Command: openclaw ${args.join(' ')}\n`)
 
   const child = spawn('openclaw', args, {
@@ -490,36 +564,7 @@ router.post('/provision', (req, res) => {
     cleanup()
     if (code === 0) {
       send('log', `Agent ${validatedName} created successfully\n`)
-
-      // Save creation metadata to IDENTITY.md
-      try {
-        const identityPath = path.join(getAgentsDir(), validatedName, 'IDENTITY.md')
-        let identityContent = fs.readFileSync(identityPath, 'utf-8')
-
-        // Check if Creation Metadata already exists
-        if (identityContent.includes('## Creation Metadata')) {
-          send('log', 'Creation Metadata already exists in IDENTITY.md, skipping\n')
-        } else {
-          // Add creation metadata section
-          const metadata = `
-
-## Creation Metadata
-
-- **Created:** ${new Date().toISOString()}
-- **Created By:** ClawMax Dashboard
-- **Model:** ${model || 'default'}
-- **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
-- **Cloned From:** ${cloneFrom || 'N/A'}
-- **AI Description:** ${aiDescription || 'N/A'}
-`
-          identityContent += metadata
-          fs.writeFileSync(identityPath, identityContent)
-          send('log', 'Saved creation metadata to IDENTITY.md\n')
-        }
-      } catch (err: any) {
-        send('log', `Warning: Could not save metadata: ${err.message}\n`)
-      }
-
+      saveCreationMetadata()
       send('done', 'ok')
     } else {
       send('done', signal ? `killed by signal ${signal}` : `exit code ${code}`)
