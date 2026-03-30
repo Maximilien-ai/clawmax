@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
 import { traceAgentChat, traceWorkflowExecution } from './opik'
+import { isGatewayConfigured } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
@@ -790,7 +791,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
-            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json', '--local']
+            const useLocal = !isGatewayConfigured()
+            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
