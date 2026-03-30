@@ -135,8 +135,8 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
         setLoading(false)
         setLastRefreshed(Date.now())
       })
-      .catch(() => {
-        setError('Failed to load activity')
+      .catch((err) => {
+        console.warn('Failed to load activity:', err)
         setLoading(false)
       })
   }, [])
