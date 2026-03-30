@@ -167,17 +167,16 @@ else
   if [ "$INTERACTIVE" = true ]; then
     echo -e "  Choose an installation method:"
     echo ""
-    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended for getting started${NC}"
-    echo "     npm install -g openclaw"
+    echo -e "  ${BOLD}1)${NC} Homebrew (Maximilien-ai tap) ${GREEN}← recommended${NC}"
+    echo "     brew tap maximilien-ai/openclaw && brew install openclaw"
     echo ""
-    echo -e "  ${BOLD}2)${NC} Homebrew (OpenClaw community)"
-    echo "     brew install openclaw/tap/openclaw"
+    echo -e "  ${BOLD}2)${NC} npm global install"
+    echo "     npm install -g openclaw"
     echo ""
     echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
     echo ""
-    echo -e "  ${YELLOW}Note:${NC} This installs the current OpenClaw release. For production,"
-    echo "  we recommend tracking the upstream OpenClaw project directly:"
-    echo "  https://github.com/openclaw/openclaw"
+    echo -e "  ${YELLOW}Note:${NC} Tracks the upstream OpenClaw project (https://openclaw.ai)."
+    echo "  For production, we recommend staying current with upstream releases."
     echo ""
     echo -e "  Press ${BOLD}Enter${NC} for option 1 (recommended)"
     read -p "  Choice (1/2/3) [1]: " -n 1 -r; echo
@@ -185,25 +184,26 @@ else
     REPLY=${REPLY:-1}
     case $REPLY in
       1|"")
+        print_info "Installing OpenClaw via Homebrew..."
+        brew tap maximilien-ai/openclaw 2>&1 || true
+        if brew install openclaw 2>&1; then
+          hash -r 2>/dev/null || true
+          OPENCLAW_INSTALLED=true
+          print_success "OpenClaw installed via Homebrew"
+        else
+          print_warning "Homebrew install failed"
+          echo "  Try: brew tap maximilien-ai/openclaw && brew install openclaw"
+          echo "  Or: npm install -g openclaw"
+        fi
+        ;;
+      2)
         print_info "Installing OpenClaw via npm..."
         if npm install -g openclaw 2>&1; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed via npm"
         else
-          print_warning "npm install failed"
-          echo "  Try manually: npm install -g openclaw"
-          echo "  Or visit: https://docs.openclaw.ai"
-        fi
-        ;;
-      2)
-        print_info "Installing from OpenClaw community Homebrew..."
-        if brew install openclaw/tap/openclaw 2>&1; then
-          hash -r 2>/dev/null || true
-          OPENCLAW_INSTALLED=true
-          print_success "OpenClaw installed via Homebrew"
-        else
-          print_warning "Install failed — try: brew tap openclaw/tap && brew install openclaw"
+          print_warning "npm install failed — try: npm install -g openclaw"
         fi
         ;;
       *)
