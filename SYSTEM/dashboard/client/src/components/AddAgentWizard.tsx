@@ -270,6 +270,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     try {
       // When using AI Generate, let the AI suggest the name (don't send auto-generated "agent0" etc.)
       const isAutoName = /^agent\d+$/.test(form.name) || !form.name
+      const byok = readStoredByokKeys()
       const resp = await fetch('/api/agents/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -278,6 +279,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           name: isAutoName ? undefined : form.name,
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
+          byokKeys: (byok.openai || byok.anthropic) ? { openai: byok.openai, anthropic: byok.anthropic } : undefined,
         }),
       })
 
