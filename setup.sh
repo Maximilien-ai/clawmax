@@ -420,6 +420,7 @@ ENVEOF
 if [ "$DEV_MODE" = true ]; then
   cat >> "$ENV_FILE" << 'ENVEOF'
 BYPASS_OAUTH=true
+DASHBOARD_AUTH_DISABLED=true
 # ⚠ Dev mode: no login required. Do NOT use in production.
 ENVEOF
 else
