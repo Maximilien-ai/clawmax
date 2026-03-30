@@ -57,26 +57,77 @@ CLAWMAX_DIR="$(pwd)"
 
 print_header "1. Checking Prerequisites"
 
+# Helper: offer to install a missing dependency
+offer_install() {
+  local name="$1"
+  local brew_pkg="$2"
+  local url="$3"
+
+  if [ "$INTERACTIVE" = true ]; then
+    echo ""
+    echo "  ${BOLD}$name is required but not installed.${NC}"
+    echo ""
+    if command -v brew &> /dev/null && [ -n "$brew_pkg" ]; then
+      echo "  Press ${BOLD}Enter${NC} to install via Homebrew (brew install $brew_pkg)"
+      echo "  Press ${BOLD}s${NC} to skip and install manually"
+      echo "  Get it from: $url"
+      echo ""
+      read -p "  [Enter/s]: " -n 1 -r; echo
+      if [[ -z "$REPLY" || "$REPLY" == $'\n' ]]; then
+        print_info "Installing $name via Homebrew..."
+        if brew install "$brew_pkg"; then
+          print_success "$name installed"
+          return 0
+        else
+          print_error "Homebrew install failed"
+          return 1
+        fi
+      fi
+    else
+      echo "  Install from: $url"
+      echo "  Press ${BOLD}Enter${NC} after installing, or ${BOLD}s${NC} to skip"
+      read -p "  [Enter/s]: " -n 1 -r; echo
+      if [[ -z "$REPLY" || "$REPLY" == $'\n' ]]; then
+        # Check again after user says they installed
+        return 0
+      fi
+    fi
+    return 1
+  else
+    print_error "$name not found — install from $url"
+    return 1
+  fi
+}
+
 # Node.js
 if command -v node &> /dev/null; then
   NODE_VERSION=$(node --version)
   NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
   if [ "$NODE_MAJOR" -lt 18 ]; then
     print_error "Node.js 18+ required (found $NODE_VERSION)"
-    print_info "Install from: https://nodejs.org/"
+    if ! offer_install "Node.js 18+" "node" "https://nodejs.org/"; then
+      exit 1
+    fi
+  fi
+  print_success "Node.js: $(node --version)"
+else
+  if offer_install "Node.js" "node" "https://nodejs.org/"; then
+    if command -v node &> /dev/null; then
+      print_success "Node.js: $(node --version)"
+    else
+      print_error "Node.js still not found after install attempt"
+      exit 1
+    fi
+  else
     exit 1
   fi
-  print_success "Node.js: $NODE_VERSION"
-else
-  print_error "Node.js not found — install from https://nodejs.org/"
-  exit 1
 fi
 
-# npm
+# npm (comes with Node.js)
 if command -v npm &> /dev/null; then
   print_success "npm: v$(npm --version)"
 else
-  print_error "npm not found"
+  print_error "npm not found (should come with Node.js)"
   exit 1
 fi
 
@@ -84,8 +135,16 @@ fi
 if command -v git &> /dev/null; then
   print_success "git: v$(git --version | cut -d' ' -f3)"
 else
-  print_error "git not found — install from https://git-scm.com/"
-  exit 1
+  if offer_install "git" "git" "https://git-scm.com/"; then
+    if command -v git &> /dev/null; then
+      print_success "git: v$(git --version | cut -d' ' -f3)"
+    else
+      print_error "git still not found"
+      exit 1
+    fi
+  else
+    exit 1
+  fi
 fi
 
 echo ""
