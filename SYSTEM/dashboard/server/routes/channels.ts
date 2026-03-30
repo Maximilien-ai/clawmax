@@ -210,7 +210,14 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
 
         let responseText = ''
         if (jsonText && jsonText.startsWith('{')) {
-          const result = JSON.parse(jsonText)
+          // Sanitize control characters inside JSON string values (agent responses may have raw newlines)
+          const sanitized = jsonText.replace(/[\x00-\x1f\x7f]/g, (ch) => {
+            if (ch === '\n') return '\\n'
+            if (ch === '\r') return '\\r'
+            if (ch === '\t') return '\\t'
+            return ''
+          })
+          const result = JSON.parse(sanitized)
           const payloads = result?.payloads || result?.result?.payloads || []
           responseText = payloads
             .map((p: any) => p?.text || '')
