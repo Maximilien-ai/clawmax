@@ -28,6 +28,136 @@ if [ ! -t 0 ] || [ "$CI" = "true" ] || [ "$1" = "--non-interactive" ]; then
   INTERACTIVE=false
 fi
 
+# ============================================================================
+# Uninstall mode
+# ============================================================================
+
+if [ "$1" = "--uninstall" ] || [ "$1" = "uninstall" ]; then
+  echo -e "${CYAN}"
+  cat << "EOF"
+   ____ _               __  __
+  / ___| | __ ___      _|  \/  | __ ___  __
+ | |   | |/ _` \ \ /\ / / |\/| |/ _` \ \/ /
+ | |___| | (_| |\ V  V /| |  | | (_| |>  <
+  \____|_|\__,_| \_/\_/ |_|  |_|\__,_/_/\_\
+
+  Uninstaller
+EOF
+  echo -e "${NC}"
+  echo -e "${YELLOW}This will remove ClawMax and OpenClaw from your system.${NC}"
+  echo ""
+  echo "  The following will be removed:"
+  echo "    - OpenClaw CLI (npm global or Homebrew)"
+  echo "    - OpenClaw config & agent data (~/.openclaw/)"
+  echo "    - Dashboard dependencies (SYSTEM/dashboard/node_modules/)"
+  echo "    - Dashboard build artifacts (SYSTEM/dashboard/dist/)"
+  echo "    - Dashboard .env (SYSTEM/dashboard/.env)"
+  echo ""
+  echo -e "  ${BOLD}NOT removed:${NC}"
+  echo "    - This git repository (delete manually if desired)"
+  echo "    - Your workspace data (WORKSPACES/) — preserved for safety"
+  echo ""
+
+  if [ "$INTERACTIVE" = true ]; then
+    read -p "  Are you sure you want to uninstall? (yes/N): " CONFIRM
+    if [ "$CONFIRM" != "yes" ]; then
+      echo ""
+      print_info "Uninstall cancelled."
+      exit 0
+    fi
+  fi
+
+  echo ""
+  print_header "Stopping Dashboard"
+  if [ -f "SYSTEM/stop.sh" ]; then
+    bash SYSTEM/stop.sh 2>/dev/null || true
+    print_success "Dashboard stopped"
+  else
+    print_info "No stop script found, skipping"
+  fi
+
+  print_header "Removing OpenClaw CLI"
+  if command -v openclaw &> /dev/null; then
+    # Try npm uninstall first
+    if npm list -g openclaw &> /dev/null; then
+      npm uninstall -g openclaw 2>/dev/null && print_success "Removed openclaw (npm)" || print_warning "npm uninstall failed"
+    fi
+    # Try brew uninstall
+    if command -v brew &> /dev/null && brew list --formula maximilien-ai/openclaw/openclaw &> /dev/null 2>&1; then
+      brew uninstall maximilien-ai/openclaw/openclaw 2>/dev/null && print_success "Removed openclaw (Homebrew)" || print_warning "brew uninstall failed"
+    fi
+    # Verify removal
+    if command -v openclaw &> /dev/null; then
+      print_warning "openclaw still found at $(which openclaw) — remove manually"
+    fi
+  else
+    print_info "OpenClaw CLI not installed, skipping"
+  fi
+
+  print_header "Removing OpenClaw Data"
+  OPENCLAW_DIR="$HOME/.openclaw"
+  if [ -d "$OPENCLAW_DIR" ]; then
+    # Show what's there
+    AGENT_COUNT=$(ls -d "$OPENCLAW_DIR/agents/"*/ 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$AGENT_COUNT" -gt 0 ] && [ "$INTERACTIVE" = true ]; then
+      echo -e "  Found ${BOLD}$AGENT_COUNT agent(s)${NC} in ~/.openclaw/agents/"
+      read -p "  Remove agent session data too? (y/N): " -n 1 -r; echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm -rf "$OPENCLAW_DIR"
+        print_success "Removed ~/.openclaw/ (config + agent data)"
+      else
+        rm -f "$OPENCLAW_DIR/openclaw.json" "$OPENCLAW_DIR/openclaw.json.bak"
+        print_success "Removed openclaw config (kept agent data)"
+      fi
+    else
+      rm -rf "$OPENCLAW_DIR"
+      print_success "Removed ~/.openclaw/"
+    fi
+  else
+    print_info "No ~/.openclaw/ directory found"
+  fi
+
+  print_header "Cleaning Dashboard"
+  if [ -d "SYSTEM/dashboard/node_modules" ]; then
+    rm -rf SYSTEM/dashboard/node_modules
+    print_success "Removed node_modules/"
+  fi
+  if [ -d "SYSTEM/dashboard/dist" ]; then
+    rm -rf SYSTEM/dashboard/dist
+    print_success "Removed dist/"
+  fi
+  if [ -f "SYSTEM/dashboard/.env" ]; then
+    # Back up .env before removing (may have user's API keys)
+    cp SYSTEM/dashboard/.env SYSTEM/dashboard/.env.uninstall-backup
+    rm -f SYSTEM/dashboard/.env
+    print_success "Removed .env (backup saved as .env.uninstall-backup)"
+  fi
+  # Clean log files
+  rm -f /tmp/dashboard.log /tmp/ngrok.log 2>/dev/null
+  if [ -d "SYSTEM/dashboard/server/logs" ]; then
+    rm -rf SYSTEM/dashboard/server/logs
+    print_success "Removed server logs"
+  fi
+
+  # Remove Homebrew tap
+  if command -v brew &> /dev/null && brew tap | grep -q "maximilien-ai/openclaw"; then
+    brew untap maximilien-ai/openclaw 2>/dev/null && print_success "Removed Homebrew tap" || true
+  fi
+
+  echo ""
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}  Uninstall complete${NC}"
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "  Your workspace data in WORKSPACES/ has been preserved."
+  echo "  To fully remove ClawMax, delete this directory:"
+  echo -e "    ${BOLD}rm -rf $(pwd)${NC}"
+  echo ""
+  echo "  To reinstall later: git clone + ./setup.sh"
+  echo ""
+  exit 0
+fi
+
 # Welcome
 if [ -t 1 ] && [ -n "${TERM:-}" ]; then clear 2>/dev/null || true; fi
 echo -e "${CYAN}"
