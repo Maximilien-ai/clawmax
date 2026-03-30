@@ -84,9 +84,9 @@
 - [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
 - [ ] **DAG run/restart button** — green ▶ icon on each node in DAG view to start (if idle) or restart (if completed). Currently must use "Run Now" from detail panel
 - [ ] **DAG execution count per node** — show number of executions (runCount) on each workflow node in DAG view
-- [ ] **Workspace switching not refreshing data** — switching workspaces in the UI shows different name but agents/workflows/groups don't change. Need to reload all data on workspace switch
+- [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
 - [x] **DAG forest view** — stacked separate pipelines per connected component, "Pipeline N (X workflows)" headers
-- [ ] **DAG forest SVG lines cross pipelines** — connector lines are drawn globally so lines from Pipeline 1 bleed into Pipeline 2. Need SVG per pipeline or scoped line calculation
+- [x] **DAG forest SVG lines cross pipelines** — fixed: SVG scoped per pipeline with forestRefs
 - [ ] **DAG dependency labels overlap** — "Depends on: X" text on nodes can overlap with connector lines and other nodes. Consider moving to tooltip or smaller font
 
 ## Multimodal Frontier Hack — March 28 (immediate)
