@@ -18,6 +18,11 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     // OpenClaw needs these
     OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
     NODE_ENV: process.env.NODE_ENV,
+    // GitHub CLI auth (needed for agents with github/gh-issues skills)
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+    GH_TOKEN: process.env.GH_TOKEN,
+    // gh CLI config directory
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
   }
 
   return { ...base, ...extras }
