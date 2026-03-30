@@ -185,8 +185,10 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
 
     proc.on('close', (code: number) => {
       clearTimeout(timer)
-      if (code !== 0 && !stdout.trim() && !stderr.includes('"payloads"')) {
-        reject(new Error(`Agent command failed: ${stderr.slice(0, 200)}`))
+      console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
+      // Only reject if exit code is non-zero AND there's nothing parseable anywhere
+      if (code !== 0 && !stdout.trim() && !stderr.includes('{')) {
+        reject(new Error(`Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
         return
       }
 
