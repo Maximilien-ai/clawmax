@@ -596,6 +596,79 @@ router.post('/provision', (req, res) => {
   req.on('close', () => { cleanup() })
 })
 
+// POST /api/agents/doctor — register unregistered workspace agents with openclaw CLI
+router.post('/doctor', async (req, res) => {
+  const results: Array<{ id: string; status: string; message: string }> = []
+
+  // Check if openclaw CLI is available
+  let hasOpenclawCli = false
+  try {
+    require('child_process').execSync('which openclaw', { stdio: 'pipe' })
+    hasOpenclawCli = true
+  } catch {}
+
+  if (!hasOpenclawCli) {
+    res.status(400).json({ error: 'openclaw CLI not installed. Run: npm install -g openclaw' })
+    return
+  }
+
+  // Read registered agents from openclaw.json
+  const registeredIds = new Set<string>()
+  try {
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list || []
+    for (const agent of agentList) {
+      if (agent.id) registeredIds.add(agent.id)
+    }
+  } catch {}
+
+  // Scan workspace agents directory
+  const agentsDir = getAgentsDir()
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(agentsDir, { withFileTypes: true })
+  } catch {
+    res.json({ results, message: 'No agents directory found' })
+    return
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
+
+    const agentId = entry.name
+
+    if (registeredIds.has(agentId)) {
+      results.push({ id: agentId, status: 'ok', message: 'Already registered' })
+      continue
+    }
+
+    // Agent exists in workspace but not registered — fix it
+    const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
+    const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+
+    try {
+      fs.mkdirSync(agentDirArg, { recursive: true })
+      const { execSync } = require('child_process')
+      execSync(
+        `openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`,
+        { encoding: 'utf-8', stdio: 'pipe', timeout: 15000, env: safeEnv() }
+      )
+      results.push({ id: agentId, status: 'fixed', message: 'Registered with openclaw CLI' })
+    } catch (err: any) {
+      results.push({ id: agentId, status: 'error', message: err.message?.split('\n')[0] || 'Registration failed' })
+    }
+  }
+
+  const fixed = results.filter(r => r.status === 'fixed').length
+  const errors = results.filter(r => r.status === 'error').length
+  res.json({
+    results,
+    summary: `${results.length} agents checked, ${fixed} fixed, ${errors} errors`,
+  })
+})
+
 // POST /api/agents/bulk-impact — get impact summary for bulk delete
 router.post('/bulk-impact', (req, res) => {
   const { agents: agentsToDelete } = req.body as { agents?: Array<{ id: string; archived?: boolean }> }
