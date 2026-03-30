@@ -81,7 +81,7 @@
 - [ ] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
 - [x] **Activity page column sorting** — already implemented: clickable headers with sort indicators
 - [x] **Test skill: workspace-ls** — skill added to SKILLS/custom/ and system-test template
-- [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
+- [x] **Test: agent memory creation** — integration test verifies IDENTITY.md, skills, and memory file write/delete
 - [x] **DAG run/restart button** — ▶ to start, ↻ to re-run, hidden while running
 - [x] **DAG execution count per node** — "Nx" badge on each workflow node
 - [x] **Workspace switching not refreshing data** — fixed: getWorkspacePath() now checks workspace manager first, env var is fallback only
@@ -92,7 +92,7 @@
 
 ### Spec Team Issues (clawmax #52, #53)
 - [x] **#52 Template source drift** — regenerated TEMPLATE.md for engineering-team + small-startup-team
-- [ ] **#53 Align workflow IDs with WORKFLOW.md spec** — template workflows use legacy IDs (e.g., `kickoff`, `kb-updates`) not matching published spec requirement for slugified-name IDs. Need: `id` required in frontmatter, IDs match slugified name, sync to Maximilien-ai/workflows + templates repos
+- [x] **#53 Align workflow IDs with WORKFLOW.md spec** — template workflows use legacy IDs (e.g., `kickoff`, `kb-updates`) not matching published spec requirement for slugified-name IDs. Need: `id` required in frontmatter, IDs match slugified name, sync to Maximilien-ai/workflows + templates repos
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
