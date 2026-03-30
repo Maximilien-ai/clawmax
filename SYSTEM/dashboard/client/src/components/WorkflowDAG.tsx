@@ -123,8 +123,9 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
   const forests = useMemo(() => findForests(workflows), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const containerRef = useRef<HTMLDivElement>(null)
+  const forestRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>([])
+  const [linesByForest, setLinesByForest] = useState<Map<number, Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>>(new Map())
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
   const [lastAction, setLastAction] = useState<{ type: 'add' | 'remove'; fromId: string; toId: string } | null>(null)
   const [zoom, setZoom] = useState(1)
@@ -155,40 +156,40 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
     return () => document.removeEventListener('keydown', handleKey)
   }, [connectingFrom])
 
-  // Calculate SVG connector lines after render
+  // Calculate SVG connector lines per forest (scoped to each pipeline's container)
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
     const timer = setTimeout(() => {
-      const rect = container.getBoundingClientRect()
-      const newLines: typeof lines = []
+      const newMap = new Map<number, Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }>>()
 
-      const allEdges = forestLayouts.flatMap(f => f.edges)
-      for (const edge of allEdges) {
-        const fromEl = nodeRefs.current.get(edge.from)
-        const toEl = nodeRefs.current.get(edge.to)
-        if (!fromEl || !toEl) continue
+      forestLayouts.forEach((forest, forestIdx) => {
+        const forestEl = forestRefs.current.get(forestIdx)
+        if (!forestEl) return
+        const rect = forestEl.getBoundingClientRect()
+        const forestLines: Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string }> = []
 
-        const fromRect = fromEl.getBoundingClientRect()
-        const toRect = toEl.getBoundingClientRect()
+        for (const edge of forest.edges) {
+          const fromEl = nodeRefs.current.get(edge.from)
+          const toEl = nodeRefs.current.get(edge.to)
+          if (!fromEl || !toEl) continue
 
-        // Connect from right edge of source to left edge of target
-        // Add small gap so lines don't touch the node borders
-        const gap = 8
-        const toWf = workflows.find(w => w.id === edge.to)
-        newLines.push({
-          x1: fromRect.right - rect.left + gap,
-          y1: fromRect.top + fromRect.height / 2 - rect.top,
-          x2: toRect.left - rect.left - gap,
-          y2: toRect.top + toRect.height / 2 - rect.top,
-          status: toWf?.status || 'idle',
-          fromId: edge.from,
-          toId: edge.to,
-        })
-      }
+          const fromRect = fromEl.getBoundingClientRect()
+          const toRect = toEl.getBoundingClientRect()
+          const gap = 8
+          const toWf = workflows.find(w => w.id === edge.to)
+          forestLines.push({
+            x1: fromRect.right - rect.left + gap,
+            y1: fromRect.top + fromRect.height / 2 - rect.top,
+            x2: toRect.left - rect.left - gap,
+            y2: toRect.top + toRect.height / 2 - rect.top,
+            status: toWf?.status || 'idle',
+            fromId: edge.from,
+            toId: edge.to,
+          })
+        }
+        newMap.set(forestIdx, forestLines)
+      })
 
-      setLines(newLines)
+      setLinesByForest(newMap)
     }, 50)
 
     return () => clearTimeout(timer)
@@ -274,45 +275,6 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
         </div>
       )}
 
-      {/* SVG connector lines */}
-      <svg className="absolute inset-0 w-full h-full" style={{ minWidth: '100%', minHeight: '100%', pointerEvents: editable ? 'auto' : 'none', zIndex: editable ? 20 : 5 }}>
-        {lines.map((line, idx) => {
-          const midX = (line.x1 + line.x2) / 2
-          const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
-          return (
-            <g key={idx}>
-              <path
-                d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
-                fill="none"
-                stroke={color}
-                strokeWidth={2}
-                strokeDasharray={line.status === 'idle' ? '4 4' : undefined}
-              />
-              {/* Remove button on line midpoint */}
-              {editable && onRemoveDependency && (
-                <>
-                  <path
-                    d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth={12}
-                    style={{ cursor: 'pointer', pointerEvents: 'all' }}
-                    onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
-                  />
-                  <g
-                    style={{ cursor: 'pointer', pointerEvents: 'all' }}
-                    onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}
-                  >
-                    <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={10} fill="white" stroke="#ef4444" strokeWidth={1.5} className="dark:fill-gray-800" />
-                    <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={12} fill="#ef4444" fontWeight="bold">×</text>
-                  </g>
-                </>
-              )}
-            </g>
-          )
-        })}
-      </svg>
-
       {/* Forest of DAGs — each connected component rendered separately */}
       {forestLayouts.map((forest, forestIdx) => (
       <div key={forestIdx}>
@@ -323,6 +285,27 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
             </div>
           </div>
         )}
+      <div ref={el => { if (el) forestRefs.current.set(forestIdx, el) }} className="relative">
+        <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: editable ? 'auto' : 'none', zIndex: editable ? 20 : 5 }}>
+          {(linesByForest.get(forestIdx) || []).map((line, idx) => {
+            const midX = (line.x1 + line.x2) / 2
+            const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
+            return (
+              <g key={idx}>
+                <path d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`} fill="none" stroke={color} strokeWidth={2} strokeDasharray={line.status === 'idle' ? '4 4' : undefined} />
+                {editable && onRemoveDependency && (
+                  <>
+                    <path d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer', pointerEvents: 'all' }} onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }} />
+                    <g style={{ cursor: 'pointer', pointerEvents: 'all' }} onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}>
+                      <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={10} fill="white" stroke="#ef4444" strokeWidth={1.5} className="dark:fill-gray-800" />
+                      <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={12} fill="#ef4444" fontWeight="bold">×</text>
+                    </g>
+                  </>
+                )}
+              </g>
+            )
+          })}
+        </svg>
       <div className="flex gap-6 p-4 relative z-10" style={{ minHeight: 100 }}>
         {forest.lanes.map((lane, laneIdx) => (
           <div key={laneIdx} className="flex flex-col gap-3 min-w-[180px] justify-center">
@@ -441,6 +424,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
             })}
           </div>
         ))}
+      </div>
       </div>
       </div>
       ))}
