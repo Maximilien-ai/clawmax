@@ -10,6 +10,17 @@ import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../
 
 const router = Router()
 
+/** Extract JSON object from a string that may contain non-JSON prefixed lines (e.g. stderr warnings) */
+function extractJson(text: string): string {
+  // Find first { and last } to extract JSON from mixed output
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    return text.slice(start, end + 1)
+  }
+  return ''
+}
+
 /**
  * GET /api/agents/:id/gateway
  * Returns gateway connection info (port, token, availability)
@@ -163,11 +174,12 @@ router.post('/:id/chat', (req, res) => {
           console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
         }
 
-        // Try to parse --json output
+        // Try to parse --json output (may be in stdout or stderr depending on CLI version)
         let replied = false
-        if (fullOutput.trim()) {
+        const jsonCandidate = fullOutput.trim() || extractJson(stderrOutput)
+        if (jsonCandidate) {
           try {
-            const result = JSON.parse(fullOutput)
+            const result = JSON.parse(jsonCandidate)
             console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
             const payloads = result.result?.payloads || result.payloads || []
             const text = payloads.map((p: any) => p.text).join('\n') || ''
