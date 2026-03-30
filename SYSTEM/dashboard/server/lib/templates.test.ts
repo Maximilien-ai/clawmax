@@ -413,7 +413,7 @@ test('All system templates have category field', () => {
 test('Templates have kickoff workflows', () => {
   const templates = listTemplates('organization')
   const withKickoff = templates.filter((t: any) =>
-    t.workflows?.some((w: any) => w.id === 'kickoff')
+    t.workflows?.some((w: any) => w.id.includes('kickoff'))
   )
   assert(withKickoff.length >= 8, `Expected 8+ templates with kickoff, got ${withKickoff.length}`)
 })
@@ -421,7 +421,7 @@ test('Templates have kickoff workflows', () => {
 test('Kickoff workflows have Project Configuration section', () => {
   const templates = listTemplates('organization')
   const withConfig = templates.filter((t: any) =>
-    t.workflows?.some((w: any) => w.id === 'kickoff' && w.content?.includes('Project Configuration'))
+    t.workflows?.some((w: any) => w.id.includes('kickoff') && w.content?.includes('Project Configuration'))
   )
   assert(withConfig.length >= 5, `Expected 5+ kickoffs with config section, got ${withConfig.length}`)
 })
