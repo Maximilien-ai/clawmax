@@ -84,6 +84,8 @@
 - [ ] **Test: agent memory creation** — integration test that verifies an agent can create and persist memory files
 - [ ] **DAG run/restart button** — green ▶ icon on each node in DAG view to start (if idle) or restart (if completed). Currently must use "Run Now" from detail panel
 - [ ] **DAG execution count per node** — show number of executions (runCount) on each workflow node in DAG view
+- [ ] **Workspace switching not refreshing data** — switching workspaces in the UI shows different name but agents/workflows/groups don't change. Need to reload all data on workspace switch
+- [ ] **DAG forest view** — when multiple templates are applied to same workspace, show separate DAG trees stacked vertically instead of merging into one graph. Group workflows by their template source
 
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`

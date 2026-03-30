@@ -5,8 +5,8 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team templates, visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.20-green.svg)](https://github.com/Maximilien-ai/clawmax)
-[![Tests](https://img.shields.io/badge/tests-155%20passing-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.1.21-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.1.21)
+[![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
@@ -231,15 +231,18 @@ Detailed setup and troubleshooting:
 ## 📖 Documentation
 
 ### User Guides
-- **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Running tests and validation
+- **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Unit, API, integration, and manual testing
 - **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation
-- **[Workflows Guide](SYSTEM/docs/WORKFLOWS.md)** - Creating and managing workflows
 - **[Security Guide](SYSTEM/docs/SECURITY.md)** - Security best practices
 
 ### Developer Resources
 - **[System Documentation](SYSTEM/docs/README.md)** - Architecture and development
-- **[Known Issues](SYSTEM/docs/BUGS.md)** - Bug tracker and workarounds
-- **[Roadmap](SYSTEM/docs/ROADMAP.md)** - Future features and timeline
+- **[Known Issues](SYSTEM/docs/KNOWN_ISSUES.md)** - Active bugs and workarounds
+- **[Backlog](SYSTEM/docs/BACKLOG.md)** - Prioritized backlog and roadmap
+
+### Specifications
+- **[TEMPLATE.md Format](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)** - Template specification
+- **[WORKFLOW.md Format](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md)** - Workflow specification
 
 ### OpenClaw Integration
 - **[OpenClaw Docs](https://docs.openclaw.ai)** - Core platform documentation
@@ -250,29 +253,25 @@ Detailed setup and troubleshooting:
 
 ## 🧪 Testing
 
-ClawMax includes a comprehensive test suite covering all major features:
+ClawMax includes 212+ tests across unit, API, and integration suites:
 
 ```bash
-# Run all tests (92 tests)
+# Unit + API tests (134 tests, fast, no LLM cost)
 ./SYSTEM/test.sh
 
-# Run with validation tests (modifies files, use with caution)
-./SYSTEM/test.sh --with-validation
+# + Integration tests with live agents (~$0.03, requires keys)
+./SYSTEM/test.sh integration
 
 # Check dashboard status
 ./SYSTEM/status.sh
-
-# View logs
-tail -f /tmp/dashboard.log
 ```
 
-**Test Coverage:**
-- ✅ TypeScript compilation
-- ✅ API endpoints (Health, Agents, Skills, Workflows)
-- ✅ Skills assignment and validation
-- ✅ Workflow CRUD operations
-- ✅ Gateway RPC compatibility
-- ✅ Document search and indexing
+**Test Suites:**
+- 78 unit tests (notifications, workflows, validator, templates, skills, and more)
+- 134 API tests (26 sections covering all endpoints)
+- Integration tests with ClawMax System Test template (live agent DAG execution)
+
+See **[TESTING_GUIDE.md](SYSTEM/docs/TESTING_GUIDE.md)** for full details.
 
 ---
 
@@ -360,24 +359,17 @@ ClawMax follows security best practices:
 
 ## 🐛 Known Issues
 
-Current known limitations include:
-
-1. **Legacy Agent Compatibility** - Agents created before v1.0.0 may show "missing module" errors. **Workaround**: Delete and recreate from templates.
-
-2. **Empty Workspace Skills Page** - When workspace has no agents, Skills page may show loading state. **Workaround**: Create at least one agent first.
-
-3. **Gateway RPC Test** - Advanced integration test may fail if agent not in global OpenClaw config. This is expected for workspace-only agents.
-
-**For full issue list and workarounds**, see [BUGS.md](SYSTEM/docs/BUGS.md).
+See **[KNOWN_ISSUES.md](SYSTEM/docs/KNOWN_ISSUES.md)** for active issues and workarounds.
 
 ---
+
 ## 🗺️ Roadmap
 
-- **Now** - workflow scale UX, bulk agent pause, workshop readiness, and issue cleanup
-- **Next** - secure multi-user BYOK storage, forward-to-group, and workflow cron reliability
-- **Later** - richer templates, community rules, and packaging for cloud/on-prem deployments
+- **Now** — Workflow v2 polish (DAG run buttons, per-workspace budget, cron cascade)
+- **Next** — Agent-to-agent messaging, community rules, workflow DAG visualization improvements
+- **Later** — Secure multi-user BYOK storage, cloud/on-prem packaging, public template registry
 
-**For detailed roadmap**, see [ROADMAP.md](SYSTEM/docs/ROADMAP.md).
+**Full backlog**: [BACKLOG.md](SYSTEM/docs/BACKLOG.md)
 
 ---
 
@@ -438,21 +430,23 @@ copies or substantial portions of the Software.
 
 ### Commercial Support
 
-ClawMax offers two tiers of support:
+Visit **[ClawMax.ai](https://clawmax.ai)** for commercial offerings:
 
-**Cloud Tier**
-- Hosted dashboard solution
-- 3 months support (renewable)
-- Built-in system agents
-- Expanded template library
+**ClawMax Cloud**
+- Fully managed multiagent orchestration platform
+- Deploy teams from 15+ templates in minutes
+- Built-in workflow DAG visualization and monitoring
+- Shipables.dev skill marketplace integration
+- No infrastructure to manage
 
-**On-Premise Tier**
-- Self-hosted installation
-- 1 year support (renewable)
-- Custom agent templates
-- Priority support response
+**ClawMax Enterprise**
+- Self-hosted on your infrastructure
+- Custom agent templates and workflows
+- Priority support and SLA
+- SSO/SAML authentication
+- Dedicated success manager
 
-For pricing and inquiries: contact@clawmax.ai
+For pricing and inquiries: **contact@clawmax.ai** | **[clawmax.ai](https://clawmax.ai)**
 
 ---
 
