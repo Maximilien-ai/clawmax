@@ -98,9 +98,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
         // Pick best model based on configured keys
         if (models.length > 0) {
-          // Use server-recommended model from auth config
+          // Check BYOK preference first, then server recommendation
+          const byokPreferred = readStoredByokKeys().preferredModel
           fetch('/api/auth/config').then(r => r.json()).then(cfg => {
-            const recommended = cfg.recommendedModel
+            const recommended = byokPreferred || cfg.recommendedModel
             if (recommended && models.includes(recommended)) {
               setForm(f => ({ ...f, model: recommended }))
             } else {
@@ -678,7 +679,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               </button>
 
               {genError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{genError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{genError}</div>
               )}
 
               {generatedFiles && (

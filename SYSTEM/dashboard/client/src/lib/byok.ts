@@ -7,6 +7,7 @@ export interface StoredByokKeys {
   opikApiKey?: string
   opikWorkspace?: string
   opikProject?: string
+  preferredModel?: string
 }
 
 export function getByokStorageKey() {

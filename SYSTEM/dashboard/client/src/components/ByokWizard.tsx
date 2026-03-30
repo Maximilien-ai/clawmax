@@ -20,6 +20,7 @@ export function ByokWizard() {
   const [opikApiKey, setOpikApiKey] = useState('')
   const [opikWorkspace, setOpikWorkspace] = useState('')
   const [opikProject, setOpikProject] = useState('')
+  const [preferredModel, setPreferredModel] = useState('')
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
@@ -30,6 +31,7 @@ export function ByokWizard() {
     setOpikApiKey(stored.opikApiKey || '')
     setOpikWorkspace(stored.opikWorkspace || '')
     setOpikProject(stored.opikProject || '')
+    setPreferredModel(stored.preferredModel || '')
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
     setHydrated(true)
   }, [])
@@ -77,6 +79,7 @@ export function ByokWizard() {
       opikApiKey: opikApiKey.trim(),
       opikWorkspace: opikWorkspace.trim(),
       opikProject: opikProject.trim(),
+      preferredModel: preferredModel || undefined,
     })
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
@@ -180,6 +183,36 @@ export function ByokWizard() {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
+
+                  {/* Preferred model */}
+                  {(openaiKey || anthropicKey || config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic) && (
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Preferred model for new agents
+                      </label>
+                      <select
+                        value={preferredModel}
+                        onChange={(e) => setPreferredModel(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      >
+                        <option value="">Auto (best for configured keys)</option>
+                        {(anthropicKey || config?.systemKeyDefaults?.anthropic) && (
+                          <>
+                            <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
+                            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
+                          </>
+                        )}
+                        {(openaiKey || config?.systemKeyDefaults?.openai) && (
+                          <>
+                            <option value="openai/gpt-5">GPT-5 (latest)</option>
+                            <option value="openai/gpt-4o">GPT-4o (balanced)</option>
+                            <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                          </>
+                        )}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
