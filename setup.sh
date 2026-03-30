@@ -165,32 +165,39 @@ else
   echo ""
 
   if [ "$INTERACTIVE" = true ]; then
-    echo "  Choose an installation source:"
+    echo -e "  Choose an installation source:"
     echo ""
-    echo "  ${BOLD}1)${NC} Maximilien-ai fork (tested with ClawMax v1.1.21)"
-    echo "     brew install maximilien-ai/openclaw/openclaw"
+    echo -e "  ${BOLD}1)${NC} Maximilien-ai fork (tested with ClawMax v1.1.21) ${GREEN}← recommended${NC}"
+    echo "     brew install maximilien-ai/homebrew-openclaw/openclaw"
     echo ""
-    echo "  ${BOLD}2)${NC} OpenClaw community (latest release — may have compatibility issues)"
+    echo -e "  ${BOLD}2)${NC} OpenClaw community (latest release — may have compatibility issues)"
     echo "     brew install openclaw/tap/openclaw"
-    echo "     If issues arise, please submit at: https://github.com/Maximilien-ai/clawmax/issues"
     echo ""
-    echo "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
+    echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
     echo ""
-    read -p "  Choice (1/2/3): " -n 1 -r; echo
+    echo -e "  Press ${BOLD}Enter${NC} for option 1 (recommended)"
+    read -p "  Choice (1/2/3) [1]: " -n 1 -r; echo
 
+    REPLY=${REPLY:-1}
     case $REPLY in
-      1)
+      1|"")
         print_info "Installing from Maximilien-ai fork..."
-        if brew install maximilien-ai/openclaw/openclaw 2>/dev/null; then
+        brew tap maximilien-ai/homebrew-openclaw 2>/dev/null || true
+        if brew install maximilien-ai/homebrew-openclaw/openclaw 2>&1; then
+          hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed from Maximilien-ai fork"
         else
-          print_warning "Homebrew install failed — try manually: brew tap maximilien-ai/openclaw && brew install openclaw"
+          print_warning "Homebrew install failed"
+          echo "  Try manually:"
+          echo "    brew tap maximilien-ai/homebrew-openclaw"
+          echo "    brew install openclaw"
         fi
         ;;
       2)
         print_info "Installing from OpenClaw community..."
-        if brew install openclaw/tap/openclaw 2>/dev/null; then
+        if brew install openclaw/tap/openclaw 2>&1; then
+          hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw installed from community"
           print_warning "Community version may have compatibility differences — test carefully"
