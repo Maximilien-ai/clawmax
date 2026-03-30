@@ -590,13 +590,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 }
 
                 const setFieldValue = (label: string, value: string) => {
-                  let content = currentContent
-                  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                  const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
-                  if (lineRegex.test(content)) {
-                    content = content.replace(lineRegex, `$1 ${value}`)
-                  }
-                  setWorkflowOverrides(prev => ({ ...prev, [wf.id]: content }))
+                  setWorkflowOverrides(prev => {
+                    let content = typeof (prev[wf.id] ?? wf.content) === 'string'
+                      ? (prev[wf.id] ?? wf.content) : ''
+                    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    // Match the line with either a [placeholder] value or a plain value
+                    const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
+                    if (lineRegex.test(content)) {
+                      content = content.replace(lineRegex, `$1 ${value || '[...]'}`)
+                    }
+                    return { ...prev, [wf.id]: content }
+                  })
                 }
 
                 return (
