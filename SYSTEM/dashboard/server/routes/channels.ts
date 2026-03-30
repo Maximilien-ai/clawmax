@@ -191,55 +191,66 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
       try {
         // CLI may output JSON to stdout or stderr (with warning lines); try both
         let jsonText = stdout.trim()
-        if (!jsonText) {
+        if (!jsonText || !jsonText.startsWith('{')) {
+          // Try extracting JSON from stderr (CLI may mix warnings with JSON)
           const start = stderr.indexOf('{')
           const end = stderr.lastIndexOf('}')
           if (start >= 0 && end > start) jsonText = stderr.slice(start, end + 1)
         }
-        const result = JSON.parse(jsonText || '{}')
-        const payloads = result?.payloads || result?.result?.payloads || []
-        // Collect text from ALL payloads (not just first)
-        const responseText = payloads
-          .map((p: any) => p?.text || '')
-          .filter((t: string) => t.trim())
-          .join('\n\n')
-        if (!responseText) {
-          console.log(`[callAgent] ${agentId}: empty text from ${payloads.length} payloads, stdout=${stdout.slice(0, 200)}`)
-        } else {
-          // Trace to Opik
-          const meta = result?.result?.meta || result?.meta || {}
-          const agentMeta = meta.agentMeta || {}
-          traceAgentChat(agentId, message, responseText, {
-            model: agentMeta.model,
-            provider: agentMeta.provider,
-            inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
-            outputTokens: agentMeta.usage?.output,
-            cacheReadTokens: agentMeta.usage?.cacheRead,
-            durationMs: meta.durationMs,
-          })
+        // Also try extracting JSON from stdout if it has non-JSON prefix lines
+        if (jsonText && !jsonText.startsWith('{')) {
+          const start = jsonText.indexOf('{')
+          const end = jsonText.lastIndexOf('}')
+          if (start >= 0 && end > start) jsonText = jsonText.slice(start, end + 1)
         }
-        const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
 
-        // Save session mapping if we got one
-        if (actualSessionId) {
-          try {
-            const HOME = process.env.HOME || ''
-            const sessionsPath = path.join(HOME, '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
-            let sessions: Record<string, any> = {}
-            if (fs.existsSync(sessionsPath)) {
-              sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-            }
-            sessions[_sessionId] = { sessionId: actualSessionId, updatedAt: Date.now() }
-            fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
-            fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
-          } catch (e) {
-            console.error('Failed to update sessions.json:', e)
+        console.log(`[callAgent] ${agentId}: stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
+
+        let responseText = ''
+        if (jsonText && jsonText.startsWith('{')) {
+          const result = JSON.parse(jsonText)
+          const payloads = result?.payloads || result?.result?.payloads || []
+          responseText = payloads
+            .map((p: any) => p?.text || '')
+            .filter((t: string) => t.trim())
+            .join('\n\n')
+
+          if (responseText) {
+            const meta = result?.result?.meta || result?.meta || {}
+            const agentMeta = meta.agentMeta || {}
+            traceAgentChat(agentId, message, responseText, {
+              model: agentMeta.model,
+              provider: agentMeta.provider,
+              inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
+              outputTokens: agentMeta.usage?.output,
+              cacheReadTokens: agentMeta.usage?.cacheRead,
+              durationMs: meta.durationMs,
+            })
           }
+          const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
+          if (actualSessionId) {
+            try {
+              const sessPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
+              fs.mkdirSync(sessPath, { recursive: true })
+            } catch {}
+          }
+        } else if (stdout.trim()) {
+          // Gateway mode may return plain text without --json wrapper
+          responseText = stdout.trim()
+        }
+        if (!responseText) {
+          console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
         }
 
         resolve(responseText)
-      } catch {
-        reject(new Error(`Invalid JSON from agent: ${stdout}`))
+      } catch (parseErr) {
+        console.error(`[callAgent] ${agentId}: parse error:`, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
+        // If we have any stdout text at all, return it as-is rather than failing
+        if (stdout.trim()) {
+          resolve(stdout.trim())
+        } else {
+          reject(new Error(`Invalid JSON from agent: ${(stdout || stderr).slice(0, 200)}`))
+        }
       }
     })
 
