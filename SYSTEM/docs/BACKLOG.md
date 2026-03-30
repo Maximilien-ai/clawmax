@@ -90,6 +90,10 @@
 - [x] **DAG dependency labels overlap** — removed redundant text, lines show deps visually
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
+### Spec Team Issues (clawmax #52, #53)
+- [ ] **#52 Template source drift** — engineering-team and small-startup-team TEMPLATE.md missing kickoff workflows that exist in template.json. Regenerate TEMPLATE.md from JSON for both
+- [ ] **#53 Align workflow IDs with WORKFLOW.md spec** — template workflows use legacy IDs (e.g., `kickoff`, `kb-updates`) not matching published spec requirement for slugified-name IDs. Need: `id` required in frontmatter, IDs match slugified name, sync to Maximilien-ai/workflows + templates repos
+
 ## Multimodal Frontier Hack — March 28 (immediate)
 > Plan: `docs/hacks/multimodal-frontier-hack-mar28/PLAN.md`
 
