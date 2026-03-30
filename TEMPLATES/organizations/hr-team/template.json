@@ -122,7 +122,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the HR team and assess open roles",
       "schedule": "manual",
@@ -161,7 +161,7 @@
       },
       "content": "# Daily Job Posting Review\n\n1. Recruiters: check application volume for each open role\n2. Flag postings with low application rates \u2014 suggest description improvements\n3. Review any new applications received since yesterday\n4. HR lead: approve or adjust job posting priorities\n5. Update recruiting pipeline metrics in Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -205,7 +205,7 @@
       },
       "content": "# New Hire Onboarding\n\n1. Create personalized onboarding plan with 30/60/90 day milestones\n2. Schedule orientation sessions (team intros, tools setup, culture overview)\n3. Set up access to required systems and documentation\n4. Assign an onboarding buddy from the relevant team\n5. Schedule check-ins at day 7, 30, 60, and 90 \u2014 track progress in Onboarding group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     }

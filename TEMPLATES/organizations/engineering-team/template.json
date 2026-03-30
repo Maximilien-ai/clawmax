@@ -132,7 +132,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the engineering team",
       "schedule": "manual",
@@ -168,7 +168,7 @@
       },
       "content": "# Engineering Daily Standup\n\nProvide your update:\n\n### Yesterday\n- Code completed or PRs merged\n\n### Today\n- Tasks in progress\n\n### Blockers\n- Anything blocking your work?",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -189,7 +189,7 @@
       },
       "content": "# Code Review Reminder\n\nPlease review pending pull requests:\n\n1. Check your assigned PRs\n2. Prioritize PRs blocking others\n3. Provide constructive feedback\n4. Approve or request changes",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -210,7 +210,7 @@
       },
       "content": "# PR Review Workflow\n\n## Tasks\n1. Check for open pull requests on the repository\n2. Review code changes for quality and correctness\n3. Verify tests pass and coverage is adequate\n4. Check for TypeScript errors and style issues\n5. Provide feedback or approve the PR\n\n## Output\n- GitHub review comment (approve or request changes)\n- Test results summary",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -231,7 +231,7 @@
       },
       "content": "# Release Preparation Checklist\n\n## Pre-Release Tasks\n\n1. **Code Freeze**: Are all features merged?\n2. **Testing**: QA sign-off complete?\n3. **Documentation**: Release notes updated?\n4. **Infrastructure**: Deployment plan ready?\n5. **Rollback**: Rollback plan documented?\n\nProvide status on each item.",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     }

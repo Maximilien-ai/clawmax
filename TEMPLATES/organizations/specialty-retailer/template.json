@@ -128,7 +128,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the store team and set business priorities",
       "schedule": "manual",
@@ -167,7 +167,7 @@
       },
       "content": "# Weekly Product Curation\n\n1. Buyer: review new product submissions and supplier catalogs\n2. Evaluate each product against brand fit, margin targets, and customer demand\n3. Owner: approve or reject proposed additions to the catalog\n4. Update product database with new items and discontinuations\n5. Post catalog changes summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -188,7 +188,7 @@
       },
       "content": "# Daily Pricing Review\n\n1. Check competitor pricing for key products\n2. Calculate current margins against target thresholds\n3. Flag items below minimum margin or significantly above market\n4. Recommend price adjustments with justification\n5. Post pricing summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
@@ -211,7 +211,7 @@
       },
       "content": "# Customer Follow-up Cycle\n\n1. Check for pending customer inquiries and respond within SLA\n2. Process any return or exchange requests\n3. Review recent customer feedback for product or service issues\n4. Update FAQ if common questions are emerging\n5. Flag any escalations to the owner",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     }

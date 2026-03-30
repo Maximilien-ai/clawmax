@@ -140,7 +140,7 @@
   ],
   "workflows": [
     {
-      "id": "kickoff",
+      "id": "team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the data team and assess current infrastructure",
       "schedule": "manual",
@@ -179,12 +179,12 @@
       },
       "content": "# Pipeline Monitoring\n\n1. Check all scheduled ETL/ELT job statuses\n2. Flag any failed or stalled pipelines with error details\n3. Verify data freshness \u2014 check latest timestamps in key tables\n4. For failures: notify the responsible data engineer and log incident\n5. Post pipeline health summary to Status group",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
     {
-      "id": "data-quality",
+      "id": "data-quality-check",
       "name": "Data Quality Check",
       "description": "Daily data quality validation and anomaly detection",
       "schedule": "0 8 * * *",
@@ -201,12 +201,12 @@
       },
       "content": "# Daily Data Quality Check\n\n1. Run schema validation on all ingested tables\n2. Check for null rates, duplicate keys, and referential integrity\n3. Compare row counts against expected ranges (detect drops or spikes)\n4. Run statistical anomaly detection on key business metrics\n5. Post quality scorecard to Status group \u2014 flag any violations",
       "dependsOn": [
-        "kickoff"
+        "team-kickoff"
       ],
       "type": "recurring"
     },
     {
-      "id": "model-eval",
+      "id": "model-evaluation",
       "name": "Model Evaluation",
       "description": "Weekly ML model performance review",
       "schedule": "0 14 * * 5",
@@ -225,7 +225,7 @@
       "content": "# Weekly Model Evaluation\n\n1. Pull inference metrics for all deployed models (accuracy, latency, error rate)\n2. Compare current performance against baseline and SLA thresholds\n3. Check for data drift \u2014 distribution shifts in input features\n4. Recommend retraining if metrics degraded beyond threshold\n5. Post model performance report to Status group with trend charts",
       "dependsOn": [
         "pipeline-monitoring",
-        "data-quality"
+        "data-quality-check"
       ],
       "type": "recurring"
     }

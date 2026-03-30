@@ -1910,7 +1910,7 @@ echo ""
 echo -e "${YELLOW}→ Testing workflow DAG execution...${NC}"
 
 # Enable all workflows
-for wf_id in test-kickoff test-sequential test-parallel-a test-parallel-b test-final; do
+for wf_id in test-kickoff test-sequential-step test-parallel-a test-parallel-b test-final; do
   apicurl -X PUT "$API_BASE/api/workflows/$wf_id" \
     -H 'Content-Type: application/json' -d '{"enabled":true}' > /dev/null 2>&1
 done
@@ -1998,10 +1998,54 @@ else
   warn "Workflow complete API issue"
 fi
 
+# Step 12: Test agent file/memory access
+echo ""
+echo -e "${YELLOW}→ Testing agent workspace access...${NC}"
+
+# Verify agent IDENTITY.md files were created
+ws_path=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
+if [ -n "$ws_path" ] && [ -f "$ws_path/AGENTS/test-lead/IDENTITY.md" ]; then
+  pass "Agent IDENTITY.md exists on disk"
+  # Verify content has expected fields
+  if grep -q "Test Lead" "$ws_path/AGENTS/test-lead/IDENTITY.md" 2>/dev/null; then
+    pass "Agent identity has correct name"
+  else
+    warn "Agent identity content unexpected"
+  fi
+else
+  warn "Could not verify agent files on disk"
+fi
+
+# Test workspace-ls skill is assigned
+skill_check=$(apicurl "$API_BASE/api/skills/agent/test-lead" 2>/dev/null)
+if echo "$skill_check" | jq -e '.skillIds' > /dev/null 2>&1; then
+  if echo "$skill_check" | jq -r '.skillIds[]' 2>/dev/null | grep -q "workspace-ls"; then
+    pass "workspace-ls skill assigned to test-lead"
+  else
+    warn "workspace-ls skill not found on test-lead"
+  fi
+else
+  warn "Could not check agent skills"
+fi
+
+# Test writing a memory file (simulate agent memory)
+if [ -n "$ws_path" ] && [ -d "$ws_path/AGENTS/test-lead" ]; then
+  mkdir -p "$ws_path/AGENTS/test-lead"
+  echo "# Test Memory\nCreated by integration test at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ws_path/AGENTS/test-lead/TEST_MEMORY.md"
+  if [ -f "$ws_path/AGENTS/test-lead/TEST_MEMORY.md" ]; then
+    pass "Agent memory file created successfully"
+    rm -f "$ws_path/AGENTS/test-lead/TEST_MEMORY.md"
+  else
+    fail "Failed to create agent memory file"
+  fi
+else
+  warn "Could not test memory creation (workspace path unknown)"
+fi
+
 # Cost estimation
 INTEGRATION_END=$(date +%s)
 INTEGRATION_DURATION=$((INTEGRATION_END - INTEGRATION_START))
-# Step 12: Cleanup — delete test agents and workflows
+# Step 13: Cleanup — delete test agents and workflows
 echo ""
 echo -e "${YELLOW}→ Cleaning up system-test workspace...${NC}"
 for wf_id in $(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null); do

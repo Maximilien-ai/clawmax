@@ -73,7 +73,7 @@
   ],
   "workflows": [
     {
-      "id": "test-status-check",
+      "id": "status-check",
       "name": "Status Check",
       "description": "Agents report status every 5 minutes (limited to 5 runs)",
       "schedule": "*/5 * * * *",
