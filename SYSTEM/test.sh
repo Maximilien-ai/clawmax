@@ -1630,6 +1630,150 @@ else
   warn "Workflow import-md: $error_msg"
 fi
 
+# =========================================
+# Section 27: Workspace Switching
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "27. Workspace Switching"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Get current workspace
+current_ws=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
+if [ -n "$current_ws" ]; then
+  pass "Current workspace detected: $(basename "$current_ws")"
+else
+  fail "Could not detect current workspace"
+fi
+
+# List workspaces
+ws_list=$(apicurl "$API_BASE/api/workspaces")
+ws_count=$(echo "$ws_list" | jq '.workspaces | length' 2>/dev/null)
+if [ "$ws_count" -ge "1" ] 2>/dev/null; then
+  pass "Workspaces listed ($ws_count workspaces)"
+else
+  warn "No workspaces found"
+fi
+
+# Get active workspace
+active_ws=$(apicurl "$API_BASE/api/workspaces/active")
+if echo "$active_ws" | jq -e '.workspace.id' > /dev/null 2>&1; then
+  pass "Active workspace endpoint works"
+else
+  warn "Active workspace endpoint returned unexpected format"
+fi
+
+# =========================================
+# Section 28: Workflow DAG API
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "28. Workflow DAG API"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Create two workflows with dependency for DAG test
+dag_wf1=$(apicurl -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"DAG Test Step 1","description":"First step","schedule":"manual","content":"Step 1","executionMode":"automated","type":"once","targeting":{"agents":[],"groups":[],"tags":[],"communities":[]}}')
+dag_wf1_id=$(echo "$dag_wf1" | jq -r '.id // empty')
+
+dag_wf2=$(apicurl -X POST "$API_BASE/api/workflows" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"DAG Test Step 2\",\"description\":\"Second step\",\"schedule\":\"manual\",\"content\":\"Step 2\",\"executionMode\":\"automated\",\"type\":\"recurring\",\"dependsOn\":[\"$dag_wf1_id\"],\"targeting\":{\"agents\":[],\"groups\":[],\"tags\":[],\"communities\":[]}}")
+dag_wf2_id=$(echo "$dag_wf2" | jq -r '.id // empty')
+
+if [ -n "$dag_wf1_id" ] && [ -n "$dag_wf2_id" ]; then
+  pass "Created DAG test workflows ($dag_wf1_id → $dag_wf2_id)"
+
+  # Verify dependency persisted
+  dag_check=$(apicurl "$API_BASE/api/workflows/$dag_wf2_id")
+  dag_deps=$(echo "$dag_check" | jq -r '.dependsOn[0] // empty')
+  if [ "$dag_deps" = "$dag_wf1_id" ]; then
+    pass "DAG dependency persisted correctly"
+  else
+    fail "DAG dependency not persisted (got: $dag_deps)"
+  fi
+
+  # Test DAG status endpoint
+  dag_status=$(apicurl "$API_BASE/api/workflows/dag")
+  if echo "$dag_status" | jq -e '.ok == true' > /dev/null 2>&1; then
+    dag_count=$(echo "$dag_status" | jq '.dag | length')
+    pass "DAG status endpoint works ($dag_count workflows)"
+  else
+    fail "DAG status endpoint failed"
+  fi
+
+  # Test complete + cascade
+  complete_result=$(apicurl -X POST "$API_BASE/api/workflows/$dag_wf1_id/complete")
+  if echo "$complete_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+    ready=$(echo "$complete_result" | jq '.readyToRun | length')
+    pass "DAG complete + cascade works ($ready ready)"
+  else
+    fail "DAG complete failed"
+  fi
+
+  # Verify step 1 is completed
+  step1_status=$(apicurl "$API_BASE/api/workflows/$dag_wf1_id" | jq -r '.status // "unknown"')
+  if [ "$step1_status" = "completed" ]; then
+    pass "Completed workflow has status=completed"
+  else
+    fail "Expected completed, got $step1_status"
+  fi
+
+  # Test workflow trigger (for DAG run button)
+  trigger_result=$(apicurl -X POST "$API_BASE/api/workflows/$dag_wf2_id/trigger" \
+    -H 'Content-Type: application/json' \
+    -d '{"manual":true}')
+  if echo "$trigger_result" | jq -e '.executionId' > /dev/null 2>&1; then
+    pass "Workflow trigger from DAG works"
+  else
+    # May fail without execution keys — that's ok
+    warn "Workflow trigger: $(echo "$trigger_result" | jq -r '.error // "no keys"')"
+  fi
+
+  # Clean up
+  apicurl -X DELETE "$API_BASE/api/workflows/$dag_wf1_id" > /dev/null 2>&1
+  apicurl -X DELETE "$API_BASE/api/workflows/$dag_wf2_id" > /dev/null 2>&1
+  apicurl -X POST "$API_BASE/api/notifications/dismiss-all" > /dev/null 2>&1
+else
+  warn "Could not create DAG test workflows"
+fi
+
+# =========================================
+# Section 29: Budget Block Notification
+# =========================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "29. Budget & Template Validation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Test reserved template names (via import-md which calls saveTemplate)
+reserved_result=$(apicurl -X POST "$API_BASE/api/templates/import-md" \
+  -H 'Content-Type: application/json' \
+  -d "{\"content\":\"---\\nname: ClawMax System Test\\ntype: organization\\nversion: \\\"1.0.0\\\"\\n---\\n\\n## Agents\\n\\n| id | name | role | tags | skills |\\n|----|------|------|------|--------|\\n| x | X | X | | |\\n\"}")
+if echo "$reserved_result" | jq -e '.error' > /dev/null 2>&1; then
+  error_msg=$(echo "$reserved_result" | jq -r '.error')
+  if echo "$error_msg" | grep -qi "reserved"; then
+    pass "Reserved template name rejected"
+  else
+    pass "Template save correctly rejected ($error_msg)"
+  fi
+else
+  fail "Reserved template name should be rejected"
+fi
+
+# Test template cross-validation on import
+import_bad=$(apicurl -X POST "$API_BASE/api/templates/import-md" \
+  -H 'Content-Type: application/json' \
+  -d "{\"content\":\"---\\nname: Cross Val Test\\ntype: organization\\nversion: \\\"1.0.0\\\"\\n---\\n\\n## Agents\\n\\n| id | name | role | tags | skills |\\n|----|------|------|------|--------|\\n| a1 | Agent 1 | Tester | test | |\\n\"}")
+if echo "$import_bad" | jq -e '.ok == true' > /dev/null 2>&1; then
+  pass "Template import with cross-validation works"
+  # Clean up
+  apicurl -X DELETE "$API_BASE/api/templates/organizations/cross-val-test" > /dev/null 2>&1
+else
+  warn "Template import-md: $(echo "$import_bad" | jq -r '.error // "unknown"')"
+fi
+
 echo ""
 
 # =========================================
