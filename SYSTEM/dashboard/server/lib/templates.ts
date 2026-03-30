@@ -1265,7 +1265,8 @@ export function importOrganizationTemplate(
       for (const templateAgent of agentsToCreate) {
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
-        const appliedModel = options?.modelOverride || templateAgent.model
+        const { getBestAvailableModel: getBest } = require('./dashboard-env')
+        const appliedModel = options?.modelOverride || templateAgent.model || getBest()
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
