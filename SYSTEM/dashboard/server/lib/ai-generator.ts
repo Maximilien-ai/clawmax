@@ -1,17 +1,21 @@
 import OpenAI from 'openai'
-import { resolveSystemExecutionProviderKeys } from './dashboard-env'
+import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
 
 type AIProvider = 'openai' | 'anthropic'
 
-function getAvailableProvider(): { provider: AIProvider; key: string } {
+function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; key: string } {
+  // Try BYOK keys first (passed from client request)
+  if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
+  if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
+  // Then system/user-default keys
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
   throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, or provide a BYOK key.')
 }
 
-function getAIClient(): { client: OpenAI; model: string } {
-  const { provider, key } = getAvailableProvider()
+function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
+  const { provider, key } = getAvailableProvider(byokKeys)
   if (provider === 'anthropic') {
     // Use Anthropic's OpenAI-compatible endpoint
     return {
@@ -29,12 +33,23 @@ function getAIClient(): { client: OpenAI; model: string } {
   }
 }
 
+// Module-level BYOK override — set per-request by routes
+let _requestByokKeys: ProviderKeys | undefined
+
+export function setRequestByokKeys(keys: ProviderKeys | undefined) {
+  _requestByokKeys = keys
+}
+
+function currentClient(): { client: OpenAI; model: string } {
+  return getAIClient(_requestByokKeys)
+}
+
 /**
  * Get the appropriate model name for the available provider.
  * Maps OpenAI model names to Anthropic equivalents when needed.
  */
 function resolveModel(requestedModel: string): string {
-  const { provider } = getAvailableProvider()
+  const { provider } = getAvailableProvider(_requestByokKeys)
   if (provider === 'openai') return requestedModel
   // Map OpenAI models to Anthropic equivalents
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return 'claude-sonnet-4-20250514'
@@ -43,7 +58,7 @@ function resolveModel(requestedModel: string): string {
 }
 
 function getSystemOpenAiClient(): OpenAI {
-  return getAIClient().client
+  return currentClient().client
 }
 
 interface GenerateAgentFilesInput {

@@ -235,11 +235,12 @@ router.get('/status', async (req, res) => {
 // POST /api/agents/generate — AI-generate agent files
 // If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags, suggestMeta } = req.body as {
+  const { description, name, tags, suggestMeta, byokKeys } = req.body as {
     description?: string
     name?: string
     tags?: string[]
     suggestMeta?: boolean
+    byokKeys?: { openai?: string; anthropic?: string }
   }
 
   if (!description) {
@@ -248,6 +249,10 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    // Set BYOK keys for this request
+    const { setRequestByokKeys } = require('../lib/ai-generator')
+    setRequestByokKeys(byokKeys)
+
     // If suggestMeta or no name, generate suggestions first
     let suggestedName = name || ''
     let suggestedTags = tags || []
@@ -278,6 +283,9 @@ router.post('/generate', async (req, res) => {
   } catch (err) {
     console.error('AI generation error:', err)
     res.status(500).json({ error: String(err) })
+  } finally {
+    const { setRequestByokKeys } = require('../lib/ai-generator')
+    setRequestByokKeys(undefined)
   }
 })
 
