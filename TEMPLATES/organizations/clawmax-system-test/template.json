@@ -135,7 +135,7 @@
       "content": "# Filesystem Test\n\nTest that agents can read and write files in the workspace.\n\n## Test Steps\n1. Write a file called `test-output-{your-agent-id}.md` in your workspace directory\n2. Include your agent ID, current timestamp, and the text 'FILESYSTEM TEST'\n3. Read the workspace directory listing using workspace-ls skill\n4. Report what files you can see\n5. Say 'FILESYSTEM PASS' if you could write and read, or 'FILESYSTEM FAIL' with error details\n\nKeep response under 100 words."
     },
     {
-      "id": "test-comms",
+      "id": "test-communications",
       "name": "Test Communications",
       "description": "Tier 1: Test group chat and inter-agent messaging",
       "schedule": "manual",
@@ -169,7 +169,7 @@
       "owner": "test-lead",
       "type": "recurring",
       "dependsOn": [
-        "test-comms"
+        "test-communications"
       ],
       "targeting": {
         "communities": [],
@@ -191,7 +191,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-comms"
+        "test-communications"
       ],
       "targeting": {
         "communities": [],
@@ -212,7 +212,7 @@
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-comms"
+        "test-communications"
       ],
       "targeting": {
         "communities": [],
