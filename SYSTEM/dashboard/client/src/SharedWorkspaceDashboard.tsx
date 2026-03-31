@@ -6,6 +6,7 @@ interface SharedDashboardPayload {
     title: string
     description: string | null
     displayMode: 'standard' | 'compact' | 'detail'
+    sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
     sections: {
       overview: boolean
       costs: boolean
@@ -110,6 +111,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
       title: typeof input?.dashboard?.title === 'string' ? input.dashboard.title : 'Workspace Summary',
       description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
       displayMode: input?.dashboard?.displayMode === 'compact' || input?.dashboard?.displayMode === 'detail' ? input.dashboard.displayMode : 'standard',
+      sectionOrder: Array.isArray(input?.dashboard?.sectionOrder) && input.dashboard.sectionOrder.length > 0 ? input.dashboard.sectionOrder : ['overview', 'costs', 'agents', 'notifications', 'workflows', 'kickoff', 'results', 'groupChats'],
       sections: {
         overview: input?.dashboard?.sections?.overview !== false,
         costs: input?.dashboard?.sections?.costs !== false,
@@ -252,6 +254,154 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const runningWorkflows = payload.workflows.filter(workflow => workflow.status === 'running').length
   const failedWorkflows = payload.workflows.filter(workflow => workflow.status === 'failed').length
   const idleWorkflows = Math.max(payload.workflows.length - runningWorkflows - failedWorkflows, 0)
+  const orderedTopLevelSections = payload.dashboard.sectionOrder
+    .filter((key): key is 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' =>
+      ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].includes(key)
+    )
+    .filter((key, index, arr) => arr.indexOf(key) === index)
+  for (const key of ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'] as const) {
+    if (!orderedTopLevelSections.includes(key)) orderedTopLevelSections.push(key)
+  }
+  const hasCustomSectionOrder = orderedTopLevelSections.join('|') !== ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].join('|')
+
+  const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats') => {
+    switch (key) {
+      case 'overview':
+        if (!payload.dashboard.sections.overview) return null
+        return (
+          <section className={`grid ${compact ? 'gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : 'gap-3 sm:grid-cols-2 xl:grid-cols-6'}`}>
+            {overviewCards.map(([label, value]) => (
+              <div key={label} className={`rounded-2xl border border-white/10 bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
+                <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+                <div className={`mt-2 font-semibold ${compact ? 'text-xl' : 'text-2xl'}`}>{value}</div>
+              </div>
+            ))}
+          </section>
+        )
+      case 'costs':
+        if (!payload.dashboard.sections.costs) return null
+        return (
+          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+            <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Costs & Budget</h2>
+            <div className={`mb-3 flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
+              <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
+              <span>${budget.remainingUsd.toFixed(4)} remaining</span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-slate-800">
+              <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
+            </div>
+            <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+          </section>
+        )
+      case 'agents':
+        if (!payload.dashboard.sections.agents) return null
+        return (
+          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+            <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
+            <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
+              {payload.agents.slice(0, agentsToShow).map(agent => (
+                <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-slate-800/70 px-3 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
+                  <div>
+                    <div className="font-medium">{agent.name}</div>
+                    {!compact && <div className="text-slate-500">{agent.id} · last activity {timeAgo(agent.lastHeartbeat)}</div>}
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    agent.paused ? 'bg-slate-600 text-slate-100' :
+                    agent.status === 'online' ? 'bg-green-500/20 text-green-300' :
+                    agent.status === 'offline' ? 'bg-yellow-500/20 text-yellow-300' :
+                    'bg-slate-500/20 text-slate-300'
+                  }`}>
+                    {agent.paused ? 'paused' : agent.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      case 'notifications':
+        if (!payload.dashboard.sections.notifications) return null
+        return (
+          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+            <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Active Notifications</h2>
+            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+              {payload.notifications.slice(0, notificationsToShow).map(notification => (
+                <div key={notification.id} className="rounded-xl border border-white/10 bg-slate-800/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium">{notification.title}</div>
+                    <span className="text-[11px] text-slate-400">{notification.severity}</span>
+                  </div>
+                </div>
+              ))}
+              {payload.notifications.length === 0 && <div className="text-sm text-slate-500">No active notifications.</div>}
+            </div>
+          </section>
+        )
+      case 'workflows':
+        if (!payload.dashboard.sections.workflows) return null
+        return (
+          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+            <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
+            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+              {payload.workflows.slice(0, workflowsToShow).map(workflow => (
+                <div key={workflow.id} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium">{workflow.name}</div>
+                    <span className="text-[11px] text-slate-400">{workflow.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      case 'groupChats':
+        if (!payload.dashboard.sections.groupChats) return null
+        return (
+          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Group Chats</h2>
+              <span className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{payload.groupChats.length} channels</span>
+            </div>
+            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+              {payload.groupChats.slice(0, chatsToShow).map((chat) => (
+                <div key={`${chat.type}:${chat.name}`} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
+                  <div className="font-medium text-slate-100">{chat.name}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+    }
+  }
+
+  if (hasCustomSectionOrder) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className={`mx-auto ${containerWidth} ${compact ? 'px-4 py-5' : 'px-6 py-8'}`}>
+          <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-4' : 'p-6'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
+                  Workspace Summary
+                </div>
+                <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
+              </div>
+              <div className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
+                <div className="mb-1 uppercase tracking-wide text-slate-500">{payload.dashboard.displayMode} view</div>
+                <div>{payload.workspace.name}</div>
+                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+              </div>
+            </div>
+          </header>
+          <div className={`space-y-${compact ? '4' : '6'}`}>
+            {orderedTopLevelSections.map((key) => (
+              <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">

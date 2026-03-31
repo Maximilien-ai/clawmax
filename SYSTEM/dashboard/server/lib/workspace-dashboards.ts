@@ -15,6 +15,17 @@ export interface WorkspaceDashboardSections {
 }
 
 export type WorkspaceDashboardDisplayMode = 'standard' | 'compact' | 'detail'
+export type WorkspaceDashboardSectionKey = keyof WorkspaceDashboardSections
+export const DEFAULT_SECTION_ORDER: WorkspaceDashboardSectionKey[] = [
+  'overview',
+  'costs',
+  'agents',
+  'notifications',
+  'workflows',
+  'kickoff',
+  'results',
+  'groupChats',
+]
 
 export interface WorkspaceDashboard {
   id: string
@@ -24,6 +35,7 @@ export interface WorkspaceDashboard {
   token: string
   displayMode: WorkspaceDashboardDisplayMode
   sections: WorkspaceDashboardSections
+  sectionOrder: WorkspaceDashboardSectionKey[]
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -95,6 +107,7 @@ export function createWorkspaceDashboard(
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
+    sectionOrder?: WorkspaceDashboardSectionKey[]
     createdBy?: string | null
   }
 ): WorkspaceDashboard {
@@ -107,6 +120,7 @@ export function createWorkspaceDashboard(
     token: generateToken(),
     displayMode: input.displayMode || 'standard',
     sections: { ...DEFAULT_SECTIONS, ...(input.sections || {}) },
+    sectionOrder: Array.isArray(input.sectionOrder) && input.sectionOrder.length > 0 ? input.sectionOrder : [...DEFAULT_SECTION_ORDER],
     createdBy: input.createdBy || null,
     createdAt: now,
     updatedAt: now,
@@ -145,6 +159,7 @@ export function updateWorkspaceDashboard(
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
+    sectionOrder?: WorkspaceDashboardSectionKey[]
   }
 ): WorkspaceDashboard | null {
   const store = loadStore(workspaceId)
@@ -162,6 +177,9 @@ export function updateWorkspaceDashboard(
   }
   if (updates.sections) {
     dashboard.sections = { ...dashboard.sections, ...updates.sections }
+  }
+  if (Array.isArray(updates.sectionOrder) && updates.sectionOrder.length > 0) {
+    dashboard.sectionOrder = updates.sectionOrder
   }
   dashboard.updatedAt = new Date().toISOString()
   saveStore(workspaceId, store)

@@ -21,10 +21,22 @@ interface WorkspaceDashboard {
     results: boolean
     groupChats: boolean
   }
+  sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
   createdBy: string | null
   createdAt: string
   updatedAt: string
 }
+
+const DEFAULT_SECTION_ORDER: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'> = [
+  'overview',
+  'costs',
+  'agents',
+  'notifications',
+  'workflows',
+  'kickoff',
+  'results',
+  'groupChats',
+]
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -64,6 +76,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     results: true,
     groupChats: true,
   })
+  const [dashboardSectionOrder, setDashboardSectionOrder] = useState([...DEFAULT_SECTION_ORDER])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
@@ -89,6 +102,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       results: true,
       groupChats: true,
     })
+    setDashboardSectionOrder([...DEFAULT_SECTION_ORDER])
     try {
       await loadDashboards(workspace.id)
     } catch (err) {
@@ -119,6 +133,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           description: dashboardDescription.trim() || null,
           displayMode: dashboardDisplayMode,
           sections: dashboardSections,
+          sectionOrder: dashboardSectionOrder,
         }),
       })
       const data = await res.json()
@@ -155,6 +170,17 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
   const handleDragEnd = () => {
     setDraggedIndex(null)
+  }
+
+  const moveSection = (index: number, direction: -1 | 1) => {
+    setDashboardSectionOrder((prev) => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev
+      const next = [...prev]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item)
+      return next
+    })
   }
 
   const handleDeleteClick = async (workspace: { id: string; name: string; path: string }) => {
@@ -476,16 +502,34 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       Compact favors one-page summaries, Standard matches the current balanced layout, and Detail expands cards and histories.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {Object.entries(dashboardSections).map(([key, enabled]) => (
-                      <label key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
+                  <div className="space-y-2 text-sm">
+                    {dashboardSectionOrder.map((key, index) => (
+                      <div key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
                         <input
                           type="checkbox"
-                          checked={enabled}
+                          checked={dashboardSections[key]}
                           onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
                         />
-                        <span className="capitalize text-gray-700 dark:text-gray-300">{key}</span>
-                      </label>
+                        <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveSection(index, -1)}
+                            disabled={index === 0}
+                            className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveSection(index, 1)}
+                            disabled={index === dashboardSectionOrder.length - 1}
+                            className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                   <div className="flex justify-end">
