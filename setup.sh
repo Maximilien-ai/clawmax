@@ -171,7 +171,7 @@ cat << "EOF"
   Multiagent Orchestration Platform
 EOF
 echo -e "${NC}"
-print_info "ClawMax v1.1.21 Setup"
+print_info "ClawMax v1.1.24 Setup"
 echo ""
 
 # Must be in ClawMax directory
@@ -647,27 +647,77 @@ fi
 echo ""
 
 # ============================================================================
-# 9. Gateway (Optional)
+# 9. Gateway Setup
 # ============================================================================
 
-print_header "9. OpenClaw Gateway (Optional)"
+print_header "9. OpenClaw Gateway"
 
 if [ "$OPENCLAW_INSTALLED" = true ]; then
+  print_info "The gateway enables agent skills and tool-use (required for GitHub, Senso, etc.)"
+
+  # Configure gateway mode
+  GATEWAY_MODE=$(openclaw config get gateway.mode 2>/dev/null || echo "")
+  if [ -z "$GATEWAY_MODE" ] || [ "$GATEWAY_MODE" = "unset" ] || [ "$GATEWAY_MODE" = "undefined" ]; then
+    openclaw config set gateway.mode local 2>/dev/null
+    print_success "Gateway mode set to local"
+  else
+    print_success "Gateway mode: $GATEWAY_MODE"
+  fi
+
+  # Generate auth token if missing
+  GATEWAY_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+  if [ -z "$GATEWAY_TOKEN" ] || [ "$GATEWAY_TOKEN" = "unset" ] || [ "$GATEWAY_TOKEN" = "undefined" ]; then
+    # Generate a random token
+    GW_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    openclaw config set gateway.auth.token "$GW_TOKEN" 2>/dev/null
+    print_success "Gateway auth token generated"
+  else
+    print_success "Gateway auth token configured"
+  fi
+
+  # Install gateway service
+  if ! launchctl list 2>/dev/null | grep -q "ai.openclaw.gateway"; then
+    openclaw gateway install 2>/dev/null && print_success "Gateway service installed" || print_warning "Gateway service install failed"
+  else
+    print_success "Gateway service already installed"
+  fi
+
+  # Start/restart gateway
   if openclaw gateway status 2>&1 | grep -q "running"; then
     print_success "Gateway already running"
-  elif [ "$INTERACTIVE" = true ]; then
-    print_info "The gateway enables real-time agent chat via WebSocket"
-    if ask_yn "Install and start gateway?"; then
-      openclaw gateway install 2>/dev/null && print_success "Gateway installed" || print_warning "Gateway install failed (optional)"
-      openclaw gateway restart 2>/dev/null && print_success "Gateway started" || true
-    else
-      print_info "Skipped (install later: openclaw gateway install)"
-    fi
   else
-    print_info "Non-interactive: skipping gateway"
+    print_info "Starting gateway..."
+    openclaw gateway restart 2>/dev/null &
+    GW_PID=$!
+
+    # Wait up to 15s for gateway to start
+    GW_READY=false
+    for i in {1..15}; do
+      sleep 1
+      if lsof -ti:18789 > /dev/null 2>&1; then
+        GW_READY=true
+        break
+      fi
+      echo -n "."
+    done
+    echo ""
+
+    if [ "$GW_READY" = true ]; then
+      print_success "Gateway running on port 18789"
+    else
+      print_warning "Gateway didn't start in 15s — agents will use --local mode (chat works, skills limited)"
+      echo -e "  Fix later: ${BOLD}openclaw config set gateway.mode local && openclaw gateway restart${NC}"
+    fi
+  fi
+
+  # Create session store if missing
+  SESSIONS_DIR="$HOME/.openclaw/agents/main/sessions"
+  if [ ! -d "$SESSIONS_DIR" ]; then
+    mkdir -p "$SESSIONS_DIR"
+    print_success "Created session store"
   fi
 else
-  print_info "Gateway requires OpenClaw CLI — install OpenClaw first"
+  print_warning "Gateway requires OpenClaw CLI — agents will use --local mode"
 fi
 
 echo ""
@@ -683,8 +733,21 @@ VALID=true
 [ ! -d "$CLAWMAX_DIR/SYSTEM/dashboard/node_modules" ] && print_error "Dependencies missing" && VALID=false
 [ ! -f "$ENV_FILE" ] && print_error ".env missing" && VALID=false
 
+# Check critical components
+if command -v openclaw &> /dev/null; then
+  print_success "OpenClaw CLI: $(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo 'installed')"
+else
+  print_warning "OpenClaw CLI not installed — agent features limited"
+fi
+
+if lsof -ti:18789 > /dev/null 2>&1; then
+  print_success "Gateway running on port 18789 (skills enabled)"
+else
+  print_warning "Gateway not running — agents will chat but can't use skills"
+fi
+
 if [ "$VALID" = true ]; then
-  print_success "All components verified"
+  print_success "All core components verified"
 else
   print_error "Setup incomplete — review errors above"
   exit 1
