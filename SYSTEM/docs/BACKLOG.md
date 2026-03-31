@@ -25,6 +25,8 @@
 
 ### Customer-Facing Visibility (High Priority)
 - [ ] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
+- [ ] **Workflow input normalization for dashboards** — persist and expose structured kickoff/start inputs per workflow run so shared dashboards can show clean, reliable "what started this run" context instead of best-effort execution-log summaries.
+- [ ] **Workflow output + artifact normalization for dashboards** — persist structured workflow results, artifact links, and downloadable outputs so shared dashboards can present consistent run outcomes across heterogeneous workflows.
 
 ## Deep Agents Hack — March 27 (immediate)
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`

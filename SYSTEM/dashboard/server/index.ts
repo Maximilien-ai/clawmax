@@ -13,6 +13,7 @@ import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
 import workspacesRouter from './routes/workspaces'
+import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
@@ -166,6 +167,9 @@ app.get('/api/auth/config', (_req, res) => {
     costEfficientModel: getCostEfficientModel(),
   })
 })
+
+// Shareable workspace summary dashboard payload (public by token)
+app.use('/api/workspace-dashboards', workspaceDashboardsRouter)
 
 // Use GitHub auth for all protected routes (falls back to dashboard token)
 const protect = requireGitHubAuth

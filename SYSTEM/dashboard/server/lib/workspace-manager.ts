@@ -227,6 +227,26 @@ export class WorkspaceManager {
     }
   }
 
+  /**
+   * Run a function in the context of a specific workspace without persisting
+   * an active-workspace switch to disk.
+   */
+  async withWorkspace<T>(id: string, fn: () => T | Promise<T>): Promise<T> {
+    const registry = this.loadRegistry()
+    const workspace = registry.workspaces.find(w => w.id === id)
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${id}`)
+    }
+
+    const previous = registry.activeWorkspaceId
+    registry.activeWorkspaceId = id
+    try {
+      return await fn()
+    } finally {
+      registry.activeWorkspaceId = previous
+    }
+  }
+
   /** Initialize workspace directory structure (AGENTS/, ORG/, SYSTEM/) */
   initializeWorkspaceStructure(workspacePath: string): void {
     try {

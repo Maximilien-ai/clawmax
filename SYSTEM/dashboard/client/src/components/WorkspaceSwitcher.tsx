@@ -2,9 +2,31 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
+import { useToast } from './Toast'
+
+interface WorkspaceDashboard {
+  id: string
+  workspaceId: string
+  title: string
+  description: string | null
+  token: string
+  sections: {
+    overview: boolean
+    costs: boolean
+    agents: boolean
+    notifications: boolean
+    workflows: boolean
+    kickoff: boolean
+    results: boolean
+  }
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
 
 export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) {
   const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace, reorderWorkspaces } = useWorkspace()
+  const { showSuccess, showError } = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -13,7 +35,91 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     consequences: string[]
   } | null>(null)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
+  const [dashboardWorkspace, setDashboardWorkspace] = useState<Workspace | null>(null)
+  const [dashboards, setDashboards] = useState<WorkspaceDashboard[]>([])
+  const [dashboardTitle, setDashboardTitle] = useState('')
+  const [dashboardDescription, setDashboardDescription] = useState('')
+  const [dashboardSections, setDashboardSections] = useState({
+    overview: true,
+    costs: true,
+    agents: true,
+    notifications: true,
+    workflows: true,
+    kickoff: true,
+    results: true,
+  })
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const loadDashboards = async (workspaceId: string) => {
+    const res = await fetch(`/api/workspaces/${workspaceId}/dashboards`)
+    const data = await res.json()
+    setDashboards(data.dashboards || [])
+  }
+
+  const openDashboardManager = async (workspace: Workspace) => {
+    setDashboardWorkspace(workspace)
+    setDashboardTitle(`${workspace.name} Summary`)
+    setDashboardDescription('')
+    setDashboardSections({
+      overview: true,
+      costs: true,
+      agents: true,
+      notifications: true,
+      workflows: true,
+      kickoff: true,
+      results: true,
+    })
+    try {
+      await loadDashboards(workspace.id)
+    } catch (err) {
+      showError('Failed to load workspace dashboards')
+    }
+    setIsOpen(false)
+  }
+
+  const getDashboardUrl = (token: string) => `${window.location.origin}/dashboards/${token}`
+
+  const copyDashboardLink = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(getDashboardUrl(token))
+      showSuccess('Dashboard link copied')
+    } catch {
+      showError('Failed to copy dashboard link')
+    }
+  }
+
+  const createDashboard = async () => {
+    if (!dashboardWorkspace || !dashboardTitle.trim()) return
+    try {
+      const res = await fetch(`/api/workspaces/${dashboardWorkspace.id}/dashboards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: dashboardTitle.trim(),
+          description: dashboardDescription.trim() || null,
+          sections: dashboardSections,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to create workspace dashboard')
+      await loadDashboards(dashboardWorkspace.id)
+      showSuccess('Workspace dashboard created')
+    } catch (err: any) {
+      showError(err.message || 'Failed to create workspace dashboard')
+    }
+  }
+
+  const deleteDashboard = async (workspaceId: string, dashboardId: string) => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/dashboards/${dashboardId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete workspace dashboard')
+      await loadDashboards(workspaceId)
+      showSuccess('Workspace dashboard deleted')
+    } catch (err: any) {
+      showError(err.message || 'Failed to delete workspace dashboard')
+    }
+  }
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
@@ -217,9 +323,21 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     }}
                     className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-all"
                     title="Edit workspace"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openDashboardManager(workspace)
+                    }}
+                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-all"
+                    title="Manage workspace dashboard"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13h8V3H3v10zm10 8h8v-6h-8v6zm0-18v8h8V3h-8zM3 21h8v-6H3v6z" />
                     </svg>
                   </button>
                   {/* Delete button */}
@@ -283,6 +401,111 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           isOpen={true}
           onClose={() => setEditingWorkspace(null)}
         />
+      )}
+
+      {dashboardWorkspace && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDashboardWorkspace(null)}>
+          <div
+            className="w-[92vw] max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspace Dashboard</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{dashboardWorkspace.name}</p>
+              </div>
+              <button
+                onClick={() => setDashboardWorkspace(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-5">
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">Generate Dashboard</h3>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={dashboardTitle}
+                    onChange={(e) => setDashboardTitle(e.target.value)}
+                    placeholder="Dashboard title"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                  <input
+                    type="text"
+                    value={dashboardDescription}
+                    onChange={(e) => setDashboardDescription(e.target.value)}
+                    placeholder="Optional description"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {Object.entries(dashboardSections).map(([key, enabled]) => (
+                      <label key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                        />
+                        <span className="capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={createDashboard}
+                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                    >
+                      Generate Dashboard
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Generated Links</h3>
+                  <span className="text-xs text-gray-400">{dashboards.length} total</span>
+                </div>
+                {dashboards.length === 0 ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">No workspace dashboards yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {dashboards.map((dashboard) => (
+                      <div key={dashboard.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{dashboard.title}</div>
+                          <div className="truncate text-xs text-gray-500 dark:text-gray-400">{getDashboardUrl(dashboard.token)}</div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => window.open(getDashboardUrl(dashboard.token), '_blank')}
+                            className="text-xs text-sky-600 hover:text-sky-700"
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() => copyDashboardLink(dashboard.token)}
+                            className="text-xs text-emerald-600 hover:text-emerald-700"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            onClick={() => deleteDashboard(dashboardWorkspace.id, dashboard.id)}
+                            className="text-xs text-red-600 hover:text-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

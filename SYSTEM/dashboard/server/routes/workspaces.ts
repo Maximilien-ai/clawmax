@@ -1,6 +1,13 @@
 import express from 'express'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
+import {
+  createWorkspaceDashboard,
+  deleteWorkspaceDashboard,
+  listWorkspaceDashboards,
+  regenerateWorkspaceDashboardToken,
+  updateWorkspaceDashboard,
+} from '../lib/workspace-dashboards'
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
@@ -125,6 +132,112 @@ router.patch('/:id', (req, res) => {
   } catch (err: any) {
     console.error('Error updating workspace:', err)
     res.status(500).json({ error: err.message || 'Failed to update workspace' })
+  }
+})
+
+// GET /api/workspaces/:id/dashboards - list workspace summary dashboards
+router.get('/:id/dashboards', (req, res) => {
+  try {
+    const { id } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+    res.json({ dashboards: listWorkspaceDashboards(id) })
+  } catch (err: any) {
+    console.error('Error listing workspace dashboards:', err)
+    res.status(500).json({ error: err.message || 'Failed to list workspace dashboards' })
+  }
+})
+
+// POST /api/workspaces/:id/dashboards - create workspace summary dashboard link
+router.post('/:id/dashboards', (req, res) => {
+  try {
+    const { id } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+
+    const { title, description, sections, createdBy } = req.body || {}
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'title is required' })
+    }
+
+    const dashboard = createWorkspaceDashboard(id, {
+      title,
+      description: typeof description === 'string' ? description : null,
+      sections: sections && typeof sections === 'object' ? sections : undefined,
+      createdBy: typeof createdBy === 'string' ? createdBy : null,
+    })
+    res.json({ dashboard })
+  } catch (err: any) {
+    console.error('Error creating workspace dashboard:', err)
+    res.status(500).json({ error: err.message || 'Failed to create workspace dashboard' })
+  }
+})
+
+// PATCH /api/workspaces/:id/dashboards/:dashboardId - update workspace dashboard metadata
+router.patch('/:id/dashboards/:dashboardId', (req, res) => {
+  try {
+    const { id, dashboardId } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+
+    const dashboard = updateWorkspaceDashboard(id, dashboardId, {
+      title: typeof req.body?.title === 'string' ? req.body.title : undefined,
+      description: req.body?.description,
+      sections: req.body?.sections,
+    })
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Workspace dashboard not found' })
+    }
+    res.json({ dashboard })
+  } catch (err: any) {
+    console.error('Error updating workspace dashboard:', err)
+    res.status(500).json({ error: err.message || 'Failed to update workspace dashboard' })
+  }
+})
+
+// POST /api/workspaces/:id/dashboards/:dashboardId/regenerate-token - rotate share token
+router.post('/:id/dashboards/:dashboardId/regenerate-token', (req, res) => {
+  try {
+    const { id, dashboardId } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+
+    const dashboard = regenerateWorkspaceDashboardToken(id, dashboardId)
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Workspace dashboard not found' })
+    }
+    res.json({ dashboard })
+  } catch (err: any) {
+    console.error('Error regenerating workspace dashboard token:', err)
+    res.status(500).json({ error: err.message || 'Failed to regenerate workspace dashboard token' })
+  }
+})
+
+// DELETE /api/workspaces/:id/dashboards/:dashboardId - remove workspace summary dashboard link
+router.delete('/:id/dashboards/:dashboardId', (req, res) => {
+  try {
+    const { id, dashboardId } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+
+    const ok = deleteWorkspaceDashboard(id, dashboardId)
+    if (!ok) {
+      return res.status(404).json({ error: 'Workspace dashboard not found' })
+    }
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error('Error deleting workspace dashboard:', err)
+    res.status(500).json({ error: err.message || 'Failed to delete workspace dashboard' })
   }
 })
 
