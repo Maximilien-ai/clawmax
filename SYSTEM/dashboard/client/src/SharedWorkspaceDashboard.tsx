@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 
 interface SharedDashboardPayload {
+  refreshedAt: string
   dashboard: {
     title: string
     description: string | null
@@ -172,6 +173,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             </div>
             <div className="text-sm text-slate-400">
               <div>{payload.workspace.name}</div>
+              <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
               <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { getWorkspaceDashboardByToken } from '../lib/workspace-dashboards'
 import { getWorkspaceManager } from '../lib/workspace-manager'
-import { listAgents, parseGroupsWithMembers } from '../lib/workspace'
+import { listAgents, parseGroups, parseGroupsWithMembers } from '../lib/workspace'
 import { getBudgetStatus } from '../lib/budget'
 import { getWorkspaceMetering } from '../lib/metering'
 import { getActiveNotifications } from '../lib/notifications'
@@ -34,12 +34,19 @@ router.get('/:token', async (req, res) => {
       const workflows = listWorkflows()
       const groupsPath = path.join(workspace.path, 'ORG', 'GROUPS.md')
       const communitiesPath = path.join(workspace.path, 'ORG', 'COMMUNITIES.md')
-      const groups = fs.existsSync(groupsPath)
-        ? parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8')).groups
-        : []
-      const communities = fs.existsSync(communitiesPath)
-        ? parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf-8')).communities
-        : []
+      const groupsFile = fs.existsSync(groupsPath) ? fs.readFileSync(groupsPath, 'utf-8') : ''
+      const communitiesFile = fs.existsSync(communitiesPath) ? fs.readFileSync(communitiesPath, 'utf-8') : ''
+      const parsedGroupsWithMembers = groupsFile ? parseGroupsWithMembers(groupsFile).groups : []
+      const parsedCommunitiesWithMembers = communitiesFile ? parseGroupsWithMembers(communitiesFile).communities : []
+      const parsedGroupsFallback = groupsFile ? parseGroups(groupsFile).groups : []
+      const parsedCommunitiesFallback = communitiesFile ? parseGroups(communitiesFile).communities : []
+
+      const groups = parsedGroupsWithMembers.length > 0
+        ? parsedGroupsWithMembers
+        : parsedGroupsFallback.map((group) => ({ ...group, members: [] }))
+      const communities = parsedCommunitiesWithMembers.length > 0
+        ? parsedCommunitiesWithMembers
+        : parsedCommunitiesFallback.map((community) => ({ ...community, members: [] }))
 
       const groupChats = [
         ...groups.map((group) => {
@@ -108,6 +115,7 @@ router.get('/:token', async (req, res) => {
       })
 
       return {
+        refreshedAt: new Date().toISOString(),
         dashboard,
         workspace: {
           id: workspace.id,

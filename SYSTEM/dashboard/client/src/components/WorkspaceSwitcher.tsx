@@ -18,10 +18,23 @@ interface WorkspaceDashboard {
     workflows: boolean
     kickoff: boolean
     results: boolean
+    groupChats: boolean
   }
   createdBy: string | null
   createdAt: string
   updatedAt: string
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.max(0, Math.floor(diff / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) {
@@ -53,8 +66,10 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
   const loadDashboards = async (workspaceId: string) => {
     const res = await fetch(`/api/workspaces/${workspaceId}/dashboards`)
-    const data = await res.json()
-    setDashboards(data.dashboards || [])
+      const data = await res.json()
+      const nextDashboards = Array.isArray(data.dashboards) ? data.dashboards : []
+      nextDashboards.sort((a: WorkspaceDashboard, b: WorkspaceDashboard) => b.updatedAt.localeCompare(a.updatedAt))
+      setDashboards(nextDashboards)
   }
 
   const openDashboardManager = async (workspace: Workspace) => {
@@ -478,7 +493,11 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       <div key={dashboard.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{dashboard.title}</div>
-                          <div className="truncate text-xs text-gray-500 dark:text-gray-400">{getDashboardUrl(dashboard.token)}</div>
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span title={new Date(dashboard.updatedAt).toLocaleString()}>Updated {timeAgo(dashboard.updatedAt)}</span>
+                            <span>•</span>
+                            <span className="truncate">{getDashboardUrl(dashboard.token)}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
