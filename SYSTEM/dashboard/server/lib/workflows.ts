@@ -695,7 +695,7 @@ export function triggerWorkflow(workflowId: string, options?: {
 }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
-    const budgetBlock = checkBudgetBlock()
+    const budgetBlock = checkBudgetBlock({ operation: 'workflow' })
     if (budgetBlock) {
       // Create budget notification
       const { createNotification } = require('./notifications')

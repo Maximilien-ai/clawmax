@@ -18,6 +18,17 @@ import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
 
+type MenuPlacement = 'top' | 'bottom'
+
+function getSmartMenuPlacement(triggerRect: DOMRect, estimatedMenuHeight: number = 320): MenuPlacement {
+  const spaceBelow = window.innerHeight - triggerRect.bottom
+  const spaceAbove = triggerRect.top
+  if (spaceBelow >= estimatedMenuHeight || spaceBelow >= spaceAbove) {
+    return 'bottom'
+  }
+  return 'top'
+}
+
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
   if (s < 5) return 'just now'
@@ -54,6 +65,12 @@ interface Agent {
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
   paused?: boolean
+}
+
+interface ImportableOpenClawAgent {
+  id: string
+  hasMetadata: boolean
+  files: string[]
 }
 
 const STATUS_COLORS = {
@@ -116,6 +133,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   // collapsed set: agent IDs that are collapsed (default: all expanded)
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [showAgentActionsMenu, setShowAgentActionsMenu] = useState(false)
   const [aiGenerateMode, setAiGenerateMode] = useState(false)
   const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -374,7 +393,6 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     const agent = agents.find(a => a.id === agentId)
     console.log('[Export] Starting export for agent:', agentId)
     try {
-      showSuccess(`Exporting ${agent?.name || agentId}...`)
       console.log('[Export] Fetching:', `/api/agents/${agentId}/export`)
       const response = await fetch(`/api/agents/${agentId}/export`)
       console.log('[Export] Response status:', response.status, response.statusText)
@@ -1043,21 +1061,58 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {selectedAgentIds.size === filteredAgents.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
-            <button
-              onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
-              disabled={!aiEnabled}
-              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${aiEnabled ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
-              title={aiEnabled ? 'Generate agent with AI' : 'Configure API keys (BYOK) to enable AI generation'}
-            >
-              AI Generate
-            </button>
-            <button
-              onClick={() => { setAiGenerateMode(false); setShowAddWizard(true) }}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
-              title="Add new agent"
-            >
-              <span className="text-base leading-none">+</span> Add Agent
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowAgentActionsMenu(!showAgentActionsMenu)}
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
+                title="Agent actions"
+              >
+                <span className="text-base leading-none">🤖</span> Agent Actions <span className="text-xs">▾</span>
+              </button>
+              {showAgentActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAgentActionsMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => {
+                        setShowAgentActionsMenu(false)
+                        setCloneFromAgent(null)
+                        setAiGenerateMode(true)
+                        setShowAddWizard(true)
+                      }}
+                      disabled={!aiEnabled}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                        aiEnabled
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800'
+                      }`}
+                      title={aiEnabled ? 'Generate agent with AI' : 'Configure API keys (BYOK) to enable AI generation'}
+                    >
+                      <span className="text-purple-500">✨</span> AI Generate
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAgentActionsMenu(false)
+                        setAiGenerateMode(false)
+                        setShowAddWizard(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-sky-500">＋</span> Create
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAgentActionsMenu(false)
+                        setShowImportModal(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-emerald-500">⇪</span> Import
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1204,6 +1259,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
           <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+            >
+              ⇪ Import from OpenClaw
+            </button>
             <button
               onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
@@ -1746,6 +1807,19 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         />
       )}
 
+      {showImportModal && (
+        <ImportOpenClawAgentModal
+          onClose={() => setShowImportModal(false)}
+          onImported={() => {
+            setShowImportModal(false)
+            fetchAgents()
+          }}
+          showSuccess={showSuccess}
+          showError={showError}
+          showInfo={showInfo}
+        />
+      )}
+
       {deleteTarget && (
         <DeleteAgentPanel
           agentId={deleteTarget}
@@ -2042,6 +2116,278 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onSaved={() => { fetchAgents(); setEditTarget(null) }}
         />
       )}
+    </div>
+  )
+}
+
+function ImportOpenClawAgentModal({
+  onClose,
+  onImported,
+  showSuccess,
+  showError,
+  showInfo,
+}: {
+  onClose: () => void
+  onImported: () => void
+  showSuccess: (message: string) => void
+  showError: (message: string) => void
+  showInfo: (message: string) => void
+}) {
+  const [agents, setAgents] = React.useState<ImportableOpenClawAgent[]>([])
+  const [sourceMode, setSourceMode] = React.useState<'openclaw' | 'zip' | 'directory'>('openclaw')
+  const [selectedId, setSelectedId] = React.useState('')
+  const [targetId, setTargetId] = React.useState('')
+  const [directoryPath, setDirectoryPath] = React.useState('')
+  const [zipFile, setZipFile] = React.useState<File | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [importing, setImporting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    fetch('/api/agents/openclaw/importable')
+      .then(async (r) => {
+        if (!r.ok) {
+          const text = await r.text()
+          throw new Error(text || `HTTP ${r.status}`)
+        }
+        return r.json()
+      })
+      .then((data) => {
+        const nextAgents = Array.isArray(data.agents) ? data.agents : []
+        setAgents(nextAgents)
+        if (nextAgents.length > 0) {
+          setSelectedId(nextAgents[0].id)
+        }
+        setLoading(false)
+      })
+      .catch((err: any) => {
+        setError(err.message || 'Failed to load importable OpenClaw agents')
+        setLoading(false)
+      })
+  }, [])
+
+  const selectedAgent = agents.find((agent) => agent.id === selectedId) || null
+
+  const handleImport = async () => {
+    setImporting(true)
+    setError(null)
+    try {
+      let response: Response
+      if (sourceMode === 'openclaw') {
+        if (!selectedId) throw new Error('Select an OpenClaw agent to import')
+        response = await fetch('/api/agents/openclaw/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceId: selectedId,
+            targetId: targetId.trim() || undefined,
+          }),
+        })
+      } else if (sourceMode === 'directory') {
+        if (!directoryPath.trim()) throw new Error('Directory path is required')
+        response = await fetch('/api/agents/import-directory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath: directoryPath.trim(),
+            targetId: targetId.trim() || undefined,
+          }),
+        })
+      } else {
+        if (!zipFile) throw new Error('Select a ZIP file to import')
+        response = await fetch(`/api/agents/import-zip${targetId.trim() ? `?targetId=${encodeURIComponent(targetId.trim())}` : ''}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: await zipFile.arrayBuffer(),
+        })
+      }
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import agent')
+      }
+
+      showSuccess(`Imported ${data.importedId}`)
+      const warnings = Array.isArray(data.warnings) ? data.warnings : []
+      if (warnings.length > 0) {
+        showInfo(`Imported with warnings: ${warnings.join(' | ')}`)
+      }
+      onImported()
+    } catch (err: any) {
+      setError(err.message || 'Failed to import agent')
+      showError(err.message || 'Failed to import agent')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Import Agent</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Import from OpenClaw, a ZIP bundle, or a local directory.</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
+            title="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-sm text-gray-500 dark:text-gray-400">Loading import sources...</div>
+        ) : error ? (
+          <div className="py-4 px-4 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm border border-red-200 dark:border-red-800">{error}</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { id: 'openclaw', label: 'OpenClaw', icon: '🗂' },
+                { id: 'zip', label: 'ZIP Upload', icon: '🧳' },
+                { id: 'directory', label: 'Directory', icon: '📁' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setSourceMode(option.id as 'openclaw' | 'zip' | 'directory')}
+                  className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
+                    sourceMode === option.id
+                      ? 'bg-sky-600 text-white border-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <span className="mr-1.5">{option.icon}</span>{option.label}
+                </button>
+              ))}
+            </div>
+
+            {sourceMode === 'openclaw' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Agent</label>
+                {agents.length === 0 ? (
+                  <div className="py-6 px-4 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                    No importable OpenClaw agents were found. Try `ZIP Upload` or `Directory` instead.
+                  </div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+                    {agents.map((agent) => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        onClick={() => setSelectedId(agent.id)}
+                        className={`w-full px-4 py-3 text-left transition-colors ${
+                          selectedId === agent.id
+                            ? 'bg-sky-50 dark:bg-sky-900/20'
+                            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">{agent.id}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{agent.files.join(', ')}</div>
+                          </div>
+                          {agent.hasMetadata && (
+                            <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">
+                              Metadata
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {sourceMode === 'zip' && (
+              <div>
+                <label htmlFor="agent-import-zip" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Upload Agent ZIP
+                </label>
+                <input
+                  id="agent-import-zip"
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(e) => setZipFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-700 dark:text-gray-300"
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  ZIP should contain an agent bundle with `IDENTITY.md`, typically at the root or one folder deep.
+                </p>
+                {zipFile && (
+                  <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
+                    Selected: {zipFile.name}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {sourceMode === 'directory' && (
+              <div>
+                <label htmlFor="import-directory-path" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Directory Path
+                </label>
+                <input
+                  id="import-directory-path"
+                  type="text"
+                  value={directoryPath}
+                  onChange={(e) => setDirectoryPath(e.target.value)}
+                  placeholder="/path/to/agent-bundle"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Point to a directory containing `IDENTITY.md`, `SOUL.md`, and `TOOLS.md`.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="import-target-id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Target Agent ID (optional)
+              </label>
+              <input
+                id="import-target-id"
+                type="text"
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                placeholder={selectedId || 'agent-id'}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Leave blank to import using the detected bundle or source ID.
+              </p>
+            </div>
+
+            {(sourceMode !== 'openclaw' || selectedAgent?.hasMetadata) && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+                Skills will be restored. Previous groups and communities are only reattached if those entries already exist in this workspace.
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-300 dark:hover:text-gray-100"
+                disabled={importing}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={(sourceMode === 'openclaw' && !selectedId) || (sourceMode === 'zip' && !zipFile) || (sourceMode === 'directory' && !directoryPath.trim()) || importing}
+                className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? 'Importing...' : 'Import Agent'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -2557,6 +2903,26 @@ const AgentCard = React.memo(function AgentCard({
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
+  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
+  const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
+
+  React.useEffect(() => {
+    if (!showActionsMenu || !actionsButtonRef.current) return
+
+    const updatePlacement = () => {
+      if (!actionsButtonRef.current) return
+      setMenuPlacement(getSmartMenuPlacement(actionsButtonRef.current.getBoundingClientRect()))
+    }
+
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [showActionsMenu])
+
   return (
     <div
       id={`agent-card-${agent.id}`}
@@ -2628,6 +2994,7 @@ const AgentCard = React.memo(function AgentCard({
           {/* Actions menu */}
           <div className="relative">
             <button
+              ref={actionsButtonRef}
               onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu) }}
               className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
               title="More actions"
@@ -2637,7 +3004,9 @@ const AgentCard = React.memo(function AgentCard({
             {showActionsMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
-                <div className="absolute right-0 bottom-full mb-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto">
+                <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
+                  menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
+                }`}>
                   {onEdit && (
                     <button
                       onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
@@ -2991,7 +3360,26 @@ const AgentCard = React.memo(function AgentCard({
 
 const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage, metering }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number } }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
+  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
+  const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
+
+  React.useEffect(() => {
+    if (!showActionsMenu || !actionsButtonRef.current) return
+
+    const updatePlacement = () => {
+      if (!actionsButtonRef.current) return
+      setMenuPlacement(getSmartMenuPlacement(actionsButtonRef.current.getBoundingClientRect()))
+    }
+
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [showActionsMenu])
 
   // Format token count for display
   const formatTokens = (count: number): string => {
@@ -3095,6 +3483,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         )}
         <div className="shrink-0">
           <button
+            ref={actionsButtonRef}
             onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
             className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
             aria-label="More actions"
@@ -3105,7 +3494,9 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {showActionsMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
-              <div className="absolute right-0 bottom-full mb-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700">
+              <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 ${
+                menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
+              }`}>
                 <button
                   onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 dark:text-gray-300"

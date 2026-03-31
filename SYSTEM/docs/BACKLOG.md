@@ -43,15 +43,15 @@
 - [ ] **DAG auto-advance on cron triggers** — currently only manual triggers cascade; cron-triggered completions should also advance DAG
 
 ### Discovered During Manual + CLI Testing (March 29)
-- [ ] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
-- [ ] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
+- [x] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
+- [x] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
 
 ### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
-- [ ] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
-- [ ] **Export ClawMax agent to OpenClaw** — export agent as zip or to `~/.openclaw/agents/` with all config + skills
+- [x] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
+- [x] **Export ClawMax agent to OpenClaw** — export agent as zip or to `~/.openclaw/agents/` with all config + skills
 - [ ] **Bulk import/export** — multiple agents at once
-- [ ] **Integration test** — round-trip: create → export → import → verify identity, skills, groups preserved
+- [x] **Integration test** — round-trip: create → export → import → verify identity, skills, groups preserved
 
 ### Spec Team Issues (clawmax #52, #53)
 

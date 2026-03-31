@@ -5,6 +5,8 @@
  */
 
 import https from 'https'
+import path from 'path'
+import { getWorkspaceManager } from './workspace-manager'
 
 interface TraceData {
   id: string
@@ -55,6 +57,22 @@ function getOpikConfig() {
   }
 }
 
+function getWorkspaceTraceIds(workspaceId?: string): string[] {
+  try {
+    const workspace = workspaceId
+      ? getWorkspaceManager().getWorkspace(workspaceId)
+      : getWorkspaceManager().getActiveWorkspace()
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${workspaceId}`)
+    }
+    const ids = new Set<string>([workspace.id, path.basename(workspace.path)])
+    return Array.from(ids).filter(Boolean)
+  } catch {
+    const wsPath = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
+    return [path.basename(wsPath) || 'default']
+  }
+}
+
 function fetchOpikTraces(projectName: string, size: number = 100): Promise<TraceData[]> {
   const config = getOpikConfig()
   if (!config.apiKey) return Promise.resolve([])
@@ -89,9 +107,13 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
   })
 }
 
-export async function getWorkspaceMetering(): Promise<WorkspaceMetering> {
+export async function getWorkspaceMetering(workspaceId?: string): Promise<WorkspaceMetering> {
   const config = getOpikConfig()
-  const traces = await fetchOpikTraces(config.projectName)
+  const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
+  const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
+    const workspaceId = trace.metadata?.workspace_id
+    return !workspaceId || workspaceIds.has(String(workspaceId))
+  })
 
   const agentMap = new Map<string, AgentMetering>()
   const workflowMap = new Map<string, WorkflowMetering>()

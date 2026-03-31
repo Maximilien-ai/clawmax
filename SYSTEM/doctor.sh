@@ -32,6 +32,81 @@ warn() { echo -e "  ${YELLOW}⚠${NC} $1"; WARN=$((WARN + 1)); }
 fix()  { echo -e "  ${CYAN}⟳${NC} $1"; FIXED=$((FIXED + 1)); }
 info() { echo -e "  ${BLUE}ℹ${NC} $1"; }
 
+get_env_value() {
+  local key="$1"
+  local file="$2"
+  [ -f "$file" ] || return 1
+  grep -E "^${key}=" "$file" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//; s/"$//' | tr -d '\r'
+}
+
+probe_gateway() {
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" \
+    --max-time 3 \
+    -H "Connection: Upgrade" \
+    -H "Upgrade: websocket" \
+    -H "Sec-WebSocket-Version: 13" \
+    -H "Sec-WebSocket-Key: Y2xhd21heC1kb2N0b3ItcHJvYmU=" \
+    "http://127.0.0.1:18789/" 2>/dev/null || echo "000")
+
+  case "$code" in
+    101|400|401|404|426)
+      pass "Gateway probe responded (HTTP $code)"
+      ;;
+    000)
+      warn "Gateway probe failed (no HTTP response)"
+      info "Check: openclaw gateway status --deep"
+      ;;
+    *)
+      warn "Gateway probe returned unexpected HTTP $code"
+      info "Check: openclaw gateway status --deep"
+      ;;
+  esac
+}
+
+test_provider_key() {
+  local provider="$1"
+  local key="$2"
+  local code=""
+  [ -n "$key" ] || return 1
+
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "$provider key present, but curl is not installed so live API test was skipped"
+    return 0
+  fi
+
+  if [ "$provider" = "OpenAI" ]; then
+    code=$(curl -s -o /dev/null -w "%{http_code}" \
+      --max-time 8 \
+      -H "Authorization: Bearer $key" \
+      https://api.openai.com/v1/models 2>/dev/null || echo "000")
+  else
+    code=$(curl -s -o /dev/null -w "%{http_code}" \
+      --max-time 8 \
+      -H "x-api-key: $key" \
+      -H "anthropic-version: 2023-06-01" \
+      https://api.anthropic.com/v1/models 2>/dev/null || echo "000")
+  fi
+
+  case "$code" in
+    200)
+      pass "$provider API key test succeeded"
+      ;;
+    401|403)
+      fail "$provider API key rejected (HTTP $code)"
+      ;;
+    429)
+      warn "$provider API key reached rate limit during test (HTTP 429)"
+      ;;
+    000)
+      warn "$provider API key test could not reach provider API"
+      ;;
+    *)
+      warn "$provider API key test returned HTTP $code"
+      ;;
+  esac
+}
+
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}  ClawMax Doctor${NC}"
@@ -130,6 +205,7 @@ if command -v openclaw &> /dev/null; then
   # Check gateway port
   if lsof -ti:18789 > /dev/null 2>&1; then
     pass "Gateway running on port 18789"
+    probe_gateway
   else
     fail "Gateway not running (port 18789 free)"
     info "Fix: openclaw gateway restart"
@@ -218,14 +294,22 @@ echo -e "${BOLD}5. API Keys${NC}"
 if [ -f "$ENV_FILE" ]; then
   HAS_OPENAI=false
   HAS_ANTHROPIC=false
+  OPENAI_KEY="$(get_env_value SYSTEM_OPENAI_API_KEY "$ENV_FILE")"
+  [ -z "$OPENAI_KEY" ] && OPENAI_KEY="$(get_env_value OPENAI_API_KEY "$ENV_FILE")"
+  [ -z "$OPENAI_KEY" ] && OPENAI_KEY="$(get_env_value USER_OPENAI_API_KEY "$ENV_FILE")"
+  ANTHROPIC_KEY="$(get_env_value SYSTEM_ANTHROPIC_API_KEY "$ENV_FILE")"
+  [ -z "$ANTHROPIC_KEY" ] && ANTHROPIC_KEY="$(get_env_value ANTHROPIC_API_KEY "$ENV_FILE")"
+  [ -z "$ANTHROPIC_KEY" ] && ANTHROPIC_KEY="$(get_env_value USER_ANTHROPIC_API_KEY "$ENV_FILE")"
 
-  if grep -qE "^(SYSTEM_)?OPENAI_API_KEY=.+" "$ENV_FILE" 2>/dev/null; then
+  if [ -n "$OPENAI_KEY" ]; then
     HAS_OPENAI=true
-    pass "OpenAI key configured (system .env)"
+    pass "OpenAI key configured"
+    test_provider_key "OpenAI" "$OPENAI_KEY"
   fi
-  if grep -qE "^(SYSTEM_)?ANTHROPIC_API_KEY=.+" "$ENV_FILE" 2>/dev/null; then
+  if [ -n "$ANTHROPIC_KEY" ]; then
     HAS_ANTHROPIC=true
-    pass "Anthropic key configured (system .env)"
+    pass "Anthropic key configured"
+    test_provider_key "Anthropic" "$ANTHROPIC_KEY"
   fi
 
   if [ "$HAS_OPENAI" = false ] && [ "$HAS_ANTHROPIC" = false ]; then

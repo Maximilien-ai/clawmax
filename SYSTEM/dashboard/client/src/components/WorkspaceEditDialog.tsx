@@ -32,7 +32,7 @@ export function WorkspaceEditDialog({
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/budget').then(r => r.json()).then(d => {
+      fetch(`/api/budget?workspaceId=${encodeURIComponent(workspace.id)}`).then(r => r.json()).then(d => {
         setBudgetLimit(String(d.config.limitUsd))
         setBudgetEnforced(d.config.enforced)
         setBudgetSpend(d.currentSpendUsd)
@@ -71,6 +71,7 @@ export function WorkspaceEditDialog({
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            workspaceId: workspace.id,
             limitUsd: parseFloat(budgetLimit) || 10,
             enforced: budgetEnforced,
           }),

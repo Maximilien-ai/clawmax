@@ -6,6 +6,7 @@
 
 import https from 'https'
 import path from 'path'
+import { getWorkspaceManager } from './workspace-manager'
 
 let apiKey = ''
 let workspace = ''
@@ -14,10 +15,14 @@ let enabled = false
 
 function getWorkspaceId(): string {
   try {
-    const wsPath = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
-    return path.basename(wsPath)
+    return getWorkspaceManager().getActiveWorkspaceId()
   } catch {
-    return 'default'
+    try {
+      const wsPath = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
+      return path.basename(wsPath)
+    } catch {
+      return 'default'
+    }
   }
 }
 

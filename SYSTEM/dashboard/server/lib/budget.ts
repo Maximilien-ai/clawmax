@@ -8,6 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
 import { getWorkspaceMetering } from './metering'
+import { getWorkspaceManager } from './workspace-manager'
 
 export interface BudgetConfig {
   /** Maximum budget in USD (e.g., 10.00) */
@@ -35,13 +36,16 @@ const DEFAULT_CONFIG: BudgetConfig = {
   paused: false,
 }
 
-function getBudgetPath(): string {
-  return path.join(getWorkspacePath(), 'SYSTEM', 'budget.json')
+function getBudgetPath(workspaceId?: string): string {
+  const workspacePath = workspaceId
+    ? getWorkspaceManager().resolveWorkspacePath(workspaceId)
+    : getWorkspacePath()
+  return path.join(workspacePath, 'SYSTEM', 'budget.json')
 }
 
-export function loadBudgetConfig(): BudgetConfig {
+export function loadBudgetConfig(workspaceId?: string): BudgetConfig {
   try {
-    const raw = fs.readFileSync(getBudgetPath(), 'utf-8')
+    const raw = fs.readFileSync(getBudgetPath(workspaceId), 'utf-8')
     const parsed = JSON.parse(raw)
     return { ...DEFAULT_CONFIG, ...parsed }
   } catch {
@@ -49,15 +53,15 @@ export function loadBudgetConfig(): BudgetConfig {
   }
 }
 
-export function saveBudgetConfig(config: BudgetConfig): void {
-  const filePath = getBudgetPath()
+export function saveBudgetConfig(config: BudgetConfig, workspaceId?: string): void {
+  const filePath = getBudgetPath(workspaceId)
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8')
 }
 
-export async function getBudgetStatus(): Promise<BudgetStatus> {
-  const config = loadBudgetConfig()
-  const metering = await getWorkspaceMetering()
+export async function getBudgetStatus(workspaceId?: string): Promise<BudgetStatus> {
+  const config = loadBudgetConfig(workspaceId)
+  const metering = await getWorkspaceMetering(workspaceId)
   const currentSpend = metering.estimatedCostUsd
 
   const usedPct = config.limitUsd > 0
@@ -74,14 +78,14 @@ export async function getBudgetStatus(): Promise<BudgetStatus> {
   // Auto-pause if enforced and exceeded
   if (config.enforced && level === 'exceeded' && !config.paused) {
     config.paused = true
-    saveBudgetConfig(config)
+    saveBudgetConfig(config, workspaceId)
     console.log(`[Budget] Workspace budget exceeded ($${currentSpend.toFixed(4)} / $${config.limitUsd.toFixed(2)}) — agents paused`)
   }
 
   // Auto-unpause if spend drops below limit (e.g., after budget increase)
   if (config.paused && level !== 'exceeded') {
     config.paused = false
-    saveBudgetConfig(config)
+    saveBudgetConfig(config, workspaceId)
     console.log(`[Budget] Budget no longer exceeded — agents unpaused`)
   }
 
@@ -98,9 +102,12 @@ export async function getBudgetStatus(): Promise<BudgetStatus> {
  * Check if agent interactions should be blocked due to budget.
  * Returns null if OK, or an error message if blocked.
  */
-export function checkBudgetBlock(): string | null {
-  const config = loadBudgetConfig()
+export function checkBudgetBlock(options?: { workspaceId?: string; operation?: 'agent' | 'workflow' }): string | null {
+  const config = loadBudgetConfig(options?.workspaceId)
   if (!config.enforced) return null
   if (!config.paused) return null
-  return `Workspace budget exceeded ($${config.limitUsd.toFixed(2)} limit). Increase budget or disable enforcement to continue.`
+  if (options?.operation === 'workflow') {
+    return `Workflow blocked: workspace budget exceeded ($${config.limitUsd.toFixed(2)} limit). Increase budget or disable enforcement to continue.`
+  }
+  return `Agent interaction blocked: workspace budget exceeded ($${config.limitUsd.toFixed(2)} limit). Increase budget or disable enforcement to continue.`
 }

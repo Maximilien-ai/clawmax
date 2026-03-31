@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import express, { Router } from 'express'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
@@ -14,6 +14,7 @@ import { updateAgentModelInConfigFile } from '../lib/agent-model'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
+import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -2641,10 +2642,100 @@ router.get('/:id/export', async (req, res) => {
     console.log('[Export API] Piping archive to response...')
     archive.pipe(res)
     archive.directory(agentDir, id)
+    archive.append(JSON.stringify(getAgentTransferMetadata(id), null, 2), { name: `${id}/clawmax-export.json` })
     await archive.finalize()
     console.log('[Export API] Finalize called')
   } catch (err: any) {
     console.error('[Export API] Error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Import agent bundle from a local directory path
+router.post('/import-directory', async (req, res) => {
+  try {
+    const { sourcePath, targetId } = req.body as { sourcePath?: string; targetId?: string }
+    if (!sourcePath || typeof sourcePath !== 'string') {
+      return res.status(400).json({ error: 'sourcePath is required' })
+    }
+    if (targetId && !/^[a-zA-Z0-9_-]+$/.test(targetId)) {
+      return res.status(400).json({ error: 'Invalid targetId' })
+    }
+
+    const result = importAgentFromBundleDirectory(sourcePath, targetId)
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Import agent bundle from ZIP upload
+router.post('/import-zip', express.raw({ type: 'application/zip', limit: '25mb' }), async (req, res) => {
+  try {
+    const targetId = typeof req.query.targetId === 'string' ? req.query.targetId : undefined
+    if (targetId && !/^[a-zA-Z0-9_-]+$/.test(targetId)) {
+      return res.status(400).json({ error: 'Invalid targetId' })
+    }
+
+    const body = req.body as Buffer
+    if (!body || !Buffer.isBuffer(body) || body.length === 0) {
+      return res.status(400).json({ error: 'ZIP body is required' })
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'clawmax-import-zip-'))
+    const zipPath = path.join(tmpDir, 'import.zip')
+    fs.writeFileSync(zipPath, body)
+
+    const result = importAgentFromZipArchive(zipPath, targetId)
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// List importable OpenClaw agents from ~/.openclaw/agents
+router.get('/openclaw/importable', async (_req, res) => {
+  try {
+    res.json({ agents: listImportableOpenClawAgents() })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Import OpenClaw agent into current workspace
+router.post('/openclaw/import', async (req, res) => {
+  try {
+    const { sourceId, targetId } = req.body as { sourceId?: string; targetId?: string }
+    if (!sourceId || !/^[a-zA-Z0-9_-]+$/.test(sourceId)) {
+      return res.status(400).json({ error: 'Valid sourceId is required' })
+    }
+    if (targetId && !/^[a-zA-Z0-9_-]+$/.test(targetId)) {
+      return res.status(400).json({ error: 'Invalid targetId' })
+    }
+
+    const result = importAgentFromOpenClaw(sourceId, targetId)
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Export workspace agent into ~/.openclaw/agents
+router.post('/:id/export-openclaw', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { targetId, includeSkills, includeMemberships } = req.body as {
+      targetId?: string
+      includeSkills?: boolean
+      includeMemberships?: boolean
+    }
+    if (targetId && !/^[a-zA-Z0-9_-]+$/.test(targetId)) {
+      return res.status(400).json({ error: 'Invalid targetId' })
+    }
+
+    const result = exportAgentToOpenClaw(id, targetId, { includeSkills, includeMemberships })
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
 })

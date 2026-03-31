@@ -40,7 +40,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
         .map(t => t.trim())
         .filter(t => t.length > 0)
 
-      await createWorkspace(name.trim(), finalPath, {
+      const workspace = await createWorkspace(name.trim(), finalPath, {
         color: selectedColor,
         tags: parsedTags
       })
@@ -51,6 +51,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            workspaceId: workspace.id,
             limitUsd: parseFloat(budgetLimit) || 10,
             enforced: budgetEnforced,
           }),
@@ -196,6 +197,8 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
                 setName('')
                 setPath('')
                 setTags('')
+                setBudgetLimit('10')
+                setBudgetEnforced(true)
                 setSelectedColor(PRESET_COLORS[0].value)
                 onClose()
               }}

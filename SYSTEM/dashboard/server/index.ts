@@ -198,9 +198,10 @@ app.get('/api/activity', protect, (_req, res) => {
 })
 
 // Budget status
-app.get('/api/budget', protect, async (_req, res) => {
+app.get('/api/budget', protect, async (req, res) => {
   try {
-    const status = await getBudgetStatus()
+    const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
+    const status = await getBudgetStatus(workspaceId)
     res.json(status)
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -210,8 +211,9 @@ app.get('/api/budget', protect, async (_req, res) => {
 // Update budget config
 app.put('/api/budget', protect, (req, res) => {
   try {
-    const current = loadBudgetConfig()
-    const updates = req.body as Partial<BudgetConfig>
+    const updates = req.body as Partial<BudgetConfig> & { workspaceId?: string }
+    const workspaceId = typeof updates.workspaceId === 'string' ? updates.workspaceId : undefined
+    const current = loadBudgetConfig(workspaceId)
 
     // Validate
     if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || updates.limitUsd < 0)) {
@@ -230,7 +232,7 @@ app.put('/api/budget', protect, (req, res) => {
       paused: updates.paused ?? current.paused,
     }
 
-    saveBudgetConfig(config)
+    saveBudgetConfig(config, workspaceId)
     res.json({ ok: true, config })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -238,9 +240,10 @@ app.put('/api/budget', protect, (req, res) => {
 })
 
 // Metering data from Opik
-app.get('/api/metering', protect, async (_req, res) => {
+app.get('/api/metering', protect, async (req, res) => {
   try {
-    const data = await getWorkspaceMetering()
+    const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
+    const data = await getWorkspaceMetering(workspaceId)
     res.json(data)
   } catch (err: any) {
     res.status(500).json({ error: err.message })

@@ -187,6 +187,11 @@ export class WorkspaceManager {
     return workspace
   }
 
+  /** Get active workspace ID */
+  getActiveWorkspaceId(): string {
+    return this.getActiveWorkspace().id
+  }
+
   /** Set active workspace */
   setActiveWorkspace(id: string): void {
     const registry = this.loadRegistry()

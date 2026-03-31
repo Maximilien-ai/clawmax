@@ -176,6 +176,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
   const [showAiPrompt, setShowAiPrompt] = useState(false)
+  const [showWorkflowActionsMenu, setShowWorkflowActionsMenu] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiInitialData, setAiInitialData] = useState<any>(null)
@@ -1026,20 +1027,47 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 {allVisibleSelected ? 'Deselect All' : 'Select All'}
               </button>
             )}
-            <button
-              onClick={() => setShowAiPrompt(true)}
-              disabled={!aiEnabled}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${aiEnabled ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
-              title={aiEnabled ? 'Generate workflow with AI' : 'Configure API keys (BYOK) to enable AI generation'}
-            >
-              AI Generate
-            </button>
-            <button
-              onClick={() => { setAiInitialData(null); setShowEditorDialog(true) }}
-              className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors"
-            >
-              + New Workflow
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowWorkflowActionsMenu(!showWorkflowActionsMenu)}
+                className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors flex items-center gap-1.5"
+                title="Workflow actions"
+              >
+                <span className="text-base leading-none">⚙️</span> Workflow Actions <span className="text-xs">▾</span>
+              </button>
+              {showWorkflowActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowActionsMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => {
+                        setShowWorkflowActionsMenu(false)
+                        setShowAiPrompt(true)
+                      }}
+                      disabled={!aiEnabled}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                        aiEnabled
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800'
+                      }`}
+                      title={aiEnabled ? 'Generate workflow with AI' : 'Configure API keys (BYOK) to enable AI generation'}
+                    >
+                      <span className="text-purple-500">✨</span> AI Generate
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWorkflowActionsMenu(false)
+                        setAiInitialData(null)
+                        setShowEditorDialog(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-sky-500">＋</span> Create
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

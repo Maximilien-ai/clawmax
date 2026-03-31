@@ -99,7 +99,7 @@ router.post('/:id/chat', (req, res) => {
   }
 
   // Check workspace budget
-  const budgetBlock = checkBudgetBlock()
+  const budgetBlock = checkBudgetBlock({ operation: 'agent' })
   if (budgetBlock) {
     return res.status(402).json({ error: budgetBlock })
   }
