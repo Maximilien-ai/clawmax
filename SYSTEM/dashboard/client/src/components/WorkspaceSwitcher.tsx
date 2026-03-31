@@ -548,35 +548,37 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     </p>
                   </div>
                   {dashboardDisplayMode !== 'compact' ? (
-                    <div className="space-y-2 text-sm">
-                      {dashboardSectionOrder.map((key, index) => (
-                        <div key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
-                          <input
-                            type="checkbox"
-                            checked={dashboardSections[key]}
-                            onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
-                          />
-                          <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveSection(index, -1)}
-                              disabled={index === 0}
-                              className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveSection(index, 1)}
-                              disabled={index === dashboardSectionOrder.length - 1}
-                              className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                            >
-                              ↓
-                            </button>
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Drag sections to reorder the dashboard. Detail mode will expand content on the shared page; Standard keeps the balanced layout.
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        {dashboardSectionOrder.map((key) => (
+                          <div
+                            key={key}
+                            draggable
+                            onDragStart={() => setDraggedSection(key)}
+                            onDragEnd={() => setDraggedSection(null)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              if (draggedSection && draggedSection !== key) {
+                                moveSectionToCompactColumn(draggedSection, dashboardCompactColumns[draggedSection], key)
+                                setDraggedSection(null)
+                              }
+                            }}
+                            className="flex cursor-move items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900"
+                          >
+                            <span className="text-gray-400">⋮⋮</span>
+                            <input
+                              type="checkbox"
+                              checked={dashboardSections[key]}
+                              onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                            />
+                            <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
