@@ -89,6 +89,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   })
   const [dashboardSectionOrder, setDashboardSectionOrder] = useState([...DEFAULT_SECTION_ORDER])
   const [dashboardCompactColumns, setDashboardCompactColumns] = useState({ ...DEFAULT_COMPACT_COLUMNS })
+  const [draggedSection, setDraggedSection] = useState<null | 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
@@ -196,6 +197,36 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       return next
     })
   }
+
+  const moveSectionToCompactColumn = (
+    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    column: 'left' | 'right',
+    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
+  ) => {
+    setDashboardSectionOrder((prev) => {
+      const without = prev.filter((key) => key !== section)
+      const nextColumns = { ...dashboardCompactColumns, [section]: column }
+      let insertIndex = without.length
+
+      if (beforeKey) {
+        insertIndex = without.findIndex((key) => key === beforeKey)
+        if (insertIndex === -1) insertIndex = without.length
+      } else {
+        const lastInColumn = [...without].reverse().find((key) => nextColumns[key] === column)
+        if (lastInColumn) {
+          insertIndex = without.findIndex((key) => key === lastInColumn) + 1
+        }
+      }
+
+      const next = [...without]
+      next.splice(insertIndex, 0, section)
+      setDashboardCompactColumns(nextColumns)
+      return next
+    })
+  }
+
+  const compactColumnSections = (column: 'left' | 'right') =>
+    dashboardSectionOrder.filter((key) => dashboardCompactColumns[key] === column)
 
   const handleDeleteClick = async (workspace: { id: string; name: string; path: string }) => {
     const consequences: string[] = []
@@ -516,54 +547,91 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       Compact favors one-page summaries, Standard matches the current balanced layout, and Detail expands cards and histories.
                     </p>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    {dashboardSectionOrder.map((key, index) => (
-                      <div key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
-                        <input
-                          type="checkbox"
-                          checked={dashboardSections[key]}
-                          onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
-                        />
-                        <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => moveSection(index, -1)}
-                            disabled={index === 0}
-                            className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSection(index, 1)}
-                            disabled={index === dashboardSectionOrder.length - 1}
-                            className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
-                          >
-                            ↓
-                          </button>
-                          {dashboardDisplayMode === 'compact' && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setDashboardCompactColumns(prev => ({ ...prev, [key]: 'left' }))}
-                                className={`rounded border px-2 py-0.5 text-xs ${dashboardCompactColumns[key] === 'left' ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
-                              >
-                                L
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDashboardCompactColumns(prev => ({ ...prev, [key]: 'right' }))}
-                                className={`rounded border px-2 py-0.5 text-xs ${dashboardCompactColumns[key] === 'right' ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
-                              >
-                                R
-                              </button>
-                            </>
-                          )}
+                  {dashboardDisplayMode !== 'compact' ? (
+                    <div className="space-y-2 text-sm">
+                      {dashboardSectionOrder.map((key, index) => (
+                        <div key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
+                          <input
+                            type="checkbox"
+                            checked={dashboardSections[key]}
+                            onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                          />
+                          <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveSection(index, -1)}
+                              disabled={index === 0}
+                              className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveSection(index, 1)}
+                              disabled={index === dashboardSectionOrder.length - 1}
+                              className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                            >
+                              ↓
+                            </button>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Drag sections between columns to shape the compact dashboard layout. Overview stays full-width on the shared page.
                       </div>
-                    ))}
-                  </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['left', 'right'] as const).map((column) => (
+                          <div
+                            key={column}
+                            className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              if (draggedSection) {
+                                moveSectionToCompactColumn(draggedSection, column)
+                                setDraggedSection(null)
+                              }
+                            }}
+                          >
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              {column} column
+                            </div>
+                            <div className="space-y-2 min-h-24">
+                              {compactColumnSections(column).map((key) => (
+                                <div
+                                  key={key}
+                                  draggable
+                                  onDragStart={() => setDraggedSection(key)}
+                                  onDragEnd={() => setDraggedSection(null)}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault()
+                                    if (draggedSection && draggedSection !== key) {
+                                      moveSectionToCompactColumn(draggedSection, column, key)
+                                      setDraggedSection(null)
+                                    }
+                                  }}
+                                  className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                >
+                                  <span className="text-gray-400">⋮⋮</span>
+                                  <input
+                                    type="checkbox"
+                                    checked={dashboardSections[key]}
+                                    onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                                  />
+                                  <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-end">
                     <button
                       onClick={createDashboard}
