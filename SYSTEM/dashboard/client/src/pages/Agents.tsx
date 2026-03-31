@@ -3498,6 +3498,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       {/* Line 2: ID + cost + file */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
+        <span id={`doctor-msg-${agent.id}`} />
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           {metering && metering.calls > 0 && (
             <span
@@ -3653,6 +3654,31 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
                       >
                         ↻ Restart
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          setShowActionsMenu(false)
+                          try {
+                            const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+                            const data = await resp.json()
+                            const r = (data.results || []).find((r: any) => r.id === agent.id)
+                            if (r) {
+                              const fails = (r.checks || []).filter((c: any) => c.status === 'fail')
+                              const fixed = (r.checks || []).filter((c: any) => c.status === 'fixed')
+                              const pass = (r.checks || []).filter((c: any) => c.status === 'pass')
+                              const el = document.getElementById(`doctor-msg-${agent.id}`)
+                              if (el) {
+                                el.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} ok${fixed.length ? `, ${fixed.length} fixed` : ''}`
+                                el.className = `text-[10px] px-2 py-0.5 rounded ${fails.length ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`
+                                setTimeout(() => { el.textContent = ''; el.className = '' }, 8000)
+                              }
+                            }
+                          } catch {}
+                        }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                      >
+                        🩺 Doctor
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
