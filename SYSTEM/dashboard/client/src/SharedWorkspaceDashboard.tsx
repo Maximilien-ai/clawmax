@@ -102,6 +102,79 @@ interface SharedDashboardPayload {
   }>
 }
 
+function normalizePayload(input: any): SharedDashboardPayload {
+  return {
+    refreshedAt: typeof input?.refreshedAt === 'string' ? input.refreshedAt : new Date().toISOString(),
+    dashboard: {
+      title: typeof input?.dashboard?.title === 'string' ? input.dashboard.title : 'Workspace Summary',
+      description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
+      sections: {
+        overview: input?.dashboard?.sections?.overview !== false,
+        costs: input?.dashboard?.sections?.costs !== false,
+        agents: input?.dashboard?.sections?.agents !== false,
+        notifications: input?.dashboard?.sections?.notifications !== false,
+        workflows: input?.dashboard?.sections?.workflows !== false,
+        kickoff: input?.dashboard?.sections?.kickoff !== false,
+        results: input?.dashboard?.sections?.results !== false,
+        groupChats: input?.dashboard?.sections?.groupChats !== false,
+      },
+    },
+    workspace: {
+      id: typeof input?.workspace?.id === 'string' ? input.workspace.id : 'workspace',
+      name: typeof input?.workspace?.name === 'string' ? input.workspace.name : 'Workspace',
+      color: typeof input?.workspace?.color === 'string' ? input.workspace.color : '#3B82F6',
+      lastUpdatedAt: typeof input?.workspace?.lastUpdatedAt === 'string' ? input.workspace.lastUpdatedAt : new Date().toISOString(),
+    },
+    overview: {
+      totalAgents: Number(input?.overview?.totalAgents || 0),
+      onlineAgents: Number(input?.overview?.onlineAgents || 0),
+      pausedAgents: Number(input?.overview?.pausedAgents || 0),
+      failingAgents: Number(input?.overview?.failingAgents || 0),
+      activeNotifications: Number(input?.overview?.activeNotifications || 0),
+      runningWorkflows: Number(input?.overview?.runningWorkflows || 0),
+    },
+    costs: {
+      budget: {
+        config: {
+          limitUsd: Number(input?.costs?.budget?.config?.limitUsd || 0),
+          warningPct: Number(input?.costs?.budget?.config?.warningPct || 0),
+          enforced: !!input?.costs?.budget?.config?.enforced,
+          paused: !!input?.costs?.budget?.config?.paused,
+        },
+        currentSpendUsd: Number(input?.costs?.budget?.currentSpendUsd || 0),
+        remainingUsd: Number(input?.costs?.budget?.remainingUsd || 0),
+        usedPct: Number(input?.costs?.budget?.usedPct || 0),
+        level: input?.costs?.budget?.level === 'warning' || input?.costs?.budget?.level === 'exceeded' ? input.costs.budget.level : 'ok',
+      },
+      metering: {
+        totalCostUsd: Number(input?.costs?.metering?.totalCostUsd || 0),
+        totalTraces: Number(input?.costs?.metering?.totalTraces || 0),
+        byAgent: Array.isArray(input?.costs?.metering?.byAgent) ? input.costs.metering.byAgent : [],
+        byWorkflow: Array.isArray(input?.costs?.metering?.byWorkflow) ? input.costs.metering.byWorkflow : [],
+      },
+    },
+    agents: Array.isArray(input?.agents) ? input.agents : [],
+    notifications: Array.isArray(input?.notifications) ? input.notifications : [],
+    workflows: Array.isArray(input?.workflows)
+      ? input.workflows.map((workflow: any) => ({
+          ...workflow,
+          resultSummary: Array.isArray(workflow?.resultSummary) ? workflow.resultSummary : [],
+          resultLinks: Array.isArray(workflow?.resultLinks) ? workflow.resultLinks : [],
+          executionHistory: Array.isArray(workflow?.executionHistory) ? workflow.executionHistory : [],
+        }))
+      : [],
+    groupChats: Array.isArray(input?.groupChats)
+      ? input.groupChats.map((chat: any) => ({
+          ...chat,
+          channels: Array.isArray(chat?.channels) ? chat.channels : [],
+          members: Array.isArray(chat?.members) ? chat.members : [],
+          messageCount: Number(chat?.messageCount || 0),
+          latestMessage: chat?.latestMessage || null,
+        }))
+      : [],
+  }
+}
+
 function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
@@ -125,7 +198,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed to load workspace dashboard')
         if (!cancelled) {
-          setPayload(data)
+          setPayload(normalizePayload(data))
           setError(null)
         }
       } catch (err: any) {
