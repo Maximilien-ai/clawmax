@@ -225,6 +225,24 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     })
   }
 
+  const handleCompactTileDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    column: 'left' | 'right',
+    sections: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+  ) => {
+    e.preventDefault()
+    if (!draggedSection || draggedSection === key) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dropBefore = e.clientY < rect.top + rect.height / 2
+    const currentIndex = sections.indexOf(key)
+    const nextKey = dropBefore ? key : sections[currentIndex + 1]
+
+    moveSectionToCompactColumn(draggedSection, column, nextKey)
+    setDraggedSection(null)
+  }
+
   const moveSectionBefore = (
     section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
     beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
@@ -634,6 +652,8 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                                     draggable
                                     onDragStart={() => setDraggedSection(key)}
                                     onDragEnd={() => setDraggedSection(null)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => handleCompactTileDrop(e, key, column, sections)}
                                     className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
                                   >
                                     <span className="text-gray-400">⋮⋮</span>
