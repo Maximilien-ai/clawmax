@@ -273,7 +273,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const agentsToShow = compact ? 4 : detail ? payload.agents.length : payload.agents.length
   const workflowsToShow = compact ? 3 : detail ? payload.workflows.length : payload.workflows.length
   const chatsToShow = compact ? 3 : detail ? payload.groupChats.length : payload.groupChats.length
-  const containerWidth = compact ? 'max-w-4xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
+  const containerWidth = compact ? 'max-w-6xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
   const twoColLayout = compact ? 'xl:grid-cols-[1.1fr_0.9fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
   const cardPadding = compact ? 'p-3' : detail ? 'p-6' : 'p-5'
@@ -564,7 +564,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           </header>
 
           {payload.dashboard.sections.overview && (
-            <section className="mb-4 grid gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+            <section className="mb-4 grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               {overviewCards.map(([label, value]) => (
                 <div key={label} className="rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
                   <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">{label}</div>
@@ -574,7 +574,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             </section>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-4">
               {compactLeftSections.map((key) => (
                 <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
