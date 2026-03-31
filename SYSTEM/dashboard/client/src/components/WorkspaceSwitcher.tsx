@@ -631,9 +631,6 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                               {compactColumnSections(column).map((key) => (
                                 <React.Fragment key={key}>
                                   <div
-                                    draggable
-                                    onDragStart={() => setDraggedSection(key)}
-                                    onDragEnd={() => setDraggedSection(null)}
                                     onDragOver={(e) => e.preventDefault()}
                                     onDrop={(e) => {
                                       e.preventDefault()
@@ -642,15 +639,22 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                                         setDraggedSection(null)
                                       }
                                     }}
-                                    className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                    className="rounded-md border border-dashed border-transparent hover:border-blue-400"
                                   >
-                                    <span className="text-gray-400">⋮⋮</span>
-                                    <input
-                                      type="checkbox"
-                                      checked={dashboardSections[key]}
-                                      onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
-                                    />
-                                    <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                                    <div
+                                      draggable
+                                      onDragStart={() => setDraggedSection(key)}
+                                      onDragEnd={() => setDraggedSection(null)}
+                                      className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                    >
+                                      <span className="text-gray-400">⋮⋮</span>
+                                      <input
+                                        type="checkbox"
+                                        checked={dashboardSections[key]}
+                                        onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                                      />
+                                      <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                                    </div>
                                   </div>
                                   <div
                                     className="h-3 rounded border border-dashed border-transparent hover:border-blue-400"

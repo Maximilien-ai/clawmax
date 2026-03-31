@@ -210,6 +210,20 @@ function timeAgo(iso: string | null | undefined): string {
 export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [payload, setPayload] = useState<SharedDashboardPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('dark-mode')
+    if (saved !== null) return saved === 'true'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('dark-mode', String(darkMode))
+  }, [darkMode])
 
   useEffect(() => {
     let cancelled = false
@@ -283,6 +297,29 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const compactOrderedSections = orderedTopLevelSections.filter((key) => key !== 'overview')
   const compactLeftSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'left')
   const compactRightSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'right')
+  const shellClass = 'min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100'
+  const headerClass = 'rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-100 shadow-xl dark:border-white/10 dark:from-slate-900 dark:to-slate-800 dark:shadow-2xl'
+  const cardClass = `rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${cardPadding}`
+  const nestedClass = 'rounded-xl border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-slate-800/70'
+
+  const ThemeToggle = () => (
+    <button
+      onClick={() => setDarkMode((value) => !value)}
+      className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white p-2 text-gray-500 shadow-sm transition-colors hover:text-gray-700 dark:border-gray-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:text-white"
+      title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      {darkMode ? (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      )}
+    </button>
+  )
 
   const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats') => {
     switch (key) {
@@ -291,8 +328,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={`grid ${compact ? 'gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : 'gap-3 sm:grid-cols-2 xl:grid-cols-6'}`}>
             {overviewCards.map(([label, value]) => (
-              <div key={label} className={`rounded-2xl border border-white/10 bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
-                <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+              <div key={label} className={`rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">{label}</div>
                 <div className={`mt-2 font-semibold ${compact ? 'text-xl' : 'text-2xl'}`}>{value}</div>
               </div>
             ))}
@@ -301,29 +338,29 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       case 'costs':
         if (!payload.dashboard.sections.costs) return null
         return (
-          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+          <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Costs & Budget</h2>
-            <div className={`mb-3 flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
+            <div className={`mb-3 flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
               <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
               <span>${budget.remainingUsd.toFixed(4)} remaining</span>
             </div>
-            <div className="h-3 w-full rounded-full bg-slate-800">
+            <div className="h-3 w-full rounded-full bg-gray-200 dark:bg-slate-800">
               <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
             </div>
-            <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+            <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
           </section>
         )
       case 'agents':
         if (!payload.dashboard.sections.agents) return null
         return (
-          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+          <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
             <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
               {payload.agents.slice(0, agentsToShow).map(agent => (
-                <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-slate-800/70 px-3 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
+                <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
                   <div>
                     <div className="font-medium">{agent.name}</div>
-                    {!compact && <div className="text-slate-500">{agent.id} · last activity {timeAgo(agent.lastHeartbeat)}</div>}
+                    {!compact && <div className="text-gray-500 dark:text-slate-500">{agent.id} · last activity {timeAgo(agent.lastHeartbeat)}</div>}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] ${
                     agent.paused ? 'bg-slate-600 text-slate-100' :
@@ -341,45 +378,45 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       case 'notifications':
         if (!payload.dashboard.sections.notifications) return null
         return (
-          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+          <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Active Notifications</h2>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.notifications.slice(0, notificationsToShow).map(notification => (
-                <div key={notification.id} className="rounded-xl border border-white/10 bg-slate-800/80 p-3">
+                <div key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/80">
                   <div className="flex items-center justify-between gap-3">
                     <div className="font-medium">{notification.title}</div>
-                    <span className="text-[11px] text-slate-400">{notification.severity}</span>
+                    <span className="text-[11px] text-gray-500 dark:text-slate-400">{notification.severity}</span>
                   </div>
-                  {!compact && <div className="mt-1 text-sm text-slate-400">{notification.message}</div>}
+                  {!compact && <div className="mt-1 text-sm text-gray-500 dark:text-slate-400">{notification.message}</div>}
                 </div>
               ))}
-              {payload.notifications.length === 0 && <div className="text-sm text-slate-500">No active notifications.</div>}
+              {payload.notifications.length === 0 && <div className="text-sm text-gray-500 dark:text-slate-500">No active notifications.</div>}
             </div>
           </section>
         )
       case 'workflows':
         if (!payload.dashboard.sections.workflows) return null
         return (
-          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+          <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
-                <div key={workflow.id} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
+                <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="font-medium">{workflow.name}</div>
-                      {!compact && <div className="text-sm text-slate-500">{workflow.description || workflow.id}</div>}
+                      {!compact && <div className="text-sm text-gray-500 dark:text-slate-500">{workflow.description || workflow.id}</div>}
                     </div>
-                    <span className="text-[11px] text-slate-400">{workflow.status}</span>
+                    <span className="text-[11px] text-gray-500 dark:text-slate-400">{workflow.status}</span>
                   </div>
                   {!compact && (
-                    <div className="mt-3 grid gap-2 text-sm text-slate-400">
+                    <div className="mt-3 grid gap-2 text-sm text-gray-500 dark:text-slate-400">
                       <div>Next run: {workflow.nextRunAt ? new Date(workflow.nextRunAt).toLocaleString() : 'Manual / none scheduled'}</div>
                       {workflow.kickoffSummary && (
-                        <div className="rounded-md bg-slate-900/60 p-2 text-slate-300">Kickoff: {workflow.kickoffSummary}</div>
+                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Kickoff: {workflow.kickoffSummary}</div>
                       )}
                       {workflow.resultSummary.length > 0 && (
-                        <div className="rounded-md bg-slate-900/60 p-2 text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
+                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
                       )}
                       {workflow.resultLinks.length > 0 && (
                         <div className="flex flex-wrap gap-2">
@@ -391,11 +428,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         </div>
                       )}
                       {detail && workflow.latestExecution?.logsPreview?.length > 0 && (
-                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
-                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Trace Preview</div>
-                          <div className="space-y-1 text-xs text-slate-300">
+                        <div className="rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Trace Preview</div>
+                          <div className="space-y-1 text-xs text-gray-700 dark:text-slate-300">
                             {workflow.latestExecution.logsPreview.map((line, index) => (
-                              <div key={`${workflow.id}-ordered-trace-${index}`} className="rounded bg-slate-950/60 px-2 py-1">
+                              <div key={`${workflow.id}-ordered-trace-${index}`} className="rounded bg-white px-2 py-1 dark:bg-slate-950/60">
                                 {line}
                               </div>
                             ))}
@@ -403,13 +440,13 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         </div>
                       )}
                       {detail && workflow.executionHistory.length > 0 && (
-                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
-                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Runs</div>
-                          <div className="space-y-1 text-xs text-slate-300">
+                        <div className="rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Recent Runs</div>
+                          <div className="space-y-1 text-xs text-gray-700 dark:text-slate-300">
                             {workflow.executionHistory.slice(0, 5).map((run) => (
-                              <div key={run.id} className="flex items-center justify-between rounded bg-slate-950/60 px-2 py-1">
+                              <div key={run.id} className="flex items-center justify-between rounded bg-white px-2 py-1 dark:bg-slate-950/60">
                                 <span>{run.status}</span>
-                                <span className="text-slate-500">{timeAgo(run.completedAt || run.startedAt)}</span>
+                                <span className="text-gray-500 dark:text-slate-500">{timeAgo(run.completedAt || run.startedAt)}</span>
                               </div>
                             ))}
                           </div>
@@ -425,30 +462,30 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       case 'groupChats':
         if (!payload.dashboard.sections.groupChats) return null
         return (
-          <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
+          <section className={cardClass}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Group Chats</h2>
-              <span className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{payload.groupChats.length} channels</span>
+              <span className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{payload.groupChats.length} channels</span>
             </div>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.groupChats.slice(0, chatsToShow).map((chat) => (
-                <div key={`${chat.type}:${chat.name}`} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
-                  <div className="font-medium text-slate-100">{chat.name}</div>
+                <div key={`${chat.type}:${chat.name}`} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
+                  <div className="font-medium text-gray-900 dark:text-slate-100">{chat.name}</div>
                   {!compact && (
                     <>
-                      <div className="mt-2 text-xs uppercase tracking-wide text-slate-500">
+                      <div className="mt-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">
                         {chat.type}{chat.community ? ` · ${chat.community}` : ''}
                       </div>
-                      <div className="mt-3 text-sm text-slate-300">
+                      <div className="mt-3 text-sm text-gray-700 dark:text-slate-300">
                         {chat.latestMessage ? chat.latestMessage.content : 'No messages yet. This channel is available for workspace coordination.'}
                       </div>
                       {detail && chat.recentMessages.length > 0 && (
-                        <div className="mt-3 rounded-md border border-white/10 bg-slate-900/60 p-3">
-                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Chat</div>
-                          <div className="space-y-2 text-xs text-slate-300">
+                        <div className="mt-3 rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Recent Chat</div>
+                          <div className="space-y-2 text-xs text-gray-700 dark:text-slate-300">
                             {chat.recentMessages.map((message, index) => (
-                              <div key={`${chat.name}-ordered-msg-${index}`} className="rounded bg-slate-950/60 px-2 py-1.5">
-                                <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+                              <div key={`${chat.name}-ordered-msg-${index}`} className="rounded bg-white px-2 py-1.5 dark:bg-slate-950/60">
+                                <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-500">
                                   <span>{message.from}</span>
                                   <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
                                 </div>
@@ -470,21 +507,24 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
 
   if (hasCustomSectionOrder && !compact) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className={shellClass}>
         <div className={`mx-auto ${containerWidth} ${compact ? 'px-4 py-5' : 'px-6 py-8'}`}>
-          <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-4' : 'p-6'}`}>
+          <header className={`mb-8 ${headerClass} ${compact ? 'p-4' : 'p-6'}`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
                   Workspace Summary
                 </div>
                 <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
               </div>
-              <div className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
-                <div className="mb-1 uppercase tracking-wide text-slate-500">{payload.dashboard.displayMode} view</div>
-                <div>{payload.workspace.name}</div>
-                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+              <div className="flex items-start gap-3">
+                <div className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
+                  <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">{payload.dashboard.displayMode} view</div>
+                  <div>{payload.workspace.name}</div>
+                  <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+                </div>
+                <ThemeToggle />
               </div>
             </div>
           </header>
@@ -500,22 +540,25 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
 
   if (compact) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className={shellClass}>
         <div className={`mx-auto ${containerWidth} px-4 py-5`}>
-          <header className="mb-6 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 p-4 shadow-2xl">
+          <header className={`mb-6 ${headerClass} p-4`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
                   Workspace Summary
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight">{payload.dashboard.title}</h1>
               </div>
-              <div className="text-xs text-slate-400">
-                <div className="mb-1 uppercase tracking-wide text-slate-500">compact view</div>
-                <div>{payload.workspace.name}</div>
-                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
-                <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+              <div className="flex items-start gap-3">
+                <div className="text-xs text-gray-500 dark:text-slate-400">
+                  <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">compact view</div>
+                  <div>{payload.workspace.name}</div>
+                  <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+                  <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+                </div>
+                <ThemeToggle />
               </div>
             </div>
           </header>
@@ -523,8 +566,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           {payload.dashboard.sections.overview && (
             <section className="mb-4 grid gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
               {overviewCards.map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-white/10 bg-slate-900/80 p-3">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+                <div key={label} className="rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">{label}</div>
                   <div className="mt-2 text-xl font-semibold">{value}</div>
                 </div>
               ))}
@@ -549,23 +592,26 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className={shellClass}>
       <div className={`mx-auto ${containerWidth} ${compact ? 'px-4 py-5' : 'px-6 py-8'}`}>
-        <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-4' : 'p-6'}`}>
+        <header className={`mb-8 ${headerClass} ${compact ? 'p-4' : 'p-6'}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
                 Workspace Summary
               </div>
               <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
-              {!compact && <p className="mt-2 text-sm text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>}
+              {!compact && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>}
             </div>
-            <div className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
-              <div className="mb-1 uppercase tracking-wide text-slate-500">{payload.dashboard.displayMode} view</div>
-              <div>{payload.workspace.name}</div>
-              <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
-              <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+            <div className="flex items-start gap-3">
+              <div className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
+                <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">{payload.dashboard.displayMode} view</div>
+                <div>{payload.workspace.name}</div>
+                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+                <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+              </div>
+              <ThemeToggle />
             </div>
           </div>
         </header>
