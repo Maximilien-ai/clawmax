@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import { getWorkspaceDashboardByToken } from '../lib/workspace-dashboards'
 import { getWorkspaceManager } from '../lib/workspace-manager'
-import { listAgents } from '../lib/workspace'
+import { listAgents, parseGroupsWithMembers } from '../lib/workspace'
 import { getBudgetStatus } from '../lib/budget'
 import { getWorkspaceMetering } from '../lib/metering'
 import { getActiveNotifications } from '../lib/notifications'
 import { listWorkflows, listExecutions } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
+import { getMessages } from '../lib/messages'
+import fs from 'fs'
+import path from 'path'
 
 const router = Router()
 
@@ -29,6 +32,49 @@ router.get('/:token', async (req, res) => {
       const metering = await getWorkspaceMetering(dashboard.workspaceId)
       const notifications = getActiveNotifications()
       const workflows = listWorkflows()
+      const groupsPath = path.join(workspace.path, 'ORG', 'GROUPS.md')
+      const communitiesPath = path.join(workspace.path, 'ORG', 'COMMUNITIES.md')
+      const groups = fs.existsSync(groupsPath)
+        ? parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8')).groups
+        : []
+      const communities = fs.existsSync(communitiesPath)
+        ? parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf-8')).communities
+        : []
+
+      const groupChats = [
+        ...groups.map((group) => {
+          const messages = getMessages('group', group.name)
+          const latest = messages[messages.length - 1]
+          return {
+            type: 'group' as const,
+            name: group.name,
+            community: group.community,
+            members: group.members,
+            messageCount: messages.length,
+            latestMessage: latest ? {
+              from: latest.from,
+              content: latest.content,
+              timestamp: latest.timestamp,
+            } : null,
+          }
+        }),
+        ...communities.map((community) => {
+          const messages = getMessages('community', community.name)
+          const latest = messages[messages.length - 1]
+          return {
+            type: 'community' as const,
+            name: community.name,
+            community: null,
+            members: community.members,
+            messageCount: messages.length,
+            latestMessage: latest ? {
+              from: latest.from,
+              content: latest.content,
+              timestamp: latest.timestamp,
+            } : null,
+          }
+        }),
+      ].sort((a, b) => (b.latestMessage?.timestamp || 0) - (a.latestMessage?.timestamp || 0))
 
       const workflowSummaries = workflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
@@ -100,6 +146,7 @@ router.get('/:token', async (req, res) => {
         }),
         notifications: notifications.slice(0, 20),
         workflows: workflowSummaries,
+        groupChats: groupChats.slice(0, 20),
       }
     })
 

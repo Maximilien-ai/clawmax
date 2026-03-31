@@ -12,6 +12,7 @@ interface SharedDashboardPayload {
       workflows: boolean
       kickoff: boolean
       results: boolean
+      groupChats: boolean
     }
   }
   workspace: {
@@ -83,6 +84,18 @@ interface SharedDashboardPayload {
       status: string
       triggerType: string
     }>
+  }>
+  groupChats: Array<{
+    type: 'group' | 'community'
+    name: string
+    community: string | null
+    members: string[]
+    messageCount: number
+    latestMessage: {
+      from: string
+      content: string
+      timestamp: number
+    } | null
   }>
 }
 
@@ -294,6 +307,39 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             </section>
           )}
         </div>
+
+        {payload.dashboard.sections.groupChats && (
+          <section className="mt-6 rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Group Chats</h2>
+              <span className="text-sm text-slate-400">{payload.groupChats.length} channels</span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {payload.groupChats.length === 0 && (
+                <div className="text-sm text-slate-500">No group or community chat activity yet.</div>
+              )}
+              {payload.groupChats.map((chat) => (
+                <div key={`${chat.type}:${chat.name}`} className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-slate-100">{chat.name}</div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        {chat.type}{chat.community ? ` · ${chat.community}` : ''}
+                      </div>
+                    </div>
+                    {chat.messageCount > 0 && <span className="mt-1 h-2.5 w-2.5 rounded-full bg-red-400" />}
+                  </div>
+                  <div className="mt-3 text-sm text-slate-300">
+                    {chat.latestMessage ? chat.latestMessage.content : 'No messages yet.'}
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">
+                    {chat.members.length} members · {chat.messageCount} messages · {chat.latestMessage ? timeAgo(new Date(chat.latestMessage.timestamp).toISOString()) : '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

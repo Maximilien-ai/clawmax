@@ -47,6 +47,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     workflows: true,
     kickoff: true,
     results: true,
+    groupChats: true,
   })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -68,6 +69,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       workflows: true,
       kickoff: true,
       results: true,
+      groupChats: true,
     })
     try {
       await loadDashboards(workspace.id)
@@ -240,7 +242,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                 }`}
               >
                 <div
-                  className={`flex items-center gap-3 px-4 py-2.5 pr-16 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-2.5 pr-20 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                     workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
@@ -313,7 +315,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   </button>
                 </div>
                 {/* Action buttons */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {/* Edit button */}
                   <button
                     onClick={(e) => {

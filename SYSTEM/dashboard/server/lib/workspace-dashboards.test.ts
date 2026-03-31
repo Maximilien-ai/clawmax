@@ -83,6 +83,7 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
   })
   assert(dashboard.title === 'Marketing Summary', 'Expected title to persist')
   assert(dashboard.sections.overview === true, 'Expected default overview section')
+  assert(dashboard.sections.groupChats === true, 'Expected default group chats section')
   assert(dashboard.createdBy === 'tester', 'Expected createdBy to persist')
   assert(listWorkspaceDashboards('workspace-a').length === 1, 'Expected one dashboard to be listed')
 })

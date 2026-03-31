@@ -11,6 +11,7 @@ export interface WorkspaceDashboardSections {
   workflows: boolean
   kickoff: boolean
   results: boolean
+  groupChats: boolean
 }
 
 export interface WorkspaceDashboard {
@@ -38,6 +39,7 @@ const DEFAULT_SECTIONS: WorkspaceDashboardSections = {
   workflows: true,
   kickoff: true,
   results: true,
+  groupChats: true,
 }
 
 function getWorkspaceDashboardsPath(workspaceId: string): string {
