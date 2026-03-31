@@ -3007,96 +3007,108 @@ const AgentCard = React.memo(function AgentCard({
                 <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
                   menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
                 }`}>
-                  {onEdit && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                    >
-                      <span className="text-emerald-500">✏️</span> Edit Config
-                    </button>
-                  )}
-                  <button
-                    onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <span>📋</span> Clone
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-sky-500">💾</span> Save as Template
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-indigo-500">📦</span> Export as ZIP
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-amber-500">↻</span> Restart
-                  </button>
-                  <button
-                    onClick={async e => {
-                      e.stopPropagation()
-                      setShowActionsMenu(false)
-                      try {
-                        const resp = await fetch('/api/agents/doctor', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ fix: true }),
-                        })
-                        const data = await resp.json()
-                        const agentResult = data.results?.find((r: any) => r.id === agent.id)
-                        if (agentResult) {
-                          const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
-                          const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
-                          const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
-                          // Show result inline — the card doesn't have toast access
-                          const statusEl = document.getElementById(`doctor-status-${agent.id}`)
-                          if (statusEl) {
-                            statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
-                            statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
-                            setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
-                          }
-                        }
-                      } catch {}
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-cyan-500">🩺</span> Doctor
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-purple-500">✎</span> Rename
-                  </button>
-                  {agent.archived ? (
-                    <button
-                      onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                    >
-                      <span className="text-green-500">📤</span> Unarchive
-                    </button>
-                  ) : (
-                    <button
-                      onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                    >
-                      <span className="text-orange-500">📦</span> Archive
-                    </button>
-                  )}
-                  <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
-                  <button
-                    onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
-                  >
-                    <span>🗑</span> Delete
-                  </button>
+                  <div className="px-3 py-2 space-y-3">
+                    <div>
+                      <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Build</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {onEdit && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          >
+                            ✏️ Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                        >
+                          📋 Clone
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                        >
+                          💾 Template
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📦 Export
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                        >
+                          ↻ Restart
+                        </button>
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation()
+                            setShowActionsMenu(false)
+                            try {
+                              const resp = await fetch('/api/agents/doctor', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ fix: true }),
+                              })
+                              const data = await resp.json()
+                              const agentResult = data.results?.find((r: any) => r.id === agent.id)
+                              if (agentResult) {
+                                const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
+                                const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
+                                const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
+                                const statusEl = document.getElementById(`doctor-status-${agent.id}`)
+                                if (statusEl) {
+                                  statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
+                                  statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
+                                  setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
+                                }
+                              }
+                            } catch {}
+                          }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                        >
+                          🩺 Doctor
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                        >
+                          ✎ Rename
+                        </button>
+                        {agent.archived ? (
+                          <button
+                            onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          >
+                            📤 Restore
+                          </button>
+                        ) : (
+                          <button
+                            onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                          >
+                            📦 Archive
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
+                      <button
+                        onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
+                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        🗑 Delete agent
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -3494,88 +3506,113 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {showActionsMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
-              <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 ${
+              <div className={`absolute right-0 w-52 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
                 menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
               }`}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span>👁️</span> View Details
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onChat(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-sky-500">💬</span> Chat
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-green-500">📊</span> Status & Logs
-                </button>
-                <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
-                {onEdit && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-emerald-500">✏️</span> Edit Config
-                  </button>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  <span>📋</span> Clone
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-sky-500">💾</span> Save as Template
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-indigo-500">📦</span> Export as ZIP
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-amber-500">↻</span> Restart
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                >
-                  <span className="text-purple-500">✎</span> Rename
-                </button>
-                {agent.archived ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-green-500">📤</span> Unarchive
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
-                  >
-                    <span className="text-orange-500">📦</span> Archive
-                  </button>
-                )}
-                <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
-                >
-                  <span>🗑</span> Delete
-                </button>
+                <div className="px-3 py-2 space-y-3">
+                  <div>
+                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Open</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                      >
+                        👁️ Details
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onChat(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                      >
+                        💬 Chat
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                      >
+                        📊 Status
+                      </button>
+                      {onViewDocs && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onViewDocs(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📄 Docs
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Build</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {onEdit && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                        >
+                          ✏️ Edit
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                      >
+                        📋 Clone
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                      >
+                        💾 Template
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                      >
+                        📦 Export
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                      >
+                        ↻ Restart
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                      >
+                        ✎ Rename
+                      </button>
+                      {agent.archived ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📤 Restore
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📦 Archive
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
+                      className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      🗑 Delete agent
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           )}
