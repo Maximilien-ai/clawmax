@@ -314,12 +314,6 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
             📋 System Logs
           </button>
           <button
-            onClick={() => setShowDoctor(true)}
-            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
-          >
-            🩺 Doctor
-          </button>
-          <button
             onClick={handleRefresh}
             disabled={cooling}
             className={`text-sm font-medium transition-colors ${
