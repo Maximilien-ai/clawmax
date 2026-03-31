@@ -103,6 +103,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [debugAgent, setDebugAgent] = useState<string | null>(null)
   const [showSystemLogs, setShowSystemLogs] = useState(false)
+  const [showDoctor, setShowDoctor] = useState(false)
   const [metering, setMetering] = useState<MeteringData | null>(null)
   const [showMetering, setShowMetering] = useState(true)
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
@@ -311,6 +312,12 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
             className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
           >
             📋 System Logs
+          </button>
+          <button
+            onClick={() => setShowDoctor(true)}
+            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
+          >
+            🩺 Doctor
           </button>
           <button
             onClick={handleRefresh}
@@ -543,6 +550,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       {/* System Logs Modal */}
       {showSystemLogs && (
         <SystemLogsModal onClose={() => setShowSystemLogs(false)} />
+      )}
+      {showDoctor && (
+        <DoctorModal onClose={() => setShowDoctor(false)} />
       )}
     </div>
   )
@@ -800,6 +810,57 @@ function SystemLogsModal({ onClose }: { onClose: () => void }) {
           >
             Close
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Doctor Modal Component
+function DoctorModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const [results, setResults] = useState<any>(null)
+  const [fixing, setFixing] = useState(false)
+  const runDoctor = useCallback((fix = false) => {
+    setLoading(true); if (fix) setFixing(true)
+    fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix }) })
+      .then(r => r.json()).then(data => { setResults(data); setLoading(false); setFixing(false) })
+      .catch(() => { setLoading(false); setFixing(false) })
+  }, [])
+  useEffect(() => { runDoctor() }, [runDoctor])
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div><h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">ClawMax Doctor</h2><p className="text-xs text-gray-500 dark:text-gray-400">Platform and agent health check</p></div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => runDoctor(true)} disabled={fixing} className="text-sm px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-gray-300 transition-colors">{fixing ? 'Fixing...' : 'Auto-Fix'}</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? <div className="text-center text-gray-500 dark:text-gray-400 py-8">Running health checks...</div> : results ? (
+            <div className="space-y-4">
+              <div className="flex gap-3 text-sm flex-wrap">
+                <span className={`px-3 py-1.5 rounded-lg ${results.platform?.cli ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>{results.platform?.cli ? '✓' : '✗'} CLI</span>
+                <span className={`px-3 py-1.5 rounded-lg ${results.platform?.gateway ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.platform?.gateway ? '✓' : '⚠'} Gateway</span>
+                <span className={`px-3 py-1.5 rounded-lg ${results.healthy ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.fixed} fixed</span>
+              </div>
+              {results.results?.map((agent: any) => (
+                <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2 font-mono">{agent.id}</div>
+                  <div className="space-y-1">{agent.checks.map((c: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className={c.status === 'pass' ? 'text-green-500' : c.status === 'fixed' ? 'text-cyan-500' : c.status === 'fail' ? 'text-red-500' : 'text-amber-500'}>{c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{c.check}:</span>
+                      <span className="text-gray-500 dark:text-gray-400">{c.message}</span>
+                    </div>
+                  ))}</div>
+                </div>
+              ))}
+              {results.results?.length === 0 && <div className="text-center text-gray-400 py-4">No agents in workspace</div>}
+            </div>
+          ) : <div className="text-center text-red-500 py-8">Failed to run doctor</div>}
         </div>
       </div>
     </div>

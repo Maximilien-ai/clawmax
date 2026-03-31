@@ -596,9 +596,10 @@ router.post('/provision', (req, res) => {
   req.on('close', () => { cleanup() })
 })
 
-// POST /api/agents/doctor — register unregistered workspace agents with openclaw CLI
+// POST /api/agents/doctor — comprehensive agent health check and repair
 router.post('/doctor', async (req, res) => {
-  const results: Array<{ id: string; status: string; message: string }> = []
+  const { fix = false, probe = false } = req.body || {}
+  const results: Array<{ id: string; checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> }> = []
 
   // Check if openclaw CLI is available
   let hasOpenclawCli = false
@@ -607,19 +608,25 @@ router.post('/doctor', async (req, res) => {
     hasOpenclawCli = true
   } catch {}
 
-  if (!hasOpenclawCli) {
-    res.status(400).json({ error: 'openclaw CLI not installed. Run: npm install -g openclaw' })
-    return
-  }
+  // Check gateway
+  let gatewayRunning = false
+  try {
+    require('child_process').execSync('lsof -ti:18789', { stdio: 'pipe' })
+    gatewayRunning = true
+  } catch {}
 
   // Read registered agents from openclaw.json
   const registeredIds = new Set<string>()
+  const agentConfigs = new Map<string, any>()
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     const agentList = config?.agents?.list || []
     for (const agent of agentList) {
-      if (agent.id) registeredIds.add(agent.id)
+      if (agent.id) {
+        registeredIds.add(agent.id)
+        agentConfigs.set(agent.id, agent)
+      }
     }
   } catch {}
 
@@ -629,7 +636,7 @@ router.post('/doctor', async (req, res) => {
   try {
     entries = fs.readdirSync(agentsDir, { withFileTypes: true })
   } catch {
-    res.json({ results, message: 'No agents directory found' })
+    res.json({ results, platform: { cli: hasOpenclawCli, gateway: gatewayRunning }, message: 'No agents directory found' })
     return
   }
 
@@ -638,34 +645,109 @@ router.post('/doctor', async (req, res) => {
     if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
 
     const agentId = entry.name
+    const agentDir = path.join(agentsDir, agentId)
+    const checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> = []
 
+    // Check 1: IDENTITY.md exists
+    const identityPath = path.join(agentDir, 'IDENTITY.md')
+    if (fs.existsSync(identityPath)) {
+      checks.push({ check: 'identity', status: 'pass', message: 'IDENTITY.md exists' })
+    } else {
+      checks.push({ check: 'identity', status: 'fail', message: 'IDENTITY.md missing' })
+    }
+
+    // Check 2: Registered with CLI
     if (registeredIds.has(agentId)) {
-      results.push({ id: agentId, status: 'ok', message: 'Already registered' })
-      continue
+      checks.push({ check: 'registered', status: 'pass', message: 'Registered in openclaw.json' })
+    } else if (fix && hasOpenclawCli) {
+      const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
+      const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+      try {
+        fs.mkdirSync(agentDirArg, { recursive: true })
+        const { execSync } = require('child_process')
+        execSync(
+          `openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`,
+          { encoding: 'utf-8', stdio: 'pipe', timeout: 15000, env: safeEnv() }
+        )
+        checks.push({ check: 'registered', status: 'fixed', message: 'Registered with openclaw CLI' })
+      } catch (err: any) {
+        checks.push({ check: 'registered', status: 'fail', message: `Registration failed: ${err.message?.split('\n')[0]}` })
+      }
+    } else {
+      checks.push({ check: 'registered', status: 'fail', message: 'Not registered in openclaw.json' + (hasOpenclawCli ? ' — run doctor with fix=true' : ' — install openclaw CLI first') })
     }
 
-    // Agent exists in workspace but not registered — fix it
-    const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
-    const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+    // Check 3: Agent directory in ~/.openclaw/agents/
+    const homeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId)
+    if (fs.existsSync(homeAgentDir)) {
+      checks.push({ check: 'agent-dir', status: 'pass', message: 'Agent directory exists' })
+    } else {
+      checks.push({ check: 'agent-dir', status: 'warn', message: 'No ~/.openclaw/agents/' + agentId + ' directory' })
+    }
 
+    // Check 4: Sessions directory
+    const sessionsDir = path.join(homeAgentDir, 'sessions')
+    if (fs.existsSync(sessionsDir)) {
+      checks.push({ check: 'sessions', status: 'pass', message: 'Sessions directory exists' })
+    } else {
+      if (fix) {
+        try { fs.mkdirSync(sessionsDir, { recursive: true }); checks.push({ check: 'sessions', status: 'fixed', message: 'Created sessions directory' }) }
+        catch { checks.push({ check: 'sessions', status: 'warn', message: 'Sessions directory missing' }) }
+      } else {
+        checks.push({ check: 'sessions', status: 'warn', message: 'Sessions directory missing' })
+      }
+    }
+
+    // Check 5: Skills assigned
     try {
-      fs.mkdirSync(agentDirArg, { recursive: true })
-      const { execSync } = require('child_process')
-      execSync(
-        `openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`,
-        { encoding: 'utf-8', stdio: 'pipe', timeout: 15000, env: safeEnv() }
-      )
-      results.push({ id: agentId, status: 'fixed', message: 'Registered with openclaw CLI' })
-    } catch (err: any) {
-      results.push({ id: agentId, status: 'error', message: err.message?.split('\n')[0] || 'Registration failed' })
+      const identity = fs.readFileSync(identityPath, 'utf-8')
+      const skillsMatch = identity.match(/skills?[:\s]+([^\n]+)/i)
+      if (skillsMatch) {
+        checks.push({ check: 'skills', status: 'pass', message: `Skills: ${skillsMatch[1].trim().slice(0, 80)}` })
+      } else {
+        checks.push({ check: 'skills', status: 'warn', message: 'No skills configured' })
+      }
+    } catch {
+      checks.push({ check: 'skills', status: 'warn', message: 'Cannot read skills from IDENTITY.md' })
     }
+
+    // Check 6: Health probe (optional — sends a test message)
+    if (probe && hasOpenclawCli && registeredIds.has(agentId)) {
+      try {
+        const { execSync } = require('child_process')
+        const result = execSync(
+          `openclaw agent --agent ${agentId} --message "health check — respond with OK" --json --local`,
+          { encoding: 'utf-8', stdio: 'pipe', timeout: 30000, env: safeEnv() }
+        )
+        // Check if we got a response (in stdout or stderr-extracted)
+        if (result.includes('"payloads"') || result.includes('"text"')) {
+          checks.push({ check: 'probe', status: 'pass', message: 'Agent responded to health probe' })
+        } else {
+          checks.push({ check: 'probe', status: 'warn', message: 'Agent returned empty response' })
+        }
+      } catch (err: any) {
+        checks.push({ check: 'probe', status: 'fail', message: `Health probe failed: ${err.message?.split('\n')[0]?.slice(0, 100)}` })
+      }
+    }
+
+    results.push({ id: agentId, checks })
   }
 
-  const fixed = results.filter(r => r.status === 'fixed').length
-  const errors = results.filter(r => r.status === 'error').length
+  // Summary
+  const allChecks = results.flatMap(r => r.checks)
+  const pass = allChecks.filter(c => c.status === 'pass').length
+  const fail = allChecks.filter(c => c.status === 'fail').length
+  const warn = allChecks.filter(c => c.status === 'warn').length
+  const fixed = allChecks.filter(c => c.status === 'fixed').length
+
   res.json({
     results,
-    summary: `${results.length} agents checked, ${fixed} fixed, ${errors} errors`,
+    platform: {
+      cli: hasOpenclawCli,
+      gateway: gatewayRunning,
+    },
+    summary: { total: allChecks.length, pass, fail, warn, fixed },
+    healthy: fail === 0,
   })
 })
 

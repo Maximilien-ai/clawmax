@@ -90,6 +90,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const aiEnabled = hasAnyLLMKeys(config)
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
+  const [doctorRunning, setDoctorRunning] = useState(false)
+  const [doctorResults, setDoctorResults] = useState<any>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
@@ -2669,6 +2671,36 @@ const AgentCard = React.memo(function AgentCard({
                     <span className="text-amber-500">↻</span> Restart
                   </button>
                   <button
+                    onClick={async e => {
+                      e.stopPropagation()
+                      setShowActionsMenu(false)
+                      try {
+                        const resp = await fetch('/api/agents/doctor', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ fix: true }),
+                        })
+                        const data = await resp.json()
+                        const agentResult = data.results?.find((r: any) => r.id === agent.id)
+                        if (agentResult) {
+                          const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
+                          const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
+                          const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
+                          // Show result inline — the card doesn't have toast access
+                          const statusEl = document.getElementById(`doctor-status-${agent.id}`)
+                          if (statusEl) {
+                            statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
+                            statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
+                            setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
+                          }
+                        }
+                      } catch {}
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                  >
+                    <span className="text-cyan-500">🩺</span> Doctor
+                  </button>
+                  <button
                     onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                   >
@@ -2714,6 +2746,7 @@ const AgentCard = React.memo(function AgentCard({
       {!collapsed && (
         <div className="px-5 pb-4">
           <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
+          <div id={`doctor-status-${agent.id}`} />
 
           <div className="space-y-1.5 text-sm text-gray-600">
             <div className="flex items-center gap-2">
