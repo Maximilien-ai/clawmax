@@ -239,7 +239,7 @@ export default function Logs() {
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.gateway ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.platform?.gateway ? '✓' : '⚠'} Gateway</span>
                 <span className={`px-2 py-1 rounded ${doctorResults.healthy ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.fixed} fixed</span>
               </div>
-              {doctorResults.results?.filter((r: any) => r.checks.some((c: any) => c.status !== 'pass')).map((r: any) => (
+              {(doctorResults.results || []).filter((r: any) => (r.checks || []).some((c: any) => c.status !== 'pass')).map((r: any) => (
                 <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
                   <span className="font-mono font-medium">{r.id}:</span> {r.checks.filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
                 </div>
