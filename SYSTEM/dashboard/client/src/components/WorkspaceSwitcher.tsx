@@ -22,6 +22,7 @@ interface WorkspaceDashboard {
     groupChats: boolean
   }
   sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+  compactColumns: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'>
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -37,6 +38,16 @@ const DEFAULT_SECTION_ORDER: Array<'overview' | 'costs' | 'agents' | 'notificati
   'results',
   'groupChats',
 ]
+const DEFAULT_COMPACT_COLUMNS: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'> = {
+  overview: 'left',
+  costs: 'left',
+  agents: 'right',
+  notifications: 'right',
+  workflows: 'left',
+  kickoff: 'left',
+  results: 'left',
+  groupChats: 'right',
+}
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -77,6 +88,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     groupChats: true,
   })
   const [dashboardSectionOrder, setDashboardSectionOrder] = useState([...DEFAULT_SECTION_ORDER])
+  const [dashboardCompactColumns, setDashboardCompactColumns] = useState({ ...DEFAULT_COMPACT_COLUMNS })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
@@ -103,6 +115,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       groupChats: true,
     })
     setDashboardSectionOrder([...DEFAULT_SECTION_ORDER])
+    setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS })
     try {
       await loadDashboards(workspace.id)
     } catch (err) {
@@ -134,6 +147,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           displayMode: dashboardDisplayMode,
           sections: dashboardSections,
           sectionOrder: dashboardSectionOrder,
+          compactColumns: dashboardCompactColumns,
         }),
       })
       const data = await res.json()
@@ -528,6 +542,24 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           >
                             ↓
                           </button>
+                          {dashboardDisplayMode === 'compact' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setDashboardCompactColumns(prev => ({ ...prev, [key]: 'left' }))}
+                                className={`rounded border px-2 py-0.5 text-xs ${dashboardCompactColumns[key] === 'left' ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
+                              >
+                                L
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDashboardCompactColumns(prev => ({ ...prev, [key]: 'right' }))}
+                                className={`rounded border px-2 py-0.5 text-xs ${dashboardCompactColumns[key] === 'right' ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
+                              >
+                                R
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

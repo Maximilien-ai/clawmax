@@ -16,6 +16,7 @@ export interface WorkspaceDashboardSections {
 
 export type WorkspaceDashboardDisplayMode = 'standard' | 'compact' | 'detail'
 export type WorkspaceDashboardSectionKey = keyof WorkspaceDashboardSections
+export type WorkspaceDashboardCompactColumn = 'left' | 'right'
 export const DEFAULT_SECTION_ORDER: WorkspaceDashboardSectionKey[] = [
   'overview',
   'costs',
@@ -26,6 +27,16 @@ export const DEFAULT_SECTION_ORDER: WorkspaceDashboardSectionKey[] = [
   'results',
   'groupChats',
 ]
+export const DEFAULT_COMPACT_COLUMNS: Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn> = {
+  overview: 'left',
+  costs: 'left',
+  agents: 'right',
+  notifications: 'right',
+  workflows: 'left',
+  kickoff: 'left',
+  results: 'left',
+  groupChats: 'right',
+}
 
 export interface WorkspaceDashboard {
   id: string
@@ -36,6 +47,7 @@ export interface WorkspaceDashboard {
   displayMode: WorkspaceDashboardDisplayMode
   sections: WorkspaceDashboardSections
   sectionOrder: WorkspaceDashboardSectionKey[]
+  compactColumns: Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -108,6 +120,7 @@ export function createWorkspaceDashboard(
     displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
     sectionOrder?: WorkspaceDashboardSectionKey[]
+    compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
     createdBy?: string | null
   }
 ): WorkspaceDashboard {
@@ -121,6 +134,7 @@ export function createWorkspaceDashboard(
     displayMode: input.displayMode || 'standard',
     sections: { ...DEFAULT_SECTIONS, ...(input.sections || {}) },
     sectionOrder: Array.isArray(input.sectionOrder) && input.sectionOrder.length > 0 ? input.sectionOrder : [...DEFAULT_SECTION_ORDER],
+    compactColumns: { ...DEFAULT_COMPACT_COLUMNS, ...(input.compactColumns || {}) },
     createdBy: input.createdBy || null,
     createdAt: now,
     updatedAt: now,
@@ -160,6 +174,7 @@ export function updateWorkspaceDashboard(
     displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
     sectionOrder?: WorkspaceDashboardSectionKey[]
+    compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
   }
 ): WorkspaceDashboard | null {
   const store = loadStore(workspaceId)
@@ -180,6 +195,9 @@ export function updateWorkspaceDashboard(
   }
   if (Array.isArray(updates.sectionOrder) && updates.sectionOrder.length > 0) {
     dashboard.sectionOrder = updates.sectionOrder
+  }
+  if (updates.compactColumns) {
+    dashboard.compactColumns = { ...dashboard.compactColumns, ...updates.compactColumns }
   }
   dashboard.updatedAt = new Date().toISOString()
   saveStore(workspaceId, store)

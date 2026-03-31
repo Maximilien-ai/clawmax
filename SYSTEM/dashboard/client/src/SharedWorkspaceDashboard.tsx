@@ -7,6 +7,7 @@ interface SharedDashboardPayload {
     description: string | null
     displayMode: 'standard' | 'compact' | 'detail'
     sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+    compactColumns: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'>
     sections: {
       overview: boolean
       costs: boolean
@@ -112,6 +113,16 @@ function normalizePayload(input: any): SharedDashboardPayload {
       description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
       displayMode: input?.dashboard?.displayMode === 'compact' || input?.dashboard?.displayMode === 'detail' ? input.dashboard.displayMode : 'standard',
       sectionOrder: Array.isArray(input?.dashboard?.sectionOrder) && input.dashboard.sectionOrder.length > 0 ? input.dashboard.sectionOrder : ['overview', 'costs', 'agents', 'notifications', 'workflows', 'kickoff', 'results', 'groupChats'],
+      compactColumns: {
+        overview: input?.dashboard?.compactColumns?.overview === 'right' ? 'right' : 'left',
+        costs: input?.dashboard?.compactColumns?.costs === 'right' ? 'right' : 'left',
+        agents: input?.dashboard?.compactColumns?.agents === 'left' ? 'left' : 'right',
+        notifications: input?.dashboard?.compactColumns?.notifications === 'left' ? 'left' : 'right',
+        workflows: input?.dashboard?.compactColumns?.workflows === 'right' ? 'right' : 'left',
+        kickoff: input?.dashboard?.compactColumns?.kickoff === 'right' ? 'right' : 'left',
+        results: input?.dashboard?.compactColumns?.results === 'right' ? 'right' : 'left',
+        groupChats: input?.dashboard?.compactColumns?.groupChats === 'left' ? 'left' : 'right',
+      },
       sections: {
         overview: input?.dashboard?.sections?.overview !== false,
         costs: input?.dashboard?.sections?.costs !== false,
@@ -263,6 +274,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     if (!orderedTopLevelSections.includes(key)) orderedTopLevelSections.push(key)
   }
   const hasCustomSectionOrder = orderedTopLevelSections.join('|') !== ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].join('|')
+  const compactOrderedSections = orderedTopLevelSections.filter((key) => key !== 'overview')
+  const compactLeftSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'left')
+  const compactRightSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'right')
 
   const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats') => {
     switch (key) {
@@ -373,7 +387,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     }
   }
 
-  if (hasCustomSectionOrder) {
+  if (hasCustomSectionOrder && !compact) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100">
         <div className={`mx-auto ${containerWidth} ${compact ? 'px-4 py-5' : 'px-6 py-8'}`}>
@@ -397,6 +411,56 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             {orderedTopLevelSections.map((key) => (
               <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
             ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (compact) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className={`mx-auto ${containerWidth} px-4 py-5`}>
+          <header className="mb-6 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 p-4 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
+                  Workspace Summary
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">{payload.dashboard.title}</h1>
+              </div>
+              <div className="text-xs text-slate-400">
+                <div className="mb-1 uppercase tracking-wide text-slate-500">compact view</div>
+                <div>{payload.workspace.name}</div>
+                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+                <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+              </div>
+            </div>
+          </header>
+
+          {payload.dashboard.sections.overview && (
+            <section className="mb-4 grid gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              {overviewCards.map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-white/10 bg-slate-900/80 p-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+                  <div className="mt-2 text-xl font-semibold">{value}</div>
+                </div>
+              ))}
+            </section>
+          )}
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="space-y-4">
+              {compactLeftSections.map((key) => (
+                <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {compactRightSections.map((key) => (
+                <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>
