@@ -1,14 +1,15 @@
 {
   "name": "ClawMax System Test",
   "type": "organization",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "category": "technical",
-  "description": "Integration test workspace template. Creates test agents, workflows, communities, and groups for automated and manual system testing. All agents use gpt-4o-mini for cost efficiency.",
+  "description": "Full platform validation template. Tests agent chat, group chat, workflows, DAG execution, filesystem access, and GitHub coordination. When all tests pass, the platform is confirmed working.",
   "author": "ClawMax Team",
   "tags": [
     "test",
     "system-test",
-    "integration"
+    "integration",
+    "validation"
   ],
   "parameters": [
     {
@@ -23,13 +24,14 @@
     {
       "id": "test-lead",
       "name": "Test Lead",
-      "role": "Test orchestrator \u2014 coordinates test execution, reports results, manages test plan",
+      "role": "Test orchestrator — coordinates test execution, compiles results, reports pass/fail status. You are responsible for verifying that all platform features work correctly.",
       "tags": [
         "test",
         "lead"
       ],
       "skills": [
         "github",
+        "gh-issues",
         "workspace-ls"
       ],
       "communities": [
@@ -37,18 +39,21 @@
       ],
       "groups": [
         "Test Status",
-        "Test Chat"
+        "Test Chat",
+        "Test Work"
       ]
     },
     {
       "id": "test-agent",
       "name": "Test Agent",
-      "role": "General test agent \u2014 participates in chat tests, workflow tests, and group messaging",
+      "role": "Test executor — runs assigned test tasks, writes output files, reports results to groups. Follow instructions precisely and report pass/fail for each test step.",
       "tags": [
         "test",
         "worker"
       ],
       "skills": [
+        "github",
+        "gh-issues",
         "workspace-ls"
       ],
       "communities": [
@@ -63,23 +68,23 @@
   "communities": [
     {
       "name": "Test Team",
-      "description": "System test community for all test agents"
+      "description": "System test community — all test agents coordinate here"
     }
   ],
   "groups": [
     {
       "name": "Test Status",
-      "description": "Test execution status and results",
+      "description": "Test results and pass/fail reports",
       "community": "Test Team"
     },
     {
       "name": "Test Chat",
-      "description": "Group chat testing \u2014 all agents participate",
+      "description": "Group chat testing — all agents participate in conversations",
       "community": "Test Team"
     },
     {
       "name": "Test Work",
-      "description": "Workflow execution testing group",
+      "description": "Workflow execution and coordination testing",
       "community": "Test Team"
     }
   ],
@@ -87,7 +92,7 @@
     {
       "id": "test-kickoff",
       "name": "Test Kickoff",
-      "description": "Initialize test workspace \u2014 verify all agents, groups, and communities are set up",
+      "description": "Tier 1: Verify agents are online and can respond",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
@@ -103,12 +108,12 @@
           "test-agent2"
         ]
       },
-      "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team. Respond with a brief status:\n1. Confirm your agent ID and role\n2. List the groups you belong to\n3. Say 'READY' to confirm you are operational\n\nKeep response under 50 words."
+      "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team.\n\n## Platform Health Check\n1. Confirm your agent ID and role\n2. List the groups and communities you belong to\n3. List your installed skills\n4. Say 'READY' to confirm you are operational\n\n## Test Configuration\n> **Customize before running:**\n\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n- **Test mode:** [basic, full]\n\nKeep response under 100 words."
     },
     {
-      "id": "test-sequential-step",
-      "name": "Test Sequential Step",
-      "description": "Sequential workflow test \u2014 runs after kickoff completes",
+      "id": "test-filesystem",
+      "name": "Test Filesystem",
+      "description": "Tier 1: Test file read/write in shared workspace",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "automated",
@@ -122,20 +127,71 @@
           "Test Work"
         ],
         "tags": [],
-        "agents": []
+        "agents": [
+          "test-agent1",
+          "test-agent2"
+        ]
       },
-      "content": "# Sequential Test\n\nThis workflow tests sequential execution after kickoff.\n1. Confirm you received this message\n2. Report the current time\n3. Say 'SEQUENTIAL COMPLETE'\n\nKeep response under 30 words."
+      "content": "# Filesystem Test\n\nTest that agents can read and write files in the workspace.\n\n## Test Steps\n1. Write a file called `test-output-{your-agent-id}.md` in your workspace directory\n2. Include your agent ID, current timestamp, and the text 'FILESYSTEM TEST'\n3. Read the workspace directory listing using workspace-ls skill\n4. Report what files you can see\n5. Say 'FILESYSTEM PASS' if you could write and read, or 'FILESYSTEM FAIL' with error details\n\nKeep response under 100 words."
     },
     {
-      "id": "test-parallel-a",
-      "name": "Test Parallel A",
-      "description": "Parallel workflow test A \u2014 runs alongside Parallel B after sequential",
+      "id": "test-comms",
+      "name": "Test Communications",
+      "description": "Tier 1: Test group chat and inter-agent messaging",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "type": "recurring",
+      "dependsOn": [
+        "test-filesystem"
+      ],
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Test Chat"
+        ],
+        "tags": [],
+        "agents": [
+          "test-lead",
+          "test-agent1",
+          "test-agent2"
+        ]
+      },
+      "content": "# Communications Test\n\nTest that agents can communicate through group channels.\n\n## Test Steps\n1. Post a message to the Test Chat group confirming you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check if you can see messages from other agents in the group\n4. Report how many agents have posted in Test Chat\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nKeep response under 80 words."
+    },
+    {
+      "id": "test-github",
+      "name": "Test GitHub",
+      "description": "Tier 2: Test GitHub issue creation and coordination",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "test-lead",
+      "type": "recurring",
+      "dependsOn": [
+        "test-comms"
+      ],
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": [],
+        "agents": [
+          "test-lead",
+          "test-agent1"
+        ]
+      },
+      "content": "# GitHub Coordination Test\n\nTest that agents can interact with GitHub.\n\n## Test Configuration\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n\n## Test Steps (test-lead)\n1. Create a GitHub issue titled 'System Test - {timestamp}' in the configured repo\n2. Assign the issue to test-agent1 via comment\n3. Report the issue number\n\n## Test Steps (test-agent1)\n1. Find the latest issue created by test-lead\n2. Add a comment: 'Test agent acknowledging assignment'\n3. Report 'GITHUB PASS' or 'GITHUB FAIL'\n\nKeep response under 100 words."
+    },
+    {
+      "id": "test-dag-parallel-a",
+      "name": "Test DAG Parallel A",
+      "description": "Tier 1: Parallel execution test — runs alongside Parallel B",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-sequential-step"
+        "test-comms"
       ],
       "targeting": {
         "communities": [],
@@ -145,18 +201,18 @@
           "test-agent1"
         ]
       },
-      "content": "# Parallel Test A\n\nYou are test-agent-1 running parallel test A.\n1. Say 'PARALLEL A RUNNING'\n2. Count to 3\n3. Say 'PARALLEL A COMPLETE'\n\nKeep response under 20 words."
+      "content": "# Parallel Test A\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL A RUNNING'\n2. Write 'parallel-a-complete' to a file called `test-parallel-a.txt`\n3. Say 'PARALLEL A COMPLETE'\n\nKeep response under 30 words."
     },
     {
-      "id": "test-parallel-b",
-      "name": "Test Parallel B",
-      "description": "Parallel workflow test B \u2014 runs alongside Parallel A after sequential",
+      "id": "test-dag-parallel-b",
+      "name": "Test DAG Parallel B",
+      "description": "Tier 1: Parallel execution test — runs alongside Parallel A",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "automated",
       "type": "recurring",
       "dependsOn": [
-        "test-sequential-step"
+        "test-comms"
       ],
       "targeting": {
         "communities": [],
@@ -166,20 +222,21 @@
           "test-agent2"
         ]
       },
-      "content": "# Parallel Test B\n\nYou are test-agent-2 running parallel test B.\n1. Say 'PARALLEL B RUNNING'\n2. Count to 3\n3. Say 'PARALLEL B COMPLETE'\n\nKeep response under 20 words."
+      "content": "# Parallel Test B\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL B RUNNING'\n2. Write 'parallel-b-complete' to a file called `test-parallel-b.txt`\n3. Say 'PARALLEL B COMPLETE'\n\nKeep response under 30 words."
     },
     {
-      "id": "test-final",
-      "name": "Test Final",
-      "description": "Final workflow \u2014 runs after both parallel tests complete (fan-in)",
+      "id": "test-report",
+      "name": "Test Report",
+      "description": "Final: Compile test results across all tiers",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "owner": "test-lead",
       "type": "conditional",
       "dependsOn": [
-        "test-parallel-a",
-        "test-parallel-b"
+        "test-github",
+        "test-dag-parallel-a",
+        "test-dag-parallel-b"
       ],
       "targeting": {
         "communities": [],
@@ -187,9 +244,11 @@
           "Test Status"
         ],
         "tags": [],
-        "agents": []
+        "agents": [
+          "test-lead"
+        ]
       },
-      "content": "# Final Test\n\nAll previous test workflows have completed.\n1. Confirm the DAG pipeline executed: kickoff \u2192 sequential \u2192 parallel A+B \u2192 final\n2. Post 'ALL TESTS PASSED' to the Test Status group\n3. Report total workflow count\n\nKeep response under 40 words."
+      "content": "# Test Report\n\nAll test workflows have executed. Compile the final report.\n\n## Report Template\nPost this to the Test Status group:\n\n```\nCLAWMAX SYSTEM TEST REPORT\n========================\nTimestamp: {current time}\n\nTier 1 — Core:\n- Kickoff: {PASS/FAIL}\n- Filesystem: {PASS/FAIL}\n- Communications: {PASS/FAIL}\n- DAG Parallel: {PASS/FAIL}\n\nTier 2 — Coordination:\n- GitHub: {PASS/FAIL}\n\nOverall: {ALL PASS / X FAILURES}\n========================\n```\n\nBe honest about failures. Include error details for any FAIL results."
     }
   ]
 }
