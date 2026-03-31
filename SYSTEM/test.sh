@@ -1850,7 +1850,7 @@ done
 
 # Step 4: Verify workflows created
 wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[].id' 2>/dev/null | sort)
-expected_wfs="test-kickoff test-filesystem test-comms test-github test-dag-parallel-a test-dag-parallel-b test-report"
+expected_wfs="test-kickoff test-filesystem test-communications test-github test-dag-parallel-a test-dag-parallel-b test-report"
 for wf_id in $expected_wfs; do
   if echo "$wf_list" | grep -q "$wf_id"; then
     pass "Workflow $wf_id exists"
@@ -1910,7 +1910,7 @@ echo ""
 echo -e "${YELLOW}→ Testing workflow DAG execution...${NC}"
 
 # Enable all workflows
-for wf_id in test-kickoff test-filesystem test-comms test-github test-dag-parallel-a test-dag-parallel-b test-report; do
+for wf_id in test-kickoff test-filesystem test-communications test-github test-dag-parallel-a test-dag-parallel-b test-report; do
   apicurl -X PUT "$API_BASE/api/workflows/$wf_id" \
     -H 'Content-Type: application/json' -d '{"enabled":true}' > /dev/null 2>&1
 done
@@ -1918,10 +1918,10 @@ done
 # Set up DAG dependencies (in case import didn't preserve them)
 apicurl -X PUT "$API_BASE/api/workflows/test-kickoff" -H 'Content-Type: application/json' -d '{"type":"once"}' > /dev/null 2>&1
 apicurl -X PUT "$API_BASE/api/workflows/test-filesystem" -H 'Content-Type: application/json' -d '{"dependsOn":["test-kickoff"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-comms" -H 'Content-Type: application/json' -d '{"dependsOn":["test-filesystem"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-github" -H 'Content-Type: application/json' -d '{"dependsOn":["test-comms"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-a" -H 'Content-Type: application/json' -d '{"dependsOn":["test-comms"],"type":"recurring"}' > /dev/null 2>&1
-apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-b" -H 'Content-Type: application/json' -d '{"dependsOn":["test-comms"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-communications" -H 'Content-Type: application/json' -d '{"dependsOn":["test-filesystem"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-github" -H 'Content-Type: application/json' -d '{"dependsOn":["test-communications"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-a" -H 'Content-Type: application/json' -d '{"dependsOn":["test-communications"],"type":"recurring"}' > /dev/null 2>&1
+apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-b" -H 'Content-Type: application/json' -d '{"dependsOn":["test-communications"],"type":"recurring"}' > /dev/null 2>&1
 apicurl -X PUT "$API_BASE/api/workflows/test-report" -H 'Content-Type: application/json' -d '{"dependsOn":["test-github","test-dag-parallel-a","test-dag-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
 pass "DAG dependencies configured"
 
