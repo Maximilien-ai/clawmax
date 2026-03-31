@@ -75,6 +75,11 @@ router.get('/:token', async (req, res) => {
             channels: group.channels,
             members: group.members,
             messageCount: messages.length,
+            recentMessages: messages.slice(-5).map((message) => ({
+              from: message.from,
+              content: message.content,
+              timestamp: message.timestamp,
+            })),
             latestMessage: latest ? {
               from: latest.from,
               content: latest.content,
@@ -92,6 +97,11 @@ router.get('/:token', async (req, res) => {
             channels: community.channels,
             members: community.members,
             messageCount: messages.length,
+            recentMessages: messages.slice(-5).map((message) => ({
+              from: message.from,
+              content: message.content,
+              timestamp: message.timestamp,
+            })),
             latestMessage: latest ? {
               from: latest.from,
               content: latest.content,

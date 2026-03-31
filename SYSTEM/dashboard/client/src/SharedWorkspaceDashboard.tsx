@@ -97,6 +97,11 @@ interface SharedDashboardPayload {
     channels: string[]
     members: string[]
     messageCount: number
+    recentMessages: Array<{
+      from: string
+      content: string
+      timestamp: number
+    }>
     latestMessage: {
       from: string
       content: string
@@ -184,6 +189,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
           channels: Array.isArray(chat?.channels) ? chat.channels : [],
           members: Array.isArray(chat?.members) ? chat.members : [],
           messageCount: Number(chat?.messageCount || 0),
+          recentMessages: Array.isArray(chat?.recentMessages) ? chat.recentMessages : [],
           latestMessage: chat?.latestMessage || null,
         }))
       : [],
@@ -684,6 +690,31 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                           ))}
                         </div>
                       )}
+                      {detail && workflow.latestExecution?.logsPreview?.length > 0 && (
+                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Trace Preview</div>
+                          <div className="space-y-1 text-xs text-slate-300">
+                            {workflow.latestExecution.logsPreview.map((line, index) => (
+                              <div key={`${workflow.id}-trace-${index}`} className="rounded bg-slate-950/60 px-2 py-1">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {detail && workflow.executionHistory.length > 0 && (
+                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Runs</div>
+                          <div className="space-y-1 text-xs text-slate-300">
+                            {workflow.executionHistory.slice(0, 5).map((execution) => (
+                              <div key={execution.id} className="flex items-center justify-between rounded bg-slate-950/60 px-2 py-1">
+                                <span>{execution.status}</span>
+                                <span>{timeAgo(execution.startedAt)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -731,6 +762,22 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                   <div className="mt-3 text-xs text-slate-500">
                     {chat.members.length} members · {chat.messageCount} messages · {chat.latestMessage ? timeAgo(new Date(chat.latestMessage.timestamp).toISOString()) : 'waiting for activity'}
                   </div>
+                  {detail && chat.recentMessages.length > 0 && (
+                    <div className="mt-3 rounded-md border border-white/10 bg-slate-900/60 p-3">
+                      <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Chat</div>
+                      <div className="space-y-2 text-xs text-slate-300">
+                        {chat.recentMessages.map((message, index) => (
+                          <div key={`${chat.name}-msg-${index}`} className="rounded bg-slate-950/60 px-2 py-1.5">
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+                              <span>{message.from}</span>
+                              <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
+                            </div>
+                            <div>{message.content}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
