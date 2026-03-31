@@ -65,6 +65,21 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const { showSuccess, showError: showToastError } = useToast()
 
+  // Prerequisites check
+  const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
+  const [prereqsLoading, setPrereqsLoading] = useState(true)
+
+  React.useEffect(() => {
+    fetch('/api/templates/organizations/prereqs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateSlug: template.slug || template.name }),
+    })
+      .then(r => r.json())
+      .then(data => { setPrereqs(data); setPrereqsLoading(false) })
+      .catch(() => setPrereqsLoading(false))
+  }, [template.slug, template.name])
+
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
     const counts: Record<string, number> = {}
@@ -293,8 +308,46 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           {template.workflows && template.workflows.length > 0 && `, ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}`}
         </p>
 
+        {/* Prerequisites check */}
+        {prereqsLoading ? (
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
+            Checking prerequisites...
+          </div>
+        ) : prereqs && (prereqs.summary.fail > 0 || prereqs.summary.warn > 0) ? (
+          <div className={`mb-4 p-3 rounded-lg border text-sm ${prereqs.summary.fail > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
+            <div className={`font-medium mb-2 ${prereqs.summary.fail > 0 ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200'}`}>
+              {prereqs.summary.fail > 0 ? `${prereqs.summary.fail} prerequisite(s) not met` : `${prereqs.summary.warn} warning(s)`}
+            </div>
+            <div className="space-y-1.5">
+              {prereqs.checks.filter(c => c.status !== 'pass').map(c => (
+                <div key={c.id} className="flex items-start gap-2">
+                  <span className={c.status === 'fail' ? 'text-red-500' : 'text-amber-500'}>
+                    {c.status === 'fail' ? '✗' : '⚠'}
+                  </span>
+                  <div>
+                    <span className="text-gray-700 dark:text-gray-300">{c.label}: </span>
+                    <span className="text-gray-500 dark:text-gray-400">{c.message}</span>
+                    {c.fixHint && (
+                      <div className="mt-0.5 font-mono text-xs text-gray-400 dark:text-gray-500">{c.fixHint}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {prereqs.summary.fail > 0 && (
+              <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400">
+                You can still apply, but some features may not work. Run <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">./SYSTEM/doctor.sh --fix</code> to resolve.
+              </div>
+            )}
+          </div>
+        ) : prereqs ? (
+          <div className="mb-4 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
+            <span>✓</span> All prerequisites met ({prereqs.summary.pass} checks passed)
+          </div>
+        ) : null}
+
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
             {error}
           </div>
         )}

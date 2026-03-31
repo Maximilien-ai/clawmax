@@ -211,6 +211,23 @@ router.post('/agents/import', (req, res) => {
 })
 
 // POST /api/templates/organizations/import - Import organization from template
+// POST /api/templates/organizations/prereqs — check prerequisites before applying
+router.post('/organizations/prereqs', (req, res) => {
+  const { templateSlug } = req.body
+  if (!templateSlug) {
+    return res.status(400).json({ error: 'templateSlug is required' })
+  }
+
+  const template = getTemplate('organization', templateSlug)
+  if (!template) {
+    return res.status(404).json({ error: 'Template not found' })
+  }
+
+  const { checkTemplatePrereqs } = require('../lib/prereqs')
+  const result = checkTemplatePrereqs(template)
+  res.json(result)
+})
+
 router.post('/organizations/import', (req, res) => {
   const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides } = req.body
 
