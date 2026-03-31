@@ -10,6 +10,7 @@ interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  displayMode: 'standard' | 'compact' | 'detail'
   sections: {
     overview: boolean
     costs: boolean
@@ -18,10 +19,46 @@ interface WorkspaceDashboard {
     workflows: boolean
     kickoff: boolean
     results: boolean
+    groupChats: boolean
   }
+  sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+  compactColumns: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'>
   createdBy: string | null
   createdAt: string
   updatedAt: string
+}
+
+const DEFAULT_SECTION_ORDER: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'> = [
+  'overview',
+  'costs',
+  'agents',
+  'notifications',
+  'workflows',
+  'kickoff',
+  'results',
+  'groupChats',
+]
+const DEFAULT_COMPACT_COLUMNS: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'> = {
+  overview: 'left',
+  costs: 'left',
+  agents: 'right',
+  notifications: 'right',
+  workflows: 'left',
+  kickoff: 'left',
+  results: 'left',
+  groupChats: 'right',
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.max(0, Math.floor(diff / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) {
@@ -39,6 +76,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const [dashboards, setDashboards] = useState<WorkspaceDashboard[]>([])
   const [dashboardTitle, setDashboardTitle] = useState('')
   const [dashboardDescription, setDashboardDescription] = useState('')
+  const [dashboardDisplayMode, setDashboardDisplayMode] = useState<'standard' | 'compact' | 'detail'>('standard')
   const [dashboardSections, setDashboardSections] = useState({
     overview: true,
     costs: true,
@@ -47,19 +85,26 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     workflows: true,
     kickoff: true,
     results: true,
+    groupChats: true,
   })
+  const [dashboardSectionOrder, setDashboardSectionOrder] = useState([...DEFAULT_SECTION_ORDER])
+  const [dashboardCompactColumns, setDashboardCompactColumns] = useState({ ...DEFAULT_COMPACT_COLUMNS })
+  const [draggedSection, setDraggedSection] = useState<null | 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
     const res = await fetch(`/api/workspaces/${workspaceId}/dashboards`)
-    const data = await res.json()
-    setDashboards(data.dashboards || [])
+      const data = await res.json()
+      const nextDashboards = Array.isArray(data.dashboards) ? data.dashboards : []
+      nextDashboards.sort((a: WorkspaceDashboard, b: WorkspaceDashboard) => b.updatedAt.localeCompare(a.updatedAt))
+      setDashboards(nextDashboards)
   }
 
   const openDashboardManager = async (workspace: Workspace) => {
     setDashboardWorkspace(workspace)
     setDashboardTitle(`${workspace.name} Summary`)
     setDashboardDescription('')
+    setDashboardDisplayMode('standard')
     setDashboardSections({
       overview: true,
       costs: true,
@@ -68,7 +113,10 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       workflows: true,
       kickoff: true,
       results: true,
+      groupChats: true,
     })
+    setDashboardSectionOrder([...DEFAULT_SECTION_ORDER])
+    setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS })
     try {
       await loadDashboards(workspace.id)
     } catch (err) {
@@ -97,7 +145,10 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
         body: JSON.stringify({
           title: dashboardTitle.trim(),
           description: dashboardDescription.trim() || null,
+          displayMode: dashboardDisplayMode,
           sections: dashboardSections,
+          sectionOrder: dashboardSectionOrder,
+          compactColumns: dashboardCompactColumns,
         }),
       })
       const data = await res.json()
@@ -135,6 +186,78 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const handleDragEnd = () => {
     setDraggedIndex(null)
   }
+
+  const moveSection = (index: number, direction: -1 | 1) => {
+    setDashboardSectionOrder((prev) => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev
+      const next = [...prev]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item)
+      return next
+    })
+  }
+
+  const moveSectionToCompactColumn = (
+    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    column: 'left' | 'right',
+    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
+  ) => {
+    setDashboardSectionOrder((prev) => {
+      const without = prev.filter((key) => key !== section)
+      const nextColumns = { ...dashboardCompactColumns, [section]: column }
+      let insertIndex = without.length
+
+      if (beforeKey) {
+        insertIndex = without.findIndex((key) => key === beforeKey)
+        if (insertIndex === -1) insertIndex = without.length
+      } else {
+        const lastInColumn = [...without].reverse().find((key) => nextColumns[key] === column)
+        if (lastInColumn) {
+          insertIndex = without.findIndex((key) => key === lastInColumn) + 1
+        }
+      }
+
+      const next = [...without]
+      next.splice(insertIndex, 0, section)
+      setDashboardCompactColumns(nextColumns)
+      return next
+    })
+  }
+
+  const handleCompactTileDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    column: 'left' | 'right',
+    sections: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+  ) => {
+    e.preventDefault()
+    if (!draggedSection || draggedSection === key) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dropBefore = e.clientY < rect.top + rect.height / 2
+    const currentIndex = sections.indexOf(key)
+    const nextKey = dropBefore ? key : sections[currentIndex + 1]
+
+    moveSectionToCompactColumn(draggedSection, column, nextKey)
+    setDraggedSection(null)
+  }
+
+  const moveSectionBefore = (
+    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
+  ) => {
+    setDashboardSectionOrder((prev) => {
+      const without = prev.filter((key) => key !== section)
+      const insertIndex = beforeKey ? without.findIndex((key) => key === beforeKey) : without.length
+      const next = [...without]
+      next.splice(insertIndex === -1 ? without.length : insertIndex, 0, section)
+      return next
+    })
+  }
+
+  const compactColumnSections = (column: 'left' | 'right') =>
+    dashboardSectionOrder.filter((key) => dashboardCompactColumns[key] === column)
 
   const handleDeleteClick = async (workspace: { id: string; name: string; path: string }) => {
     const consequences: string[] = []
@@ -240,7 +363,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                 }`}
               >
                 <div
-                  className={`flex items-center gap-3 px-4 py-2.5 pr-16 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-2.5 pr-20 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                     workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
@@ -313,7 +436,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   </button>
                 </div>
                 {/* Action buttons */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {/* Edit button */}
                   <button
                     onClick={(e) => {
@@ -406,7 +529,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       {dashboardWorkspace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDashboardWorkspace(null)}>
           <div
-            className="w-[92vw] max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+            className="flex max-h-[85vh] w-[92vw] max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -422,7 +545,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
               </button>
             </div>
 
-            <div className="space-y-5 px-5 py-5">
+            <div className="space-y-5 overflow-y-auto px-5 py-5">
               <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">Generate Dashboard</h3>
                 <div className="space-y-3">
@@ -440,18 +563,128 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     placeholder="Optional description"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                   />
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {Object.entries(dashboardSections).map(([key, enabled]) => (
-                      <label key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
-                        <input
-                          type="checkbox"
-                          checked={enabled}
-                          onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
-                        />
-                        <span className="capitalize text-gray-700 dark:text-gray-300">{key}</span>
-                      </label>
-                    ))}
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">View mode</label>
+                    <select
+                      value={dashboardDisplayMode}
+                      onChange={(e) => setDashboardDisplayMode(e.target.value as 'standard' | 'compact' | 'detail')}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="compact">Compact</option>
+                      <option value="detail">Detail</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Compact favors one-page summaries, Standard matches the current balanced layout, and Detail expands cards and histories.
+                    </p>
                   </div>
+                  {dashboardDisplayMode !== 'compact' ? (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Drag sections to reorder the dashboard. Standard stays balanced, while Detail expands workflows and chats with deeper trace and message context.
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        {dashboardSectionOrder.map((key) => (
+                          <div
+                            key={key}
+                            draggable
+                            onDragStart={() => setDraggedSection(key)}
+                            onDragEnd={() => setDraggedSection(null)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              if (draggedSection && draggedSection !== key) {
+                                moveSectionBefore(draggedSection, key)
+                                setDraggedSection(null)
+                              }
+                            }}
+                            className="flex cursor-move items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900"
+                          >
+                            <span className="text-gray-400">⋮⋮</span>
+                            <input
+                              type="checkbox"
+                              checked={dashboardSections[key]}
+                              onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                            />
+                            <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Drag sections between columns to shape the compact dashboard layout. Overview stays full-width on the shared page.
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['left', 'right'] as const).map((column) => (
+                          <div
+                            key={column}
+                            className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              if (draggedSection) {
+                                moveSectionToCompactColumn(draggedSection, column)
+                                setDraggedSection(null)
+                              }
+                            }}
+                          >
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              {column} column
+                            </div>
+                            <div className="space-y-2 min-h-24">
+                              {compactColumnSections(column).map((key, index, sections) => (
+                                <React.Fragment key={key}>
+                                  <div
+                                    className="h-4 rounded border border-dashed border-transparent hover:border-blue-400"
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      if (draggedSection) {
+                                        moveSectionToCompactColumn(draggedSection, column, key)
+                                        setDraggedSection(null)
+                                      }
+                                    }}
+                                  >
+                                  </div>
+                                  <div
+                                    draggable
+                                    onDragStart={() => setDraggedSection(key)}
+                                    onDragEnd={() => setDraggedSection(null)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => handleCompactTileDrop(e, key, column, sections)}
+                                    className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                  >
+                                    <span className="text-gray-400">⋮⋮</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={dashboardSections[key]}
+                                      onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                                    />
+                                    <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                                  </div>
+                                  {index === sections.length - 1 && (
+                                    <div
+                                      className="h-4 rounded border border-dashed border-transparent hover:border-blue-400"
+                                      onDragOver={(e) => e.preventDefault()}
+                                      onDrop={(e) => {
+                                        e.preventDefault()
+                                        if (draggedSection) {
+                                          moveSectionToCompactColumn(draggedSection, column)
+                                          setDraggedSection(null)
+                                        }
+                                      }}
+                                    />
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-end">
                     <button
                       onClick={createDashboard}
@@ -476,7 +709,14 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       <div key={dashboard.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{dashboard.title}</div>
-                          <div className="truncate text-xs text-gray-500 dark:text-gray-400">{getDashboardUrl(dashboard.token)}</div>
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 uppercase tracking-wide text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {dashboard.displayMode}
+                            </span>
+                            <span title={new Date(dashboard.updatedAt).toLocaleString()}>Updated {timeAgo(dashboard.updatedAt)}</span>
+                            <span>•</span>
+                            <span className="truncate">{getDashboardUrl(dashboard.token)}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button

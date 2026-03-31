@@ -1,14 +1,33 @@
 import { Router } from 'express'
 import { getWorkspaceDashboardByToken } from '../lib/workspace-dashboards'
 import { getWorkspaceManager } from '../lib/workspace-manager'
-import { listAgents } from '../lib/workspace'
+import { listAgents, parseGroups, parseGroupsWithMembers } from '../lib/workspace'
 import { getBudgetStatus } from '../lib/budget'
 import { getWorkspaceMetering } from '../lib/metering'
 import { getActiveNotifications } from '../lib/notifications'
 import { listWorkflows, listExecutions } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
+import { getMessages } from '../lib/messages'
+import fs from 'fs'
+import path from 'path'
 
 const router = Router()
+const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
+
+function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (!value) continue
+    for (const match of value.match(URL_REGEX) || []) {
+      const normalized = match.replace(/[.,;!?]+$/, '')
+      if (!seen.has(normalized)) {
+        seen.add(normalized)
+        if (seen.size >= limit) return Array.from(seen)
+      }
+    }
+  }
+  return Array.from(seen)
+}
 
 router.get('/:token', async (req, res) => {
   try {
@@ -29,6 +48,68 @@ router.get('/:token', async (req, res) => {
       const metering = await getWorkspaceMetering(dashboard.workspaceId)
       const notifications = getActiveNotifications()
       const workflows = listWorkflows()
+      const groupsPath = path.join(workspace.path, 'ORG', 'GROUPS.md')
+      const communitiesPath = path.join(workspace.path, 'ORG', 'COMMUNITIES.md')
+      const groupsFile = fs.existsSync(groupsPath) ? fs.readFileSync(groupsPath, 'utf-8') : ''
+      const communitiesFile = fs.existsSync(communitiesPath) ? fs.readFileSync(communitiesPath, 'utf-8') : ''
+      const parsedGroupsWithMembers = groupsFile ? parseGroupsWithMembers(groupsFile).groups : []
+      const parsedCommunitiesWithMembers = communitiesFile ? parseGroupsWithMembers(communitiesFile).communities : []
+      const parsedGroupsFallback = groupsFile ? parseGroups(groupsFile).groups : []
+      const parsedCommunitiesFallback = communitiesFile ? parseGroups(communitiesFile).communities : []
+
+      const groups = parsedGroupsWithMembers.length > 0
+        ? parsedGroupsWithMembers
+        : parsedGroupsFallback.map((group) => ({ ...group, members: [] }))
+      const communities = parsedCommunitiesWithMembers.length > 0
+        ? parsedCommunitiesWithMembers
+        : parsedCommunitiesFallback.map((community) => ({ ...community, members: [] }))
+
+      const groupChats = [
+        ...groups.map((group) => {
+          const messages = getMessages('group', group.name)
+          const latest = messages[messages.length - 1]
+          return {
+            type: 'group' as const,
+            name: group.name,
+            community: group.community,
+            channels: group.channels,
+            members: group.members,
+            messageCount: messages.length,
+            recentMessages: messages.slice(-5).map((message) => ({
+              from: message.from,
+              content: message.content,
+              timestamp: message.timestamp,
+            })),
+            latestMessage: latest ? {
+              from: latest.from,
+              content: latest.content,
+              timestamp: latest.timestamp,
+            } : null,
+          }
+        }),
+        ...communities.map((community) => {
+          const messages = getMessages('community', community.name)
+          const latest = messages[messages.length - 1]
+          return {
+            type: 'community' as const,
+            name: community.name,
+            community: null,
+            channels: community.channels,
+            members: community.members,
+            messageCount: messages.length,
+            recentMessages: messages.slice(-5).map((message) => ({
+              from: message.from,
+              content: message.content,
+              timestamp: message.timestamp,
+            })),
+            latestMessage: latest ? {
+              from: latest.from,
+              content: latest.content,
+              timestamp: latest.timestamp,
+            } : null,
+          }
+        }),
+      ].sort((a, b) => (b.latestMessage?.timestamp || 0) - (a.latestMessage?.timestamp || 0))
 
       const workflowSummaries = workflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
@@ -58,10 +139,15 @@ router.get('/:token', async (req, res) => {
           })),
           kickoffSummary: latest?.logs?.[0] || null,
           resultSummary: latest?.logs?.slice(-2) || [],
+          resultLinks: extractLinks([
+            workflow.description,
+            ...(latest?.logs || []),
+          ]),
         }
       })
 
       return {
+        refreshedAt: new Date().toISOString(),
         dashboard,
         workspace: {
           id: workspace.id,
@@ -100,6 +186,7 @@ router.get('/:token', async (req, res) => {
         }),
         notifications: notifications.slice(0, 20),
         workflows: workflowSummaries,
+        groupChats: groupChats.slice(0, 20),
       }
     })
 

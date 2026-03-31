@@ -11,6 +11,31 @@ export interface WorkspaceDashboardSections {
   workflows: boolean
   kickoff: boolean
   results: boolean
+  groupChats: boolean
+}
+
+export type WorkspaceDashboardDisplayMode = 'standard' | 'compact' | 'detail'
+export type WorkspaceDashboardSectionKey = keyof WorkspaceDashboardSections
+export type WorkspaceDashboardCompactColumn = 'left' | 'right'
+export const DEFAULT_SECTION_ORDER: WorkspaceDashboardSectionKey[] = [
+  'overview',
+  'costs',
+  'agents',
+  'notifications',
+  'workflows',
+  'kickoff',
+  'results',
+  'groupChats',
+]
+export const DEFAULT_COMPACT_COLUMNS: Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn> = {
+  overview: 'left',
+  costs: 'left',
+  agents: 'right',
+  notifications: 'right',
+  workflows: 'left',
+  kickoff: 'left',
+  results: 'left',
+  groupChats: 'right',
 }
 
 export interface WorkspaceDashboard {
@@ -19,7 +44,10 @@ export interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  displayMode: WorkspaceDashboardDisplayMode
   sections: WorkspaceDashboardSections
+  sectionOrder: WorkspaceDashboardSectionKey[]
+  compactColumns: Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -38,6 +66,7 @@ const DEFAULT_SECTIONS: WorkspaceDashboardSections = {
   workflows: true,
   kickoff: true,
   results: true,
+  groupChats: true,
 }
 
 function getWorkspaceDashboardsPath(workspaceId: string): string {
@@ -88,7 +117,10 @@ export function createWorkspaceDashboard(
   input: {
     title: string
     description?: string | null
+    displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
+    sectionOrder?: WorkspaceDashboardSectionKey[]
+    compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
     createdBy?: string | null
   }
 ): WorkspaceDashboard {
@@ -99,7 +131,10 @@ export function createWorkspaceDashboard(
     title: input.title.trim(),
     description: input.description?.trim() || null,
     token: generateToken(),
+    displayMode: input.displayMode || 'standard',
     sections: { ...DEFAULT_SECTIONS, ...(input.sections || {}) },
+    sectionOrder: Array.isArray(input.sectionOrder) && input.sectionOrder.length > 0 ? input.sectionOrder : [...DEFAULT_SECTION_ORDER],
+    compactColumns: { ...DEFAULT_COMPACT_COLUMNS, ...(input.compactColumns || {}) },
     createdBy: input.createdBy || null,
     createdAt: now,
     updatedAt: now,
@@ -136,7 +171,10 @@ export function updateWorkspaceDashboard(
   updates: {
     title?: string
     description?: string | null
+    displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
+    sectionOrder?: WorkspaceDashboardSectionKey[]
+    compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
   }
 ): WorkspaceDashboard | null {
   const store = loadStore(workspaceId)
@@ -149,8 +187,17 @@ export function updateWorkspaceDashboard(
   if (updates.description !== undefined) {
     dashboard.description = updates.description?.trim() || null
   }
+  if (updates.displayMode) {
+    dashboard.displayMode = updates.displayMode
+  }
   if (updates.sections) {
     dashboard.sections = { ...dashboard.sections, ...updates.sections }
+  }
+  if (Array.isArray(updates.sectionOrder) && updates.sectionOrder.length > 0) {
+    dashboard.sectionOrder = updates.sectionOrder
+  }
+  if (updates.compactColumns) {
+    dashboard.compactColumns = { ...dashboard.compactColumns, ...updates.compactColumns }
   }
   dashboard.updatedAt = new Date().toISOString()
   saveStore(workspaceId, store)
