@@ -193,33 +193,55 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
       }
 
       try {
-        // CLI may output JSON to stdout or stderr (with warning lines); try both
-        let jsonText = stdout.trim()
-        if (!jsonText || !jsonText.startsWith('{')) {
-          // Try extracting JSON from stderr (CLI may mix warnings with JSON)
-          const start = stderr.indexOf('{')
-          const end = stderr.lastIndexOf('}')
-          if (start >= 0 && end > start) jsonText = stderr.slice(start, end + 1)
-        }
-        // Also try extracting JSON from stdout if it has non-JSON prefix lines
-        if (jsonText && !jsonText.startsWith('{')) {
-          const start = jsonText.indexOf('{')
-          const end = jsonText.lastIndexOf('}')
-          if (start >= 0 && end > start) jsonText = jsonText.slice(start, end + 1)
+        console.log(`[callAgent] ${agentId}: stdout=${stdout.slice(0, 500)}`)
+        console.log(`[callAgent] ${agentId}: stderr=${stderr.slice(0, 500)}`)
+
+        // Extract JSON from stdout or stderr — the CLI may mix warning lines with JSON in stderr
+        // Strategy: try each line starting with '{' as a JSON candidate, longest first
+        function tryParseJson(text: string): any | null {
+          // Collect all positions where '{' appears at the start of a line
+          const lines = text.split('\n')
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim()
+            if (line.startsWith('{')) {
+              // Try parsing from this line to the end (JSON may span multiple lines)
+              const candidate = lines.slice(i).join('\n').trim()
+              // Trim trailing non-JSON garbage after last }
+              const lastBrace = candidate.lastIndexOf('}')
+              if (lastBrace < 0) continue
+              const trimmed = candidate.slice(0, lastBrace + 1)
+              try {
+                return JSON.parse(trimmed)
+              } catch {
+                // Try sanitizing control chars inside string values
+                let sanitized = ''
+                let inStr = false
+                let esc = false
+                for (let j = 0; j < trimmed.length; j++) {
+                  const ch = trimmed[j]
+                  const cc = trimmed.charCodeAt(j)
+                  if (esc) { sanitized += ch; esc = false; continue }
+                  if (ch === '\\' && inStr) { sanitized += ch; esc = true; continue }
+                  if (ch === '"') { inStr = !inStr; sanitized += ch; continue }
+                  if (inStr && cc <= 0x1f) {
+                    if (ch === '\n') sanitized += '\\n'
+                    else if (ch === '\r') sanitized += '\\r'
+                    else if (ch === '\t') sanitized += '\\t'
+                    continue
+                  }
+                  sanitized += ch
+                }
+                try { return JSON.parse(sanitized) } catch {}
+              }
+            }
+          }
+          return null
         }
 
-        console.log(`[callAgent] ${agentId}: stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
+        let result = tryParseJson(stdout) || tryParseJson(stderr)
 
         let responseText = ''
-        if (jsonText && jsonText.startsWith('{')) {
-          // Sanitize control characters inside JSON string values (agent responses may have raw newlines)
-          const sanitized = jsonText.replace(/[\x00-\x1f\x7f]/g, (ch) => {
-            if (ch === '\n') return '\\n'
-            if (ch === '\r') return '\\r'
-            if (ch === '\t') return '\\t'
-            return ''
-          })
-          const result = JSON.parse(sanitized)
+        if (result) {
           const payloads = result?.payloads || result?.result?.payloads || []
           responseText = payloads
             .map((p: any) => p?.text || '')
