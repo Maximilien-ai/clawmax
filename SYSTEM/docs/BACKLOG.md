@@ -23,6 +23,9 @@
 - [ ] **Workspace restore** — upload zip to restore workspace state
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
+### Customer-Facing Visibility (High Priority)
+- [ ] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
+
 ## Deep Agents Hack — March 27 (immediate)
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`
 
