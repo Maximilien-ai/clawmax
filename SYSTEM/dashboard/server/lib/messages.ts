@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
 import { generateArchiveTitle } from './ai-generator'
+import { normalizeChatMessage } from './chat-normalization'
 
 export interface Message {
   id: string
@@ -48,7 +49,14 @@ function loadMessagesFromFile(type: 'community' | 'group', name: string): Messag
     const file = getMessageFile(type, name)
     if (fs.existsSync(file)) {
       const data = fs.readFileSync(file, 'utf-8')
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      if (Array.isArray(parsed)) {
+        return parsed.map((message) => ({
+          ...message,
+          content: normalizeChatMessage(message?.content || ''),
+        }))
+      }
+      return []
     }
   } catch (err) {
     console.error(`Failed to load messages for ${type}:${name}:`, err)
@@ -91,7 +99,7 @@ export function addMessage(
   const message: Message = {
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     from: data.from,
-    content: data.content,
+    content: normalizeChatMessage(data.content),
     timestamp: Date.now(),
     mentions: data.mentions
   }
@@ -233,7 +241,14 @@ export function getArchivedMessages(type: 'community' | 'group', name: string, f
   try {
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8')
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      if (Array.isArray(parsed)) {
+        return parsed.map((message) => ({
+          ...message,
+          content: normalizeChatMessage(message?.content || ''),
+        }))
+      }
+      return []
     }
   } catch (err) {
     console.error(`Failed to load archived messages from ${filename}:`, err)

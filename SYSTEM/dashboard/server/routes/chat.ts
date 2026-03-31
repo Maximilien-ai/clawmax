@@ -7,6 +7,7 @@ import { isGatewayConfigured } from '../lib/gateway-rpc'
 import { traceAgentChat } from '../lib/opik'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
+import { normalizeChatMessage } from '../lib/chat-normalization'
 import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 
 const router = Router()
@@ -184,7 +185,7 @@ router.post('/:id/chat', (req, res) => {
             const result = JSON.parse(jsonCandidate)
             console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
             const payloads = result.result?.payloads || result.payloads || []
-            const text = payloads.map((p: any) => p.text).join('\n') || ''
+            const text = normalizeChatMessage(payloads.map((p: any) => p.text).join('\n') || '')
             if (text) {
               send('delta', { text })
               replied = true
@@ -207,7 +208,7 @@ router.post('/:id/chat', (req, res) => {
           } catch (err) {
             console.log(`[Chat Route] JSON parse error for ${id}:`, err)
             // Not JSON — send as plain text
-            const text = fullOutput.trim()
+            const text = normalizeChatMessage(fullOutput.trim())
             if (text) {
               send('delta', { text })
               replied = true

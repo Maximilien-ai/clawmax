@@ -325,7 +325,7 @@ async function runMonitorScan(): Promise<void> {
         createNotification({
           type: 'cost-exceeded',
           title: 'Budget exceeded',
-          message: `Workspace spend $${budget.currentSpendUsd.toFixed(2)} exceeds limit $${budget.config.limitUsd.toFixed(2)}.`,
+          message: `Workspace spend reached $${budget.currentSpendUsd.toFixed(2)} against a $${budget.config.limitUsd.toFixed(2)} limit. New runs are blocked until you raise the budget or disable enforcement.`,
           entityType: 'budget',
           fingerprint: 'cost-exceeded',
         })
@@ -334,7 +334,7 @@ async function runMonitorScan(): Promise<void> {
         createNotification({
           type: 'cost-warning',
           title: 'Budget warning',
-          message: `Workspace spend at ${budget.usedPct.toFixed(0)}% ($${budget.currentSpendUsd.toFixed(2)} / $${budget.config.limitUsd.toFixed(2)}).`,
+          message: `Workspace spend is at ${budget.usedPct.toFixed(0)}% of budget ($${budget.currentSpendUsd.toFixed(2)} / $${budget.config.limitUsd.toFixed(2)}). Expect runs to stop soon unless you raise the limit.`,
           entityType: 'budget',
           fingerprint: 'cost-warning',
         })

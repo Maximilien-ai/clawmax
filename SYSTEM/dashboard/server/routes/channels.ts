@@ -5,6 +5,7 @@ import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
 import { safeEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
+import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured } from '../lib/gateway-rpc'
@@ -271,6 +272,7 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
           // Gateway mode may return plain text without --json wrapper
           responseText = stdout.trim()
         }
+        responseText = normalizeChatMessage(responseText)
         if (!responseText) {
           console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
         }

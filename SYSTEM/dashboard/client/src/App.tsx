@@ -24,6 +24,8 @@ type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'or
 interface SystemInfo {
   hostname: string
   agentCount: number
+  activeAgentCount: number
+  pausedAgentCount: number
   onlineCount: number
   version: string
   orgName: string | null
@@ -418,7 +420,12 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 }) {
   const { user, logout, config } = useAuth()
 
-  const allOnline = !!system && system.onlineCount === system.agentCount && system.agentCount > 0
+  const effectiveActiveAgentCount = system
+    ? (typeof system.activeAgentCount === 'number'
+        ? system.activeAgentCount
+        : Math.max(0, (system.agentCount ?? 0) - (system.pausedAgentCount ?? 0)))
+    : 0
+  const allOnline = !!system && system.onlineCount === effectiveActiveAgentCount && effectiveActiveAgentCount > 0
 
   // Split orgName at last "." to style the tld separately (e.g. "Maximilien" + ".ai")
   let orgBase = system?.orgName ?? null

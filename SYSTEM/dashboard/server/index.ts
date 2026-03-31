@@ -180,11 +180,14 @@ app.get('/api/system', protect, (_req, res) => {
   } catch {}
 
   const agents = listAgents()
+  const activeAgents = agents.filter(a => !a.paused)
   res.json({
     workspace: workspacePath,
     hostname: os.hostname(),
     agentCount: agents.length,
-    onlineCount: agents.filter(a => a.status === 'online').length,
+    activeAgentCount: activeAgents.length,
+    pausedAgentCount: agents.length - activeAgents.length,
+    onlineCount: activeAgents.filter(a => a.status === 'online').length,
     version: getLatestTag() ?? '0.1.0',
     gitBranch,
     orgName: getOrgName() ?? null,

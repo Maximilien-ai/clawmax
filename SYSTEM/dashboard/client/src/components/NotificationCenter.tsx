@@ -69,7 +69,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER = ['agent', 'workflow', 'communication', 'budget']
 
 export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onAgentRestarted }: NotificationCenterProps) {
-  const { showSuccess, showError } = useToast()
+  const { showSuccess, showError, showWarning } = useToast()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
   const [criticalCount, setCriticalCount] = useState(0)
@@ -80,18 +80,32 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const seenNotificationIds = useRef<Set<string>>(new Set())
 
   const fetchNotifications = useCallback(async () => {
     try {
       const resp = await fetch('/api/notifications')
       if (!resp.ok) return
       const data = await resp.json()
-      setNotifications(data.notifications || [])
+      const nextNotifications = data.notifications || []
+      const nextIds = new Set<string>()
+      for (const notification of nextNotifications) {
+        nextIds.add(notification.id)
+        if (!seenNotificationIds.current.has(notification.id)) {
+          if (notification.type === 'cost-warning') {
+            showWarning(notification.message, 7000)
+          } else if (notification.type === 'cost-exceeded') {
+            showError(notification.message, 9000)
+          }
+        }
+      }
+      seenNotificationIds.current = nextIds
+      setNotifications(nextNotifications)
       setActiveCount(data.activeCount || 0)
       setCriticalCount(data.criticalCount || 0)
       setWarningCount(data.warningCount || 0)
     } catch {}
-  }, [])
+  }, [showError, showWarning])
 
   // Poll every 30s
   useEffect(() => {
