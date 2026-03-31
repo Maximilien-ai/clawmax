@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 28, 2026
+> Last updated: March 31, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -14,8 +14,8 @@
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
 
 ### Cost Management (Sprint Priority #2)
-- [ ] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
-- [ ] **Cost notifications** — toast/alert when approaching limits, email notification option
+- [x] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
+- [x] **Cost notifications** — toast/alert when approaching limits, email notification option
 - [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
 
 ### Backup & Restore (Sprint Priority #3)
@@ -24,7 +24,7 @@
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
 ### Customer-Facing Visibility (High Priority)
-- [ ] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
+- [x] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
 - [ ] **Workflow input normalization for dashboards** — persist and expose structured kickoff/start inputs per workflow run so shared dashboards can show clean, reliable "what started this run" context instead of best-effort execution-log summaries.
 - [ ] **Workflow output + artifact normalization for dashboards** — persist structured workflow results, artifact links, and downloadable outputs so shared dashboards can present consistent run outcomes across heterogeneous workflows.
 
@@ -34,7 +34,7 @@
 ### Hackathon Deliverables
 
 ### Backlog from Hackathon
-- [ ] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
+- [x] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
