@@ -726,9 +726,9 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
 
-    // Increment run count + mark as running
+    // Increment run count + mark as running + reset progress
     const newRunCount = (workflow.runCount || 0) + 1
-    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running' } as any)
+    updateWorkflow(workflowId, { runCount: newRunCount, status: 'running', progress: 0 } as any)
 
     // Check if this run will hit the limit — disable after this run
     if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {
