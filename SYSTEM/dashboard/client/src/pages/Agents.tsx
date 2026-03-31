@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
-import { fetchModelsWithByok, refreshModelsWithByok } from '../lib/byok'
+import { fetchModelsWithByok, refreshModelsWithByok, hasAnyLLMKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import ArchiveAgentPanel from '../components/ArchiveAgentPanel'
 import UnarchiveAgentPanel from '../components/UnarchiveAgentPanel'
@@ -85,6 +86,8 @@ type ArchiveTab = 'active' | 'archived'
 
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
+  const { config } = useAuth()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -1040,8 +1043,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             )}
             <button
               onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-              title="Generate agent with AI"
+              disabled={!aiEnabled}
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${aiEnabled ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+              title={aiEnabled ? 'Generate agent with AI' : 'Configure API keys (BYOK) to enable AI generation'}
             >
               AI Generate
             </button>

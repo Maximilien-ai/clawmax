@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
-import { readStoredByokKeys } from '../lib/byok'
+import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 
 interface AgentTargeting {
@@ -162,6 +163,8 @@ function getWorkflowStatusHelp(state: WorkflowHealthState, nextRunAt?: string | 
 
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
+  const { config } = useAuth()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
@@ -1025,7 +1028,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             )}
             <button
               onClick={() => setShowAiPrompt(true)}
-              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
+              disabled={!aiEnabled}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${aiEnabled ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+              title={aiEnabled ? 'Generate workflow with AI' : 'Configure API keys (BYOK) to enable AI generation'}
             >
               AI Generate
             </button>

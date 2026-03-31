@@ -30,6 +30,15 @@ export function writeStoredByokKeys(keys: StoredByokKeys) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(keys))
 }
 
+/** Check if any LLM API keys are available (BYOK, system, or user defaults) */
+export function hasAnyLLMKeys(config?: { systemKeyDefaults?: { openai?: boolean; anthropic?: boolean }; userKeyDefaults?: { openai?: boolean; anthropic?: boolean } }): boolean {
+  const byok = readStoredByokKeys()
+  if (byok.openai || byok.anthropic) return true
+  if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic) return true
+  return false
+}
+
 /** Build query string with BYOK keys for model discovery endpoints */
 export function byokModelParams(): string {
   const keys = readStoredByokKeys()

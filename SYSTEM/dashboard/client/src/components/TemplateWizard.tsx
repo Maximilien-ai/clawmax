@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { hasAnyLLMKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 
 // ============================================================================
 // Types
@@ -89,6 +91,8 @@ interface TemplateWizardProps {
 }
 
 export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError }: TemplateWizardProps) {
+  const { config } = useAuth()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(INITIAL_STATE)
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -322,10 +326,11 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         <div className="flex gap-2">
           <button
             onClick={handleAiGenerate}
-            disabled={aiGenerating || !state.teamDescription.trim()}
+            disabled={aiGenerating || !state.teamDescription.trim() || !aiEnabled}
             className="px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-gray-600 dark:disabled:to-gray-700 disabled:cursor-not-allowed transition-all font-medium"
+            title={!aiEnabled ? 'Configure API keys (BYOK) to enable AI generation' : ''}
           >
-            {aiGenerating ? 'Generating...' : '✨ AI Generate All'}
+            {aiGenerating ? 'Generating...' : !aiEnabled ? 'AI Generate (no keys)' : '✨ AI Generate All'}
           </button>
           <button onClick={() => setStep(1)} className={btnPrimary}>
             Manual Setup →
