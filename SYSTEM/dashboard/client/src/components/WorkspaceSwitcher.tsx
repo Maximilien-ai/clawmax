@@ -225,6 +225,19 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     })
   }
 
+  const moveSectionBefore = (
+    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
+  ) => {
+    setDashboardSectionOrder((prev) => {
+      const without = prev.filter((key) => key !== section)
+      const insertIndex = beforeKey ? without.findIndex((key) => key === beforeKey) : without.length
+      const next = [...without]
+      next.splice(insertIndex === -1 ? without.length : insertIndex, 0, section)
+      return next
+    })
+  }
+
   const compactColumnSections = (column: 'left' | 'right') =>
     dashboardSectionOrder.filter((key) => dashboardCompactColumns[key] === column)
 
@@ -550,7 +563,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   {dashboardDisplayMode !== 'compact' ? (
                     <div className="space-y-2">
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Drag sections to reorder the dashboard. Detail mode will expand content on the shared page; Standard keeps the balanced layout.
+                        Drag sections to reorder the dashboard. Standard stays balanced, while Detail expands workflows and chats with deeper trace and message context.
                       </div>
                       <div className="space-y-2 text-sm">
                         {dashboardSectionOrder.map((key) => (
@@ -563,7 +576,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                             onDrop={(e) => {
                               e.preventDefault()
                               if (draggedSection && draggedSection !== key) {
-                                moveSectionToCompactColumn(draggedSection, dashboardCompactColumns[draggedSection], key)
+                                moveSectionBefore(draggedSection, key)
                                 setDraggedSection(null)
                               }
                             }}
@@ -603,30 +616,60 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                               {column} column
                             </div>
                             <div className="space-y-2 min-h-24">
+                              <div
+                                className="h-3 rounded border border-dashed border-transparent hover:border-blue-400"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  if (draggedSection) {
+                                    const firstKey = compactColumnSections(column)[0]
+                                    moveSectionToCompactColumn(draggedSection, column, firstKey)
+                                    setDraggedSection(null)
+                                  }
+                                }}
+                              />
                               {compactColumnSections(column).map((key) => (
-                                <div
-                                  key={key}
-                                  draggable
-                                  onDragStart={() => setDraggedSection(key)}
-                                  onDragEnd={() => setDraggedSection(null)}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault()
-                                    if (draggedSection && draggedSection !== key) {
-                                      moveSectionToCompactColumn(draggedSection, column, key)
-                                      setDraggedSection(null)
-                                    }
-                                  }}
-                                  className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
-                                >
-                                  <span className="text-gray-400">⋮⋮</span>
-                                  <input
-                                    type="checkbox"
-                                    checked={dashboardSections[key]}
-                                    onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                                <React.Fragment key={key}>
+                                  <div
+                                    draggable
+                                    onDragStart={() => setDraggedSection(key)}
+                                    onDragEnd={() => setDraggedSection(null)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      if (draggedSection && draggedSection !== key) {
+                                        moveSectionToCompactColumn(draggedSection, column, key)
+                                        setDraggedSection(null)
+                                      }
+                                    }}
+                                    className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                  >
+                                    <span className="text-gray-400">⋮⋮</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={dashboardSections[key]}
+                                      onChange={(e) => setDashboardSections(prev => ({ ...prev, [key]: e.target.checked }))}
+                                    />
+                                    <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
+                                  </div>
+                                  <div
+                                    className="h-3 rounded border border-dashed border-transparent hover:border-blue-400"
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      if (draggedSection) {
+                                        moveSectionToCompactColumn(
+                                          draggedSection,
+                                          column,
+                                          key === compactColumnSections(column)[compactColumnSections(column).length - 1]
+                                            ? undefined
+                                            : compactColumnSections(column)[compactColumnSections(column).indexOf(key) + 1]
+                                        )
+                                        setDraggedSection(null)
+                                      }
+                                    }}
                                   />
-                                  <span className="flex-1 capitalize text-gray-700 dark:text-gray-300">{key}</span>
-                                </div>
+                                </React.Fragment>
                               ))}
                             </div>
                           </div>

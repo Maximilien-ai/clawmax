@@ -350,6 +350,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     <div className="font-medium">{notification.title}</div>
                     <span className="text-[11px] text-slate-400">{notification.severity}</span>
                   </div>
+                  {!compact && <div className="mt-1 text-sm text-slate-400">{notification.message}</div>}
                 </div>
               ))}
               {payload.notifications.length === 0 && <div className="text-sm text-slate-500">No active notifications.</div>}
@@ -365,9 +366,57 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                 <div key={workflow.id} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{workflow.name}</div>
+                    <div>
+                      <div className="font-medium">{workflow.name}</div>
+                      {!compact && <div className="text-sm text-slate-500">{workflow.description || workflow.id}</div>}
+                    </div>
                     <span className="text-[11px] text-slate-400">{workflow.status}</span>
                   </div>
+                  {!compact && (
+                    <div className="mt-3 grid gap-2 text-sm text-slate-400">
+                      <div>Next run: {workflow.nextRunAt ? new Date(workflow.nextRunAt).toLocaleString() : 'Manual / none scheduled'}</div>
+                      {workflow.kickoffSummary && (
+                        <div className="rounded-md bg-slate-900/60 p-2 text-slate-300">Kickoff: {workflow.kickoffSummary}</div>
+                      )}
+                      {workflow.resultSummary.length > 0 && (
+                        <div className="rounded-md bg-slate-900/60 p-2 text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
+                      )}
+                      {workflow.resultLinks.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {workflow.resultLinks.map((link) => (
+                            <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20">
+                              Open result
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {detail && workflow.latestExecution?.logsPreview?.length > 0 && (
+                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Trace Preview</div>
+                          <div className="space-y-1 text-xs text-slate-300">
+                            {workflow.latestExecution.logsPreview.map((line, index) => (
+                              <div key={`${workflow.id}-ordered-trace-${index}`} className="rounded bg-slate-950/60 px-2 py-1">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {detail && workflow.executionHistory.length > 0 && (
+                        <div className="rounded-md border border-white/10 bg-slate-900/60 p-3">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Runs</div>
+                          <div className="space-y-1 text-xs text-slate-300">
+                            {workflow.executionHistory.slice(0, 5).map((run) => (
+                              <div key={run.id} className="flex items-center justify-between rounded bg-slate-950/60 px-2 py-1">
+                                <span>{run.status}</span>
+                                <span className="text-slate-500">{timeAgo(run.completedAt || run.startedAt)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -385,6 +434,32 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               {payload.groupChats.slice(0, chatsToShow).map((chat) => (
                 <div key={`${chat.type}:${chat.name}`} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
                   <div className="font-medium text-slate-100">{chat.name}</div>
+                  {!compact && (
+                    <>
+                      <div className="mt-2 text-xs uppercase tracking-wide text-slate-500">
+                        {chat.type}{chat.community ? ` · ${chat.community}` : ''}
+                      </div>
+                      <div className="mt-3 text-sm text-slate-300">
+                        {chat.latestMessage ? chat.latestMessage.content : 'No messages yet. This channel is available for workspace coordination.'}
+                      </div>
+                      {detail && chat.recentMessages.length > 0 && (
+                        <div className="mt-3 rounded-md border border-white/10 bg-slate-900/60 p-3">
+                          <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Recent Chat</div>
+                          <div className="space-y-2 text-xs text-slate-300">
+                            {chat.recentMessages.map((message, index) => (
+                              <div key={`${chat.name}-ordered-msg-${index}`} className="rounded bg-slate-950/60 px-2 py-1.5">
+                                <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+                                  <span>{message.from}</span>
+                                  <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
+                                </div>
+                                <div>{message.content}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -413,7 +488,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               </div>
             </div>
           </header>
-          <div className={`space-y-${compact ? '4' : '6'}`}>
+          <div className={compact ? 'space-y-4' : 'space-y-6'}>
             {orderedTopLevelSections.map((key) => (
               <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
             ))}
