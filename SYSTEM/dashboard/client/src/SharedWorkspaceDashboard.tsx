@@ -236,29 +236,29 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const budgetBarColor = budget.level === 'exceeded' ? 'bg-red-500' : budget.level === 'warning' ? 'bg-yellow-500' : 'bg-green-500'
   const compact = payload.dashboard.displayMode === 'compact'
   const detail = payload.dashboard.displayMode === 'detail'
-  const notificationsToShow = compact ? 3 : detail ? 12 : 8
-  const agentsToShow = compact ? 5 : detail ? payload.agents.length : payload.agents.length
-  const workflowsToShow = compact ? 4 : detail ? payload.workflows.length : payload.workflows.length
-  const chatsToShow = compact ? 4 : detail ? payload.groupChats.length : payload.groupChats.length
-  const containerWidth = compact ? 'max-w-5xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
-  const twoColLayout = compact ? 'xl:grid-cols-[1fr_0.9fr]' : 'xl:grid-cols-[1.4fr_1fr]'
+  const notificationsToShow = compact ? 2 : detail ? 12 : 8
+  const agentsToShow = compact ? 4 : detail ? payload.agents.length : payload.agents.length
+  const workflowsToShow = compact ? 3 : detail ? payload.workflows.length : payload.workflows.length
+  const chatsToShow = compact ? 3 : detail ? payload.groupChats.length : payload.groupChats.length
+  const containerWidth = compact ? 'max-w-4xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
+  const twoColLayout = compact ? 'xl:grid-cols-[1.1fr_0.9fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
-  const cardPadding = compact ? 'p-3.5' : detail ? 'p-6' : 'p-5'
+  const cardPadding = compact ? 'p-3' : detail ? 'p-6' : 'p-5'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className={`mx-auto ${containerWidth} px-6 py-8`}>
-        <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-5' : 'p-6'}`}>
+      <div className={`mx-auto ${containerWidth} ${compact ? 'px-4 py-5' : 'px-6 py-8'}`}>
+        <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-4' : 'p-6'}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
                 Workspace Summary
               </div>
-              <h1 className="text-3xl font-bold tracking-tight">{payload.dashboard.title}</h1>
-              <p className="mt-2 text-sm text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>
+              <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
+              {!compact && <p className="mt-2 text-sm text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>}
             </div>
-            <div className="text-sm text-slate-400">
+            <div className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
               <div className="mb-1 uppercase tracking-wide text-slate-500">{payload.dashboard.displayMode} view</div>
               <div>{payload.workspace.name}</div>
               <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
@@ -268,7 +268,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         </header>
 
         {payload.dashboard.sections.overview && (
-          <section className={`mb-8 grid gap-3 ${compact ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : 'sm:grid-cols-2 xl:grid-cols-6'}`}>
+          <section className={`mb-8 grid ${compact ? 'gap-2 grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : 'gap-3 sm:grid-cols-2 xl:grid-cols-6'}`}>
             {overviewCards.map(([label, value]) => (
               <div key={label} className={`rounded-2xl border border-white/10 bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
@@ -278,18 +278,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           </section>
         )}
 
-        <div className={`grid gap-6 ${twoColLayout}`}>
+        <div className={`grid ${compact ? 'gap-4' : 'gap-6'} ${twoColLayout}`}>
           {payload.dashboard.sections.costs && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
-              <h2 className="mb-4 text-lg font-semibold">Costs & Budget</h2>
-              <div className="mb-3 flex items-center justify-between text-sm text-slate-400">
+              <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Costs & Budget</h2>
+              <div className={`mb-3 flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
                 <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
                 <span>${budget.remainingUsd.toFixed(4)} remaining</span>
               </div>
               <div className="h-3 w-full rounded-full bg-slate-800">
                 <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
               </div>
-              <div className="mt-3 text-sm text-slate-400">{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+              <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
 
               {!compact && (
               <div className="mt-6">
@@ -309,8 +309,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
 
           {payload.dashboard.sections.notifications && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
-              <h2 className="mb-4 text-lg font-semibold">Active Notifications</h2>
-              <div className="space-y-3">
+              <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Active Notifications</h2>
+              <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
                 {payload.notifications.length === 0 && (
                   <div className="text-sm text-slate-500">No active notifications.</div>
                 )}
@@ -334,13 +334,13 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           )}
         </div>
 
-        <div className={`mt-6 grid gap-6 ${lowerGrid}`}>
+        <div className={`mt-6 grid ${compact ? 'gap-4' : 'gap-6'} ${lowerGrid}`}>
           {payload.dashboard.sections.agents && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
-              <h2 className="mb-4 text-lg font-semibold">Agent Status</h2>
-              <div className="space-y-2">
+              <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
+              <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
                 {payload.agents.slice(0, agentsToShow).map(agent => (
-                  <div key={agent.id} className="flex items-center justify-between rounded-lg bg-slate-800/70 px-3 py-2 text-sm">
+                  <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-slate-800/70 px-3 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
                     <div>
                       <div className="font-medium">{agent.name}</div>
                       {!compact && <div className="text-slate-500">{agent.id} · last activity {timeAgo(agent.lastHeartbeat)}</div>}
@@ -364,10 +364,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
 
           {payload.dashboard.sections.workflows && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
-              <h2 className="mb-4 text-lg font-semibold">Workflows</h2>
-              <div className="space-y-3">
+              <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
+              <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
                 {payload.workflows.slice(0, workflowsToShow).map(workflow => (
-                  <div key={workflow.id} className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
+                  <div key={workflow.id} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="font-medium">{workflow.name}</div>
@@ -382,7 +382,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         {workflow.status}
                       </span>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-400">
+                    <div className={`mt-3 grid gap-2 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>
                       <div>{compact ? 'Next:' : 'Next run:'} {workflow.nextRunAt ? new Date(workflow.nextRunAt).toLocaleString() : 'Manual / none scheduled'}</div>
                       {!compact && payload.dashboard.sections.kickoff && workflow.kickoffSummary && (
                         <div className="rounded-md bg-slate-900/60 p-2 text-slate-300">Kickoff: {workflow.kickoffSummary}</div>
@@ -400,7 +400,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                               href={link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20"
+                              className={`rounded-full border border-sky-500/30 bg-sky-500/10 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-sky-300 hover:bg-sky-500/20`}
                             >
                               Open result
                             </a>
@@ -418,15 +418,15 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         {payload.dashboard.sections.groupChats && (
           <section className={`mt-6 rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Group Chats</h2>
-              <span className="text-sm text-slate-400">{payload.groupChats.length} channels</span>
+              <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Group Chats</h2>
+              <span className={`${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{payload.groupChats.length} channels</span>
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className={`grid ${compact ? 'gap-2' : 'gap-4'} lg:grid-cols-2`}>
               {payload.groupChats.length === 0 && (
                 <div className="text-sm text-slate-500">No group or community chat activity yet.</div>
               )}
               {payload.groupChats.slice(0, chatsToShow).map((chat) => (
-                <div key={`${chat.type}:${chat.name}`} className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
+                <div key={`${chat.type}:${chat.name}`} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-medium text-slate-100">{chat.name}</div>
@@ -439,7 +439,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                   <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-300`}>
                     {chat.latestMessage ? chat.latestMessage.content : 'No messages yet. This channel is available for workspace coordination.'}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className={`mt-3 flex flex-wrap ${compact ? 'gap-1.5' : 'gap-2'}`}>
                     {chat.channels.map((channel) => (
                       <span key={channel} className="rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-400">
                         {channel}
