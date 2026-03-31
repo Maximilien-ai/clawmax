@@ -12,6 +12,22 @@ import fs from 'fs'
 import path from 'path'
 
 const router = Router()
+const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
+
+function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (!value) continue
+    for (const match of value.match(URL_REGEX) || []) {
+      const normalized = match.replace(/[.,;!?]+$/, '')
+      if (!seen.has(normalized)) {
+        seen.add(normalized)
+        if (seen.size >= limit) return Array.from(seen)
+      }
+    }
+  }
+  return Array.from(seen)
+}
 
 router.get('/:token', async (req, res) => {
   try {
@@ -56,6 +72,7 @@ router.get('/:token', async (req, res) => {
             type: 'group' as const,
             name: group.name,
             community: group.community,
+            channels: group.channels,
             members: group.members,
             messageCount: messages.length,
             latestMessage: latest ? {
@@ -72,6 +89,7 @@ router.get('/:token', async (req, res) => {
             type: 'community' as const,
             name: community.name,
             community: null,
+            channels: community.channels,
             members: community.members,
             messageCount: messages.length,
             latestMessage: latest ? {
@@ -111,6 +129,10 @@ router.get('/:token', async (req, res) => {
           })),
           kickoffSummary: latest?.logs?.[0] || null,
           resultSummary: latest?.logs?.slice(-2) || [],
+          resultLinks: extractLinks([
+            workflow.description,
+            ...(latest?.logs || []),
+          ]),
         }
       })
 

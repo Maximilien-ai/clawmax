@@ -71,6 +71,7 @@ interface SharedDashboardPayload {
     status: string
     kickoffSummary: string | null
     resultSummary: string[]
+    resultLinks: string[]
     latestExecution: {
       status: string
       startedAt: string
@@ -90,6 +91,7 @@ interface SharedDashboardPayload {
     type: 'group' | 'community'
     name: string
     community: string | null
+    channels: string[]
     members: string[]
     messageCount: number
     latestMessage: {
@@ -302,6 +304,21 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                           Result: {workflow.resultSummary.join(' ')}
                         </div>
                       )}
+                      {payload.dashboard.sections.results && workflow.resultLinks.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {workflow.resultLinks.map((link) => (
+                            <a
+                              key={link}
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20"
+                            >
+                              Open result
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -332,10 +349,22 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     {chat.messageCount > 0 && <span className="mt-1 h-2.5 w-2.5 rounded-full bg-red-400" />}
                   </div>
                   <div className="mt-3 text-sm text-slate-300">
-                    {chat.latestMessage ? chat.latestMessage.content : 'No messages yet.'}
+                    {chat.latestMessage ? chat.latestMessage.content : 'No messages yet. This channel is available for workspace coordination.'}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {chat.channels.map((channel) => (
+                      <span key={channel} className="rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-400">
+                        {channel}
+                      </span>
+                    ))}
+                    {chat.channels.length === 0 && (
+                      <span className="rounded-full border border-white/10 bg-slate-900/60 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-500">
+                        no channels listed
+                      </span>
+                    )}
                   </div>
                   <div className="mt-3 text-xs text-slate-500">
-                    {chat.members.length} members · {chat.messageCount} messages · {chat.latestMessage ? timeAgo(new Date(chat.latestMessage.timestamp).toISOString()) : '—'}
+                    {chat.members.length} members · {chat.messageCount} messages · {chat.latestMessage ? timeAgo(new Date(chat.latestMessage.timestamp).toISOString()) : 'waiting for activity'}
                   </div>
                 </div>
               ))}
