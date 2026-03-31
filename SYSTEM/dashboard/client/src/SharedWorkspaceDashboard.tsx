@@ -5,6 +5,7 @@ interface SharedDashboardPayload {
   dashboard: {
     title: string
     description: string | null
+    displayMode: 'standard' | 'compact' | 'detail'
     sections: {
       overview: boolean
       costs: boolean
@@ -108,6 +109,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
     dashboard: {
       title: typeof input?.dashboard?.title === 'string' ? input.dashboard.title : 'Workspace Summary',
       description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
+      displayMode: input?.dashboard?.displayMode === 'compact' || input?.dashboard?.displayMode === 'detail' ? input.dashboard.displayMode : 'standard',
       sections: {
         overview: input?.dashboard?.sections?.overview !== false,
         costs: input?.dashboard?.sections?.costs !== false,
@@ -232,11 +234,21 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
 
   const budget = payload.costs.budget
   const budgetBarColor = budget.level === 'exceeded' ? 'bg-red-500' : budget.level === 'warning' ? 'bg-yellow-500' : 'bg-green-500'
+  const compact = payload.dashboard.displayMode === 'compact'
+  const detail = payload.dashboard.displayMode === 'detail'
+  const notificationsToShow = compact ? 4 : detail ? 12 : 8
+  const agentsToShow = compact ? 8 : detail ? payload.agents.length : payload.agents.length
+  const workflowsToShow = compact ? 6 : detail ? payload.workflows.length : payload.workflows.length
+  const chatsToShow = compact ? 6 : detail ? payload.groupChats.length : payload.groupChats.length
+  const containerWidth = compact ? 'max-w-6xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
+  const twoColLayout = compact ? 'xl:grid-cols-2' : 'xl:grid-cols-[1.4fr_1fr]'
+  const lowerGrid = compact ? 'xl:grid-cols-2' : 'xl:grid-cols-[1.1fr_1fr]'
+  const cardPadding = compact ? 'p-4' : detail ? 'p-6' : 'p-5'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <header className="mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 p-6 shadow-2xl">
+      <div className={`mx-auto ${containerWidth} px-6 py-8`}>
+        <header className={`mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl ${compact ? 'p-5' : 'p-6'}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -247,6 +259,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <p className="mt-2 text-sm text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>
             </div>
             <div className="text-sm text-slate-400">
+              <div className="mb-1 uppercase tracking-wide text-slate-500">{payload.dashboard.displayMode} view</div>
               <div>{payload.workspace.name}</div>
               <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
               <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
@@ -257,7 +270,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         {payload.dashboard.sections.overview && (
           <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {overviewCards.map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+              <div key={label} className={`rounded-2xl border border-white/10 bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-2 text-2xl font-semibold">{value}</div>
               </div>
@@ -265,9 +278,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           </section>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <div className={`grid gap-6 ${twoColLayout}`}>
           {payload.dashboard.sections.costs && (
-            <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+            <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className="mb-4 text-lg font-semibold">Costs & Budget</h2>
               <div className="mb-3 flex items-center justify-between text-sm text-slate-400">
                 <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
@@ -293,13 +306,13 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           )}
 
           {payload.dashboard.sections.notifications && (
-            <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+            <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className="mb-4 text-lg font-semibold">Active Notifications</h2>
               <div className="space-y-3">
                 {payload.notifications.length === 0 && (
                   <div className="text-sm text-slate-500">No active notifications.</div>
                 )}
-                {payload.notifications.slice(0, 8).map(notification => (
+                {payload.notifications.slice(0, notificationsToShow).map(notification => (
                   <div key={notification.id} className="rounded-xl border border-white/10 bg-slate-800/80 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="font-medium">{notification.title}</div>
@@ -319,12 +332,12 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           )}
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+        <div className={`mt-6 grid gap-6 ${lowerGrid}`}>
           {payload.dashboard.sections.agents && (
-            <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+            <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className="mb-4 text-lg font-semibold">Agent Status</h2>
               <div className="space-y-2">
-                {payload.agents.map(agent => (
+                {payload.agents.slice(0, agentsToShow).map(agent => (
                   <div key={agent.id} className="flex items-center justify-between rounded-lg bg-slate-800/70 px-3 py-2 text-sm">
                     <div>
                       <div className="font-medium">{agent.name}</div>
@@ -348,10 +361,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           )}
 
           {payload.dashboard.sections.workflows && (
-            <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+            <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className="mb-4 text-lg font-semibold">Workflows</h2>
               <div className="space-y-3">
-                {payload.workflows.map(workflow => (
+                {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                   <div key={workflow.id} className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -401,7 +414,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         </div>
 
         {payload.dashboard.sections.groupChats && (
-          <section className="mt-6 rounded-2xl border border-white/10 bg-slate-900/80 p-5">
+          <section className={`mt-6 rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Group Chats</h2>
               <span className="text-sm text-slate-400">{payload.groupChats.length} channels</span>
@@ -410,7 +423,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               {payload.groupChats.length === 0 && (
                 <div className="text-sm text-slate-500">No group or community chat activity yet.</div>
               )}
-              {payload.groupChats.map((chat) => (
+              {payload.groupChats.slice(0, chatsToShow).map((chat) => (
                 <div key={`${chat.type}:${chat.name}`} className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>

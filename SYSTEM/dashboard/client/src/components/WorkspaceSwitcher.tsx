@@ -10,6 +10,7 @@ interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  displayMode: 'standard' | 'compact' | 'detail'
   sections: {
     overview: boolean
     costs: boolean
@@ -52,6 +53,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const [dashboards, setDashboards] = useState<WorkspaceDashboard[]>([])
   const [dashboardTitle, setDashboardTitle] = useState('')
   const [dashboardDescription, setDashboardDescription] = useState('')
+  const [dashboardDisplayMode, setDashboardDisplayMode] = useState<'standard' | 'compact' | 'detail'>('standard')
   const [dashboardSections, setDashboardSections] = useState({
     overview: true,
     costs: true,
@@ -76,6 +78,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     setDashboardWorkspace(workspace)
     setDashboardTitle(`${workspace.name} Summary`)
     setDashboardDescription('')
+    setDashboardDisplayMode('standard')
     setDashboardSections({
       overview: true,
       costs: true,
@@ -114,6 +117,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
         body: JSON.stringify({
           title: dashboardTitle.trim(),
           description: dashboardDescription.trim() || null,
+          displayMode: dashboardDisplayMode,
           sections: dashboardSections,
         }),
       })
@@ -457,6 +461,21 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     placeholder="Optional description"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                   />
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">View mode</label>
+                    <select
+                      value={dashboardDisplayMode}
+                      onChange={(e) => setDashboardDisplayMode(e.target.value as 'standard' | 'compact' | 'detail')}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="compact">Compact</option>
+                      <option value="detail">Detail</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Compact favors one-page summaries, Standard matches the current balanced layout, and Detail expands cards and histories.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {Object.entries(dashboardSections).map(([key, enabled]) => (
                       <label key={key} className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900">
@@ -494,6 +513,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{dashboard.title}</div>
                           <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 uppercase tracking-wide text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {dashboard.displayMode}
+                            </span>
                             <span title={new Date(dashboard.updatedAt).toLocaleString()}>Updated {timeAgo(dashboard.updatedAt)}</span>
                             <span>•</span>
                             <span className="truncate">{getDashboardUrl(dashboard.token)}</span>

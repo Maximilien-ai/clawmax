@@ -14,12 +14,15 @@ export interface WorkspaceDashboardSections {
   groupChats: boolean
 }
 
+export type WorkspaceDashboardDisplayMode = 'standard' | 'compact' | 'detail'
+
 export interface WorkspaceDashboard {
   id: string
   workspaceId: string
   title: string
   description: string | null
   token: string
+  displayMode: WorkspaceDashboardDisplayMode
   sections: WorkspaceDashboardSections
   createdBy: string | null
   createdAt: string
@@ -90,6 +93,7 @@ export function createWorkspaceDashboard(
   input: {
     title: string
     description?: string | null
+    displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
     createdBy?: string | null
   }
@@ -101,6 +105,7 @@ export function createWorkspaceDashboard(
     title: input.title.trim(),
     description: input.description?.trim() || null,
     token: generateToken(),
+    displayMode: input.displayMode || 'standard',
     sections: { ...DEFAULT_SECTIONS, ...(input.sections || {}) },
     createdBy: input.createdBy || null,
     createdAt: now,
@@ -138,6 +143,7 @@ export function updateWorkspaceDashboard(
   updates: {
     title?: string
     description?: string | null
+    displayMode?: WorkspaceDashboardDisplayMode
     sections?: Partial<WorkspaceDashboardSections>
   }
 ): WorkspaceDashboard | null {
@@ -150,6 +156,9 @@ export function updateWorkspaceDashboard(
   }
   if (updates.description !== undefined) {
     dashboard.description = updates.description?.trim() || null
+  }
+  if (updates.displayMode) {
+    dashboard.displayMode = updates.displayMode
   }
   if (updates.sections) {
     dashboard.sections = { ...dashboard.sections, ...updates.sections }

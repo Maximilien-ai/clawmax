@@ -82,6 +82,7 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
     createdBy: 'tester',
   })
   assert(dashboard.title === 'Marketing Summary', 'Expected title to persist')
+  assert(dashboard.displayMode === 'standard', 'Expected default display mode')
   assert(dashboard.sections.overview === true, 'Expected default overview section')
   assert(dashboard.sections.groupChats === true, 'Expected default group chats section')
   assert(dashboard.createdBy === 'tester', 'Expected createdBy to persist')
@@ -91,8 +92,10 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
 test('createWorkspaceDashboard merges provided section overrides', () => {
   const dashboard = createWorkspaceDashboard('workspace-a', {
     title: 'Limited Summary',
+    displayMode: 'compact',
     sections: { costs: false, kickoff: false },
   })
+  assert(dashboard.displayMode === 'compact', 'Expected compact display mode')
   assert(dashboard.sections.costs === false, 'Expected costs section to be disabled')
   assert(dashboard.sections.kickoff === false, 'Expected kickoff section to be disabled')
   assert(dashboard.sections.results === true, 'Expected unspecified sections to stay enabled')
@@ -109,10 +112,12 @@ test('updateWorkspaceDashboard updates metadata and sections', () => {
   const updated = updateWorkspaceDashboard('workspace-a', dashboard.id, {
     title: 'Updated',
     description: 'Sharable summary',
+    displayMode: 'detail',
     sections: { notifications: false },
   })
   assert(updated?.title === 'Updated', 'Expected title update')
   assert(updated?.description === 'Sharable summary', 'Expected description update')
+  assert(updated?.displayMode === 'detail', 'Expected display mode update')
   assert(updated?.sections.notifications === false, 'Expected sections update')
 })
 

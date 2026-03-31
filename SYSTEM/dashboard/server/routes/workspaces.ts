@@ -159,7 +159,7 @@ router.post('/:id/dashboards', (req, res) => {
       return res.status(404).json({ error: `Workspace '${id}' not found` })
     }
 
-    const { title, description, sections, createdBy } = req.body || {}
+    const { title, description, displayMode, sections, createdBy } = req.body || {}
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'title is required' })
     }
@@ -167,6 +167,7 @@ router.post('/:id/dashboards', (req, res) => {
     const dashboard = createWorkspaceDashboard(id, {
       title,
       description: typeof description === 'string' ? description : null,
+      displayMode: displayMode === 'compact' || displayMode === 'detail' ? displayMode : 'standard',
       sections: sections && typeof sections === 'object' ? sections : undefined,
       createdBy: typeof createdBy === 'string' ? createdBy : null,
     })
@@ -189,6 +190,7 @@ router.patch('/:id/dashboards/:dashboardId', (req, res) => {
     const dashboard = updateWorkspaceDashboard(id, dashboardId, {
       title: typeof req.body?.title === 'string' ? req.body.title : undefined,
       description: req.body?.description,
+      displayMode: req.body?.displayMode === 'compact' || req.body?.displayMode === 'detail' ? req.body.displayMode : req.body?.displayMode === 'standard' ? 'standard' : undefined,
       sections: req.body?.sections,
     })
     if (!dashboard) {
