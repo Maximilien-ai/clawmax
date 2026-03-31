@@ -250,9 +250,11 @@ Implemented on `main`:
 - shareable token-based workspace summary dashboard links
 - per-workspace dashboard records with create/edit/regenerate/delete
 - section selection during dashboard generation
+- multiple display modes: standard, compact, detail
 - read-only shared dashboard page
 - overview, costs, agents, active notifications, workflows, kickoff summary, results, and group chats
 - persistent dashboard management from the workspace switcher
+- compact-mode summary charts for budget, agent status mix, and workflow status mix
 
 Current limitations:
 - kickoff inputs are still best-effort summaries rather than structured run inputs
@@ -267,7 +269,8 @@ Current limitations:
 
 - normalize workflow kickoff/start inputs for cleaner dashboard presentation
 - normalize workflow outputs/artifacts and expose consistent result links
-- add better cost history visualizations
+- add better cost history visualizations and time-series charts
+- push compact mode further toward one-screen summaries with richer charts and less repeated text
 - add deeper workflow/result/group links where safe
 - refine dashboard management layout and polish
 

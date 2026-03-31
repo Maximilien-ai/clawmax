@@ -244,6 +244,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const twoColLayout = compact ? 'xl:grid-cols-[1.1fr_0.9fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
   const cardPadding = compact ? 'p-3' : detail ? 'p-6' : 'p-5'
+  const totalAgents = Math.max(payload.agents.length, 1)
+  const onlineAgents = payload.agents.filter(agent => agent.status === 'online' && !agent.paused).length
+  const pausedAgents = payload.agents.filter(agent => agent.paused).length
+  const offlineAgents = Math.max(payload.agents.length - onlineAgents - pausedAgents, 0)
+  const totalWorkflows = Math.max(payload.workflows.length, 1)
+  const runningWorkflows = payload.workflows.filter(workflow => workflow.status === 'running').length
+  const failedWorkflows = payload.workflows.filter(workflow => workflow.status === 'failed').length
+  const idleWorkflows = Math.max(payload.workflows.length - runningWorkflows - failedWorkflows, 0)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -290,6 +298,25 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
               </div>
               <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+              {compact && (
+                <div className="mt-3 rounded-xl border border-white/10 bg-slate-800/70 p-3">
+                  <div className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">Budget Snapshot</div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <div className="text-slate-500">Used</div>
+                      <div className="font-medium text-slate-100">${budget.currentSpendUsd.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500">Remaining</div>
+                      <div className="font-medium text-slate-100">${budget.remainingUsd.toFixed(2)}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500">Limit</div>
+                      <div className="font-medium text-slate-100">${budget.config.limitUsd.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {!compact && (
               <div className="mt-6">
@@ -338,6 +365,24 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           {payload.dashboard.sections.agents && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
+              {compact && (
+                <div className="mb-4">
+                  <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
+                    <span>Status mix</span>
+                    <span>{payload.agents.length} total</span>
+                  </div>
+                  <div className="flex h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div className="bg-green-400" style={{ width: `${(onlineAgents / totalAgents) * 100}%` }} />
+                    <div className="bg-yellow-400" style={{ width: `${(pausedAgents / totalAgents) * 100}%` }} />
+                    <div className="bg-slate-500" style={{ width: `${(offlineAgents / totalAgents) * 100}%` }} />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    <span>Online {onlineAgents}</span>
+                    <span>Paused {pausedAgents}</span>
+                    <span>Other {offlineAgents}</span>
+                  </div>
+                </div>
+              )}
               <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
                 {payload.agents.slice(0, agentsToShow).map(agent => (
                   <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-slate-800/70 px-3 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
@@ -365,6 +410,24 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           {payload.dashboard.sections.workflows && (
             <section className={`rounded-2xl border border-white/10 bg-slate-900/80 ${cardPadding}`}>
               <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
+              {compact && (
+                <div className="mb-4">
+                  <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
+                    <span>Execution mix</span>
+                    <span>{payload.workflows.length} total</span>
+                  </div>
+                  <div className="flex h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div className="bg-sky-400" style={{ width: `${(runningWorkflows / totalWorkflows) * 100}%` }} />
+                    <div className="bg-red-400" style={{ width: `${(failedWorkflows / totalWorkflows) * 100}%` }} />
+                    <div className="bg-slate-500" style={{ width: `${(idleWorkflows / totalWorkflows) * 100}%` }} />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    <span>Running {runningWorkflows}</span>
+                    <span>Failed {failedWorkflows}</span>
+                    <span>Other {idleWorkflows}</span>
+                  </div>
+                </div>
+              )}
               <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
                 {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                   <div key={workflow.id} className={`rounded-xl border border-white/10 bg-slate-800/70 ${compact ? 'p-3' : 'p-4'}`}>
