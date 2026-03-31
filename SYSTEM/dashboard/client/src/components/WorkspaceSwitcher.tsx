@@ -427,7 +427,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       {dashboardWorkspace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDashboardWorkspace(null)}>
           <div
-            className="w-[92vw] max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+            className="flex max-h-[85vh] w-[92vw] max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -443,7 +443,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
               </button>
             </div>
 
-            <div className="space-y-5 px-5 py-5">
+            <div className="space-y-5 overflow-y-auto px-5 py-5">
               <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">Generate Dashboard</h3>
                 <div className="space-y-3">
