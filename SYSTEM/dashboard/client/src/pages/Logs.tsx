@@ -17,6 +17,8 @@ export default function Logs() {
   const [levelFilter, setLevelFilter] = useState<string>('')
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showDoctor, setShowDoctor] = useState(false)
+  const [doctorResults, setDoctorResults] = useState<any>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -153,15 +155,28 @@ export default function Logs() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">System Logs</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">System</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Live streaming logs from OpenClaw
+            Live system logs
             {connected && <span className="ml-2 text-green-600">● Connected</span>}
             {error && <span className="ml-2 text-red-600">● {error}</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                setDoctorResults(null)
+                setShowDoctor(true)
+                try {
+                  const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: false }) })
+                  setDoctorResults(await resp.json())
+                } catch {}
+              }}
+              className="px-3 py-1.5 text-sm bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded transition-colors dark:bg-cyan-900/20 dark:text-cyan-300 dark:hover:bg-cyan-900/40 border border-cyan-200 dark:border-cyan-800"
+            >
+              🩺 Doctor
+            </button>
             <button
               onClick={() => setLogs([])}
               className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors dark:bg-gray-800 dark:text-gray-300"
@@ -196,6 +211,44 @@ export default function Logs() {
           </div>
         </div>
       </div>
+
+      {/* Doctor results */}
+      {showDoctor && (
+        <div className="mb-4 p-4 rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium text-cyan-800 dark:text-cyan-200 text-sm">Platform Health Check</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+                    setDoctorResults(await resp.json())
+                  } catch {}
+                }}
+                className="text-xs px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700 transition-colors"
+              >Auto-Fix</button>
+              <button onClick={() => setShowDoctor(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">&times;</button>
+            </div>
+          </div>
+          {!doctorResults ? (
+            <div className="text-sm text-gray-500">Checking...</div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2 text-xs flex-wrap">
+                <span className={`px-2 py-1 rounded ${doctorResults.platform?.cli ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>{doctorResults.platform?.cli ? '✓' : '✗'} CLI</span>
+                <span className={`px-2 py-1 rounded ${doctorResults.platform?.gateway ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.platform?.gateway ? '✓' : '⚠'} Gateway</span>
+                <span className={`px-2 py-1 rounded ${doctorResults.healthy ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.fixed} fixed</span>
+              </div>
+              {doctorResults.results?.filter((r: any) => r.checks.some((c: any) => c.status !== 'pass')).map((r: any) => (
+                <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
+                  <span className="font-mono font-medium">{r.id}:</span> {r.checks.filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
+                </div>
+              ))}
+              {doctorResults.healthy && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">

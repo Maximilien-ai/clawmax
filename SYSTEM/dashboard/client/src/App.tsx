@@ -44,8 +44,8 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   // System tabs below - separated by divider
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
-  { id: 'logs', label: 'Logs', icon: 'logs' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
+  { id: 'logs', label: 'System', icon: 'logs' },
 ]
 
 // User tabs that can be rearranged (first 5)

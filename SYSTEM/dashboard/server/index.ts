@@ -258,40 +258,95 @@ app.get('/api/system/logs', protect, (_req, res) => {
     'Connection': 'keep-alive',
   })
 
-  let child: ReturnType<typeof spawn>
+  // Try openclaw logs first, fall back to dashboard log file
+  let child: ReturnType<typeof spawn> | null = null
+  let useFileFallback = false
+
   try {
-    child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], {
-      env: safeEnv(),
-    })
+    require('child_process').execSync('which openclaw', { stdio: 'pipe' })
+    child = spawn('openclaw', ['logs', '--follow', '--limit', '200'], { env: safeEnv() })
   } catch {
-    res.write(`data: ${JSON.stringify({ error: 'openclaw CLI not found — install it to see live logs' })}\n\n`)
-    res.end()
-    return
+    useFileFallback = true
   }
 
-  child.on('error', (err: NodeJS.ErrnoException) => {
-    res.write(`data: ${JSON.stringify({ error: `openclaw CLI not available: ${err.code === 'ENOENT' ? 'not installed' : err.message}` })}\n\n`)
-    res.end()
-  })
-
-  child.stdout.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter((l: string) => l.trim())
-    lines.forEach((line: string) => {
-      res.write(`data: ${JSON.stringify({ line })}\n\n`)
+  if (child) {
+    let spawnerror = false
+    child.on('error', () => {
+      spawnerror = true
+      useFileFallback = true
+      startFileTail()
     })
-  })
 
-  child.stderr.on('data', (data: Buffer) => {
-    res.write(`data: ${JSON.stringify({ error: data.toString() })}\n\n`)
-  })
+    child.stdout.on('data', (data: Buffer) => {
+      if (spawnerror) return
+      const lines = data.toString().split('\n').filter((l: string) => l.trim())
+      lines.forEach((line: string) => {
+        try { res.write(`data: ${JSON.stringify({ line })}\n\n`) } catch {}
+      })
+    })
 
-  child.on('close', () => {
-    res.end()
-  })
+    child.stderr.on('data', (data: Buffer) => {
+      // Don't send stderr as errors — it may contain normal output
+      const text = data.toString().trim()
+      if (text && !text.includes('bootstrap config')) {
+        try { res.write(`data: ${JSON.stringify({ line: `[stderr] ${text}` })}\n\n`) } catch {}
+      }
+    })
 
-  _req.on('close', () => {
-    child.kill()
-  })
+    child.on('close', (code: number | null) => {
+      if (code !== 0 && !spawnerror) {
+        // openclaw logs failed — fall back to file tail
+        startFileTail()
+      } else if (!spawnerror) {
+        try { res.end() } catch {}
+      }
+    })
+
+    _req.on('close', () => {
+      try { child?.kill() } catch {}
+    })
+  }
+
+  if (useFileFallback) {
+    startFileTail()
+  }
+
+  function startFileTail() {
+    // Read last 100 lines of dashboard log then tail
+    const logFile = '/tmp/dashboard.log'
+    res.write(`data: ${JSON.stringify({ line: '[System] Reading dashboard logs...' })}\n\n`)
+
+    if (!fs.existsSync(logFile)) {
+      res.write(`data: ${JSON.stringify({ line: '[System] No log file found at /tmp/dashboard.log' })}\n\n`)
+      // Keep connection open with periodic pings
+      const ping = setInterval(() => {
+        try { res.write(': keepalive\n\n') } catch { clearInterval(ping) }
+      }, 15000)
+      _req.on('close', () => clearInterval(ping))
+      return
+    }
+
+    // Send existing lines
+    try {
+      const content = fs.readFileSync(logFile, 'utf-8')
+      const lines = content.split('\n').filter(l => l.trim()).slice(-100)
+      lines.forEach(line => {
+        try { res.write(`data: ${JSON.stringify({ line })}\n\n`) } catch {}
+      })
+    } catch {}
+
+    // Tail the file
+    const tail = spawn('tail', ['-f', logFile])
+    tail.stdout.on('data', (data: Buffer) => {
+      const lines = data.toString().split('\n').filter((l: string) => l.trim())
+      lines.forEach((line: string) => {
+        try { res.write(`data: ${JSON.stringify({ line })}\n\n`) } catch {}
+      })
+    })
+
+    tail.on('close', () => { try { res.end() } catch {} })
+    _req.on('close', () => { try { tail.kill() } catch {} })
+  }
 })
 
 // Save a workspace doc file
