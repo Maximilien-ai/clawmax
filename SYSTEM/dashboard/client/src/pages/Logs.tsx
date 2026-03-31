@@ -19,6 +19,7 @@ export default function Logs() {
   const [error, setError] = useState<string | null>(null)
   const [showDoctor, setShowDoctor] = useState(false)
   const [doctorResults, setDoctorResults] = useState<any>(null)
+  const [doctorFixing, setDoctorFixing] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -109,8 +110,12 @@ export default function Logs() {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    if (autoScroll && !paused && logsContainerRef.current) {
-      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+    if (autoScroll && !paused) {
+      if (logsEndRef.current) {
+        logsEndRef.current.scrollIntoView({ behavior: 'auto' })
+      } else if (logsContainerRef.current) {
+        logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+      }
     }
   }, [logs, autoScroll, paused])
 
@@ -220,13 +225,19 @@ export default function Logs() {
             <div className="flex items-center gap-2">
               <button
                 onClick={async () => {
+                  setDoctorFixing(true)
+                  setDoctorResults(null)
                   try {
                     const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
                     setDoctorResults(await resp.json())
-                  } catch {}
+                  } catch (err) {
+                    setDoctorResults({ healthy: false, summary: { pass: 0, fail: 1, warn: 0, fixed: 0 }, results: [], platform: {} })
+                  }
+                  setDoctorFixing(false)
                 }}
-                className="text-xs px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700 transition-colors"
-              >Auto-Fix</button>
+                disabled={doctorFixing}
+                className="text-xs px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:bg-gray-300 transition-colors"
+              >{doctorFixing ? 'Fixing...' : 'Auto-Fix'}</button>
               <button onClick={() => setShowDoctor(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">&times;</button>
             </div>
           </div>
@@ -283,7 +294,7 @@ export default function Logs() {
       </div>
 
       {/* Logs display */}
-      <div ref={logsContainerRef} className="flex-1 min-h-[420px] overflow-auto bg-gray-900 text-gray-100 font-mono text-xs rounded-lg border border-gray-800">
+      <div ref={logsContainerRef} className="flex-1 overflow-auto bg-gray-900 text-gray-100 font-mono text-xs rounded-lg border border-gray-800" style={{ maxHeight: 'calc(100vh - 320px)', minHeight: '300px' }}>
         <div className="p-4">
           {filteredLogs.length === 0 && (
             <div className="text-center text-gray-500 py-8">
