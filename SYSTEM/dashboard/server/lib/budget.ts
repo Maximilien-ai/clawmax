@@ -111,3 +111,12 @@ export function checkBudgetBlock(options?: { workspaceId?: string; operation?: '
   }
   return `Agent interaction blocked: workspace budget exceeded ($${config.limitUsd.toFixed(2)} limit). Increase budget or disable enforcement to continue.`
 }
+
+export function validateAgentCostLimit(limitUsd: number | null, workspaceId?: string): string | null {
+  if (limitUsd === null || limitUsd <= 0) return null
+  const budget = loadBudgetConfig(workspaceId)
+  if (budget.limitUsd > 0 && limitUsd > budget.limitUsd) {
+    return `Agent limit cannot exceed workspace budget ($${budget.limitUsd.toFixed(2)}).`
+  }
+  return null
+}

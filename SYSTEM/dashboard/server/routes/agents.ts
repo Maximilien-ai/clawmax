@@ -11,6 +11,7 @@ import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { updateAgentModelInConfigFile } from '../lib/agent-model'
+import { validateAgentCostLimit } from '../lib/budget'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
@@ -1534,6 +1535,10 @@ router.put('/:id/cost-limit', (req, res) => {
   const { limitUsd } = req.body
   if (limitUsd !== null && (typeof limitUsd !== 'number' || limitUsd < 0)) {
     return res.status(400).json({ error: 'limitUsd must be a positive number or null to remove' })
+  }
+  const validationError = validateAgentCostLimit(limitUsd ?? null)
+  if (validationError) {
+    return res.status(400).json({ error: validationError })
   }
   setAgentCostLimit(req.params.id, limitUsd)
   res.json({ ok: true, agentId: req.params.id, limitUsd: limitUsd || null })

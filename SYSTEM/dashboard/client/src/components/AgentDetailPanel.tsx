@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useToast } from './Toast'
 
 interface GroupEntry {
   name: string
@@ -85,13 +86,16 @@ export default function AgentDetailPanel({
   onChat,
   onClone,
   onNavigateToSkills,
+  initialEditCostLimit = false,
 }: {
   agent: Agent
   onClose: () => void
   onChat: () => void
   onClone?: () => void
   onNavigateToSkills?: (agentId: string) => void
+  initialEditCostLimit?: boolean
 }) {
+  const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -140,6 +144,12 @@ export default function AgentDetailPanel({
       .catch(() => {})
   }, [fetchActivity, agent.id])
 
+  useEffect(() => {
+    if (!initialEditCostLimit) return
+    setCostLimitInput(costLimit ? String(costLimit) : '')
+    setEditingCostLimit(true)
+  }, [initialEditCostLimit, costLimit])
+
   // Live "refreshed Xs ago" ticker
   useEffect(() => {
     const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
@@ -156,13 +166,19 @@ export default function AgentDetailPanel({
 
   const handleSaveCostLimit = async () => {
     const val = costLimitInput.trim() ? parseFloat(costLimitInput) : null
-    await fetch(`/api/agents/${agent.id}/cost-limit`, {
+    const res = await fetch(`/api/agents/${agent.id}/cost-limit`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ limitUsd: val && val > 0 ? val : null }),
     })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      showError(data?.error || 'Failed to save cost limit')
+      return
+    }
     setCostLimit(val && val > 0 ? val : null)
     setEditingCostLimit(false)
+    showSuccess(val && val > 0 ? `Set ${agent.name} budget to $${val.toFixed(2)}` : `Removed ${agent.name} budget limit`)
   }
 
   const handleRename = async () => {

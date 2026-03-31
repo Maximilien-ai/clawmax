@@ -112,6 +112,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [budgetEditorAgentId, setBudgetEditorAgentId] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
@@ -122,6 +123,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const DISPLAY_PAGE_SIZE = 10
   const [currentPage, setCurrentPage] = useState(1)
   const [agentMetering, setAgentMetering] = useState<Record<string, { calls: number; tokens: number; cost: number }>>({})
+  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
   const [meteringLoaded, setMeteringLoaded] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
@@ -214,6 +216,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       setAgentMetering(map)
       setMeteringLoaded(true)
     }).catch(() => { setMeteringLoaded(true) })
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/agents/cost-limits')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
+      .catch(() => setAgentCostLimits({}))
   }, [])
 
   useEffect(() => {
@@ -1345,12 +1354,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       onArchive={() => setArchiveTarget(agent)}
                       onUnarchive={() => setUnarchiveTarget(agent)}
                       onRename={() => setRenameTarget(agent)}
+                      onSetBudget={() => { setSelectedAgent(agent); setBudgetEditorAgentId(agent.id) }}
                       onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                       onExport={() => handleExportAgent(agent.id)}
                       workflows={agentWorkflows.get(agent.id)}
                       isSelected={selectedAgentIds.has(agent.id)}
                       onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                       metering={agentMetering[agent.id]}
+                      costLimit={agentCostLimits[agent.id] ?? null}
                       onUnlinkWa={() => {
                         fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                           .then(() => fetchAgents())
@@ -1474,10 +1485,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onArchive={() => setArchiveTarget(agent)}
                         onUnarchive={() => setUnarchiveTarget(agent)}
                         onRename={() => setRenameTarget(agent)}
+                        onSetBudget={() => { setSelectedAgent(agent); setBudgetEditorAgentId(agent.id) }}
                         isSelected={selectedAgentIds.has(agent.id)}
                         onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                         usage={agentUsage[agent.id]}
                         metering={agentMetering[agent.id]}
+                        costLimit={agentCostLimits[agent.id] ?? null}
                       />
                     ))}
                   </div>
@@ -1519,10 +1532,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onArchive={() => setArchiveTarget(agent)}
                               onUnarchive={() => setUnarchiveTarget(agent)}
                               onRename={() => setRenameTarget(agent)}
+                              onSetBudget={() => { setSelectedAgent(agent); setBudgetEditorAgentId(agent.id) }}
                               isSelected={selectedAgentIds.has(agent.id)}
                               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                               usage={agentUsage[agent.id]}
-                        metering={agentMetering[agent.id]}
+                              metering={agentMetering[agent.id]}
+                              costLimit={agentCostLimits[agent.id] ?? null}
                             />
                           ))}
                         </div>
@@ -1616,10 +1631,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
               onRename={() => setRenameTarget(agent)}
+              onSetBudget={() => { setSelectedAgent(agent); setBudgetEditorAgentId(agent.id) }}
               isSelected={selectedAgentIds.has(agent.id)}
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
               usage={agentUsage[agent.id]}
-                        metering={agentMetering[agent.id]}
+              metering={agentMetering[agent.id]}
+              costLimit={agentCostLimits[agent.id] ?? null}
             />
                       ))}
                     </div>
@@ -1662,10 +1679,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           onArchive={() => setArchiveTarget(agent)}
                           onUnarchive={() => setUnarchiveTarget(agent)}
                           onRename={() => setRenameTarget(agent)}
+                          onSetBudget={() => { setSelectedAgent(agent); setBudgetEditorAgentId(agent.id) }}
                           isSelected={selectedAgentIds.has(agent.id)}
                           onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                           usage={agentUsage[agent.id]}
-                        metering={agentMetering[agent.id]}
+                          metering={agentMetering[agent.id]}
+                          costLimit={agentCostLimits[agent.id] ?? null}
                         />
                       ))}
                     </div>
@@ -1787,12 +1806,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {selectedAgent && (
         <AgentDetailPanel
           agent={selectedAgent}
-          onClose={() => setSelectedAgent(null)}
+          initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
+          onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
           onClone={() => {
             setCloneFromAgent(selectedAgent.id)
             setShowAddWizard(true)
             setSelectedAgent(null)
+            setBudgetEditorAgentId(null)
           }}
           onNavigateToSkills={onNavigateToSkills}
         />
@@ -2869,7 +2890,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit,
 }: {
   agent: Agent
   selected: boolean
@@ -2894,17 +2915,27 @@ const AgentCard = React.memo(function AgentCard({
   onNavigateToWorkflow?: (workflowId: string) => void
   onRestart: () => void
   onRename: () => void
+  onSetBudget: () => void
   onSaveAsTemplate: () => void
   onExport: () => void
   workflows?: Workflow[]
   isSelected?: boolean
   onToggleSelect?: () => void
   metering?: { calls: number; tokens: number; cost: number }
+  costLimit?: number | null
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
+  const budgetBarColor = budgetUsedPct === null
+    ? 'bg-gray-300 dark:bg-gray-700'
+    : budgetUsedPct >= 95
+      ? 'bg-red-500'
+      : budgetUsedPct >= 80
+        ? 'bg-yellow-500'
+        : 'bg-green-500'
 
   React.useEffect(() => {
     if (!showActionsMenu || !actionsButtonRef.current) return
@@ -3082,6 +3113,12 @@ const AgentCard = React.memo(function AgentCard({
                           className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
                           ✎ Rename
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                        >
+                          💲 Budget
                         </button>
                         {agent.archived ? (
                           <button
@@ -3360,6 +3397,20 @@ const AgentCard = React.memo(function AgentCard({
           )}
 
           <div className="mt-3 pt-3 border-t border-gray-100">
+            {costLimit && costLimit > 0 && (
+              <div className="mb-2">
+                <div className="mb-1 flex items-center justify-between text-[11px] text-gray-400">
+                  <span>Budget</span>
+                  <span>${(metering?.cost || 0).toFixed(3)} / ${costLimit.toFixed(2)}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${budgetBarColor}`}
+                    style={{ width: `${Math.min(budgetUsedPct || 0, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <span className="text-xs text-gray-300 font-mono truncate block">
               {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
             </span>
@@ -3370,11 +3421,19 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, isSelected, onToggleSelect, usage, metering }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number } }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
+  const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
+  const budgetBarColor = budgetUsedPct === null
+    ? 'bg-gray-300 dark:bg-gray-700'
+    : budgetUsedPct >= 95
+      ? 'bg-red-500'
+      : budgetUsedPct >= 80
+        ? 'bg-yellow-500'
+        : 'bg-green-500'
 
   React.useEffect(() => {
     if (!showActionsMenu || !actionsButtonRef.current) return
@@ -3468,6 +3527,20 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           </div>
         )}
       </div>
+      {costLimit && costLimit > 0 && (
+        <div className="mt-1.5">
+          <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+            <span>Budget</span>
+            <span>${(metering?.cost || 0).toFixed(3)} / ${costLimit.toFixed(2)}</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
+            <div
+              className={`h-1.5 rounded-full transition-all ${budgetBarColor}`}
+              style={{ width: `${Math.min(budgetUsedPct || 0, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       <div className="mt-1.5 flex items-center justify-between gap-1">
         <div className="flex flex-wrap gap-0.5 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
           {agent.tags.length > 0 ? (
@@ -3586,6 +3659,12 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                       >
                         ✎ Rename
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                      >
+                        💲 Budget
                       </button>
                       {agent.archived ? (
                         <button

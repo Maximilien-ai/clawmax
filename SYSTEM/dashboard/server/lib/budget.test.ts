@@ -12,6 +12,7 @@ import {
   saveBudgetConfig,
   getBudgetStatus,
   checkBudgetBlock,
+  validateAgentCostLimit,
 } from './budget'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
@@ -110,6 +111,18 @@ async function run() {
     saveBudgetConfig({ limitUsd: 55, warningPct: 80, enforced: true, paused: true }, 'workspace-b')
     const message = checkBudgetBlock({ workspaceId: 'workspace-b', operation: 'agent' })
     assert(message === 'Agent interaction blocked: workspace budget exceeded ($55.00 limit). Increase budget or disable enforcement to continue.', 'Expected agent-specific budget message')
+  })
+
+  await test('validateAgentCostLimit rejects limits above the workspace budget', () => {
+    saveBudgetConfig({ limitUsd: 12, warningPct: 80, enforced: true, paused: false }, 'workspace-a')
+    const message = validateAgentCostLimit(15, 'workspace-a')
+    assert(message === 'Agent limit cannot exceed workspace budget ($12.00).', 'Expected agent limit validation error')
+  })
+
+  await test('validateAgentCostLimit allows null and in-range values', () => {
+    saveBudgetConfig({ limitUsd: 20, warningPct: 80, enforced: true, paused: false }, 'workspace-b')
+    assert(validateAgentCostLimit(null, 'workspace-b') === null, 'Expected null limit to be allowed')
+    assert(validateAgentCostLimit(10, 'workspace-b') === null, 'Expected in-range agent limit to be allowed')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -94,7 +94,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
         if (!seenNotificationIds.current.has(notification.id)) {
           if (notification.type === 'cost-warning') {
             showWarning(notification.message, 7000)
-          } else if (notification.type === 'cost-exceeded') {
+          } else if (notification.type === 'cost-critical' || notification.type === 'cost-exceeded') {
             showError(notification.message, 9000)
           }
         }

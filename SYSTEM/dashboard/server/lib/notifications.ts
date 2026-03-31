@@ -24,6 +24,7 @@ export type NotificationType =
   | 'workflow-blocked'
   | 'workflow-progress'
   | 'cost-warning'
+  | 'cost-critical'
   | 'cost-exceeded'
   | 'channel-activity'
 
@@ -69,6 +70,7 @@ const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
   'workflow-blocked': 'warning',
   'workflow-progress': 'info',
   'cost-warning': 'warning',
+  'cost-critical': 'critical',
   'cost-exceeded': 'critical',
   'channel-activity': 'info',
 }
@@ -338,9 +340,11 @@ async function runMonitorScan(): Promise<void> {
           entityType: 'budget',
           fingerprint: 'cost-warning',
         })
+        resolveByFingerprint('cost-critical')
         resolveByFingerprint('cost-exceeded')
       } else {
         resolveByFingerprint('cost-warning')
+        resolveByFingerprint('cost-critical')
         resolveByFingerprint('cost-exceeded')
       }
     } catch {}
@@ -357,6 +361,9 @@ async function runMonitorScan(): Promise<void> {
 
         for (const [agentId, limit] of Object.entries(costLimits)) {
           const cost = agentCostMap.get(agentId) || 0
+          const usedPct = limit > 0 ? (cost / limit) * 100 : 0
+          const warningFp = `agent-cost-warning:${agentId}`
+          const criticalFp = `agent-cost-critical:${agentId}`
           const fp = `agent-cost-exceeded:${agentId}`
           if (cost >= limit) {
             createNotification({
@@ -367,9 +374,35 @@ async function runMonitorScan(): Promise<void> {
               entityType: 'agent',
               fingerprint: fp,
             })
+            resolveByFingerprint(warningFp)
+            resolveByFingerprint(criticalFp)
             // Auto-pause the agent
             pauseAgents([agentId])
+          } else if (usedPct >= 95) {
+            createNotification({
+              type: 'cost-critical',
+              title: 'Agent budget critical',
+              message: `Agent "${agentId}" is at ${usedPct.toFixed(0)}% of its budget ($${cost.toFixed(4)} / $${limit.toFixed(2)}). Pause or raise the limit before it hard-stops.`,
+              entityId: agentId,
+              entityType: 'agent',
+              fingerprint: criticalFp,
+            })
+            resolveByFingerprint(warningFp)
+            resolveByFingerprint(fp)
+          } else if (usedPct >= 80) {
+            createNotification({
+              type: 'cost-warning',
+              title: 'Agent budget warning',
+              message: `Agent "${agentId}" is at ${usedPct.toFixed(0)}% of its budget ($${cost.toFixed(4)} / $${limit.toFixed(2)}).`,
+              entityId: agentId,
+              entityType: 'agent',
+              fingerprint: warningFp,
+            })
+            resolveByFingerprint(criticalFp)
+            resolveByFingerprint(fp)
           } else {
+            resolveByFingerprint(warningFp)
+            resolveByFingerprint(criticalFp)
             resolveByFingerprint(fp)
           }
         }

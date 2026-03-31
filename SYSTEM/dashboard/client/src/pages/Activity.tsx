@@ -107,6 +107,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [metering, setMetering] = useState<MeteringData | null>(null)
   const [showMetering, setShowMetering] = useState(true)
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
+  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
 
@@ -148,6 +149,10 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       .then(r => r.ok ? r.json() : null)
       .then(d => setMetering(isMeteringResponse(d) ? d : EMPTY_METERING))
       .catch(() => setMetering(EMPTY_METERING))
+    fetch('/api/agents/cost-limits')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
+      .catch(() => setAgentCostLimits({}))
     fetch('/api/budget')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -436,21 +441,46 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
                     <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Calls</th>
                     <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Tokens</th>
                     <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Cost</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Limit</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Remaining</th>
+                    <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Budget</th>
                     <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 hidden sm:table-cell">Avg Duration</th>
                     <th className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 hidden sm:table-cell">Model</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {metering.byAgent.map(agent => (
-                    <tr key={agent.agentId} className="border-t border-gray-100 dark:border-gray-800">
-                      <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
-                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
-                      <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{((agent.totalTokens || 0) / 1000).toFixed(1)}k</td>
-                      <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(4)}</td>
-                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell">{((agent.avgDurationMs || 0) / 1000).toFixed(1)}s</td>
-                      <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell font-mono">{Object.keys(agent.models)[0] || '—'}</td>
-                    </tr>
-                  ))}
+                  {metering.byAgent.map(agent => {
+                    const limit = agentCostLimits[agent.agentId] ?? null
+                    const usedPct = limit && limit > 0 ? (agent.estimatedCostUsd / limit) * 100 : null
+                    const remaining = limit && limit > 0 ? Math.max(0, limit - agent.estimatedCostUsd) : null
+                    const budgetTone = usedPct === null
+                      ? 'text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500'
+                      : usedPct >= 100
+                        ? 'text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
+                        : usedPct >= 95
+                          ? 'text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-400'
+                          : usedPct >= 80
+                            ? 'text-yellow-700 bg-yellow-50 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            : 'text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-400'
+
+                    return (
+                      <tr key={agent.agentId} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
+                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
+                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{((agent.totalTokens || 0) / 1000).toFixed(1)}k</td>
+                        <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(4)}</td>
+                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{limit ? `$${limit.toFixed(2)}` : '—'}</td>
+                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{remaining !== null ? `$${remaining.toFixed(4)}` : '—'}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${budgetTone}`}>
+                            {usedPct === null ? 'No limit' : `${Math.min(usedPct, 999).toFixed(0)}%`}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell">{((agent.avgDurationMs || 0) / 1000).toFixed(1)}s</td>
+                        <td className="px-3 py-2 text-right text-gray-500 hidden sm:table-cell font-mono">{Object.keys(agent.models)[0] || '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
