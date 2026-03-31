@@ -313,11 +313,13 @@ app.get('/api/system/logs', protect, (_req, res) => {
 
   function startFileTail() {
     // Read last 100 lines of dashboard log then tail
-    const logFile = '/tmp/dashboard.log'
-    res.write(`data: ${JSON.stringify({ line: '[System] Reading dashboard logs...' })}\n\n`)
+    // Try multiple log file locations
+    const logCandidates = ['/tmp/dashboard.log', path.join(__dirname, 'logs', 'crash.log')]
+    const logFile = logCandidates.find(f => fs.existsSync(f)) || '/tmp/dashboard.log'
+    res.write(`data: ${JSON.stringify({ line: '[System] Reading logs...' })}\n\n`)
 
     if (!fs.existsSync(logFile)) {
-      res.write(`data: ${JSON.stringify({ line: '[System] No log file found at /tmp/dashboard.log' })}\n\n`)
+      res.write(`data: ${JSON.stringify({ line: '[System] Running in foreground mode — logs are in your terminal. Use ./SYSTEM/start.sh (without -f) to enable log streaming.' })}\n\n`)
       // Keep connection open with periodic pings
       const ping = setInterval(() => {
         try { res.write(': keepalive\n\n') } catch { clearInterval(ping) }
