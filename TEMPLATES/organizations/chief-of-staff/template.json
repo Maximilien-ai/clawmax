@@ -1,0 +1,152 @@
+{
+  "name": "Chief Of Staff",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for a personal chief of staff team that helps one user manage inbox, calendar, meeting prep, and follow-through. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "assistant",
+    "chief-of-staff",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "cos-lead",
+      "name": "Chief Of Staff Lead",
+      "role": "Personal operating lead — sets daily priorities, coordinates the team, and decides what needs immediate attention.",
+      "tags": ["lead", "personal", "chief-of-staff"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Chief Of Staff"],
+      "groups": ["Inbox", "Calendar", "Briefings", "Status"]
+    },
+    {
+      "id": "inbox-manager",
+      "name": "Inbox Manager",
+      "role": "Inbox specialist — triages email, surfaces urgent threads, drafts responses, and groups follow-ups by priority.",
+      "tags": ["email", "inbox", "triage"],
+      "communities": ["Chief Of Staff"],
+      "groups": ["Inbox", "Status"]
+    },
+    {
+      "id": "calendar-coordinator",
+      "name": "Calendar Coordinator",
+      "role": "Scheduling specialist — organizes availability, resolves conflicts, and prepares the next sequence of meetings.",
+      "tags": ["calendar", "scheduling", "coordination"],
+      "communities": ["Chief Of Staff"],
+      "groups": ["Calendar", "Status"]
+    },
+    {
+      "id": "briefing-writer",
+      "name": "Briefing Writer",
+      "role": "Briefing specialist — prepares daily briefs, meeting context, and concise next-step notes for the user.",
+      "tags": ["briefing", "meetings", "research"],
+      "communities": ["Chief Of Staff"],
+      "groups": ["Briefings", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Chief Of Staff",
+      "description": "Shared coordination space for one user's personal operating team."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Inbox",
+      "description": "Email triage, follow-ups, and urgent communication threads.",
+      "community": "Chief Of Staff"
+    },
+    {
+      "name": "Calendar",
+      "description": "Scheduling, meeting sequences, conflicts, and timing adjustments.",
+      "community": "Chief Of Staff"
+    },
+    {
+      "name": "Briefings",
+      "description": "Meeting prep, daily summaries, and people or topic research briefs.",
+      "community": "Chief Of Staff"
+    },
+    {
+      "name": "Status",
+      "description": "Priorities, blockers, decisions, and what the user should focus on next.",
+      "community": "Chief Of Staff"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "daily-priorities-kickoff",
+      "name": "Daily Priorities Kickoff",
+      "description": "Initialize the personal operating team for the day and set what matters most.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["cos-lead", "inbox-manager", "calendar-coordinator", "briefing-writer"]
+      },
+      "content": "# Daily Priorities Kickoff\n\nYou are the Chief Of Staff Lead. Your personal operating team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Today’s top priorities:** [e.g., investor calls, hiring, customer follow-up]\n- **Critical meetings:** [e.g., 1:00 PM partner review, 4:00 PM team sync]\n- **Inbox focus:** [e.g., clear urgent threads, draft replies, identify delegate items]\n- **Research needs:** [e.g., people, companies, topics to brief before meetings]\n- **Output artifact:** [daily brief, meeting packet, action list]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Introduce the team in the Chief Of Staff community\n2. Restate the top priorities and time-sensitive commitments\n3. Direct Inbox Manager to triage urgent threads\n4. Direct Calendar Coordinator to review conflicts and sequencing\n5. Direct Briefing Writer to prepare the first briefing packet\n6. Post the initial daily plan in Status",
+      "type": "once",
+      "owner": "cos-lead"
+    },
+    {
+      "id": "inbox-and-calendar-triage",
+      "name": "Inbox And Calendar Triage",
+      "description": "Review the inbox and calendar together to surface the highest-leverage next actions.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Inbox", "Calendar"],
+        "tags": [],
+        "agents": ["inbox-manager", "calendar-coordinator"]
+      },
+      "content": "# Inbox And Calendar Triage\n\n1. Identify the most urgent threads and scheduling conflicts for the current day\n2. Group follow-ups by urgency, delegability, and meeting relevance\n3. Resolve obvious timing conflicts and note any blocked decisions\n4. Post the triage summary to Inbox, Calendar, and Status\n5. Escalate only the items that truly require the user’s direct attention",
+      "dependsOn": ["daily-priorities-kickoff"],
+      "type": "recurring",
+      "owner": "cos-lead"
+    },
+    {
+      "id": "meeting-prep-cycle",
+      "name": "Meeting Prep Cycle",
+      "description": "Prepare the next meeting brief based on people, topics, and current priorities.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Briefings"],
+        "tags": [],
+        "agents": ["briefing-writer"]
+      },
+      "content": "# Meeting Prep Cycle\n\n1. Select the next meeting or priority topic to prepare for\n2. Gather relevant context on people, companies, projects, and prior interactions\n3. Produce a concise briefing with agenda, open questions, and recommended stance\n4. Highlight any missing information or follow-up risk\n5. Post the briefing packet to Briefings and Status",
+      "dependsOn": ["inbox-and-calendar-triage"],
+      "type": "recurring",
+      "owner": "cos-lead"
+    },
+    {
+      "id": "follow-through-review",
+      "name": "Follow Through Review",
+      "description": "Review the day’s briefs and open loops, then decide the next follow-through list.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["cos-lead", "inbox-manager", "calendar-coordinator", "briefing-writer"]
+      },
+      "content": "# Follow Through Review\n\n1. Review the current inbox, calendar, and briefing outputs\n2. Summarize what is done, what is blocked, and what still needs the user\n3. Produce a short next-step list with clear priorities\n4. Label anything that can be delegated versus must stay with the user\n5. Post the final review to Status",
+      "dependsOn": ["meeting-prep-cycle"],
+      "type": "conditional",
+      "owner": "cos-lead"
+    }
+  ]
+}

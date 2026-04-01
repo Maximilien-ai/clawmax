@@ -1,0 +1,152 @@
+{
+  "name": "Meeting Prep Desk",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for researching people and topics before meetings, then assembling concise briefing packets. Early idea only and intended as a customizable starter.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "assistant",
+    "meetings",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "meeting-lead",
+      "name": "Meeting Lead",
+      "role": "Meeting prep lead — defines what the user needs to know before each meeting and sets the briefing format.",
+      "tags": ["lead", "meetings", "personal"],
+      "communities": ["Meeting Desk"],
+      "groups": ["People", "Topics", "Briefings", "Status"]
+    },
+    {
+      "id": "people-researcher",
+      "name": "People Researcher",
+      "role": "People specialist — gathers context on attendees, prior interactions, roles, and likely interests.",
+      "tags": ["people", "research", "meetings"],
+      "communities": ["Meeting Desk"],
+      "groups": ["People"]
+    },
+    {
+      "id": "topic-analyst",
+      "name": "Topic Analyst",
+      "role": "Topic specialist — summarizes the project, company, or domain context most relevant to the conversation.",
+      "tags": ["topics", "research", "analysis"],
+      "communities": ["Meeting Desk"],
+      "groups": ["Topics", "Status"]
+    },
+    {
+      "id": "briefing-writer",
+      "name": "Briefing Writer",
+      "role": "Briefing specialist — combines people and topic context into a concise prep packet with suggested talking points.",
+      "tags": ["briefing", "writing", "meetings"],
+      "communities": ["Meeting Desk"],
+      "groups": ["Briefings", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Meeting Desk",
+      "description": "Shared space for meeting preparation, attendee research, and briefing output."
+    }
+  ],
+  "groups": [
+    {
+      "name": "People",
+      "description": "Attendee background, prior interactions, roles, and relationship context.",
+      "community": "Meeting Desk"
+    },
+    {
+      "name": "Topics",
+      "description": "Company, project, or subject research relevant to the upcoming meeting.",
+      "community": "Meeting Desk"
+    },
+    {
+      "name": "Briefings",
+      "description": "Final meeting packets, agendas, open questions, and suggested talking points.",
+      "community": "Meeting Desk"
+    },
+    {
+      "name": "Status",
+      "description": "What is ready, what is missing, and where the user should focus during the meeting.",
+      "community": "Meeting Desk"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "meeting-prep-kickoff",
+      "name": "Meeting Prep Kickoff",
+      "description": "Initialize the meeting prep team for one meeting or meeting sequence.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["meeting-lead", "people-researcher", "topic-analyst", "briefing-writer"]
+      },
+      "content": "# Meeting Prep Kickoff\n\nYou are the Meeting Lead. The meeting prep team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meeting title:** [e.g., investor intro, customer review, hiring interview]\n- **Attendees:** [names, roles, companies, optional links]\n- **Topic focus:** [project, company, deal, partnership, technical review, custom]\n- **Key outcomes wanted:** [e.g., alignment, decision, relationship building, diligence]\n- **Output artifact:** [briefing packet, agenda, question list]\n\n## Your Tasks\n1. Define the meeting objective and the minimum useful prep packet\n2. Ask People Researcher for attendee context and prior interactions\n3. Ask Topic Analyst for the most relevant project or company background\n4. Ask Briefing Writer to combine those into a concise packet\n5. Post the prep plan to Status",
+      "type": "once",
+      "owner": "meeting-lead"
+    },
+    {
+      "id": "people-and-topic-research",
+      "name": "People And Topic Research",
+      "description": "Gather the most relevant people and topic context for the selected meeting.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["People", "Topics"],
+        "tags": [],
+        "agents": ["people-researcher", "topic-analyst"]
+      },
+      "content": "# People And Topic Research\n\n1. Gather attendee background, role context, and any prior interaction notes\n2. Summarize the core company, project, or topic context relevant to the meeting\n3. Highlight likely priorities, sensitivities, and open questions\n4. Post the research summary to People, Topics, and Status\n5. Flag any missing context that would weaken the briefing",
+      "dependsOn": ["meeting-prep-kickoff"],
+      "type": "recurring",
+      "owner": "meeting-lead"
+    },
+    {
+      "id": "briefing-assembly",
+      "name": "Briefing Assembly",
+      "description": "Assemble the final meeting prep packet for the user.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Briefings"],
+        "tags": [],
+        "agents": ["briefing-writer"]
+      },
+      "content": "# Briefing Assembly\n\n1. Combine the people and topic research into a concise briefing\n2. Include suggested agenda, likely goals, and recommended talking points\n3. Highlight any risks, missing information, or decision pressure\n4. Produce a short packet that the user can scan quickly before the meeting\n5. Post the packet to Briefings and Status",
+      "dependsOn": ["people-and-topic-research"],
+      "type": "recurring",
+      "owner": "meeting-lead"
+    },
+    {
+      "id": "final-prep-review",
+      "name": "Final Prep Review",
+      "description": "Review the final prep packet and decide if the user has enough to enter the meeting.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["meeting-lead", "briefing-writer"]
+      },
+      "content": "# Final Prep Review\n\n1. Review the final briefing packet for clarity and usefulness\n2. Confirm the user’s likely objective, open questions, and main talking points\n3. Call out the single biggest thing not to miss in the meeting\n4. Produce a final one-screen prep summary\n5. Post the review to Status",
+      "dependsOn": ["briefing-assembly"],
+      "type": "conditional",
+      "owner": "meeting-lead"
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "name": "Email & Calendar Manager",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for inbox triage, scheduling coordination, and follow-up routing. Early idea only and meant to be adapted to each user's preferences.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "assistant",
+    "email",
+    "calendar",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "comms-lead",
+      "name": "Communications Lead",
+      "role": "Personal operations lead — decides the rules for inbox, scheduling, and escalation.",
+      "tags": ["lead", "communications", "personal"],
+      "communities": ["Comms Desk"],
+      "groups": ["Inbox", "Calendar", "Follow-ups", "Status"]
+    },
+    {
+      "id": "inbox-triager",
+      "name": "Inbox Triager",
+      "role": "Inbox specialist — prioritizes threads, drafts responses, and groups messages by urgency and topic.",
+      "tags": ["email", "triage", "inbox"],
+      "communities": ["Comms Desk"],
+      "groups": ["Inbox", "Status"]
+    },
+    {
+      "id": "scheduler",
+      "name": "Scheduler",
+      "role": "Calendar specialist — manages availability, proposes slots, and resolves meeting conflicts.",
+      "tags": ["calendar", "scheduling", "time"],
+      "communities": ["Comms Desk"],
+      "groups": ["Calendar", "Status"]
+    },
+    {
+      "id": "follow-up-router",
+      "name": "Follow-up Router",
+      "role": "Task routing specialist — turns communication outcomes into follow-ups, reminders, and short action lists.",
+      "tags": ["follow-up", "tasks", "routing"],
+      "communities": ["Comms Desk"],
+      "groups": ["Follow-ups", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Comms Desk",
+      "description": "Shared space for personal inbox, calendar, and follow-up management."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Inbox",
+      "description": "Inbox triage, response drafts, and urgent communication tracking.",
+      "community": "Comms Desk"
+    },
+    {
+      "name": "Calendar",
+      "description": "Scheduling, conflicts, tentative holds, and daily sequencing.",
+      "community": "Comms Desk"
+    },
+    {
+      "name": "Follow-ups",
+      "description": "Action items, reminders, handoffs, and pending replies.",
+      "community": "Comms Desk"
+    },
+    {
+      "name": "Status",
+      "description": "What changed, what is blocked, and what the user should handle next.",
+      "community": "Comms Desk"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "communications-kickoff",
+      "name": "Communications Kickoff",
+      "description": "Initialize inbox and calendar rules for the current period.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["comms-lead", "inbox-triager", "scheduler", "follow-up-router"]
+      },
+      "content": "# Communications Kickoff\n\nYou are the Communications Lead. Your personal communications team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Inbox goals:** [e.g., clear urgent items, draft replies, isolate delegate work]\n- **Calendar goals:** [e.g., reduce conflicts, tighten meeting blocks, protect focus time]\n- **Priority contacts or threads:** [people, teams, customers, investors, family, custom]\n- **Follow-up expectations:** [same day, 24h, weekly review, custom]\n- **Output artifact:** [communication brief, action list, schedule plan]\n\n## Your Tasks\n1. Restate the rules for inbox triage and scheduling\n2. Direct Inbox Triager to identify the highest-importance threads\n3. Direct Scheduler to review conflicts and slot options\n4. Direct Follow-up Router to define the first action list\n5. Post the current plan to Status",
+      "type": "once",
+      "owner": "comms-lead"
+    },
+    {
+      "id": "inbox-triage-cycle",
+      "name": "Inbox Triage Cycle",
+      "description": "Review the inbox and classify the next set of communication actions.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Inbox"],
+        "tags": [],
+        "agents": ["inbox-triager"]
+      },
+      "content": "# Inbox Triage Cycle\n\n1. Review the next set of inbox threads against the configured priorities\n2. Group them into urgent, draft, delegate, and ignore/archive buckets\n3. Draft concise responses where obvious\n4. Post the sorted inbox summary to Inbox and Status\n5. Escalate only the items that genuinely require immediate user attention",
+      "dependsOn": ["communications-kickoff"],
+      "type": "recurring",
+      "owner": "comms-lead"
+    },
+    {
+      "id": "calendar-coordination-cycle",
+      "name": "Calendar Coordination Cycle",
+      "description": "Review the calendar, conflicts, and proposed changes for the next period.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Calendar"],
+        "tags": [],
+        "agents": ["scheduler"]
+      },
+      "content": "# Calendar Coordination Cycle\n\n1. Review the next schedule block for conflicts, travel, prep time, and overload\n2. Propose reordering or alternative slots where needed\n3. Protect focus blocks where the current calendar is too fragmented\n4. Post the proposed calendar adjustments to Calendar and Status\n5. Call out any hard conflicts that need a decision",
+      "dependsOn": ["inbox-triage-cycle"],
+      "type": "recurring",
+      "owner": "comms-lead"
+    },
+    {
+      "id": "follow-up-review",
+      "name": "Follow Up Review",
+      "description": "Convert the current inbox and calendar state into a prioritized follow-up list.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Follow-ups", "Status"],
+        "tags": [],
+        "agents": ["follow-up-router", "comms-lead"]
+      },
+      "content": "# Follow Up Review\n\n1. Review the latest inbox and calendar outputs\n2. Build a short follow-up list with clear owners and timing\n3. Separate items the user can delegate from those requiring direct response\n4. Produce a concise communication action memo\n5. Post the final follow-up review to Follow-ups and Status",
+      "dependsOn": ["calendar-coordination-cycle"],
+      "type": "conditional",
+      "owner": "comms-lead"
+    }
+  ]
+}
