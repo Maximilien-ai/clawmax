@@ -2,6 +2,7 @@
   "name": "Product Manager",
   "type": "agent",
   "version": "1.0.0",
+  "emoji": "🗺️",
   "description": "Product manager coordinating requirements, prioritization, and releases",
   "author": "ClawMax System",
   "tags": [

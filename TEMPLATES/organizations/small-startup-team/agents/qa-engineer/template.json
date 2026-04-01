@@ -1,5 +1,6 @@
 {
   "name": "QA Engineer",
+  "emoji": "🧪",
   "type": "agent",
   "version": "1.0.0",
   "description": "Quality assurance engineer focused on CI/CD monitoring and PR review",

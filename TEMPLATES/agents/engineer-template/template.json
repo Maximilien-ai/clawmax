@@ -2,6 +2,7 @@
   "name": "Software Engineer",
   "type": "agent",
   "version": "1.0.0",
+  "emoji": "🛠️",
   "description": "Professional software engineer specializing in Golang and GitHub workflows",
   "author": "ClawMax System",
   "tags": [

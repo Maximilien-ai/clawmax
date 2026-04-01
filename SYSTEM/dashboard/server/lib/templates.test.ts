@@ -280,7 +280,7 @@ test('Templates have version numbers', () => {
 test('createOrganizationTemplate() filters archived agents', () => {
   // This test requires actual workspace with agents
   // Skip if no agents available
-  const result = createOrganizationTemplate('Test Template')
+  const result = createOrganizationTemplate('Workspace Export Smoke Test')
 
   if (result.ok && result.template) {
     // Verify no archived agents were included

@@ -1,5 +1,6 @@
 {
   "name": "Convenience Store",
+  "emoji": "🏪",
   "type": "organization",
   "version": "1.0.0",
   "description": "A small business multiagent team for running a convenience store. Manages daily inventory counts, restock alerts, shift scheduling, and floor operations.",

@@ -2,6 +2,7 @@
   "name": "CEO",
   "type": "agent",
   "version": "1.0.0",
+  "emoji": "🧠",
   "description": "Virtual CEO for organizational oversight and decision-making",
   "author": "ClawMax System",
   "tags": [

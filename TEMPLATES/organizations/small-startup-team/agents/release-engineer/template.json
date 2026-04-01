@@ -1,5 +1,6 @@
 {
   "name": "Release Engineer",
+  "emoji": "🚀",
   "type": "agent",
   "version": "1.0.0",
   "description": "Release engineer managing CI/CD, releases, and deployment coordination",

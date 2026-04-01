@@ -548,7 +548,7 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
 
     // Check reserved names
     const slug = slugify(template.name)
-    const RESERVED_SLUGS = ['clawmax-system-test', 'system-test', 'test-template']
+    const RESERVED_SLUGS = ['clawmax-system-test', 'system-test']
     if (RESERVED_SLUGS.includes(slug)) {
       return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
     }

@@ -1,5 +1,6 @@
 {
   "name": "RAG Team",
+  "emoji": "📚",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent team that builds end-to-end RAG solutions using weave-cli. Includes planner, data engineers, search engineers, eval engineers, and ops engineers working in parallel workflows across 10 vector databases.",

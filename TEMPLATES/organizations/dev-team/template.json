@@ -1,5 +1,6 @@
 {
   "name": "Dev Team",
+  "emoji": "💻",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent software development team with engineering, QA, and DevOps roles. Automates PR review, CI triage, release preparation, and daily standups.",

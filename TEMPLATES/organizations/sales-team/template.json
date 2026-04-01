@@ -1,5 +1,6 @@
 {
   "name": "Sales Team",
+  "emoji": "💼",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent sales organization with pipeline management, lead qualification, and deal forecasting. Includes SDRs for prospecting, account executives for closing, and sales ops for analytics.",

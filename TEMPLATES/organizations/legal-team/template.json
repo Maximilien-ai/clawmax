@@ -1,5 +1,6 @@
 {
   "name": "Legal Team",
+  "emoji": "⚖️",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent legal team for contract review, compliance monitoring, and risk assessment. Automates contract analysis, regulatory tracking, and risk scoring.",

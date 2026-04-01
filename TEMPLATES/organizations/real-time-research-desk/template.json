@@ -1,5 +1,6 @@
 {
   "name": "Real-Time Research Desk",
+  "emoji": "🔎",
   "type": "organization",
   "version": "1.0.0",
   "description": "Fast multimodal research team with Senso-backed intake, retrieval, synthesis, and action briefs.",

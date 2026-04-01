@@ -2,6 +2,7 @@
   "name": "QA Engineer",
   "type": "agent",
   "version": "1.0.0",
+  "emoji": "🧪",
   "description": "Quality assurance engineer focused on CI/CD monitoring and PR review",
   "author": "ClawMax System",
   "tags": [

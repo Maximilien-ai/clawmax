@@ -1,5 +1,6 @@
 {
   "name": "Support Team",
+  "emoji": "🎧",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent customer support organization with ticket triage, SLA monitoring, escalation handling, and knowledge base maintenance. Handles high-volume support with automated prioritization.",

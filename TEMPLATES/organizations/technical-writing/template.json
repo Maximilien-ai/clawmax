@@ -1,5 +1,6 @@
 {
   "name": "Technical Writing",
+  "emoji": "✍️",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent technical writing team for creating documentation, tutorials, and reference guides. Includes editor, writers, reviewer, and publisher with end-to-end content workflows.",

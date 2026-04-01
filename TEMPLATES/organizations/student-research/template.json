@@ -1,5 +1,6 @@
 {
   "name": "Student Research",
+  "emoji": "🎓",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent research group for academic projects. Includes literature review, data analysis, and writing roles with workflows for systematic research and collaborative drafting.",

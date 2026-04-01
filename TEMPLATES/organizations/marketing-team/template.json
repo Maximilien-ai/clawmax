@@ -1,5 +1,6 @@
 {
   "name": "Marketing Team",
+  "emoji": "📣",
   "type": "organization",
   "version": "1.0.0",
   "description": "A multiagent marketing organization managing content creation, SEO optimization, social media, and campaign analytics. Coordinates editorial calendar and tracks performance metrics.",
