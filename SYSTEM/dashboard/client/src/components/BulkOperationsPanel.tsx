@@ -41,7 +41,10 @@ export default function BulkOperationsPanel({
   onChangeModel,
   onBulkSkills,
 }: BulkOperationsPanelProps) {
-  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | 'model' | 'skills' | null>(null)
+  const [operation, setOperation] = useState<'communities' | 'groups' | 'archive' | 'unarchive' | 'pause' | 'resume' | 'delete' | 'model' | 'skills' | 'doctor' | 'workflow' | null>(null)
+  const [availableWorkflows, setAvailableWorkflows] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedWorkflow, setSelectedWorkflow] = useState('')
+  const [doctorResults, setDoctorResults] = useState<any>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [availableModels, setAvailableModels] = useState<string[]>([])
@@ -94,6 +97,8 @@ export default function BulkOperationsPanel({
     delete: 'Deleting agents',
     model: 'Changing model',
     skills: 'Assigning skills',
+    doctor: 'Running doctor',
+    workflow: 'Adding to workflow',
   }
 
   async function handleExecute() {
@@ -118,6 +123,29 @@ export default function BulkOperationsPanel({
         await onChangeModel(agentIds, selectedModel)
       } else if (operation === 'skills' && onBulkSkills && selectedSkillsToAdd.size > 0) {
         await onBulkSkills(agentIds, Array.from(selectedSkillsToAdd), [])
+      } else if (operation === 'doctor') {
+        const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+        const data = await resp.json()
+        setDoctorResults(data)
+        // Restart all selected agents after doctor
+        for (const a of selectedAgents) {
+          try { await fetch(`/api/agents/${a.id}/restart`, { method: 'POST' }) } catch {}
+        }
+        setProcessing(false)
+        return // Don't close — show results
+      } else if (operation === 'workflow' && selectedWorkflow) {
+        // Add selected agents to workflow targeting
+        const resp = await fetch(`/api/workflows/${selectedWorkflow}`)
+        if (resp.ok) {
+          const wf = await resp.json()
+          const currentAgents = wf.targeting?.agents || []
+          const newAgents = [...new Set([...currentAgents, ...selectedAgents.map(a => a.id)])]
+          await fetch(`/api/workflows/${selectedWorkflow}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targeting: { ...wf.targeting, agents: newAgents } }),
+          })
+        }
       } else if (operation === 'delete' && onDelete) {
         const agents = selectedAgents.map(a => ({ id: a.id, archived: a.archived }))
         await onDelete(agents)
@@ -183,196 +211,105 @@ export default function BulkOperationsPanel({
 
         {!showConfirm ? (
           <>
-            {/* Operation selection */}
-            <div className="px-6 py-4">
-              <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Choose an operation:</div>
-              <div className="space-y-2">
-                {/* --- Quick actions --- */}
-                {onChat && (
-                  <button
-                    onClick={() => {
-                      onChat(selectedAgents.map(a => a.id))
-                      onClose()
-                    }}
-                    className="w-full text-left px-4 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 bg-white dark:bg-gray-800 transition-colors dark:border-gray-700"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">Chat with Selected</div>
-                    <div className="text-sm text-gray-500">Open a chat with the selected agents</div>
-                  </button>
-                )}
+            {/* Operation selection — grouped */}
+            <div className="px-6 py-4 space-y-4">
 
-                {/* --- State control --- */}
-                {onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
-                  <button
-                    onClick={() => setOperation(operation === 'pause' ? null : 'pause')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'pause'
-                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'pause' && <span className="text-amber-600 dark:text-amber-400">✓</span>}
-                      Pause Agents
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Pause {selectedAgents.filter(a => !a.paused && !a.archived).length} active agent{selectedAgents.filter(a => !a.paused && !a.archived).length !== 1 ? 's' : ''}
-                    </div>
-                  </button>
-                )}
-
-                {onResume && selectedAgents.some(a => a.paused) && (
-                  <button
-                    onClick={() => setOperation(operation === 'resume' ? null : 'resume')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'resume'
-                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'resume' && <span className="text-emerald-600 dark:text-emerald-400">✓</span>}
-                      Resume Agents
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Resume {selectedAgents.filter(a => a.paused).length} paused agent{selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}
-                    </div>
-                  </button>
-                )}
-
-                {/* --- Model --- */}
-                {onChangeModel && (
-                  <button
-                    onClick={() => {
-                      if (operation === 'model') { setOperation(null) } else {
-                        setOperation('model')
-                        if (availableModels.length === 0) {
-                          fetchModelsWithByok().then(d => setAvailableModels(d.models || [])).catch(() => {})
-                        }
-                      }
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'model'
-                        ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'model' && <span className="text-cyan-600 dark:text-cyan-400">✓</span>}
-                      Change Model
-                    </div>
-                    <div className="text-sm text-gray-500">Change the AI model for {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</div>
-                  </button>
-                )}
-
-                {/* --- Skills --- */}
-                {onBulkSkills && (
-                  <button
-                    onClick={() => {
-                      if (operation === 'skills') { setOperation(null) } else {
-                        setOperation('skills')
-                        if (availableSkills.length === 0) {
-                          fetch('/api/skills').then(r => r.json()).then(d => setAvailableSkills((d.skills || []).map((s: any) => ({ id: s.id || s.name, name: s.name, emoji: s.emoji })))).catch(() => {})
-                        }
-                      }
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'skills'
-                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'skills' && <span className="text-emerald-600 dark:text-emerald-400">✓</span>}
-                      Add Skills
-                    </div>
-                    <div className="text-sm text-gray-500">Add skills to {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''}</div>
-                  </button>
-                )}
-
-                {/* --- Organization --- */}
-                <button
-                  onClick={() => setOperation(operation === 'communities' ? null : 'communities')}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                    operation === 'communities'
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                    {operation === 'communities' && <span className="text-purple-600 dark:text-purple-400">✓</span>}
-                    Add to Communities
+              {/* Quick Actions */}
+              {onChat && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">Quick Actions</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { onChat(selectedAgents.map(a => a.id)); onClose() }} className="text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-gray-800 transition-colors text-sm">
+                      <span className="text-blue-500">💬</span> Chat
+                    </button>
+                    <button
+                      onClick={() => setOperation(operation === 'doctor' ? null : 'doctor')}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'doctor' ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 dark:hover:border-cyan-600 bg-white dark:bg-gray-800'}`}
+                    >
+                      <span className="text-cyan-500">🩺</span> Doctor
+                    </button>
                   </div>
-                  <div className="text-sm text-gray-500">Add selected agents to one or more communities</div>
-                </button>
+                </div>
+              )}
 
-                <button
-                  onClick={() => setOperation(operation === 'groups' ? null : 'groups')}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                    operation === 'groups'
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                    {operation === 'groups' && <span className="text-indigo-600 dark:text-indigo-400">✓</span>}
-                    Add to Groups
-                  </div>
-                  <div className="text-sm text-gray-500">Add selected agents to one or more groups</div>
-                </button>
+              {/* Configure */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">Configure</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {onChangeModel && (
+                    <button
+                      onClick={() => { if (operation === 'model') { setOperation(null) } else { setOperation('model'); if (availableModels.length === 0) fetchModelsWithByok().then(d => setAvailableModels(d.models || [])).catch(() => {}) } }}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'model' ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 bg-white dark:bg-gray-800'}`}
+                    >
+                      <span className="text-cyan-500">🤖</span> Model
+                    </button>
+                  )}
+                  {onBulkSkills && (
+                    <button
+                      onClick={() => { if (operation === 'skills') { setOperation(null) } else { setOperation('skills'); if (availableSkills.length === 0) fetch('/api/skills').then(r => r.json()).then(d => setAvailableSkills((d.skills || []).map((s: any) => ({ id: s.id || s.name, name: s.name, emoji: s.emoji })))).catch(() => {}) } }}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'skills' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'}`}
+                    >
+                      <span className="text-emerald-500">🧩</span> Skills
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                {/* --- Lifecycle --- */}
-                {activeCount > 0 && (
+              {/* Organize */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">Organize</div>
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setOperation(operation === 'archive' ? null : 'archive')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'archive'
-                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'
-                    }`}
+                    onClick={() => setOperation(operation === 'communities' ? null : 'communities')}
+                    className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'communities' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'archive' && <span className="text-orange-600 dark:text-orange-400">✓</span>}
-                      Archive Agents
-                    </div>
-                    <div className="text-sm text-gray-500">Archive {activeCount} active agent{activeCount !== 1 ? 's' : ''}</div>
+                    <span className="text-purple-500">👥</span> Communities
                   </button>
-                )}
-
-                {archivedCount > 0 && (
                   <button
-                    onClick={() => setOperation(operation === 'unarchive' ? null : 'unarchive')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'unarchive'
-                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-green-300 bg-white dark:bg-gray-800'
-                    }`}
+                    onClick={() => setOperation(operation === 'groups' ? null : 'groups')}
+                    className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'groups' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-                      {operation === 'unarchive' && <span className="text-green-600 dark:text-green-400">✓</span>}
-                      Unarchive Agents
-                    </div>
-                    <div className="text-sm text-gray-500">Unarchive {archivedCount} archived agent{archivedCount !== 1 ? 's' : ''}</div>
+                    <span className="text-indigo-500">📋</span> Groups
                   </button>
-                )}
-
-                {/* --- Destructive --- */}
-                {onDelete && (
                   <button
-                    onClick={() => setOperation(operation === 'delete' ? null : 'delete')}
-                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                      operation === 'delete'
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-red-300 bg-white dark:bg-gray-800'
-                    }`}
+                    onClick={() => { if (operation === 'workflow') { setOperation(null) } else { setOperation('workflow'); if (availableWorkflows.length === 0) fetch('/api/workflows').then(r => r.json()).then(d => setAvailableWorkflows((d.workflows || []).map((w: any) => ({ id: w.id, name: w.name })))).catch(() => {}) } }}
+                    className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'workflow' ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-400">
-                      {operation === 'delete' && <span>✓</span>}
-                      ⚠️ Delete Agents Permanently
-                    </div>
-                    <div className="text-sm text-red-600 dark:text-red-500">Permanently delete {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} (cannot be undone)</div>
+                    <span className="text-sky-500">⚡</span> Workflow
                   </button>
-                )}
+                </div>
+              </div>
+
+              {/* Lifecycle */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">Lifecycle</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
+                    <button onClick={() => setOperation(operation === 'pause' ? null : 'pause')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'pause' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 bg-white dark:bg-gray-800'}`}>
+                      <span className="text-amber-500">⏸</span> Pause
+                    </button>
+                  )}
+                  {onResume && selectedAgents.some(a => a.paused) && (
+                    <button onClick={() => setOperation(operation === 'resume' ? null : 'resume')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'resume' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'}`}>
+                      <span className="text-emerald-500">▶</span> Resume
+                    </button>
+                  )}
+                  {activeCount > 0 && (
+                    <button onClick={() => setOperation(operation === 'archive' ? null : 'archive')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'archive' ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'}`}>
+                      <span className="text-orange-500">📦</span> Archive
+                    </button>
+                  )}
+                  {archivedCount > 0 && (
+                    <button onClick={() => setOperation(operation === 'unarchive' ? null : 'unarchive')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'unarchive' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-green-300 bg-white dark:bg-gray-800'}`}>
+                      <span className="text-green-500">📤</span> Unarchive
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button onClick={() => setOperation(operation === 'delete' ? null : 'delete')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm col-span-2 ${operation === 'delete' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-red-300 bg-white dark:bg-gray-800'}`}>
+                      <span className="text-red-500">🗑</span> <span className="text-red-600 dark:text-red-400">Delete Permanently</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -483,6 +420,46 @@ export default function BulkOperationsPanel({
                 {selectedSkillsToAdd.size > 0 && (
                   <div className="mt-2 text-xs text-emerald-600">{selectedSkillsToAdd.size} skill{selectedSkillsToAdd.size !== 1 ? 's' : ''} selected</div>
                 )}
+              </div>
+            )}
+
+            {/* Workflow selection */}
+            {operation === 'workflow' && (
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Add agents to workflow:</div>
+                {availableWorkflows.length > 0 ? (
+                  <select
+                    value={selectedWorkflow}
+                    onChange={e => setSelectedWorkflow(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm"
+                  >
+                    <option value="">Select a workflow...</option>
+                    {availableWorkflows.map(w => <option key={w.id} value={w.id}>{w.name} ({w.id})</option>)}
+                  </select>
+                ) : (
+                  <div className="text-sm text-gray-400">No workflows found</div>
+                )}
+              </div>
+            )}
+
+            {/* Doctor results */}
+            {operation === 'doctor' && doctorResults && (
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+                  Doctor Results: {doctorResults.summary?.pass || 0} pass, {doctorResults.summary?.fail || 0} fail, {doctorResults.summary?.fixed || 0} fixed
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {(doctorResults.results || []).map((r: any) => (
+                    <div key={r.id} className="text-xs">
+                      <span className="font-mono font-medium text-gray-700 dark:text-gray-300">{r.id}: </span>
+                      {(r.checks || []).map((c: any, i: number) => (
+                        <span key={i} className={`mr-2 ${c.status === 'pass' ? 'text-green-500' : c.status === 'fixed' ? 'text-cyan-500' : c.status === 'fail' ? 'text-red-500' : 'text-amber-500'}`}>
+                          {c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} {c.check}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
