@@ -516,6 +516,8 @@ export default function BulkOperationsPanel({
                     {operation === 'resume' && `Resume ${selectedAgents.filter(a => a.paused).length} agent${selectedAgents.filter(a => a.paused).length !== 1 ? 's' : ''}`}
                     {operation === 'skills' && `Add ${selectedSkillsToAdd.size} skill${selectedSkillsToAdd.size !== 1 ? 's' : ''} to ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
                     {operation === 'model' && `Change model to ${selectedModel} for ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
+                    {operation === 'doctor' && `Run doctor + auto-fix on ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''}`}
+                    {operation === 'workflow' && `Add ${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} to workflow "${selectedWorkflow}"`}
                   </div>
                 </div>
 
