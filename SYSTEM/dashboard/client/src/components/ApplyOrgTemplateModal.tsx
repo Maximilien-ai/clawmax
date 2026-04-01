@@ -39,7 +39,10 @@ const FALLBACK_MODELS = [
   'anthropic/claude-3-5-sonnet-20241022',
 ]
 
+type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
+
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
+  const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
   const [includeBuiltIn, setIncludeBuiltIn] = useState(true)
@@ -346,15 +349,56 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Apply Organization Template</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          <span className="font-semibold">{template.name}</span> —
-          Will create {agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}
-          {template.communities && template.communities.length > 0 && `, ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}`}
-          {template.groups && template.groups.length > 0 && `, ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}`}
-          {template.workflows && template.workflows.length > 0 && `, ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}`}
-        </p>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Apply: {template.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+        </div>
 
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-4 text-xs">
+          {(['preview', 'prereqs', 'customize', 'deploy'] as WizardStep[]).map((s, i) => (
+            <React.Fragment key={s}>
+              {i > 0 && <span className="text-gray-300 dark:text-gray-600">&rarr;</span>}
+              <button
+                onClick={() => !applying && setWizardStep(s)}
+                disabled={applying}
+                className={`px-2.5 py-1 rounded-full transition-colors ${wizardStep === s ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              >
+                {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Step: Preview */}
+        {wizardStep === 'preview' && (
+          <div className="space-y-3 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Will create {agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}
+              {template.communities && template.communities.length > 0 && `, ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}`}
+              {template.groups && template.groups.length > 0 && `, ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}`}
+              {template.workflows && template.workflows.length > 0 && `, ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}`}
+            </p>
+            {template.description && <p className="text-sm text-gray-500 dark:text-gray-400">{template.description}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Agents</div>
+                <div className="space-y-1">{agentsToCreate.map(a => <div key={a.id} className="text-sm text-gray-700 dark:text-gray-300">{a.name || a.id} <span className="text-gray-400 text-xs">({a.role?.slice(0, 40)}...)</span></div>)}</div>
+              </div>
+              <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Workflows</div>
+                <div className="space-y-1">{(template.workflows || []).map((w: any) => <div key={w.id} className="text-sm text-gray-700 dark:text-gray-300">{w.name} <span className="text-gray-400 text-xs">({w.schedule})</span></div>)}</div>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => setWizardStep('prereqs')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors font-medium">Next: Prerequisites &rarr;</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Prerequisites */}
+        {wizardStep === 'prereqs' && (
+          <div className="space-y-3 mb-4">
         {/* Prerequisites check */}
         {prereqsLoading ? (
           <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
@@ -392,9 +436,19 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             <span>✓</span> All prerequisites met ({prereqs.summary.pass} checks passed)
           </div>
         ) : null}
+            <div className="flex justify-between mt-4">
+              <button onClick={() => setWizardStep('preview')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Preview</button>
+              <button onClick={() => setWizardStep('customize')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors font-medium">Next: Customize &rarr;</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Customize + Deploy */}
+        {(wizardStep === 'customize' || wizardStep === 'deploy') && (
+          <>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
             {error}
           </div>
         )}
@@ -1031,14 +1085,26 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           >
             Cancel
           </button>
-          <button
-            onClick={handleApply}
-            disabled={applying}
-            className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
-          </button>
+          {wizardStep === 'customize' && (
+            <button
+              onClick={() => setWizardStep('deploy')}
+              className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
+            >
+              Next: Deploy &rarr;
+            </button>
+          )}
+          {wizardStep === 'deploy' && (
+            <button
+              onClick={handleApply}
+              disabled={applying}
+              className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
+            </button>
+          )}
         </div>
+          </>
+        )}
       </div>
     </div>
   )
