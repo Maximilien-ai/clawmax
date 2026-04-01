@@ -75,6 +75,12 @@ interface SharedDashboardPayload {
     kickoffSummary: string | null
     resultSummary: string[]
     resultLinks: string[]
+    resultArtifacts?: Array<{
+      kind: 'link' | 'file'
+      label: string
+      url?: string
+      relativePath?: string
+    }>
     latestExecution: {
       status: string
       startedAt: string
@@ -180,6 +186,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
           ...workflow,
           resultSummary: Array.isArray(workflow?.resultSummary) ? workflow.resultSummary : [],
           resultLinks: Array.isArray(workflow?.resultLinks) ? workflow.resultLinks : [],
+          resultArtifacts: Array.isArray(workflow?.resultArtifacts) ? workflow.resultArtifacts : [],
           executionHistory: Array.isArray(workflow?.executionHistory) ? workflow.executionHistory : [],
         }))
       : [],
@@ -418,12 +425,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       {workflow.resultSummary.length > 0 && (
                         <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
                       )}
-                      {workflow.resultLinks.length > 0 && (
+                      {(workflow.resultArtifacts?.length || workflow.resultLinks.length) > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {workflow.resultLinks.map((link) => (
-                            <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20">
-                              Open result
-                            </a>
+                          {(workflow.resultArtifacts?.length ? workflow.resultArtifacts : workflow.resultLinks.map((link: string) => ({ kind: 'link', label: 'Open result', url: link }))).map((artifact: any) => (
+                            artifact.kind === 'link' && artifact.url ? (
+                              <a key={`${artifact.label}-${artifact.url}`} href={artifact.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20">
+                                {artifact.label}
+                              </a>
+                            ) : (
+                              <span key={`${artifact.label}-${artifact.relativePath || 'file'}`} className="rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs text-gray-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300">
+                                {artifact.label}
+                              </span>
+                            )
                           ))}
                         </div>
                       )}
@@ -796,18 +809,27 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                           Result: {workflow.resultSummary.join(' ')}
                         </div>
                       )}
-                      {payload.dashboard.sections.results && workflow.resultLinks.length > 0 && (
+                      {payload.dashboard.sections.results && ((workflow.resultArtifacts?.length || workflow.resultLinks.length) > 0) && (
                         <div className="flex flex-wrap gap-2">
-                          {workflow.resultLinks.map((link) => (
-                            <a
-                              key={link}
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`rounded-full border border-sky-500/30 bg-sky-500/10 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-sky-300 hover:bg-sky-500/20`}
-                            >
-                              Open result
-                            </a>
+                          {(workflow.resultArtifacts?.length ? workflow.resultArtifacts : workflow.resultLinks.map((link: string) => ({ kind: 'link', label: 'Open result', url: link }))).map((artifact: any) => (
+                            artifact.kind === 'link' && artifact.url ? (
+                              <a
+                                key={`${artifact.label}-${artifact.url}`}
+                                href={artifact.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`rounded-full border border-sky-500/30 bg-sky-500/10 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-sky-300 hover:bg-sky-500/20`}
+                              >
+                                {artifact.label}
+                              </a>
+                            ) : (
+                              <span
+                                key={`${artifact.label}-${artifact.relativePath || 'file'}`}
+                                className={`rounded-full border border-gray-300 bg-gray-100 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-gray-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300`}
+                              >
+                                {artifact.label}
+                              </span>
+                            )
                           ))}
                         </div>
                       )}
