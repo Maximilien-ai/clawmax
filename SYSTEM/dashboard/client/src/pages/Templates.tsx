@@ -221,6 +221,8 @@ export default function Templates() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
+    itemType: string
+    warningMessage?: string
     consequences: string[]
     onConfirm: () => Promise<void>
   } | null>(null)
@@ -269,40 +271,63 @@ export default function Templates() {
     }
 
     if (type === 'workflow') {
-      if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return
+      setDeleteDialog({
+        itemName: name,
+        itemType: 'workflow',
+        warningMessage: 'This workflow will be permanently removed from the workspace and can no longer be run from the Templates page.',
+        consequences: [
+          'The workflow definition will be deleted from this workspace.',
+          'Future runs from this template entry will no longer be available.',
+          'This action cannot be undone from the dashboard.',
+        ],
+        onConfirm: async () => {
+          try {
+            const resp = await fetch(`/api/workflows/${id}`, {
+              method: 'DELETE',
+            })
 
-      try {
-        const resp = await fetch(`/api/workflows/${id}`, {
-          method: 'DELETE',
-        })
+            if (!resp.ok) throw new Error('Failed to delete')
 
-        if (!resp.ok) throw new Error('Failed to delete')
-
-        showSuccess(`Deleted workflow "${name}"`)
-        fetchTemplates()
-        setSelectedTemplate(null)
-      } catch (err) {
-        showError('Failed to delete workflow')
-      }
+            showSuccess(`Deleted workflow "${name}"`)
+            fetchTemplates()
+            setSelectedTemplate(null)
+            setDeleteDialog(null)
+          } catch (err) {
+            showError('Failed to delete workflow')
+          }
+        }
+      })
     } else {
       const slug = targetTemplate?.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       const typeParam = type === 'agent' ? 'agents' : 'organizations'
+      const templateLabel = type === 'agent' ? 'agent template' : 'organization template'
 
-      if (!confirm(`Delete template "${name}"?`)) return
+      setDeleteDialog({
+        itemName: name,
+        itemType: templateLabel,
+        warningMessage: 'This workspace template will be permanently deleted. System templates are protected and cannot be deleted here.',
+        consequences: [
+          `The ${templateLabel} file will be removed from this workspace.`,
+          'Future apply/import reuse of this template from the workspace will no longer be available.',
+          'This action cannot be undone from the dashboard.',
+        ],
+        onConfirm: async () => {
+          try {
+            const resp = await fetch(`/api/templates/${typeParam}/${slug}`, {
+              method: 'DELETE',
+            })
 
-      try {
-        const resp = await fetch(`/api/templates/${typeParam}/${slug}`, {
-          method: 'DELETE',
-        })
+            if (!resp.ok) throw new Error('Failed to delete')
 
-        if (!resp.ok) throw new Error('Failed to delete')
-
-        showSuccess(`Deleted template "${name}"`)
-        fetchTemplates()
-        setSelectedTemplate(null)
-      } catch (err) {
-        showError('Failed to delete template')
-      }
+            showSuccess(`Deleted template "${name}"`)
+            fetchTemplates()
+            setSelectedTemplate(null)
+            setDeleteDialog(null)
+          } catch (err) {
+            showError('Failed to delete template')
+          }
+        }
+      })
     }
   }
 
@@ -950,8 +975,8 @@ export default function Templates() {
       <ConfirmDeleteDialog
         isOpen={deleteDialog !== null}
         itemName={deleteDialog?.itemName || ''}
-        itemType="templates"
-        warningMessage="Selected workspace templates will be permanently deleted. System templates are protected and cannot be deleted here."
+        itemType={deleteDialog?.itemType || 'template'}
+        warningMessage={deleteDialog?.warningMessage}
         consequences={deleteDialog?.consequences}
         onConfirm={async () => {
           if (deleteDialog) {
