@@ -43,7 +43,6 @@
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
 
 ### Backlog from March 28 Sprint + Live Execution
-- [ ] **Workflow import should use template's id field** — currently auto-generates from name, breaking dependsOn references
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to IDENTITY.md so agents remember across sessions
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
 - [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle

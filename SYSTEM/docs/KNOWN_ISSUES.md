@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-03-29
-**Current Version**: v1.1.20
+**Last Updated**: 2026-04-01
+**Current Version**: main
 
 ---
 
@@ -17,27 +17,17 @@
 
 ---
 
-### 2. Workflow import doesn't use template's ID field
+### 2. Compact dashboard upward reorder
 **Severity**: Medium
 **Status**: Known bug
 
-When importing a template, workflow IDs are auto-generated from names instead of using the template's `id` field. This breaks `dependsOn` references if the generated ID differs from the template ID (e.g., `coding` → `coding-sprint`).
+In compact dashboard layout editing, dragging a section downward or across columns works, but dragging a tile upward within the same column is still unreliable.
 
-**Workaround**: Ensure template workflow IDs match what the name-to-ID generator produces (kebab-case of name).
-
----
-
-### 3. DAG dependencies not persisted during template import
-**Severity**: Medium
-**Status**: Known bug
-
-`dependsOn` and `type` fields from template workflows are not passed through to `createWorkflow()` during import. Dependencies must be set manually after apply.
-
-**Workaround**: Set dependencies via API or DAG edit mode after template apply.
+**Workaround**: Drag downward first, or move the card across columns and back.
 
 ---
 
-### 4. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
+### 3. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
 **Severity**: Low
 **Status**: By design
 
@@ -45,7 +35,7 @@ Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, 
 
 ---
 
-### 5. DAG connector lines overlap nodes on complex layouts
+### 4. DAG connector lines overlap nodes on complex layouts
 **Severity**: Low (cosmetic)
 **Status**: Known limitation
 
