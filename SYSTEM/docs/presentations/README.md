@@ -4,6 +4,14 @@ This directory contains presentation materials for ClawMax demos and launches.
 
 ## Presentation History
 
+### 2026-03-31: Spring 2026 AI Forum
+**File**: `spring-2026-ai-forum/index.html`
+- **Event**: Spring 2026 AI Forum: Talks + AI Agent Workshops, Ft Stanford & OpenClaw
+- **Location**: Menlo Park, CA
+- **Format**: Single-page HTML demo/booth presentation
+- **Result**: ✅ Demo went well, strong interest in workspace dashboards and visibility features
+- **Key Outcomes**: Follow-up demand for compact stakeholder dashboards, richer workflow/result summaries, and smoother compact drag-and-drop layout editing
+
 ### 2026-03-14: Launch Talk - "AI Agents 1:1"
 **File**: `2026-03-14-launch-talk.md`
 - **Event**: AI Assistants with OpenClaw and ClawMax
@@ -20,6 +28,10 @@ This directory contains presentation materials for ClawMax demos and launches.
 - **Used For**: March 14 launch talk
 
 ## Files
+- `spring-2026-ai-forum/index.html` — event one-pager with ClawMax.ai hero, QR code, and live-demo framing
+- `spring-2026-ai-forum/clawmax-front-back-offices.jpg` — local hero background asset
+- `spring-2026-ai-forum/clawmax-hero-bg.jpg` — local hero backup asset
+- `spring-2026-ai-forum/clawmax-logo.jpg` — local logo asset
 
 ## How to Use
 
@@ -213,6 +225,11 @@ All content is in the HTML file. Edit directly and refresh browser to see change
 - **Event**: TBD
 - **Focus**: Latest improvements, live coding
 - **Interactive**: Help others deploy ClawMax
+
+### 2026-03-31: Spring 2026 AI Forum
+- **Event**: Spring 2026 AI Forum: Talks + AI Agent Workshops, Ft Stanford & OpenClaw
+- **Focus**: ClawMax.ai positioning, shared workspace dashboards, multi-agent visibility
+- **Format**: One-page landing-style presentation for live demos and booth conversations
 
 ---
 

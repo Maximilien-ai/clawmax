@@ -261,6 +261,7 @@ Current limitations:
 - results are still inferred from available workflow/execution data, not normalized artifacts
 - costs are snapshot-focused; no time-series graph yet
 - group chats are summaries only, with no deep chat drilldown links yet
+- compact dashboard drag-and-drop still has an ordering bug when reordering upward within the same column
 - full-system `./SYSTEM/test.sh` depends on a locally reachable dashboard process during preflight
 
 ---
@@ -271,6 +272,7 @@ Current limitations:
 - normalize workflow outputs/artifacts and expose consistent result links
 - add better cost history visualizations and time-series charts
 - push compact mode further toward one-screen summaries with richer charts and less repeated text
+- fix compact same-column upward drag-and-drop reordering so the layout editor is reliable in both directions
 - add deeper workflow/result/group links where safe
 - refine dashboard management layout and polish
 

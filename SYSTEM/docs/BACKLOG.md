@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: March 31, 2026
+> Last updated: April 1, 2026
 > Deadline: Cloud deployment by April 1st, dashboard ready by March 26
 > Completed items archived — see CHANGELOG.md for full history
 
@@ -28,6 +28,7 @@
 - [ ] **Workspace dashboard compact charts** — add richer compact-mode graphs and denser summary widgets so stakeholder views fit closer to one page without dropping important signal.
 - [ ] **Workflow input normalization for dashboards** — persist and expose structured kickoff/start inputs per workflow run so shared dashboards can show clean, reliable "what started this run" context instead of best-effort execution-log summaries.
 - [ ] **Workflow output + artifact normalization for dashboards** — persist structured workflow results, artifact links, and downloadable outputs so shared dashboards can present consistent run outcomes across heterogeneous workflows.
+- [ ] **Workspace dashboard compact reorder bug** — compact layout editor supports cross-column and downward drag, but upward reordering within the same column is still unreliable and needs a real fix.
 
 ## Deep Agents Hack — March 27 (immediate)
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`
