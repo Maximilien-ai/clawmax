@@ -1828,6 +1828,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
 
             console.log(`[Template Import] Creating workflow "${wf.name}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
+              id: wf.id, // Preserve template's workflow ID for dependsOn references
               name: wf.name,
               description: wf.description,
               schedule: wf.schedule,

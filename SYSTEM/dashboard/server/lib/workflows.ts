@@ -436,8 +436,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
     const schedule = data.schedule!
     const content = data.content!
 
-    // Generate and ensure unique ID
-    const baseId = generateId(name)
+    // Use explicit ID if provided (e.g., from template import), otherwise generate from name
+    const baseId = data.id || generateId(name)
     const id = ensureUniqueId(baseId)
 
     const now = new Date().toISOString()
@@ -729,6 +729,15 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Increment run count + mark as running + reset progress
     const newRunCount = (workflow.runCount || 0) + 1
     updateWorkflow(workflowId, { runCount: newRunCount, status: 'running', progress: 0 } as any)
+
+    // Reset all downstream dependent workflows to idle
+    const allWorkflows = listWorkflows()
+    for (const wf of allWorkflows) {
+      if (wf.dependsOn?.includes(workflowId) && (wf.status === 'completed' || wf.status === 'blocked')) {
+        updateWorkflow(wf.id, { status: 'idle', progress: 0 } as any)
+        console.log(`[Workflow] Reset downstream ${wf.id} to idle (depends on re-triggered ${workflowId})`)
+      }
+    }
 
     // Check if this run will hit the limit — disable after this run
     if (workflow.maxRuns && workflow.maxRuns > 0 && newRunCount >= workflow.maxRuns) {

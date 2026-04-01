@@ -66,7 +66,8 @@ function scheduleWorkflow(workflowId: string, schedule: string) {
 
   const task = cron.schedule(schedule, () => {
     console.log(`[Scheduler] Triggering workflow: ${workflowId}`)
-    const result = triggerWorkflow(workflowId)
+    // Note: cron triggers don't have BYOK keys — they use system/user-default keys from .env
+    const result = triggerWorkflow(workflowId, { manual: false })
     if (result.success) {
       console.log(`[Scheduler] Workflow ${workflowId} triggered, execution: ${result.executionId}`)
     } else {
