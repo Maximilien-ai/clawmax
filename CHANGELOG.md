@@ -2,6 +2,41 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.0] - 2026-04-01
+
+### Features — Workspaces Integrations
+- **Workspaces Integrations** — unified setup surface for Models, Senso, Opik, and GitHub
+- **Gemini Provider Support** — save and validate Gemini keys through the hosted-provider flow
+- **Ollama Local Provider Support** — configure local Ollama runtime, discover installed models, and validate local reachability
+- **Integration Validation** — key checks for OpenAI, Anthropic, Opik, Gemini, and Ollama with live/fallback status
+- **Template Apply Defaults** — saved Senso and GitHub defaults flow into organization template apply
+
+### Features — Workspace Dashboards
+- **Shareable Workspace Dashboards** — generate persistent read-only workspace dashboard links with copy/open/delete management
+- **Display Modes** — compact, standard, and detail stakeholder views
+- **Compact Summary Charts** — dense agent/workflow/notification summary bars
+- **Result Artifact Normalization** — dashboards show normalized links and workspace artifact references instead of only raw logs
+- **Workflow Input Summaries** — dashboards prefer structured kickoff/project configuration extraction over brittle log tails
+- **Cost Trend Summaries** — cost section now shows today, last 7d, avg/day, and workflow spend ranking
+
+### Features — Templates
+- **Expanded Template Catalog** — new proposal template families across Science, Travel, Hobbies, Family, and Personal assistant/finance use cases
+- **Reusable Agent Templates** — added Research Lead, Data Engineer, Data Analyst, Briefing Writer, People Researcher, Literature Reviewer, and Experiment Planner templates
+- **Template Emoji Metadata** — optional emoji support across org, agent, and workflow templates
+- **Collapsible Template Sections** — Agent / Organization / Workflow sections can be collapsed in the Templates explorer
+- **Workflow Import UX** — first-pass `WORKFLOW.md` import via paste/upload from the Workflows page
+- **Template Delete Confirmation** — typed consequence/confirm dialog for deleting user-created templates
+
+### Features — Runtime and Delivery
+- **Structured Workflow Inputs in Execution Records** — workflow execution records now persist structured kickoff/start inputs
+- **Docker Deployment Support** — canonical `Dockerfile`, `docker-compose.yml`, `.dockerignore`, and production path fixes in the public repo
+- **Managed Workflow Metadata Alignment** — template workflows now carry explicit owner metadata and slug-aligned ids
+
+### Fixes
+- **Compact Dashboard Reorder** — same-column upward reorder now works reliably
+- **Template Explorer Stability** — fixed templates page hook-order crash after adding collapsible sections
+- **Senso / GitHub / Dashboard polish** — workspace dashboard visibility, result extraction, and integrations UX follow-through
+
 ## [v1.1.20] - 2026-03-29
 
 ### Features — Workflow v2

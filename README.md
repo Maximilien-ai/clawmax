@@ -5,18 +5,18 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team templates, visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.21-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.1.21)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.0)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.1.21
+## 🔥 What's New in v1.2.0
 
-- **Workflow DAG Visualization** — interactive dependency graphs with parallel lanes, zoom, edit mode, and stacked forest view for multiple pipelines
-- **15 Team Templates** — deploy complete multiagent teams in minutes with [TEMPLATE.md](https://github.com/Maximilien-ai/templates) open format
-- **18 Workflow Definitions** — kickoff, triage, review, deploy pipelines with [WORKFLOW.md](https://github.com/Maximilien-ai/workflows) open format
-- **Notification Blockers** — 5 actionable blocker types (approval, choice, input, delegation, waiting) rendered inline
-- **Shipables.dev Integration** — browse and install from 1,000+ agent skills
+- **Workspaces Integrations** — unified setup surface for Models, Senso, Opik, GitHub, Gemini, and Ollama with validation and saved defaults
+- **Shareable Workspace Dashboards** — stakeholder-friendly live dashboards with compact/standard/detail modes, compact charts, and generated links
+- **Massively Expanded Template Catalog** — science, travel, hobbies, family, personal assistant, and finance proposal templates plus richer reusable agent templates
+- **Template & Workflow Import/Export** — first-pass `TEMPLATE.md` and `WORKFLOW.md` import/export flows in-product
+- **Docker Deployment Support** — canonical public Docker assets for cloud/on-prem handoff
 
 ---
 
@@ -38,7 +38,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ### Authentication & Keys
 - **GitHub OAuth Login** - GitHub is the primary dashboard login path
-- **BYOK Preview** - Users can provide their own model keys for their agents and workflows
+- **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
 
 ### Workflows & DAG
@@ -49,18 +49,27 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Blocker Surfacing** - Agents declare blockers, rendered as actionable notifications
 - **Agent Targeting** - Route workflows by tags, groups, or communities
 - **Execution History** - Track workflow runs and results
+- **Structured Workflow Inputs** - Persist kickoff/start input summaries in execution records for better dashboards and traceability
 - **Cron Scheduling** - Set recurring workflows with flexible schedules
 - **WORKFLOW.md Format** - Define workflows as YAML frontmatter + markdown
 
 ### Templates
-- **14 Organization Templates** - Sales, HR, Support, Legal, Marketing, Dev Team, Data Team, RAG, and more
+- **35+ Organization Templates** - Business, technical, personal, science, travel, hobbies, and family proposal templates
+- **12 Reusable Agent Templates** - Leadership, engineering, research, briefing, data, and experiment roles that can be reused independently
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **AI Generate** - Describe a team, AI fills all wizard steps
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
 - **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows
-- **Category Filters** - Business, Technical, Personal template categories
+- **Category Filters** - Business, Technical, Personal, Science, Travel, Hobbies, and Family template categories
+- **Collapsible Template Sections** - Collapse or expand Agent / Organization / Workflow sections while browsing
 - **TEMPLATE.md Format** - Lean markdown format with structured body sections
 - **Import/Export** - Download and upload templates and workflows as `.md` files
+
+### Workspace Visibility
+- **Shareable Workspace Dashboards** - Generate public read-only links for workspace status, workflows, costs, results, and group chats
+- **Compact Summary Charts** - Dense compact-mode agent/workflow/notification visual summaries
+- **Display Modes** - Compact, Standard, and Detail views for different audiences
+- **Live Theme Toggle** - Shared dashboards follow ClawMax light/dark preference with a top-right toggle
 
 ### Skills Marketplace
 - **50+ Built-in Skills** - github, slack, web-search, code-review, and more
@@ -78,7 +87,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ClawMax templates and workflows are open source and community-driven:
 
-- **[Maximilien-ai/templates](https://github.com/Maximilien-ai/templates)** — 15+ organization templates with [TEMPLATE.md spec](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)
+- **[Maximilien-ai/templates](https://github.com/Maximilien-ai/templates)** — 35+ organization templates with [TEMPLATE.md spec](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)
 - **[Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows)** — 18+ workflow definitions with [WORKFLOW.md spec](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md)
 
 **Contribute your own!** Submit a PR with your TEMPLATE.md or WORKFLOW.md — help the community build better multiagent teams.

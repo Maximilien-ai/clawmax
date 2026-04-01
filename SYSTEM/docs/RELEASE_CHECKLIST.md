@@ -5,8 +5,8 @@ Use this as the final pass before the next dashboard release.
 ## 1. Environment and Startup
 
 - Copy values from [SYSTEM/dashboard/.env.example](../dashboard/.env.example) into `SYSTEM/dashboard/.env`
-- Confirm `CORS_ORIGIN=http://localhost:5173` for local dev
-- Confirm `DASHBOARD_APP_URL=http://localhost:5173` if you want explicit post-login/logout redirects
+- Confirm `CORS_ORIGIN=http://localhost:5174` for local dev
+- Confirm `DASHBOARD_APP_URL=http://localhost:5174` if you want explicit post-login/logout redirects
 - Confirm `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are present
 - Confirm at least one system model key is set:
   - `SYSTEM_OPENAI_API_KEY`
@@ -37,10 +37,10 @@ Expected:
 
 ## 3. OAuth / Auth Flow
 
-- Open `http://localhost:5173`
+- Open `http://localhost:5174`
 - Verify login page loads with hero image and GitHub button
 - Login via GitHub
-- Verify redirect returns to `http://localhost:5173/`
+- Verify redirect returns to `http://localhost:5174/`
 - Verify user avatar/name and `Logout` are visible in the dashboard
 - Verify both logout affordances work:
   - top-right
@@ -71,12 +71,12 @@ wait about one minute for the auth rate limiter window to reset.
 - Workspaces
   - reorder workspaces
   - confirm active workspace stays selected
-- BYOK preview
-  - verify the `BYOK Preview` button is visible after login
-  - verify the modal explains system keys vs user keys
-  - verify masked OpenAI / Anthropic keys can be saved locally for dev flow testing
-  - verify direct agent chat uses the BYOK-selected provider
-  - verify manual workflow execution posts the same provider-correct responses into targeted groups/communities
+- Workspaces Integrations
+  - verify the `Workspaces Integrations` entry is visible after login
+  - verify Models / Senso / Opik / GitHub sections render
+  - verify masked provider keys can be saved locally for dev flow testing
+  - verify validation shows live/fallback status clearly
+  - verify direct agent chat and manual workflow execution use the configured provider/defaults
 
 ## 5. Release Messaging
 

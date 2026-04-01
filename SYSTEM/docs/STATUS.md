@@ -1,55 +1,46 @@
 # ClawMax Status
 
-**Current Version**: v1.1.21
-**Last Updated**: March 30, 2026
-**Status**: Workflow v2 + testing sprint complete — DAG, notifications, 155 tests, system test workspace
+**Current Version**: v1.2.0
+**Last Updated**: April 1, 2026
+**Status**: Release prep — expanded template catalog, workspace dashboards, integrations shell, and deployment support are on main
 
 ---
 
 ## Current State
 
-- `v1.1.20` released — Workflow v2 DAG, notifications, testing infrastructure
-- 15 organization templates (14 + system-test) across Business, Technical, Personal
-- Interactive DAG visualization with edit mode, zoom, progress bars
-- DAG execution engine: auto-advance pipeline on workflow completion
-- 5 blocker types with dynamic notification UI
-- 137 API tests + 78 unit tests + 18 integration tests = 155+ total
+- `v1.2.0` prep on main — workspace dashboards, integrations, deployment, and expanded template families
+- 39 organization templates + 12 reusable agent templates across Business, Technical, Personal, Science, Travel, Hobbies, and Family
+- Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
+- Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
+- Shareable workspace dashboards with compact/standard/detail display modes
+- Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
-- ClawMax System Test workspace for automated + manual testing
 
-## v1.1.16 — Deep Agents Hackathon Release
+## v1.2.0 — Expansion Release
 
-Built at the [Deep Agents Hack](https://luma.com/deepagentshack) hackathon (March 27, 2026). Major template and skills infrastructure release.
+### Templates & Discovery
+- 39 organization templates now shipped in the app and public templates repo
+- new proposal families: Science, Travel, Hobbies, Family, and expanded Personal assistant/finance templates
+- 12 reusable agent templates with richer detail files for swapping roles into teams
+- template emojis across the catalog
+- collapsible Agent / Organization / Workflow sections in Templates explorer
+- template delete confirmation dialog for user-created templates
 
-### Template System
-- **Template Wizard** — 5-step creation: Team Type, Composition, Communication, Workflows, Preview
-- **AI Generate** — describe a team in natural language, AI fills all wizard steps
-- **14 organization templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Specialty Retailer, Dev Team, Data Team, RAG Team, Engineering, Small Startup, Student Research, Technical Writing
-- **TEMPLATE.md format** — templates as YAML frontmatter + markdown (auto-detected alongside template.json)
-- **Category filters** — Business/Technical/Personal pill buttons on Templates page
-- **Kickoff workflows** — every template has a kickoff with user-fillable Project Configuration
-- **Editable workflow content** — customize all workflows (kickoff fields, instructions) before applying
-- **GitHub coordination toggle** — checkbox adds github/gh-issues skills + injects repo instructions into all workflows
+### Workspace Visibility
+- shareable workspace dashboards with generated links
+- compact / standard / detail display modes
+- compact dashboard summary charts
+- normalized workflow kickoff inputs and result artifacts in shared dashboards
 
-### Skills & Marketplace
-- **Shipables.dev integration** — search, browse, and install from 1,000+ skills registry
-- **Category browsing** — quick-filter pills (github, slack, api, data, ai, web, devops, crm)
-- **Bulk skill assignment** — add skills to multiple agents at once from Agents page
-- **One-click install** — install button per skill with "Installed" state tracking
+### Integrations & Runtime
+- Workspaces Integrations shell replacing the earlier BYOK-only framing
+- Gemini and Ollama provider support
+- Senso / Opik / GitHub surfaced as optional integrations with saved defaults and validation flow
+- structured workflow input capture persisted in execution records
 
-### Bug Fixes
-- **AI generator Anthropic fallback** — works with Anthropic-only BYOK keys (issue #49)
-- **Smart model defaults** — defaults to Anthropic model when only Anthropic key is set
-- **Null guard fixes** — Activity, Agents, Workflows, TopBar pages guarded against undefined API data
-- **OAuth default fix** — shows setup instructions instead of broken button when not configured
-- **Chat error styling** — ANSI code stripping, dark mode, error message detection, dismiss button
-- **Template import fix** — generates IDENTITY.md from template data when no agent files exist
-- **Workflow creation fix** — auto-assigns owner for managed workflows, accepts "once" schedule
-
-### Testing
-- 121 integration tests (up from 113)
-- 25 unit tests (up from 15)
-- New coverage: TEMPLATE.md parsing, template categories, Shipables registry, workflow overrides, bulk skills, defensive agent import
+### Delivery
+- canonical Docker deployment support in the public repo
+- backlog / issue tracker cleanup and alignment
 
 ## Shipped Previously
 
