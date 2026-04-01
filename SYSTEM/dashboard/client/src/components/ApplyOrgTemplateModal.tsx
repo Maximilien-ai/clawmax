@@ -64,6 +64,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const { showSuccess, showError: showToastError } = useToast()
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [validatingRepo, setValidatingRepo] = useState<string | null>(null)
 
   // Prerequisites check
   const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
@@ -686,6 +688,62 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   })
                 }
 
+                // Validate a field on blur
+                const validateField = async (label: string, value: string) => {
+                  const key = fieldKey(label)
+                  const labelLower = label.toLowerCase()
+
+                  // Required field check — fields with placeholder starting with "e.g." are examples, not required
+                  if (!value.trim()) {
+                    // Don't error on empty — just clear any previous error
+                    setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+                    return
+                  }
+
+                  // GitHub repo validation
+                  if (labelLower.includes('github') && labelLower.includes('repo')) {
+                    const repoPattern = /^[\w.-]+\/[\w.-]+$/
+                    const urlPattern = /^https?:\/\/github\.com\/([\w.-]+\/[\w.-]+)/
+                    let repoSlug = value.trim()
+                    const urlMatch = repoSlug.match(urlPattern)
+                    if (urlMatch) repoSlug = urlMatch[1]
+
+                    if (!repoPattern.test(repoSlug) && !urlPattern.test(value.trim())) {
+                      setFieldErrors(prev => ({ ...prev, [key]: 'Format: owner/repo or https://github.com/owner/repo' }))
+                      return
+                    }
+
+                    // Check if repo exists (async)
+                    setValidatingRepo(key)
+                    try {
+                      const resp = await fetch(`https://api.github.com/repos/${repoSlug}`, { signal: AbortSignal.timeout(5000) })
+                      if (resp.ok) {
+                        setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+                      } else if (resp.status === 404) {
+                        setFieldErrors(prev => ({ ...prev, [key]: `Repo "${repoSlug}" not found (may be private)` }))
+                      } else {
+                        setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+                      }
+                    } catch {
+                      // Network error — don't block
+                      setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+                    }
+                    setValidatingRepo(null)
+                    return
+                  }
+
+                  // URL validation
+                  if (labelLower.includes('url') || labelLower.includes('link') || labelLower.includes('endpoint')) {
+                    if (value.trim() && !/^https?:\/\/.+/.test(value.trim())) {
+                      setFieldErrors(prev => ({ ...prev, [key]: 'Must be a valid URL (https://...)' }))
+                      return
+                    }
+                  }
+
+                  // Clear any previous error
+                  setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+                }
+
                 return (
                 <div className="p-4">
                   {/* Step indicator */}
@@ -751,23 +809,32 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                           ) : field.type === 'textarea' ? (
-                            <textarea
-                              value={getFieldValue(field.label)}
-                              onChange={e => setFieldValue(field.label, e.target.value)}
-                              onBlur={() => syncFieldToMarkdown(field.label)}
-                              placeholder={field.placeholder}
-                              rows={3}
-                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
-                            />
+                            <>
+                              <textarea
+                                value={getFieldValue(field.label)}
+                                onChange={e => setFieldValue(field.label, e.target.value)}
+                                onBlur={() => { syncFieldToMarkdown(field.label); validateField(field.label, getFieldValue(field.label)) }}
+                                placeholder={field.placeholder}
+                                rows={3}
+                                className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
+                              />
+                              {fieldErrors[fieldKey(field.label)] && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{fieldErrors[fieldKey(field.label)]}</p>}
+                            </>
                           ) : (
-                            <input
-                              type="text"
-                              value={getFieldValue(field.label)}
-                              onChange={e => setFieldValue(field.label, e.target.value)}
-                              onBlur={() => syncFieldToMarkdown(field.label)}
-                              placeholder={field.placeholder}
-                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
+                            <>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={getFieldValue(field.label)}
+                                  onChange={e => setFieldValue(field.label, e.target.value)}
+                                  onBlur={() => { syncFieldToMarkdown(field.label); validateField(field.label, getFieldValue(field.label)) }}
+                                  placeholder={field.placeholder}
+                                  className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
+                                />
+                                {validatingRepo === fieldKey(field.label) && <span className="absolute right-2 top-2 text-xs text-gray-400 animate-pulse">checking...</span>}
+                              </div>
+                              {fieldErrors[fieldKey(field.label)] && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{fieldErrors[fieldKey(field.label)]}</p>}
+                            </>
                           )}
                         </div>
                       ))}
