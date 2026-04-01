@@ -69,6 +69,97 @@ type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
 type TemplateViewMode = 'grid' | 'list'
 type TemplateSortColumn = 'name' | 'type' | 'agents' | 'groups' | 'workflows' | 'version' | 'author'
 
+function ImportTemplateModal({
+  onClose,
+  onImport,
+}: {
+  onClose: () => void
+  onImport: (content: string) => Promise<void>
+}) {
+  const [content, setContent] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFile = async (file: File) => {
+    const text = await file.text()
+    setContent(text)
+  }
+
+  const handleSubmit = async () => {
+    if (!content.trim()) {
+      setError('TEMPLATE.md content is required')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      await onImport(content)
+      onClose()
+    } catch (err: any) {
+      setError(err.message || 'Failed to import template')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import Template from TEMPLATE.md</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Paste markdown or upload a `TEMPLATE.md` file.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Upload file</span>
+            <input
+              type="file"
+              accept=".md,text/markdown,text/plain"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleFile(file)
+              }}
+              className="block w-full text-sm text-gray-600 dark:text-gray-300"
+            />
+          </label>
+
+          <label className="block">
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Markdown content</span>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={16}
+              placeholder="---&#10;name: My Template&#10;type: organization&#10;version: 1.0.0&#10;---"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
+          >
+            {submitting ? 'Importing…' : 'Import Template'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface TemplateRow {
   key: string
   name: string
@@ -122,6 +213,8 @@ export default function Templates() {
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
   const [showWizard, setShowWizard] = useState(false)
+  const [showActionsMenu, setShowActionsMenu] = useState(false)
+  const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
@@ -230,6 +323,20 @@ export default function Templates() {
     } catch (err) {
       showError('Failed to run workflow')
     }
+  }
+
+  const handleImportTemplate = async (content: string) => {
+    const resp = await fetch('/api/templates/import-md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || data.details?.join('\n') || 'Failed to import template')
+    }
+    showSuccess('Template imported successfully')
+    fetchTemplates()
   }
 
   // Filter templates by search query
@@ -509,18 +616,45 @@ export default function Templates() {
                 Delete Selected ({selectedTemplateKeys.size})
               </button>
             )}
-            <button
-              onClick={() => setShowWizard(true)}
-              className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-            >
-              ✨ Create Template
-            </button>
-            <button
-              onClick={fetchTemplates}
-              className="text-sm font-medium transition-colors text-sky-600 hover:text-sky-800"
-            >
-              ↻ Refresh
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowActionsMenu((v) => !v)}
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-1.5"
+              >
+                <span className="text-base leading-none">⚙️</span> Template Actions <span className="text-xs">▾</span>
+              </button>
+              {showActionsMenu && (
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowWizard(true)
+                      setShowActionsMenu(false)
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <span className="text-purple-500">✨</span> AI Create Template
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowImportTemplateModal(true)
+                      setShowActionsMenu(false)
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                  >
+                    <span className="text-sky-500">📥</span> Import TEMPLATE.md
+                  </button>
+                  <button
+                    onClick={() => {
+                      fetchTemplates()
+                      setShowActionsMenu(false)
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                  >
+                    <span className="text-emerald-500">↻</span> Refresh Templates
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -793,6 +927,16 @@ export default function Templates() {
           }}
           showSuccess={showSuccess}
           showError={showError}
+        />
+      )}
+
+      {showImportTemplateModal && (
+        <ImportTemplateModal
+          onClose={() => setShowImportTemplateModal(false)}
+          onImport={async (content) => {
+            await handleImportTemplate(content)
+            setShowImportTemplateModal(false)
+          }}
         />
       )}
 
