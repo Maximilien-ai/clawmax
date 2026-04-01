@@ -12,6 +12,7 @@ import {
   triggerWorkflow,
   completeWorkflow,
   getDAGStatus,
+  parseWorkflowMd,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { listAgents } from '../lib/workspace'
@@ -19,6 +20,35 @@ import { generateCronFromText, generateWorkflowFromNL } from '../lib/ai-generato
 import { syncAllWorkflows } from '../lib/scheduler'
 
 const router = Router()
+
+/**
+ * POST /api/workflows/import-md
+ * Import a workflow from WORKFLOW.md markdown content.
+ */
+router.post('/import-md', (req, res) => {
+  try {
+    const { content } = req.body
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Markdown content is required' })
+    }
+
+    const parsed = parseWorkflowMd(content)
+    if (!parsed) {
+      return res.status(400).json({ error: 'Failed to parse WORKFLOW.md — ensure it has valid YAML frontmatter with name' })
+    }
+
+    if (!parsed.author) parsed.author = 'imported'
+
+    const result = createWorkflow(parsed)
+    if (!result.success) {
+      return res.status(400).json({ error: result.error, errors: result.errors })
+    }
+
+    res.json({ ok: true, id: result.id })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to import workflow' })
+  }
+})
 
 /**
  * POST /api/workflows/generate-cron

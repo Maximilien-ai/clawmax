@@ -161,6 +161,100 @@ function getWorkflowStatusHelp(state: WorkflowHealthState, nextRunAt?: string | 
   }
 }
 
+function ImportWorkflowModal({
+  onClose,
+  onImported,
+}: {
+  onClose: () => void
+  onImported: (content: string) => Promise<void>
+}) {
+  const [content, setContent] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFile = async (file: File | null) => {
+    if (!file) return
+    const text = await file.text()
+    setContent(text)
+  }
+
+  const handleImport = async () => {
+    if (!content.trim()) {
+      setError('Paste or upload WORKFLOW.md content first')
+      return
+    }
+    setImporting(true)
+    setError(null)
+    try {
+      await onImported(content)
+    } catch (err: any) {
+      setError(err.message || 'Failed to import workflow')
+      setImporting(false)
+      return
+    }
+    setImporting(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import Workflow</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Import a workflow from WORKFLOW.md content. Paste the markdown or upload the file directly.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              Upload WORKFLOW.md
+              <input
+                type="file"
+                accept=".md,text/markdown,text/plain"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0] || null)}
+              />
+            </label>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Uses the existing workflow markdown parser and validation path.</span>
+          </div>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={'---\nname: My Workflow\ndescription: ...\nschedule: manual\nenabled: true\ntargeting:\n  groups: []\n  agents: []\n  tags: []\n  communities: []\n---\n\nWorkflow instructions...'}
+            className="w-full min-h-[320px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing}
+            className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {importing ? 'Importing...' : 'Import Workflow'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const { config } = useAuth()
@@ -176,6 +270,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
   const [showAiPrompt, setShowAiPrompt] = useState(false)
+  const [showImportWorkflowModal, setShowImportWorkflowModal] = useState(false)
   const [showWorkflowActionsMenu, setShowWorkflowActionsMenu] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -675,6 +770,20 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
   }
 
+  const handleImportWorkflow = async (content: string) => {
+    const resp = await fetch('/api/workflows/import-md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || data.details?.join('\n') || 'Failed to import workflow')
+    }
+    showSuccess('Workflow imported successfully')
+    fetchWorkflows()
+  }
+
   const handleCreateWorkflow = async (data: any) => {
     try {
       const resp = await fetch('/api/workflows', {
@@ -1063,6 +1172,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
                     >
                       <span className="text-sky-500">＋</span> Create
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWorkflowActionsMenu(false)
+                        setShowImportWorkflowModal(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <span className="text-emerald-500">⇪</span> Import
                     </button>
                   </div>
                 </>
@@ -1846,6 +1964,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         initialData={aiInitialData || undefined}
         mode="create"
       />
+
+      {showImportWorkflowModal && (
+        <ImportWorkflowModal
+          onClose={() => setShowImportWorkflowModal(false)}
+          onImported={async (content) => {
+            await handleImportWorkflow(content)
+            setShowImportWorkflowModal(false)
+          }}
+        />
+      )}
 
       {/* Edit Dialog */}
       {editingWorkflow && (
