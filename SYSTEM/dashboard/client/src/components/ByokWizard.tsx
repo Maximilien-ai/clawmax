@@ -180,9 +180,9 @@ export function ByokWizard() {
       <button
         onClick={handleReopen}
         className="text-xs rounded-full border border-amber-300/60 bg-amber-50 px-2.5 py-1 text-amber-700 hover:bg-amber-100 transition-colors dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
-        title="Configure workspace integrations"
+        title="Configure workspaces integrations"
       >
-        Workspace Integrations
+        Workspaces Integrations
       </button>
 
       {!open ? null : (
@@ -190,7 +190,7 @@ export function ByokWizard() {
           <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[93vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspace Integrations</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspaces Integrations</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Dev preview. These settings stay local to this browser for now and are meant for flow testing, not final secure storage.
                 </p>
@@ -217,9 +217,9 @@ export function ByokWizard() {
             {step === 'models' && (
               <>
                 <div className="mt-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-sm text-sky-900 dark:text-sky-100">
-                  <div className="font-medium">Model providers</div>
+                  <div className="font-medium">Model providers (BYOK)</div>
                   <div className="mt-1">
-                    System keys may be limited or unavailable. Add your own to ensure your agents can run with the models and providers you choose, billed to your own account.
+                    System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
                   </div>
                   <div className="mt-2 text-xs opacity-80">
                     We support broad model choice, but results vary by provider and version. We recommend the suggested defaults first. If a model performs especially well or poorly in ClawMax, please share feedback on GitHub.
@@ -322,7 +322,7 @@ export function ByokWizard() {
                     Use Senso to store evidence, recall prior work, and share context across agents. ClawMax still works without it using workspace files and native workflow handoffs.
                   </div>
                   <div className="mt-2 text-xs opacity-80">
-                    Optional partner integration. Senso offers OSS and free-tier options. Docs: <a href="https://docs.senso.ai/" target="_blank" rel="noopener noreferrer" className="underline">docs.senso.ai</a>
+                    Optional partner integration. Senso offers OSS and free-tier options. Docs: <a href="https://docs.senso.ai/" target="_blank" rel="noopener noreferrer" className="underline">docs.senso.ai</a> · Login: <a href="https://platform.senso.ai/" target="_blank" rel="noopener noreferrer" className="underline">platform.senso.ai</a>
                   </div>
                 </div>
 
@@ -356,7 +356,9 @@ export function ByokWizard() {
                   <div className="mt-1">
                     Connect your own <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">Opik</a> account to track agent calls, tokens, and costs under your workspace. Without this, monitoring is reduced or skipped, but ClawMax still runs normally.
                   </div>
-                  <div className="mt-2 text-xs opacity-80">Optional partner integration. Opik offers OSS and free-tier options.</div>
+                  <div className="mt-2 text-xs opacity-80">
+                    Optional partner integration. Opik offers OSS and free-tier options. Login: <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">comet.com/site/products/opik</a>
+                  </div>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
@@ -395,6 +397,9 @@ export function ByokWizard() {
                   <div className="mt-1">
                     Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax still works without it, but GitHub is recommended for software and operational teams.
                   </div>
+                  <div className="mt-2 text-xs opacity-80">
+                    If GitHub is not ready yet, install the CLI with <span className="font-mono">brew install gh</span> and authenticate with <span className="font-mono">gh auth login</span>.
+                  </div>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
@@ -420,6 +425,11 @@ export function ByokWizard() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {githubReady ? 'GitHub looks ready for workspace issue and PR workflows.' : 'GitHub is optional, but software and delivery templates work better when gh and gh-issues are ready.'}
                     </div>
+                    {!githubReady && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                        Quick setup: install <span className="font-mono">gh</span>, run <span className="font-mono">gh auth login</span>, and refresh repo scope with <span className="font-mono">gh auth refresh -s repo</span> if needed.
+                      </div>
+                    )}
                   </div>
                 </div>
 
