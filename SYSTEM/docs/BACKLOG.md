@@ -43,6 +43,9 @@
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
+- [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
+- [ ] **Templates explorer org/agent grouping and collapse** — allow users to collapse or expand organization templates vs agent templates for easier browsing as the catalog grows. GitHub: `#82`
+- [ ] **Expand agent template library from org-template agents** — promote stronger org-template agents into richer reusable agent templates with deeper starter instructions and clearer reuse paths. GitHub: `#83`
 
 ### Backlog from March 28 Sprint + Live Execution
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to IDENTITY.md so agents remember across sessions
