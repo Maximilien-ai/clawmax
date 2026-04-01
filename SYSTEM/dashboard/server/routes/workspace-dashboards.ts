@@ -14,6 +14,38 @@ import path from 'path'
 const router = Router()
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
 
+function summarizeSentence(value: string, maxLength = 220): string {
+  const trimmed = value.replace(/\s+/g, ' ').trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= maxLength) return trimmed
+  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+function extractProjectConfigurationLines(content: string): string[] {
+  const lines = content.split('\n')
+  const startIndex = lines.findIndex((line) => /^##\s+Project Configuration\b/i.test(line.trim()))
+  if (startIndex === -1) return []
+
+  const collected: string[] = []
+  for (let i = startIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (!line) continue
+    if (/^##\s+/.test(line)) break
+    if (/^>\s*\*\*Customize/i.test(line)) continue
+    if (/^-\s+/.test(line) || /^\d+\.\s+/.test(line)) {
+      collected.push(line.replace(/^[-\d.\s]+/, '').trim())
+    }
+  }
+  return collected.slice(0, 6)
+}
+
+function extractParticipantResponses(execution: any): string[] {
+  const participants: any[] = Array.isArray(execution?.participants) ? execution.participants : []
+  return participants
+    .map((participant: any) => participant?.response || participant?.result?.text || participant?.result?.response || '')
+    .filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
 function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
   const seen = new Set<string>()
   for (const value of values) {
@@ -114,6 +146,14 @@ router.get('/:token', async (req, res) => {
       const workflowSummaries = workflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
         const latest = executions[0] || null
+        const kickoffLines = extractProjectConfigurationLines(workflow.content || '')
+        const participantResponses = extractParticipantResponses(latest)
+        const normalizedKickoff = kickoffLines.length > 0
+          ? kickoffLines.map((line) => summarizeSentence(line, 160))
+          : (latest?.logs?.[0] ? [summarizeSentence(latest.logs[0], 160)] : [])
+        const normalizedResults = participantResponses.length > 0
+          ? participantResponses.slice(0, 3).map((response) => summarizeSentence(response, 220))
+          : (latest?.logs?.slice(-2) || []).map((line: string) => summarizeSentence(line, 220))
         return {
           id: workflow.id,
           name: workflow.name,
@@ -137,10 +177,13 @@ router.get('/:token', async (req, res) => {
             status: execution.status,
             triggerType: execution.triggerType,
           })),
-          kickoffSummary: latest?.logs?.[0] || null,
-          resultSummary: latest?.logs?.slice(-2) || [],
+          kickoffSummary: normalizedKickoff[0] || null,
+          kickoffItems: normalizedKickoff,
+          resultSummary: normalizedResults,
           resultLinks: extractLinks([
             workflow.description,
+            workflow.content,
+            ...participantResponses,
             ...(latest?.logs || []),
           ]),
         }
