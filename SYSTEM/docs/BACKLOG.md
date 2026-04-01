@@ -44,9 +44,9 @@
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
 - [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
-- [ ] **Templates explorer org/agent grouping and collapse** — allow users to collapse or expand organization templates vs agent templates for easier browsing as the catalog grows. GitHub: `#82`
-- [ ] **Expand agent template library from org-template agents** — promote stronger org-template agents into richer reusable agent templates with deeper starter instructions and clearer reuse paths. GitHub: `#83`
-- [ ] **Template delete confirmation dialog** — deleting a user-created template from the trash button should use the same consequences + confirm dialog pattern as other destructive deletes instead of deleting immediately.
+- [x] **Templates explorer org/agent grouping and collapse** — allow users to collapse or expand organization templates vs agent templates for easier browsing as the catalog grows. GitHub: `#82`
+- [x] **Expand agent template library from org-template agents** — promote stronger org-template agents into richer reusable agent templates with deeper starter instructions and clearer reuse paths. GitHub: `#83`
+- [x] **Template delete confirmation dialog** — deleting a user-created template from the trash button should use the same consequences + confirm dialog pattern as other destructive deletes instead of deleting immediately.
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
 
 ### Backlog from March 28 Sprint + Live Execution
@@ -58,10 +58,10 @@
 ### Discovered During Manual + CLI Testing (March 29)
 - [x] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
 - [x] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
-- [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty). GitHub: `#69`
+- [x] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty). GitHub: `#69`
 
 ### Workflow Import / Export
-- [x] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#79`
+- [x] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#76`
 
 ### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
 - [x] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
@@ -87,7 +87,7 @@
 ### Workflow v2 Continued
 > Design: `docs/hacks/openclaw-hack-day-mar25/WORKFLOW_V2_DESIGN.md`
 
-- [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution
+- [ ] **Agent-to-agent messaging** — direct 1-1 between agents for dependency resolution. GitHub: `#64`
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete
 
 ### Self-Management
