@@ -11,6 +11,12 @@ function maskKey(value: string) {
 type Step = 'models' | 'senso' | 'monitoring' | 'github'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
 type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
+type IntegrationStatus = {
+  validationAvailable: boolean
+  validationMode: 'live' | 'fallback'
+  providers: string[]
+  notes?: string[]
+}
 
 export function ByokWizard() {
   const { user, config } = useAuth()
@@ -40,6 +46,7 @@ export function ByokWizard() {
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
 
   useEffect(() => {
     const stored = readStoredByokKeys()
@@ -116,6 +123,26 @@ export function ByokWizard() {
 
   useEffect(() => {
     if (!open) return
+    fetch('/api/integrations/status')
+      .then(async (r) => {
+        const contentType = r.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+          setIntegrationStatus({ validationAvailable: false, validationMode: 'fallback', providers: [], notes: ['Live validation is unavailable on the current server build.'] })
+          return null
+        }
+        return r.json()
+      })
+      .then((data) => {
+        if (!data) return
+        setIntegrationStatus({
+          validationAvailable: !!data.validationAvailable,
+          validationMode: data.validationMode === 'live' ? 'live' : 'fallback',
+          providers: Array.isArray(data.providers) ? data.providers : [],
+          notes: Array.isArray(data.notes) ? data.notes : [],
+        })
+      })
+      .catch(() => setIntegrationStatus({ validationAvailable: false, validationMode: 'fallback', providers: [], notes: ['Live validation is unavailable on the current server build.'] }))
+
     fetch('/api/templates/organizations/prereqs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -313,6 +340,28 @@ export function ByokWizard() {
               <span className={`px-2 py-1 rounded-full ${step === 'monitoring' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>3. Opik</span>
               <span>→</span>
               <span className={`px-2 py-1 rounded-full ${step === 'github' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>4. GitHub</span>
+            </div>
+
+            <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+              integrationStatus?.validationAvailable
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+            }`}>
+              <div className="font-medium">
+                Validation mode: {integrationStatus?.validationAvailable ? 'Live' : 'Fallback'}
+              </div>
+              <div className="mt-1 text-xs opacity-90">
+                {integrationStatus?.validationAvailable
+                  ? 'This server can validate provider keys and local Ollama reachability right now.'
+                  : 'This server cannot validate integrations live right now. Local browser save still works, and template defaults will still prefill.'}
+              </div>
+              {(sensoContextLabel.trim() || githubDefaultRepo.trim()) && (
+                <div className="mt-2 text-xs opacity-90">
+                  Template apply defaults:
+                  {sensoContextLabel.trim() ? ` Senso context → ${sensoContextLabel.trim()}.` : ''}
+                  {githubDefaultRepo.trim() ? ` GitHub repo → ${githubDefaultRepo.trim()}.` : ''}
+                </div>
+              )}
             </div>
 
             {step === 'models' && (

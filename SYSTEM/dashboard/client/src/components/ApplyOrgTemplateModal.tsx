@@ -63,6 +63,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
+  const [prefilledGithubDefault, setPrefilledGithubDefault] = useState(false)
+  const [prefilledSensoDefault, setPrefilledSensoDefault] = useState(false)
   const { showSuccess, showError: showToastError } = useToast()
 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -74,13 +76,21 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   React.useEffect(() => {
     const stored = readStoredByokKeys()
     if (stored.githubDefaultRepo?.trim()) {
-      setGithubRepo((current) => current || stored.githubDefaultRepo!.trim())
+      setGithubRepo((current) => {
+        if (current) return current
+        setPrefilledGithubDefault(true)
+        return stored.githubDefaultRepo!.trim()
+      })
     }
     if (stored.sensoApiKey?.trim()) {
       setUseSenso(true)
     }
     if (stored.sensoContextLabel?.trim()) {
-      setSensoFolder((current) => current || stored.sensoContextLabel!.trim())
+      setSensoFolder((current) => {
+        if (current) return current
+        setPrefilledSensoDefault(true)
+        return stored.sensoContextLabel!.trim()
+      })
     }
   }, [])
 
@@ -519,6 +529,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           {/* External Context & Coordination */}
           <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">External Context & Coordination</h3>
+            {(prefilledGithubDefault || prefilledSensoDefault) && (
+              <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-200">
+                Prefilled from Workspaces Integrations:
+                {prefilledGithubDefault && githubRepo.trim() ? ` GitHub repo → ${githubRepo.trim()}.` : ''}
+                {prefilledSensoDefault && sensoFolder.trim() ? ` Senso context → ${sensoFolder.trim()}.` : ''}
+                {' '}You can keep these defaults or change them for this template apply.
+              </div>
+            )}
             <div className="space-y-4">
               <div>
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -546,6 +564,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                       onChange={e => {
                         const value = e.target.value
                         setGithubRepo(value)
+                        setPrefilledGithubDefault(false)
                         if (value && template.workflows) {
                           const newOverrides = { ...workflowOverrides }
                           for (const wf of template.workflows) {
@@ -592,7 +611,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                     <input
                       type="text"
                       value={sensoFolder}
-                      onChange={e => setSensoFolder(e.target.value)}
+                      onChange={e => {
+                        setSensoFolder(e.target.value)
+                        setPrefilledSensoDefault(false)
+                      }}
                       placeholder="Optional label for evidence and briefs"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                     />
