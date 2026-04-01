@@ -1,0 +1,152 @@
+{
+  "name": "Investing Research Desk",
+  "type": "organization",
+  "version": "1.0.0",
+  "emoji": "📈",
+  "category": "personal",
+  "description": "Proposal template for investment research, thesis review, watchlist maintenance, and decision memos. Early idea only and intended as a starter, not financial advice.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "investing",
+    "finance",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "investing-lead",
+      "name": "Investing Lead",
+      "role": "Research lead — defines the investment question, decision criteria, and evidence bar for the user.",
+      "tags": ["lead", "investing", "research"],
+      "communities": ["Investing Desk"],
+      "groups": ["Ideas", "Thesis", "Risks", "Status"]
+    },
+    {
+      "id": "company-analyst",
+      "name": "Company Analyst",
+      "role": "Company specialist — reviews business quality, product context, competitive position, and core metrics.",
+      "tags": ["investing", "companies", "analysis"],
+      "communities": ["Investing Desk"],
+      "groups": ["Ideas", "Status"]
+    },
+    {
+      "id": "thesis-writer",
+      "name": "Thesis Writer",
+      "role": "Thesis specialist — turns research into a concise bull, bear, and watchlist case with explicit assumptions.",
+      "tags": ["investing", "thesis", "writing"],
+      "communities": ["Investing Desk"],
+      "groups": ["Thesis", "Status"]
+    },
+    {
+      "id": "risk-reviewer",
+      "name": "Risk Reviewer",
+      "role": "Risk specialist — identifies downside cases, concentration concerns, and what would invalidate the thesis.",
+      "tags": ["investing", "risk", "review"],
+      "communities": ["Investing Desk"],
+      "groups": ["Risks", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Investing Desk",
+      "description": "Shared space for investment research, thesis development, and risk review."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Ideas",
+      "description": "Watchlist items, company research, and initial investing ideas.",
+      "community": "Investing Desk"
+    },
+    {
+      "name": "Thesis",
+      "description": "Bull and bear cases, assumptions, catalysts, and decision memos.",
+      "community": "Investing Desk"
+    },
+    {
+      "name": "Risks",
+      "description": "Downside cases, invalidation criteria, concentration concerns, and caveats.",
+      "community": "Investing Desk"
+    },
+    {
+      "name": "Status",
+      "description": "What is worth deeper work, what changed, and what the user should review next.",
+      "community": "Investing Desk"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "investing-kickoff",
+      "name": "Investing Kickoff",
+      "description": "Initialize the investing desk around one idea, watchlist, or decision question.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["investing-lead", "company-analyst", "thesis-writer", "risk-reviewer"]
+      },
+      "content": "# Investing Kickoff\n\nYou are the Investing Lead. The investing research desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research target:** [stock, fund, sector, company, watchlist]\n- **Primary question:** [e.g., buy, hold, avoid, monitor, compare]\n- **Time horizon:** [short term, long term, watchlist only, custom]\n- **Evidence sources:** [earnings, filings, product notes, market data, custom]\n- **Output artifact:** [thesis memo, watchlist note, risk review]\n\n## Your Tasks\n1. Define the investing question and evidence bar\n2. Ask Company Analyst for the first company or sector sweep\n3. Ask Thesis Writer for the first draft thesis structure\n4. Ask Risk Reviewer for the primary downside and invalidation lens\n5. Post the initial research plan to Status\n\n## Important Note\nThis is a research starter template, not financial advice. Users should make their own decisions and consult professionals where appropriate.",
+      "type": "once",
+      "owner": "investing-lead"
+    },
+    {
+      "id": "idea-sweep",
+      "name": "Idea Sweep",
+      "description": "Gather the strongest current evidence on the target company, sector, or watchlist item.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Ideas"],
+        "tags": [],
+        "agents": ["company-analyst"]
+      },
+      "content": "# Idea Sweep\n\n1. Gather the most important current evidence on the target company, fund, or sector\n2. Summarize what appears durable versus noisy or speculative\n3. Highlight the metrics, catalysts, or product signals that matter most\n4. Post the sweep to Ideas and Status\n5. Flag any evidence that sharply changes the initial view",
+      "dependsOn": ["investing-kickoff"],
+      "type": "recurring",
+      "owner": "investing-lead"
+    },
+    {
+      "id": "thesis-and-risk-cycle",
+      "name": "Thesis And Risk Cycle",
+      "description": "Build the current thesis and downside review for the target investment question.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Thesis", "Risks"],
+        "tags": [],
+        "agents": ["thesis-writer", "risk-reviewer"]
+      },
+      "content": "# Thesis And Risk Cycle\n\n1. Draft the current bull, bear, and base case using the latest evidence\n2. Make assumptions explicit and note the likely invalidation points\n3. Separate core long-term view from short-term noise where possible\n4. Produce a concise decision memo with confidence and caveats\n5. Post the result to Thesis, Risks, and Status",
+      "dependsOn": ["idea-sweep"],
+      "type": "recurring",
+      "owner": "investing-lead"
+    },
+    {
+      "id": "watchlist-review",
+      "name": "Watchlist Review",
+      "description": "Review the current investing memo and decide the next watchlist or decision step.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["investing-lead", "thesis-writer", "risk-reviewer"]
+      },
+      "content": "# Watchlist Review\n\n1. Review the current idea sweep, thesis memo, and risk notes\n2. Summarize the strongest reason to act, wait, or avoid\n3. Make the next watchlist or decision step explicit\n4. Produce a concise investing review memo\n5. Post the final recommendation to Status",
+      "dependsOn": ["thesis-and-risk-cycle"],
+      "type": "conditional",
+      "owner": "investing-lead"
+    }
+  ]
+}

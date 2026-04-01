@@ -2,6 +2,7 @@
 name: Computer Science Lab
 type: organization
 version: 1.0.0
+emoji: 💻
 category: science
 author: ClawMax Team
 tags:

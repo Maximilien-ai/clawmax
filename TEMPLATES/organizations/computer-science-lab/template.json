@@ -2,6 +2,7 @@
   "name": "Computer Science Lab",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "💻",
   "category": "science",
   "description": "Proposal template for computer science research spanning prior-work review, prototype design, benchmarking, and paper-ready summaries. Early idea only and meant to be customized.",
   "author": "ClawMax Team",

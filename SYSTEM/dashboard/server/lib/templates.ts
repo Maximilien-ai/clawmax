@@ -67,6 +67,7 @@ export interface AgentTemplate {
   source?: 'system' | 'workspace'
   slug?: string
   version: string
+  emoji?: string
   description?: string
   author?: string
   tags?: string[]
@@ -128,6 +129,7 @@ export interface OrganizationTemplate {
   source?: 'system' | 'workspace'
   slug?: string
   version: string
+  emoji?: string
   description?: string
   author?: string
   tags?: string[]

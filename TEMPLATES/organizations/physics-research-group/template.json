@@ -2,6 +2,7 @@
   "name": "Physics Research Group",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "🔭",
   "category": "science",
   "description": "Proposal template for theory, simulation, experiment coordination, and result review in physics research. Early idea only and meant to be adapted to the specific field.",
   "author": "ClawMax Team",

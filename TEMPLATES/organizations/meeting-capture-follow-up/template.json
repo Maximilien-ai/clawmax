@@ -2,6 +2,7 @@
   "name": "Meeting Capture & Follow-up",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "✅",
   "category": "personal",
   "description": "Proposal template for capturing meeting notes, extracting actions, and routing follow-ups after conversations. Early idea only and meant to be adapted.",
   "author": "ClawMax Team",

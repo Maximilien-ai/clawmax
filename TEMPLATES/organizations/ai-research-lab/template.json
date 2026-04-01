@@ -2,6 +2,7 @@
   "name": "AI Research Lab",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "🧠",
   "category": "science",
   "description": "Proposal template for AI research across data and baseline review, training planning, evaluation, and safety checks. Early idea only and meant as a customizable starter.",
   "author": "ClawMax Team",

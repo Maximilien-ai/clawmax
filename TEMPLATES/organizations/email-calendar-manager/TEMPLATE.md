@@ -2,6 +2,7 @@
 name: Email & Calendar Manager
 type: organization
 version: 1.0.0
+emoji: 📬
 category: personal
 author: ClawMax Team
 tags:

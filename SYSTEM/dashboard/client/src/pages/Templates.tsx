@@ -11,6 +11,7 @@ interface AgentTemplate {
   source?: 'system' | 'workspace'
   slug?: string
   version: string
+  emoji?: string
   description?: string
   author?: string
   tags?: string[]
@@ -33,6 +34,7 @@ interface OrganizationTemplate {
   source?: 'system' | 'workspace'
   slug?: string
   version: string
+  emoji?: string
   description?: string
   author?: string
   tags?: string[]
@@ -48,6 +50,7 @@ interface WorkflowTemplate {
   type: 'workflow'
   source?: 'workspace'
   slug?: string
+  emoji?: string
   description: string
   schedule: string
   enabled: boolean
@@ -1128,6 +1131,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
   onToggleSelect?: () => void
 }) {
   const isOrg = template.type === 'organization'
+  const templateEmoji = (template as any).emoji
   const agentCount = template.agents.length
   const communityCount = isOrg && template.communities ? template.communities.length : 0
   const groupCount = isOrg && template.groups ? template.groups.length : 0
@@ -1155,9 +1159,14 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
         </button>
       )}
       <div className="flex items-start justify-between mb-2">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
-          {template.name}
-        </h3>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          {templateEmoji && (
+            <span className="text-xl leading-none flex-shrink-0 mt-0.5">{templateEmoji}</span>
+          )}
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
+            {template.name}
+          </h3>
+        </div>
         <div className="flex items-center gap-1 pr-7">
           <button
             onClick={(e) => { e.stopPropagation(); onApply(); }}
@@ -1239,12 +1248,16 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
   const canDelete = template.type === 'workflow' || template.source !== 'system'
+  const templateEmoji = (template as any).emoji
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{template.name}</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            {templateEmoji && <span className="text-2xl leading-none">{templateEmoji}</span>}
+            <span>{template.name}</span>
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl leading-none">
             ×
           </button>
@@ -1253,7 +1266,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
         <div className="p-6 space-y-4">
           {/* Type & Version */}
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{isOrg ? '🏢' : isWorkflow ? '⚡' : '🤖'}</span>
+            <span className="text-2xl">{templateEmoji || (isOrg ? '🏢' : isWorkflow ? '⚡' : '🤖')}</span>
             <div>
               <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {isOrg ? 'Organization Template' : isWorkflow ? 'Workflow Template' : 'Agent Template'}
@@ -1531,6 +1544,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
 }
 
 function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSelected, onToggleSelect }: { template: WorkflowTemplate; onClick: () => void; selected: boolean; selectionMode?: boolean; isSelected?: boolean; onToggleSelect?: () => void }) {
+  const templateEmoji = template.emoji || '⚡'
   const targetingCount =
     template.targeting.communities.length +
     template.targeting.groups.length +
@@ -1558,10 +1572,12 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
         </button>
       )}
       <div className="flex items-start justify-between mb-2">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
-          {template.name}
-        </h3>
-        <span className="text-lg">⚡</span>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <span className="text-xl leading-none flex-shrink-0 mt-0.5">{templateEmoji}</span>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
+            {template.name}
+          </h3>
+        </div>
       </div>
 
       {template.description && (

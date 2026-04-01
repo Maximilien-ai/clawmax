@@ -2,6 +2,7 @@
   "name": "Chief Of Staff",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "🧭",
   "category": "personal",
   "description": "Proposal template for a personal chief of staff team that helps one user manage inbox, calendar, meeting prep, and follow-through. Early idea only and meant to be customized.",
   "author": "ClawMax Team",

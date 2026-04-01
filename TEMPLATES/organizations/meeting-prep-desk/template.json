@@ -2,6 +2,7 @@
   "name": "Meeting Prep Desk",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "📝",
   "category": "personal",
   "description": "Proposal template for researching people and topics before meetings, then assembling concise briefing packets. Early idea only and intended as a customizable starter.",
   "author": "ClawMax Team",

@@ -2,6 +2,7 @@
   "name": "Email & Calendar Manager",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "📬",
   "category": "personal",
   "description": "Proposal template for inbox triage, scheduling coordination, and follow-up routing. Early idea only and meant to be adapted to each user's preferences.",
   "author": "ClawMax Team",

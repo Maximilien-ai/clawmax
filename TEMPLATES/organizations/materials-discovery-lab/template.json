@@ -2,6 +2,7 @@
   "name": "Materials Discovery Lab",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "⚗️",
   "category": "science",
   "description": "Proposal template for materials research spanning literature review, simulation planning, experiment design, and candidate ranking. Early idea and intended as a customizable starting point.",
   "author": "ClawMax Team",

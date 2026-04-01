@@ -2,6 +2,7 @@
   "name": "Statistics Research Lab",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "📊",
   "category": "science",
   "description": "Proposal template for statistical study design, data audit, inference, and results review. Early idea only and intended as a starter scaffold for customization.",
   "author": "ClawMax Team",

@@ -2,6 +2,7 @@
   "name": "Biological Research Lab",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "🧬",
   "category": "science",
   "description": "Proposal template for a biology-focused research lab. Starter scaffold for literature review, experiment planning, bioinformatics analysis, and manuscript drafting. Early idea only and expected to be customized.",
   "author": "ClawMax Team",

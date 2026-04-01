@@ -2,6 +2,7 @@
 name: Meeting Prep Desk
 type: organization
 version: 1.0.0
+emoji: 📝
 category: personal
 author: ClawMax Team
 tags:

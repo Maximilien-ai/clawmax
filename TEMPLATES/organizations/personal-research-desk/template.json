@@ -2,6 +2,7 @@
   "name": "Personal Research Desk",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "🔎",
   "category": "personal",
   "description": "Proposal template for researching people, companies, and topics for the user's decisions or conversations. Early idea only and intended as a starter.",
   "author": "ClawMax Team",

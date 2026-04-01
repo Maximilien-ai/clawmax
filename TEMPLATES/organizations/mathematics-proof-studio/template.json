@@ -2,6 +2,7 @@
   "name": "Mathematics Proof Studio",
   "type": "organization",
   "version": "1.0.0",
+  "emoji": "📐",
   "category": "science",
   "description": "Proposal template for theorem exploration, proof attempts, verification, and exposition. Early idea only and intended as a customizable starting point for mathematical workflows.",
   "author": "ClawMax Team",
