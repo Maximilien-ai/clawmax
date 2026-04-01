@@ -278,6 +278,7 @@ router.get('/:token', async (req, res) => {
             totalCostUsd: metering.estimatedCostUsd,
             totalTraces: metering.totalTraces,
             dailyCost: metering.dailyCost,
+            costSummary: metering.costSummary,
             byAgent: metering.byAgent.slice(0, 10),
             byWorkflow: metering.byWorkflow.slice(0, 10),
           },

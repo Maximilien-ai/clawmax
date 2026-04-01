@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/metering.test.ts
  */
 
-import { buildDailyCostSeries } from './metering'
+import { buildDailyCostSeries, summarizeCostWindows } from './metering'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -78,6 +78,22 @@ async function run() {
     assert(yesterdayBucket!.traceCount === 1, 'Expected one trace in yesterday bucket')
     assert(Math.abs(yesterdayBucket!.estimatedCostUsd - 0.2) < 0.0001, 'Expected yesterday cost to aggregate')
     assert(series.some((entry) => entry.traceCount === 0), 'Expected at least one empty day bucket')
+  })
+
+  await test('summarizeCostWindows returns today, last7d, and avg/day values', () => {
+    const now = new Date()
+    const todayKey = now.toISOString().slice(0, 10)
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const summary = summarizeCostWindows([
+      { date: todayKey, estimatedCostUsd: 1.25, traceCount: 3 },
+      { date: yesterday.toISOString().slice(0, 10), estimatedCostUsd: 0.75, traceCount: 2 },
+      { date: '2000-01-01', estimatedCostUsd: 0.5, traceCount: 1 },
+    ])
+
+    assert(Math.abs(summary.todayCostUsd - 1.25) < 0.0001, 'Expected today cost to come from today bucket')
+    assert(Math.abs(summary.last7dCostUsd - 2.5) < 0.0001, 'Expected last7d cost to sum all buckets')
+    assert(Math.abs(summary.avgDailyCostUsd - (2.5 / 3)) < 0.0001, 'Expected avg/day cost to average across buckets')
   })
 
   console.log('\n========================================')

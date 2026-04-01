@@ -45,6 +45,11 @@ export interface WorkspaceMetering {
   totalTokens: number
   estimatedCostUsd: number
   dailyCost: Array<{ date: string; estimatedCostUsd: number; traceCount: number }>
+  costSummary: {
+    todayCostUsd: number
+    last7dCostUsd: number
+    avgDailyCostUsd: number
+  }
   byAgent: AgentMetering[]
   byWorkflow: WorkflowMetering[]
   period: string
@@ -72,6 +77,20 @@ export function buildDailyCostSeries(traces: TraceData[], days = 7): Array<{ dat
     ...entry,
     estimatedCostUsd: Math.round(entry.estimatedCostUsd * 10000) / 10000,
   }))
+}
+
+export function summarizeCostWindows(
+  dailyCost: Array<{ date: string; estimatedCostUsd: number; traceCount: number }>
+): { todayCostUsd: number; last7dCostUsd: number; avgDailyCostUsd: number } {
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const todayEntry = dailyCost.find((entry) => entry.date === todayKey)
+  const last7dCostUsd = dailyCost.reduce((sum, entry) => sum + Number(entry.estimatedCostUsd || 0), 0)
+  const avgDailyCostUsd = dailyCost.length > 0 ? last7dCostUsd / dailyCost.length : 0
+  return {
+    todayCostUsd: Math.round(Number(todayEntry?.estimatedCostUsd || 0) * 10000) / 10000,
+    last7dCostUsd: Math.round(last7dCostUsd * 10000) / 10000,
+    avgDailyCostUsd: Math.round(avgDailyCostUsd * 10000) / 10000,
+  }
 }
 
 function getOpikConfig() {
@@ -203,10 +222,11 @@ export async function getWorkspaceMetering(workspaceId?: string): Promise<Worksp
     }
   }
 
-  const byAgent = Array.from(agentMap.values()).sort((a, b) => b.totalTokens - a.totalTokens)
-  const byWorkflow = Array.from(workflowMap.values()).sort((a, b) => b.totalRuns - a.totalRuns)
+  const byAgent = Array.from(agentMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
+  const byWorkflow = Array.from(workflowMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
 
   const totalCost = byAgent.reduce((s, a) => s + a.estimatedCostUsd, 0)
+  const dailyCost = buildDailyCostSeries(traces)
 
   return {
     totalTraces: traces.length,
@@ -214,7 +234,8 @@ export async function getWorkspaceMetering(workspaceId?: string): Promise<Worksp
     totalOutputTokens: totalOutput,
     totalTokens: totalInput + totalOutput,
     estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
-    dailyCost: buildDailyCostSeries(traces),
+    dailyCost,
+    costSummary: summarizeCostWindows(dailyCost),
     byAgent,
     byWorkflow,
     period: 'all',

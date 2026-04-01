@@ -45,8 +45,13 @@ interface SharedDashboardPayload {
       totalCostUsd: number
       totalTraces: number
       dailyCost: Array<{ date: string; estimatedCostUsd: number; traceCount: number }>
+      costSummary: {
+        todayCostUsd: number
+        last7dCostUsd: number
+        avgDailyCostUsd: number
+      }
       byAgent: Array<{ agentId: string; estimatedCostUsd: number }>
-      byWorkflow: Array<{ workflowId: string; workflowName: string; estimatedCostUsd: number }>
+      byWorkflow: Array<{ workflowId: string; workflowName: string; estimatedCostUsd: number; totalRuns: number }>
     }
   }
   agents: Array<{
@@ -177,6 +182,11 @@ function normalizePayload(input: any): SharedDashboardPayload {
         totalCostUsd: Number(input?.costs?.metering?.totalCostUsd || 0),
         totalTraces: Number(input?.costs?.metering?.totalTraces || 0),
         dailyCost: Array.isArray(input?.costs?.metering?.dailyCost) ? input.costs.metering.dailyCost : [],
+        costSummary: {
+          todayCostUsd: Number(input?.costs?.metering?.costSummary?.todayCostUsd || 0),
+          last7dCostUsd: Number(input?.costs?.metering?.costSummary?.last7dCostUsd || 0),
+          avgDailyCostUsd: Number(input?.costs?.metering?.costSummary?.avgDailyCostUsd || 0),
+        },
         byAgent: Array.isArray(input?.costs?.metering?.byAgent) ? input.costs.metering.byAgent : [],
         byWorkflow: Array.isArray(input?.costs?.metering?.byWorkflow) ? input.costs.metering.byWorkflow : [],
       },
@@ -295,6 +305,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const failedWorkflows = payload.workflows.filter(workflow => workflow.status === 'failed').length
   const idleWorkflows = Math.max(payload.workflows.length - runningWorkflows - failedWorkflows, 0)
   const dailyCostMax = Math.max(...payload.costs.metering.dailyCost.map((entry) => entry.estimatedCostUsd), 0)
+  const topWorkflowCost = payload.costs.metering.byWorkflow[0]?.estimatedCostUsd || 0
+  const workflowSharePct = payload.costs.metering.totalCostUsd > 0
+    ? (topWorkflowCost / payload.costs.metering.totalCostUsd) * 100
+    : 0
   const criticalNotifications = payload.notifications.filter(notification => notification.severity === 'critical').length
   const warningNotifications = payload.notifications.filter(notification => notification.severity === 'warning').length
   const infoNotifications = Math.max(payload.notifications.length - criticalNotifications - warningNotifications, 0)
@@ -390,7 +404,41 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
             </div>
             <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+            <div className={`mt-4 grid grid-cols-3 gap-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-gray-500 dark:text-slate-500">Today</div>
+                <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.todayCostUsd.toFixed(2)}</div>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-gray-500 dark:text-slate-500">Last 7d</div>
+                <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.last7dCostUsd.toFixed(2)}</div>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-gray-500 dark:text-slate-500">Avg / day</div>
+                <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.avgDailyCostUsd.toFixed(2)}</div>
+              </div>
+            </div>
             {renderCostTrend(false)}
+            <div className="mt-4">
+              <div className={`mb-2 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide text-gray-500 dark:text-slate-500`}>
+                <span>Top Workflow Spend</span>
+                {payload.costs.metering.byWorkflow.length > 0 && <span>{workflowSharePct.toFixed(0)}% of total</span>}
+              </div>
+              <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
+                {payload.costs.metering.byWorkflow.slice(0, compact ? 3 : 5).map((workflow) => (
+                  <div key={workflow.workflowId} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
+                    <div className="min-w-0 pr-3">
+                      <div className="truncate font-medium text-gray-900 dark:text-slate-100">{workflow.workflowName || workflow.workflowId}</div>
+                      {!compact && <div className="text-gray-500 dark:text-slate-500">{workflow.totalRuns || 0} runs</div>}
+                    </div>
+                    <span className="whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">${workflow.estimatedCostUsd.toFixed(4)}</span>
+                  </div>
+                ))}
+                {payload.costs.metering.byWorkflow.length === 0 && (
+                  <div className="text-sm text-gray-500 dark:text-slate-500">No workflow spend recorded yet.</div>
+                )}
+              </div>
+            </div>
           </section>
         )
       case 'agents':
@@ -724,6 +772,20 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
               </div>
               <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+              <div className={`mt-4 grid grid-cols-3 gap-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+                <div className="rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2">
+                  <div className="text-slate-500">Today</div>
+                  <div className="mt-1 font-semibold text-slate-100">${payload.costs.metering.costSummary.todayCostUsd.toFixed(2)}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2">
+                  <div className="text-slate-500">Last 7d</div>
+                  <div className="mt-1 font-semibold text-slate-100">${payload.costs.metering.costSummary.last7dCostUsd.toFixed(2)}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2">
+                  <div className="text-slate-500">Avg / day</div>
+                  <div className="mt-1 font-semibold text-slate-100">${payload.costs.metering.costSummary.avgDailyCostUsd.toFixed(2)}</div>
+                </div>
+              </div>
               {renderCostTrend(true)}
               {compact && (
                 <div className="mt-3 rounded-xl border border-white/10 bg-slate-800/70 p-3">
@@ -744,6 +806,29 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                   </div>
                 </div>
               )}
+
+              <div className="mt-6">
+                <div className="mb-2 flex items-center justify-between text-sm font-medium text-slate-300">
+                  <span>Top Workflow Spend</span>
+                  {payload.costs.metering.byWorkflow.length > 0 && (
+                    <span className="text-xs uppercase tracking-wide text-slate-500">{workflowSharePct.toFixed(0)}% top-share</span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {payload.costs.metering.byWorkflow.slice(0, compact ? 3 : 5).map(workflow => (
+                    <div key={workflow.workflowId} className="flex items-center justify-between rounded-lg bg-slate-800/70 px-3 py-2 text-sm">
+                      <div className="min-w-0 pr-3">
+                        <div className="truncate">{workflow.workflowName || workflow.workflowId}</div>
+                        {!compact && <div className="text-xs text-slate-500">{workflow.totalRuns || 0} runs</div>}
+                      </div>
+                      <span className="text-emerald-400">${workflow.estimatedCostUsd.toFixed(4)}</span>
+                    </div>
+                  ))}
+                  {payload.costs.metering.byWorkflow.length === 0 && (
+                    <div className="text-sm text-slate-500">No workflow spend recorded yet.</div>
+                  )}
+                </div>
+              </div>
 
               {!compact && (
               <div className="mt-6">
