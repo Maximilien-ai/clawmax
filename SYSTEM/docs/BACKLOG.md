@@ -18,7 +18,7 @@
 ### Cost Management (Sprint Priority #2)
 - [x] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
 - [x] **Cost notifications** — toast/alert when approaching limits, email notification option
-- [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends. GitHub: `#78`
+- [x] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends. GitHub: `#78`
 
 ### Backup & Restore (Sprint Priority #3)
 - [ ] **Workspace backup** — zip workspace + config, downloadable from UI. Trigger manually or schedule.
@@ -56,7 +56,7 @@
 - [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty). GitHub: `#69`
 
 ### Workflow Import / Export
-- [ ] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#79`
+- [x] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#79`
 
 ### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
 - [x] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
