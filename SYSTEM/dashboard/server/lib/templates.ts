@@ -1902,6 +1902,36 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
+      // Step 8: Write project context to each agent's IDENTITY.md
+      // Extract from kickoff workflow content (with any user overrides)
+      const kickoffWorkflow = (template.workflows || []).find((w: any) =>
+        w.type === 'once' || w.id?.includes('kickoff') || w.name?.toLowerCase().includes('kickoff')
+      )
+      if (kickoffWorkflow) {
+        const kickoffContent = options?.workflowOverrides?.[kickoffWorkflow.id] || kickoffWorkflow.content || ''
+        // Extract the Project Configuration section
+        const configMatch = kickoffContent.match(/## (?:Project Configuration|Your Tasks|Configuration)[\s\S]*?(?=\n## |\n---|\Z)/i)
+        const projectContext = configMatch ? configMatch[0].trim() : ''
+
+        if (projectContext) {
+          for (const agentId of createdAgents) {
+            try {
+              const identityPath = path.join(getAgentsDir(), agentId, 'IDENTITY.md')
+              if (fs.existsSync(identityPath)) {
+                let identity = fs.readFileSync(identityPath, 'utf-8')
+                if (!identity.includes('## Project Context')) {
+                  identity += `\n\n## Project Context\n\n${projectContext}\n`
+                  fs.writeFileSync(identityPath, identity, 'utf-8')
+                  console.log(`Wrote project context to ${agentId}/IDENTITY.md`)
+                }
+              }
+            } catch (err) {
+              console.warn(`Failed to write project context to ${agentId}: ${err}`)
+            }
+          }
+        }
+      }
+
       return { ok: true, agentIds: createdAgents }
     } catch (err) {
       // Rollback: delete all created agents
