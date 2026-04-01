@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
 import { safeEnv } from '../lib/safe-env'
-import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages } from '../lib/messages'
+import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages, directMessageKey, type Message } from '../lib/messages'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
@@ -783,6 +783,82 @@ router.get('/groups/:name/workflows', (req, res) => {
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to get group workflows', message: error.message })
   }
+})
+
+// ============================================================================
+// Agent-to-Agent Direct Messaging
+// ============================================================================
+
+// GET /api/direct-messages/:from/:to — get direct messages between two agents
+router.get('/direct-messages/:from/:to', (req, res) => {
+  const { from, to } = req.params
+  const key = directMessageKey(from, to)
+  const messages = getMessages('direct', key)
+  res.json({ messages, from, to })
+})
+
+// POST /api/direct-messages/:from/:to — send a direct message from one agent to another
+router.post('/direct-messages/:from/:to', async (req, res) => {
+  const { from, to } = req.params
+  const { content, callAgent: shouldCallAgent } = req.body as { content?: string; callAgent?: boolean }
+
+  if (!content) {
+    return res.status(400).json({ error: 'content is required' })
+  }
+
+  const key = directMessageKey(from, to)
+
+  // Add the sender's message
+  const msg = addMessage('direct', key, { from, content, mentions: [to] })
+
+  // Optionally call the receiving agent to generate a response
+  if (shouldCallAgent) {
+    try {
+      const dmContext = `[Direct message from ${from}]\n\n${content}`
+      const response = await callAgent(to, dmContext, `direct:${key}`)
+      if (response && response.trim()) {
+        addMessage('direct', key, { from: to, content: response, mentions: [from] })
+      }
+    } catch (err) {
+      console.error(`[DM] Failed to get response from ${to}:`, err)
+    }
+  }
+
+  // Return all messages in the conversation
+  const messages = getMessages('direct', key)
+  res.json({ ok: true, message: msg, messages })
+})
+
+// GET /api/direct-messages — list all active direct message conversations
+router.get('/direct-messages', (_req, res) => {
+  // Scan the direct messages directory for conversations
+  const messagesDir = path.join(getWorkspacePath(), 'SYSTEM', 'messages', 'direct')
+  const conversations: Array<{ agents: string[]; lastMessage?: string; lastTimestamp?: number; messageCount: number }> = []
+
+  try {
+    if (fs.existsSync(messagesDir)) {
+      const files = fs.readdirSync(messagesDir).filter(f => f.endsWith('.json'))
+      for (const file of files) {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(messagesDir, file), 'utf-8'))
+          const messages: Message[] = Array.isArray(data) ? data : data.messages || []
+          if (messages.length > 0) {
+            const agents = file.replace('.json', '').split(':')
+            const last = messages[messages.length - 1]
+            conversations.push({
+              agents,
+              lastMessage: last?.content?.slice(0, 100),
+              lastTimestamp: last?.timestamp,
+              messageCount: messages.length,
+            })
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  conversations.sort((a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0))
+  res.json({ conversations })
 })
 
 export default router

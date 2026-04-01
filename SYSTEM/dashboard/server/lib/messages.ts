@@ -29,12 +29,17 @@ function getMessagesDir(): string {
   return dir
 }
 
-function getStoreKey(type: 'community' | 'group', name: string): string {
+function getStoreKey(type: 'community' | 'group' | 'direct' | 'direct', name: string): string {
   return `${type}:${name}`
 }
 
-function getMessageFile(type: 'community' | 'group', name: string): string {
-  const subdir = type === 'community' ? 'communities' : 'groups'
+/** Generate a canonical direct message key between two agents (alphabetical order) */
+export function directMessageKey(agent1: string, agent2: string): string {
+  return [agent1, agent2].sort().join(':')
+}
+
+function getMessageFile(type: 'community' | 'group' | 'direct' | 'direct', name: string): string {
+  const subdir = type === 'community' ? 'communities' : type === 'group' ? 'groups' : 'direct'
   const dir = path.join(getMessagesDir(), subdir)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
@@ -44,7 +49,7 @@ function getMessageFile(type: 'community' | 'group', name: string): string {
   return path.join(dir, `${safeName}.json`)
 }
 
-function loadMessagesFromFile(type: 'community' | 'group', name: string): Message[] {
+function loadMessagesFromFile(type: 'community' | 'group' | 'direct' | 'direct', name: string): Message[] {
   try {
     const file = getMessageFile(type, name)
     if (fs.existsSync(file)) {
@@ -64,7 +69,7 @@ function loadMessagesFromFile(type: 'community' | 'group', name: string): Messag
   return []
 }
 
-function saveMessagesToFile(type: 'community' | 'group', name: string, messages: Message[]) {
+function saveMessagesToFile(type: 'community' | 'group' | 'direct', name: string, messages: Message[]) {
   try {
     const file = getMessageFile(type, name)
     fs.writeFileSync(file, JSON.stringify(messages, null, 2), 'utf-8')
@@ -73,7 +78,7 @@ function saveMessagesToFile(type: 'community' | 'group', name: string, messages:
   }
 }
 
-export function getMessages(type: 'community' | 'group', name: string): Message[] {
+export function getMessages(type: 'community' | 'group' | 'direct' | 'direct', name: string): Message[] {
   const key = getStoreKey(type, name)
 
   // Load from file if not in memory
@@ -85,7 +90,7 @@ export function getMessages(type: 'community' | 'group', name: string): Message[
 }
 
 export function addMessage(
-  type: 'community' | 'group',
+  type: 'community' | 'group' | 'direct' | 'direct',
   name: string,
   data: { from: string; content: string; mentions: string[] }
 ): Message {
@@ -112,7 +117,7 @@ export function addMessage(
   return message
 }
 
-function getArchiveFile(type: 'community' | 'group', name: string, timestamp: number): string {
+function getArchiveFile(type: 'community' | 'group' | 'direct', name: string, timestamp: number): string {
   const subdir = type === 'community' ? 'communities' : 'groups'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   if (!fs.existsSync(archiveDir)) {
@@ -123,7 +128,7 @@ function getArchiveFile(type: 'community' | 'group', name: string, timestamp: nu
   return path.join(archiveDir, `${safeName}_${date}_${timestamp}.json`)
 }
 
-export function clearMessages(type: 'community' | 'group', name: string): { archived: boolean; archiveFile?: string } {
+export function clearMessages(type: 'community' | 'group' | 'direct' | 'direct', name: string): { archived: boolean; archiveFile?: string } {
   const key = getStoreKey(type, name)
   const currentMessages = messageStore[key] || loadMessagesFromFile(type, name)
 
@@ -147,7 +152,7 @@ export function clearMessages(type: 'community' | 'group', name: string): { arch
   return { archived: currentMessages.length > 0, archiveFile: currentMessages.length > 0 ? path.basename(getArchiveFile(type, name, Date.now())) : undefined }
 }
 
-export async function getArchives(type: 'community' | 'group', name: string): Promise<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>> {
+export async function getArchives(type: 'community' | 'group' | 'direct', name: string): Promise<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>> {
   const subdir = type === 'community' ? 'communities' : 'groups'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
@@ -233,7 +238,7 @@ export async function getArchives(type: 'community' | 'group', name: string): Pr
   }
 }
 
-export function getArchivedMessages(type: 'community' | 'group', name: string, filename: string): Message[] {
+export function getArchivedMessages(type: 'community' | 'group' | 'direct', name: string, filename: string): Message[] {
   const subdir = type === 'community' ? 'communities' : 'groups'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   const filePath = path.join(archiveDir, filename)
@@ -256,7 +261,7 @@ export function getArchivedMessages(type: 'community' | 'group', name: string, f
   return []
 }
 
-export function deleteArchivedMessages(type: 'community' | 'group', name: string, filename: string): boolean {
+export function deleteArchivedMessages(type: 'community' | 'group' | 'direct', name: string, filename: string): boolean {
   const subdir = type === 'community' ? 'communities' : 'groups'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   const filePath = path.join(archiveDir, filename)
