@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+**/node_modules
+SYSTEM/dashboard/dist
+WORKSPACES
+.env
+**/.env
+npm-debug.log
+*.local

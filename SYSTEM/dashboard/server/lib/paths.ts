@@ -11,6 +11,11 @@ import fs from 'fs'
  * Falls back to the legacy __dirname arithmetic so we never silently break.
  */
 function findRepoRoot(): string {
+  const override = process.env.CLAWMAX_REPO_ROOT?.trim()
+  if (override) {
+    return override
+  }
+
   // Walk up from this file's directory looking for repo markers
   let dir = __dirname
   const root = path.parse(dir).root
@@ -30,10 +35,23 @@ function findRepoRoot(): string {
     dir = path.dirname(dir)
   }
 
-  // Fallback: assume dev layout (server/lib -> 4 levels up)
-  // This preserves existing behaviour if markers are missing
+  // Fallback: support both dev and production layouts.
+  // - dev: SYSTEM/dashboard/server/lib -> repo root in 4 levels
+  // - prod: SYSTEM/dashboard/dist/server/lib -> repo root in 5 levels
   console.warn('[paths] Could not locate repo root via markers — falling back to __dirname arithmetic')
-  return path.resolve(__dirname, '../../../..')
+  const candidates = [
+    path.resolve(__dirname, '../../../..'),
+    path.resolve(__dirname, '../../../../..'),
+  ]
+  for (const candidate of candidates) {
+    if (
+      fs.existsSync(path.join(candidate, 'SYSTEM', 'schemas')) &&
+      fs.existsSync(path.join(candidate, 'TEMPLATES'))
+    ) {
+      return candidate
+    }
+  }
+  return candidates[0]
 }
 
 /** Absolute path to the repository root */

@@ -1,0 +1,24 @@
+services:
+  clawmax:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${DASHBOARD_PORT:-3001}:3001"
+    volumes:
+      - ./WORKSPACES:/app/WORKSPACES
+    env_file:
+      - path: ./SYSTEM/dashboard/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      DASHBOARD_PORT: 3001
+      OPENCLAW_WORKSPACE: /app/WORKSPACES/default
+      CLAWMAX_REPO_ROOT: /app
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
