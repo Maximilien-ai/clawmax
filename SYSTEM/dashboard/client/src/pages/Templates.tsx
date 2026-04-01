@@ -453,6 +453,11 @@ export default function Templates() {
     return rows
   }, [templateRows, sortColumn, sortDirection])
 
+  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const sortedAgentRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'agent'), [sortedTemplateRows])
+  const sortedOrgRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'organization'), [sortedTemplateRows])
+  const sortedWorkflowRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'workflow'), [sortedTemplateRows])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -460,11 +465,6 @@ export default function Templates() {
       </div>
     )
   }
-
-  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
-  const sortedAgentRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'agent'), [sortedTemplateRows])
-  const sortedOrgRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'organization'), [sortedTemplateRows])
-  const sortedWorkflowRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'workflow'), [sortedTemplateRows])
 
   const toggleSectionCollapsed = (section: 'agents' | 'organizations' | 'workflows') => {
     setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }))
