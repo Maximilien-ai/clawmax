@@ -83,6 +83,7 @@ export interface WorkflowExecution {
   triggeredBy?: string
   participants: WorkflowExecutionParticipant[]
   logs: string[]
+  inputs?: Record<string, string>  // Structured inputs parsed from workflow content
 }
 
 // Helper: Generate ID from name
@@ -772,7 +773,20 @@ export function triggerWorkflow(workflowId: string, options?: {
       status: 'pending' as const
     }))
 
-    // Create execution record with participants
+    // Parse structured inputs from workflow content (e.g., **Label:** value)
+    const inputs: Record<string, string> = {}
+    const content = workflow.content || ''
+    const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
+    let fieldMatch
+    while ((fieldMatch = fieldRegex.exec(content)) !== null) {
+      const label = fieldMatch[1].trim()
+      const value = fieldMatch[2].trim()
+      if (value && !value.startsWith('[')) {
+        inputs[label] = value
+      }
+    }
+
+    // Create execution record with participants and inputs
     const execution: WorkflowExecution = {
       id: executionId,
       workflowId,
@@ -780,7 +794,8 @@ export function triggerWorkflow(workflowId: string, options?: {
       status: 'running',
       triggerType: 'manual',
       participants: executionParticipants,
-      logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`]
+      logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`],
+      inputs: Object.keys(inputs).length > 0 ? inputs : undefined,
     }
 
     // Write execution file
