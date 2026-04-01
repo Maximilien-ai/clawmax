@@ -65,6 +65,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const { showSuccess, showError: showToastError } = useToast()
 
+  const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
   // Prerequisites check
   const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
   const [prereqsLoading, setPrereqsLoading] = useState(true)
@@ -174,9 +176,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     setApplyProgress(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
 
     try {
-      // Generate template slug from name
-      const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-
       // Show progress toasts
       showSuccess(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
       const steps = [
@@ -221,6 +220,29 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             finalOverrides[wf.id] = existing + fsBlock
           }
         }
+      }
+
+      const validationResp = await fetch('/api/templates/organizations/validate-customization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateSlug,
+          githubRepo: githubRepo.trim() || undefined,
+          useGithub,
+          workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
+        }),
+      })
+      const validation = await validationResp.json().catch(() => ({ valid: true, warnings: [], errors: [] }))
+      if (!validationResp.ok && Array.isArray(validation.errors) && validation.errors.length > 0) {
+        const message = validation.errors.slice(0, 4).join(' ')
+        setApplyProgress(null)
+        setError(message)
+        showToastError(message)
+        setApplying(false)
+        return
+      }
+      if (Array.isArray(validation.warnings) && validation.warnings.length > 0) {
+        showSuccess(validation.warnings[0])
       }
 
       if (useSenso) {

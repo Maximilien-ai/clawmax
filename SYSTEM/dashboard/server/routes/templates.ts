@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { execFileSync } from 'child_process'
 import {
   listTemplates,
   getTemplate,
@@ -18,6 +19,100 @@ import { listWorkflowTemplates, getWorkflow, createWorkflow, parseWorkflowMd, wo
 import { generateTemplateFromNL } from '../lib/ai-generator'
 
 const router = Router()
+
+type CustomizationValidationInput = {
+  githubRepo?: string
+  useGithub?: boolean
+  workflows?: Array<{ id: string; name?: string; content?: string }>
+}
+
+function commandExists(command: string): boolean {
+  try {
+    execFileSync('/bin/bash', ['-lc', `command -v ${command}`], { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function isPlaceholderValue(value: string): boolean {
+  const trimmed = value.trim()
+  return !trimmed || /^\[[^\]]*\]$/.test(trimmed) || trimmed === '...' || trimmed === '…'
+}
+
+export function validateOrganizationCustomization(
+  input: CustomizationValidationInput,
+  options?: { repoExists?: (repo: string) => boolean }
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const repoPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
+
+  if (input.useGithub) {
+    if (!input.githubRepo?.trim()) {
+      errors.push('GitHub is enabled but the GitHub repository is empty.')
+    } else if (!repoPattern.test(input.githubRepo.trim())) {
+      errors.push('GitHub repository must use the format owner/repo.')
+    } else {
+      const repo = input.githubRepo.trim()
+      if (options?.repoExists) {
+        if (!options.repoExists(repo)) {
+          errors.push(`GitHub repository "${repo}" was not found or is not accessible.`)
+        }
+      } else if (commandExists('gh')) {
+        try {
+          execFileSync('gh', ['repo', 'view', repo, '--json', 'nameWithOwner'], { stdio: 'pipe' })
+        } catch {
+          errors.push(`GitHub repository "${repo}" was not found or is not accessible via gh.`)
+        }
+      } else {
+        warnings.push('GitHub CLI is not installed, so repository existence could not be verified.')
+      }
+    }
+  }
+
+  const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
+  const urlishLabelRegex = /\b(url|link|site|webhook|endpoint|api|docs?)\b/i
+
+  for (const workflow of input.workflows || []) {
+    const content = workflow.content || ''
+    let match: RegExpExecArray | null
+    while ((match = fieldRegex.exec(content)) !== null) {
+      const label = match[1].trim()
+      const value = match[2].trim()
+      const workflowName = workflow.name || workflow.id
+      const optional = /\boptional\b/i.test(label) || /\boptional\b/i.test(value)
+
+      if (!optional && isPlaceholderValue(value)) {
+        errors.push(`Workflow "${workflowName}" has an empty required field: ${label}.`)
+        continue
+      }
+
+      if (/github repo/i.test(label) && !isPlaceholderValue(value) && !repoPattern.test(value)) {
+        errors.push(`Workflow "${workflowName}" has an invalid GitHub repo for "${label}". Use owner/repo.`)
+      }
+
+      if (urlishLabelRegex.test(label) && !isPlaceholderValue(value) && !isValidUrl(value)) {
+        errors.push(`Workflow "${workflowName}" has an invalid URL for "${label}".`)
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  }
+}
 
 // GET /api/templates - List all templates (with optional type filter)
 // Query params: ?type=agent or ?type=organization or ?type=workflow
@@ -218,7 +313,7 @@ router.post('/organizations/prereqs', (req, res) => {
     return res.status(400).json({ error: 'templateSlug is required' })
   }
 
-  const template = getTemplate('organization', templateSlug)
+  const template = getTemplate('organization', templateSlug) as any
   if (!template) {
     return res.status(404).json({ error: 'Template not found' })
   }
@@ -226,6 +321,32 @@ router.post('/organizations/prereqs', (req, res) => {
   const { checkTemplatePrereqs } = require('../lib/prereqs')
   const result = checkTemplatePrereqs(template)
   res.json(result)
+})
+
+router.post('/organizations/validate-customization', (req, res) => {
+  const { templateSlug, githubRepo, useGithub, workflowOverrides } = req.body
+  if (!templateSlug || typeof templateSlug !== 'string') {
+    return res.status(400).json({ error: 'templateSlug is required' })
+  }
+
+  const template = getTemplate('organization', templateSlug) as any
+  if (!template) {
+    return res.status(404).json({ error: 'Template not found' })
+  }
+
+  const workflows = (template.workflows || []).map((workflow: any) => ({
+    id: workflow.id,
+    name: workflow.name,
+    content: typeof workflowOverrides?.[workflow.id] === 'string' ? workflowOverrides[workflow.id] : workflow.content,
+  }))
+
+  const result = validateOrganizationCustomization({
+    githubRepo,
+    useGithub,
+    workflows,
+  })
+
+  res.status(result.valid ? 200 : 400).json(result)
 })
 
 router.post('/organizations/import', (req, res) => {
