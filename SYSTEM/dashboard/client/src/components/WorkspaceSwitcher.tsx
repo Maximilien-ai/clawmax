@@ -232,6 +232,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     sections: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
   ) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!draggedSection || draggedSection === key) return
 
     const rect = e.currentTarget.getBoundingClientRect()
@@ -624,6 +625,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
                               e.preventDefault()
+                              e.stopPropagation()
                               if (draggedSection) {
                                 moveSectionToCompactColumn(draggedSection, column)
                                 setDraggedSection(null)
@@ -638,9 +640,13 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                                 <React.Fragment key={key}>
                                   <div
                                     className="h-4 rounded border border-dashed border-transparent hover:border-blue-400"
-                                    onDragOver={(e) => e.preventDefault()}
+                                    onDragOver={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                    }}
                                     onDrop={(e) => {
                                       e.preventDefault()
+                                      e.stopPropagation()
                                       if (draggedSection) {
                                         moveSectionToCompactColumn(draggedSection, column, key)
                                         setDraggedSection(null)
@@ -652,7 +658,10 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                                     draggable
                                     onDragStart={() => setDraggedSection(key)}
                                     onDragEnd={() => setDraggedSection(null)}
-                                    onDragOver={(e) => e.preventDefault()}
+                                    onDragOver={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                    }}
                                     onDrop={(e) => handleCompactTileDrop(e, key, column, sections)}
                                     className="flex cursor-move items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800"
                                   >
@@ -667,9 +676,13 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                                   {index === sections.length - 1 && (
                                     <div
                                       className="h-4 rounded border border-dashed border-transparent hover:border-blue-400"
-                                      onDragOver={(e) => e.preventDefault()}
+                                      onDragOver={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                      }}
                                       onDrop={(e) => {
                                         e.preventDefault()
+                                        e.stopPropagation()
                                         if (draggedSection) {
                                           moveSectionToCompactColumn(draggedSection, column)
                                           setDraggedSection(null)
