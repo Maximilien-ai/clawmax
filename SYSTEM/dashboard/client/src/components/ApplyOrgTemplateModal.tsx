@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useToast } from './Toast'
-import { fetchModelsWithByok } from '../lib/byok'
+import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
 
 interface TemplateParameter {
   agentId: string
@@ -68,6 +68,19 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   // Prerequisites check
   const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
   const [prereqsLoading, setPrereqsLoading] = useState(true)
+
+  React.useEffect(() => {
+    const stored = readStoredByokKeys()
+    if (stored.githubDefaultRepo?.trim()) {
+      setGithubRepo((current) => current || stored.githubDefaultRepo!.trim())
+    }
+    if (stored.sensoApiKey?.trim()) {
+      setUseSenso(true)
+    }
+    if (stored.sensoContextLabel?.trim()) {
+      setSensoFolder((current) => current || stored.sensoContextLabel!.trim())
+    }
+  }, [])
 
   React.useEffect(() => {
     fetch('/api/templates/organizations/prereqs', {
