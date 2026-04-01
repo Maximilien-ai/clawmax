@@ -226,6 +226,11 @@ export default function Templates() {
     consequences: string[]
     onConfirm: () => Promise<void>
   } | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<{ agents: boolean; organizations: boolean; workflows: boolean }>({
+    agents: false,
+    organizations: false,
+    workflows: false,
+  })
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -448,6 +453,11 @@ export default function Templates() {
     return rows
   }, [templateRows, sortColumn, sortDirection])
 
+  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const sortedAgentRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'agent'), [sortedTemplateRows])
+  const sortedOrgRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'organization'), [sortedTemplateRows])
+  const sortedWorkflowRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'workflow'), [sortedTemplateRows])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -456,7 +466,9 @@ export default function Templates() {
     )
   }
 
-  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const toggleSectionCollapsed = (section: 'agents' | 'organizations' | 'workflows') => {
+    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }))
+  }
   const selectedRows = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
   const canApplySelected = selectedRows.length === 1 && selectedRows[0].template.type !== 'workflow'
 
@@ -769,9 +781,15 @@ export default function Templates() {
             {/* Agent Templates */}
             {filteredAgentTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
-                  <span>🤖 Agent Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleSectionCollapsed('agents')}
+                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                  >
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
+                    <span>🤖 Agent Templates</span>
+                    <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
+                  </button>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredAgentTemplates.map(getTemplateRow))}
@@ -780,31 +798,39 @@ export default function Templates() {
                       {filteredAgentTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Agents' : 'Select All Agents'}
                     </button>
                   )}
-                </h2>
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredAgentTemplates.map((template, idx) => (
-                    <TemplateCard
-                      key={idx}
-                      template={template}
-                      onDelete={() => handleDelete('agent', template.name)}
-                      onApply={() => openApplyForTemplate(template)}
-                      onClick={() => setSelectedTemplate(template)}
-                      selected={selectedTemplate?.name === template.name}
-                      selectionMode={selectionMode}
-                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                    />
-                  ))}
                 </div>
+                {!collapsedSections.agents && (
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredAgentTemplates.map((template, idx) => (
+                      <TemplateCard
+                        key={idx}
+                        template={template}
+                        onDelete={() => handleDelete('agent', template.name)}
+                        onApply={() => openApplyForTemplate(template)}
+                        onClick={() => setSelectedTemplate(template)}
+                        selected={selectedTemplate?.name === template.name}
+                        selectionMode={selectionMode}
+                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
             {/* Organization Templates */}
             {filteredOrgTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
-                  <span>🏢 Organization Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleSectionCollapsed('organizations')}
+                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                  >
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.organizations ? '▸' : '▾'}</span>
+                    <span>🏢 Organization Templates</span>
+                    <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
+                  </button>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredOrgTemplates.map(getTemplateRow))}
@@ -813,31 +839,39 @@ export default function Templates() {
                       {filteredOrgTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Orgs' : 'Select All Orgs'}
                     </button>
                   )}
-                </h2>
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredOrgTemplates.map((template, idx) => (
-                    <TemplateCard
-                      key={idx}
-                      template={template}
-                      onDelete={() => handleDelete('organization', template.name)}
-                      onApply={() => openApplyForTemplate(template)}
-                      onClick={() => setSelectedTemplate(template)}
-                      selected={selectedTemplate?.name === template.name}
-                      selectionMode={selectionMode}
-                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                    />
-                  ))}
                 </div>
+                {!collapsedSections.organizations && (
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredOrgTemplates.map((template, idx) => (
+                      <TemplateCard
+                        key={idx}
+                        template={template}
+                        onDelete={() => handleDelete('organization', template.name)}
+                        onApply={() => openApplyForTemplate(template)}
+                        onClick={() => setSelectedTemplate(template)}
+                        selected={selectedTemplate?.name === template.name}
+                        selectionMode={selectionMode}
+                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
             {/* Workflow Templates */}
             {filteredWorkflowTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
-                  <span>⚡ Workflow Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleSectionCollapsed('workflows')}
+                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                  >
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
+                    <span>⚡ Workflow Templates</span>
+                    <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
+                  </button>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredWorkflowTemplates.map(getTemplateRow))}
@@ -846,42 +880,112 @@ export default function Templates() {
                       {filteredWorkflowTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Workflows' : 'Select All Workflows'}
                     </button>
                   )}
-                </h2>
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredWorkflowTemplates.map((template, idx) => (
-                    <WorkflowTemplateCard
-                      key={idx}
-                      template={template}
-                      onClick={() => setSelectedTemplate(template)}
-                      selected={selectedTemplate?.name === template.name}
-                      selectionMode={selectionMode}
-                      isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                      onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                    />
-                  ))}
                 </div>
+                {!collapsedSections.workflows && (
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredWorkflowTemplates.map((template, idx) => (
+                      <WorkflowTemplateCard
+                        key={idx}
+                        template={template}
+                        onClick={() => setSelectedTemplate(template)}
+                        selected={selectedTemplate?.name === template.name}
+                        selectionMode={selectionMode}
+                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
+                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
           </div>
           ) : (
-          <TemplatesTable
-            rows={sortedTemplateRows}
-            selectionMode={selectionMode}
-            selectedTemplateKeys={selectedTemplateKeys}
-            selectedTemplate={selectedTemplate}
-            onSort={handleSort}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onToggleSelect={toggleTemplateSelection}
-            onToggleSelectAll={setSelectedTemplateKeys}
-            onOpenTemplate={setSelectedTemplate}
-            onDeleteTemplate={(template) => handleDelete(
-              template.type,
-              template.name,
-              template.type === 'workflow' ? template.id : undefined
+          <div className="space-y-8">
+            {sortedAgentRows.length > 0 && (
+              <section>
+                <button
+                  onClick={() => toggleSectionCollapsed('agents')}
+                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                >
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
+                  <span>🤖 Agent Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({sortedAgentRows.length})</span>
+                </button>
+                {!collapsedSections.agents && (
+                  <TemplatesTable
+                    rows={sortedAgentRows}
+                    selectionMode={selectionMode}
+                    selectedTemplateKeys={selectedTemplateKeys}
+                    selectedTemplate={selectedTemplate}
+                    onSort={handleSort}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggleSelect={toggleTemplateSelection}
+                    onToggleSelectAll={setSelectedTemplateKeys}
+                    onOpenTemplate={setSelectedTemplate}
+                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                    onApplyTemplate={openApplyForTemplate}
+                  />
+                )}
+              </section>
             )}
-            onApplyTemplate={openApplyForTemplate}
-          />
+            {sortedOrgRows.length > 0 && (
+              <section>
+                <button
+                  onClick={() => toggleSectionCollapsed('organizations')}
+                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                >
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.organizations ? '▸' : '▾'}</span>
+                  <span>🏢 Organization Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({sortedOrgRows.length})</span>
+                </button>
+                {!collapsedSections.organizations && (
+                  <TemplatesTable
+                    rows={sortedOrgRows}
+                    selectionMode={selectionMode}
+                    selectedTemplateKeys={selectedTemplateKeys}
+                    selectedTemplate={selectedTemplate}
+                    onSort={handleSort}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggleSelect={toggleTemplateSelection}
+                    onToggleSelectAll={setSelectedTemplateKeys}
+                    onOpenTemplate={setSelectedTemplate}
+                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                    onApplyTemplate={openApplyForTemplate}
+                  />
+                )}
+              </section>
+            )}
+            {sortedWorkflowRows.length > 0 && (
+              <section>
+                <button
+                  onClick={() => toggleSectionCollapsed('workflows')}
+                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                >
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
+                  <span>⚡ Workflow Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({sortedWorkflowRows.length})</span>
+                </button>
+                {!collapsedSections.workflows && (
+                  <TemplatesTable
+                    rows={sortedWorkflowRows}
+                    selectionMode={selectionMode}
+                    selectedTemplateKeys={selectedTemplateKeys}
+                    selectedTemplate={selectedTemplate}
+                    onSort={handleSort}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggleSelect={toggleTemplateSelection}
+                    onToggleSelectAll={setSelectedTemplateKeys}
+                    onOpenTemplate={setSelectedTemplate}
+                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                    onApplyTemplate={openApplyForTemplate}
+                  />
+                )}
+              </section>
+            )}
+          </div>
           )
         )}
       </div>

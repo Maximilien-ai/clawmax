@@ -372,7 +372,8 @@ router.get('/:id/executions', (req, res) => {
       triggerType: exec.triggerType,
       participantCount: exec.participants.length,
       successCount: exec.participants.filter(p => p.status === 'completed').length,
-      failureCount: exec.participants.filter(p => p.status === 'failed').length
+      failureCount: exec.participants.filter(p => p.status === 'failed').length,
+      inputs: exec.inputs,
     }))
 
     res.json({
@@ -435,7 +436,8 @@ router.get('/:id/executions/archived', (req, res) => {
           triggerType: execution.triggerType,
           participantCount: execution.participants.length,
           successCount: execution.participants.filter((p: any) => p.status === 'completed').length,
-          failureCount: execution.participants.filter((p: any) => p.status === 'failed').length
+          failureCount: execution.participants.filter((p: any) => p.status === 'failed').length,
+          inputs: execution.inputs,
         })
       } catch (error) {
         console.error(`Error reading archived execution ${file}:`, error)
