@@ -15,14 +15,14 @@ const router = Router()
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
 const FILE_PATH_REGEX = /\/[^\s"'<>]+?\.(md|txt|pdf|json|csv|png|jpg|jpeg|gif|html)/gi
 
-function summarizeSentence(value: string, maxLength = 220): string {
+export function summarizeSentence(value: string, maxLength = 220): string {
   const trimmed = value.replace(/\s+/g, ' ').trim()
   if (!trimmed) return ''
   if (trimmed.length <= maxLength) return trimmed
   return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`
 }
 
-function extractProjectConfigurationLines(content: string): string[] {
+export function extractProjectConfigurationLines(content: string): string[] {
   const lines = content.split('\n')
   const startIndex = lines.findIndex((line) => /^##\s+Project Configuration\b/i.test(line.trim()))
   if (startIndex === -1) return []
@@ -40,14 +40,14 @@ function extractProjectConfigurationLines(content: string): string[] {
   return collected.slice(0, 6)
 }
 
-function extractParticipantResponses(execution: any): string[] {
+export function extractParticipantResponses(execution: any): string[] {
   const participants: any[] = Array.isArray(execution?.participants) ? execution.participants : []
   return participants
     .map((participant: any) => participant?.response || participant?.result?.text || participant?.result?.response || '')
     .filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
 }
 
-function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
+export function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
   const seen = new Set<string>()
   for (const value of values) {
     if (!value) continue
@@ -62,7 +62,7 @@ function extractLinks(values: Array<string | null | undefined>, limit = 6): stri
   return Array.from(seen)
 }
 
-function extractWorkspaceFilePaths(values: Array<string | null | undefined>, workspacePath: string, limit = 6): string[] {
+export function extractWorkspaceFilePaths(values: Array<string | null | undefined>, workspacePath: string, limit = 6): string[] {
   const seen = new Set<string>()
   for (const value of values) {
     if (!value) continue
@@ -78,7 +78,7 @@ function extractWorkspaceFilePaths(values: Array<string | null | undefined>, wor
   return Array.from(seen)
 }
 
-function normalizeResultArtifacts(input: {
+export function normalizeResultArtifacts(input: {
   links: string[]
   filePaths: string[]
   workspacePath: string
