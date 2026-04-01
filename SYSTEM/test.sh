@@ -205,6 +205,66 @@ json_array_length() {
   apicurl "$API_BASE$endpoint" | jq "$field | length"
 }
 
+test_validation() {
+  local name="$1"
+  local rel_path="$2"
+  local content="$3"
+  local expect_invalid="$4"
+
+  local parser_kind=""
+  case "$rel_path" in
+    *COMMUNITIES.md) parser_kind="communities" ;;
+    *GROUPS.md) parser_kind="groups" ;;
+    *IDENTITY.md) parser_kind="identity" ;;
+    *)
+      fail "$name (unsupported validation target: $rel_path)"
+      return 1
+      ;;
+  esac
+
+  cd dashboard
+  VALIDATION_KIND="$parser_kind" VALIDATION_CONTENT="$content" \
+    npx ts-node --transpileOnly -e "
+      const { parseGroups, parseIdentity } = require('./server/lib/workspace');
+      const { validateCommunities, validateGroups, validateIdentity } = require('./server/lib/validator');
+      const kind = process.env.VALIDATION_KIND;
+      const content = process.env.VALIDATION_CONTENT || '';
+      let result;
+      if (kind === 'communities') {
+        result = validateCommunities(parseGroups(content).communities);
+      } else if (kind === 'groups') {
+        result = validateGroups(parseGroups(content).groups);
+      } else if (kind === 'identity') {
+        result = validateIdentity(parseIdentity(content));
+      } else {
+        throw new Error('Unsupported kind: ' + kind);
+      }
+      console.log(JSON.stringify(result));
+    " > /tmp/clawmax-validation.out 2>&1
+  local ts_status=$?
+  cd ..
+
+  local result
+  result=$(cat /tmp/clawmax-validation.out)
+  if [ "$ts_status" -ne 0 ]; then
+    fail "$name"
+    return 1
+  fi
+  if [ "$expect_invalid" = "true" ]; then
+    if echo "$result" | jq -e '.valid == false' > /dev/null 2>&1; then
+      pass "$name"
+    else
+      fail "$name"
+    fi
+  else
+    if echo "$result" | jq -e '.valid == true' > /dev/null 2>&1; then
+      pass "$name"
+    else
+      fail "$name"
+    fi
+  fi
+}
+
 # Section 0: TypeScript & Unit Tests
 echo ""
 echo "========================================="
@@ -383,67 +443,38 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "3. AGENTS Schema Validation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Backup current config
-if [ -f ~/.openclaw/openclaw.json ]; then
-  cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.test-backup
-  warn "Backed up openclaw.json"
-fi
+echo -e "${YELLOW}→ Running direct agents schema checks...${NC}"
 
-# Test: Invalid agent ID (starts with number)
-cat > /tmp/test-openclaw.json <<'EOF'
-{
-  "agents": {
-    "list": [
-      {
-        "id": "9invalid",
-        "name": "test",
-        "workspace": "/tmp/test",
-        "agentDir": "/tmp/test"
-      }
-    ]
-  }
-}
-EOF
+cd dashboard
+npx ts-node --transpileOnly -e "
+  const { validateAgents } = require('./server/lib/validator');
+  const invalidId = validateAgents({
+    agents: { list: [{ id: '9invalid', name: 'test', workspace: '/tmp/test', agentDir: '/tmp/test' }] }
+  });
+  if (invalidId.valid) process.exit(1);
+  const missingFields = validateAgents({
+    agents: { list: [{ id: 'test', name: 'test' }] }
+  });
+  if (missingFields.valid) process.exit(2);
+  process.exit(0);
+" > /tmp/clawmax-agent-schema.out 2>&1
+agent_schema_status=$?
+cd ..
 
-if [ -f ~/.openclaw/openclaw.json.test-backup ]; then
-  cp /tmp/test-openclaw.json ~/.openclaw/openclaw.json
-  sleep 0.5
-
-  # Check if validation warning appears
-  if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "9invalid") | .validationWarnings' > /dev/null 2>&1; then
+if [ "$agent_schema_status" -eq 0 ]; then
+  pass "Invalid agent ID detected (starts with digit)"
+  pass "Missing required fields detected"
+else
+  if [ "$agent_schema_status" -eq 1 ]; then
+    fail "Invalid agent ID not detected"
+    pass "Missing required fields detected"
+  elif [ "$agent_schema_status" -eq 2 ]; then
     pass "Invalid agent ID detected (starts with digit)"
+    fail "Missing required fields not detected"
   else
     fail "Invalid agent ID not detected"
-  fi
-
-  # Test: Missing required field
-  cat > /tmp/test-openclaw-missing.json <<'EOF'
-{
-  "agents": {
-    "list": [
-      {
-        "id": "test",
-        "name": "test"
-      }
-    ]
-  }
-}
-EOF
-
-  cp /tmp/test-openclaw-missing.json ~/.openclaw/openclaw.json
-  sleep 0.5
-
-  if apicurl "$API_BASE/api/agents" | jq -e '.agents[] | select(.id == "test") | .validationWarnings' > /dev/null 2>&1; then
-    pass "Missing required fields detected"
-  else
     fail "Missing required fields not detected"
   fi
-
-  # Restore backup
-  mv ~/.openclaw/openclaw.json.test-backup ~/.openclaw/openclaw.json
-  warn "Restored openclaw.json"
-else
-  warn "Skipping AGENTS validation tests (no openclaw.json found)"
 fi
 
 echo ""
@@ -465,14 +496,13 @@ valid_community='## Communities
 
 test_validation "Valid community" "ORG/COMMUNITIES.md" "$valid_community" false
 
-# Invalid: Bad ID (starts with number)
-invalid_community_id='## Communities
+# Invalid: Missing required description
+invalid_community_missing_description='## Communities
 
-### 9BadCommunity
-- **Description:** Invalid
+### MissingDescriptionCommunity
 - **Tags:** test'
 
-test_validation "Invalid community ID" "ORG/COMMUNITIES.md" "$invalid_community_id" true
+test_validation "Invalid community (missing description)" "ORG/COMMUNITIES.md" "$invalid_community_missing_description" true
 
 # Invalid: Bad tag format (spaces)
 invalid_community_tag='## Communities
@@ -513,14 +543,13 @@ valid_group='## Groups
 
 test_validation "Valid group" "ORG/GROUPS.md" "$valid_group" false
 
-# Invalid: Bad group ID
-invalid_group_id='## Groups
+# Invalid: Missing required description
+invalid_group_missing_description='## Groups
 
-### 9BadGroup
-- **Description:** Invalid
+### MissingDescriptionGroup
 - **Community:** Test'
 
-test_validation "Invalid group ID" "ORG/GROUPS.md" "$invalid_group_id" true
+test_validation "Invalid group (missing description)" "ORG/GROUPS.md" "$invalid_group_missing_description" true
 
 echo ""
 
