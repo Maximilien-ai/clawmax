@@ -214,7 +214,7 @@ offer_install() {
         fi
       fi
     else
-      echo -e "  Install from: $url"
+      echo -e "  Installing from: $url"
       echo -e "  Press ${BOLD}Enter${NC} after installing, or ${BOLD}s${NC} to skip"
       read -p "  [Enter/s]: " -n 1 -r; echo
       if [[ -z "$REPLY" || "$REPLY" == $'\n' ]]; then
@@ -405,12 +405,13 @@ echo ""
 print_header "4. API Keys"
 
 echo "  ClawMax uses AI model APIs for agent creation and execution."
-echo "  You need at least one provider key."
+echo "  You only need one provider key to continue."
 echo ""
 echo -e "  ${BOLD}Key scopes:${NC}"
 echo "    SYSTEM_* keys — used by dashboard features (AI generate, templates)"
 echo "    USER_* keys   — used by your agents and workflows"
 echo "    BYOK           — users can also provide keys in-browser"
+echo "    OpenAI or Anthropic is enough for setup; you do not need both"
 echo ""
 
 SYSTEM_OPENAI_KEY=""

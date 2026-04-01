@@ -178,7 +178,7 @@ else
       echo "✓ Backend running on port $BACKEND_PORT"
       echo "✓ Frontend running on port $FRONTEND_PORT"
       echo ""
-      echo "🚀 Dashboard ready at $FRONTEND_ORIGIN"
+      echo "🚀 Dashboard is ready: $FRONTEND_ORIGIN"
       if [ "$USE_NGROK" = true ]; then
         echo "🌍 Public URL: https://$NGROK_URL"
         echo ""
