@@ -10,6 +10,7 @@ function maskKey(value: string) {
 
 type Step = 'models' | 'senso' | 'monitoring' | 'github'
 type ProviderKey = 'openai' | 'anthropic'
+type ValidationState = Record<'openai' | 'anthropic' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
 
 export function ByokWizard() {
   const { user, config } = useAuth()
@@ -28,6 +29,12 @@ export function ByokWizard() {
   const [opikProject, setOpikProject] = useState('')
   const [githubDefaultRepo, setGithubDefaultRepo] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
+  const [validating, setValidating] = useState(false)
+  const [validation, setValidation] = useState<ValidationState>({
+    openai: { status: 'idle', message: '' },
+    anthropic: { status: 'idle', message: '' },
+    opik: { status: 'idle', message: '' },
+  })
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
@@ -137,7 +144,49 @@ export function ByokWizard() {
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
 
-  const handleSave = () => {
+  const runValidation = async () => {
+    setValidating(true)
+    try {
+      const res = await fetch('/api/integrations/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          openai: openaiKey.trim(),
+          anthropic: anthropicKey.trim(),
+          opikApiKey: opikApiKey.trim(),
+          opikWorkspace: opikWorkspace.trim(),
+          opikProject: opikProject.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to validate integrations')
+      const nextState: ValidationState = {
+        openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
+        anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
+        opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
+      }
+      setValidation(nextState)
+      const failures = Object.values(nextState).filter((entry) => entry.status === 'invalid' || entry.status === 'error')
+      if (failures.length > 0) {
+        showWarning('Some integration checks failed. Review the messages before saving.')
+        return false
+      }
+      showSuccess('Integration checks completed')
+      return true
+    } catch (err: any) {
+      showWarning(err.message || 'Failed to validate integrations')
+      return false
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  const handleSave = async () => {
+    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || opikApiKey.trim())
+    if (shouldValidate) {
+      const ok = await runValidation()
+      if (!ok) return
+    }
     if (!openaiKey.trim() && !anthropicKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic) {
       showWarning('No LLM keys detected yet. Add OpenAI or Anthropic, or rely on configured defaults before running agents.')
     }
@@ -173,6 +222,22 @@ export function ByokWizard() {
   const handleReopen = () => {
     setStep('models')
     setOpen(true)
+  }
+
+  const renderValidation = (key: keyof ValidationState) => {
+    const entry = validation[key]
+    if (entry.status === 'idle') return null
+    const className =
+      entry.status === 'valid'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+        : entry.status === 'skipped'
+          ? 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+          : 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100'
+    return (
+      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${className}`}>
+        {entry.message}
+      </div>
+    )
   }
 
   return (
@@ -253,11 +318,13 @@ export function ByokWizard() {
                   <div>
                     <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">OpenAI key</label>
                     <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    {renderValidation('openai')}
                   </div>
 
                   <div>
                     <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Anthropic key</label>
                     <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    {renderValidation('anthropic')}
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
@@ -307,7 +374,8 @@ export function ByokWizard() {
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Skip for now</button>
                   <div className="flex items-center gap-2">
-                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
+                    <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
+                    <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60">Save &amp; Close</button>
                     <button onClick={() => setStep('senso')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
                   </div>
                 </div>
@@ -370,6 +438,7 @@ export function ByokWizard() {
                   <div>
                     <label htmlFor="byok-opik-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik API key</label>
                     <input id="byok-opik-key" type="password" value={opikApiKey} onChange={(e) => setOpikApiKey(e.target.value)} placeholder="Your Opik API key" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    {renderValidation('opik')}
                   </div>
                   <div>
                     <label htmlFor="byok-opik-workspace" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik workspace</label>
@@ -385,7 +454,10 @@ export function ByokWizard() {
 
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={() => setStep('senso')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
-                  <button onClick={() => setStep('github')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
+                    <button onClick={() => setStep('github')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                  </div>
                 </div>
               </>
             )}
