@@ -8,7 +8,7 @@
 
 ### Immediate Demo / Release Blockers
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
-- [ ] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable. GitHub: `#75`
+- [x] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable. GitHub: `#75`
 - [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 
