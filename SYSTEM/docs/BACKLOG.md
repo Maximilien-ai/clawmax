@@ -25,9 +25,9 @@
 
 ### Customer-Facing Visibility (High Priority)
 - [x] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
-- [ ] **Workspace dashboard compact charts** — add richer compact-mode graphs and denser summary widgets so stakeholder views fit closer to one page without dropping important signal.
-- [ ] **Workflow input normalization for dashboards** — persist and expose structured kickoff/start inputs per workflow run so shared dashboards can show clean, reliable "what started this run" context instead of best-effort execution-log summaries.
-- [ ] **Workflow output + artifact normalization for dashboards** — persist structured workflow results, artifact links, and downloadable outputs so shared dashboards can present consistent run outcomes across heterogeneous workflows.
+- [x] **Workspace dashboard compact charts** — added compact-mode segmented summary bars for agent status, workflow state, and notification severity so stakeholder views fit closer to one screen without relying only on text.
+- [x] **Workflow input normalization for dashboards** — kickoff/project configuration summaries now prefer structured workflow configuration extraction over raw execution-log tails.
+- [x] **Workflow output + artifact normalization for dashboards** — shared dashboards now normalize participant-result summaries plus labeled artifact links and workspace file references into a consistent result surface.
 - [ ] **Workspace dashboard compact reorder bug** — compact layout editor supports cross-column and downward drag, but upward reordering within the same column is still unreliable and needs a real fix.
 
 ## Deep Agents Hack — March 27 (immediate)
