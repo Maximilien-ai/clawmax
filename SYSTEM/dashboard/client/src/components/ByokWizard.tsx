@@ -12,7 +12,7 @@ type Step = 'keys' | 'monitoring'
 
 export function ByokWizard() {
   const { user, config } = useAuth()
-  const { showSuccess, showInfo } = useToast()
+  const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('keys')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -38,6 +38,47 @@ export function ByokWizard() {
 
   const hasStoredKeys = !!(openaiKey || anthropicKey)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic)
+  const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
+  const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
+
+  const providerChecks = useMemo(() => {
+    const resolveSource = (provider: 'openai' | 'anthropic') => {
+      if (provider === 'openai') {
+        if (openaiKey) return 'browser BYOK'
+        if (config?.userKeyDefaults?.openai) return 'user default'
+        if (config?.systemKeyDefaults?.openai) return 'system default'
+        return 'not configured'
+      }
+      if (anthropicKey) return 'browser BYOK'
+      if (config?.userKeyDefaults?.anthropic) return 'user default'
+      if (config?.systemKeyDefaults?.anthropic) return 'system default'
+      return 'not configured'
+    }
+
+    return [
+      {
+        id: 'openai',
+        label: 'OpenAI',
+        available: hasOpenAiAvailable,
+        source: resolveSource('openai'),
+      },
+      {
+        id: 'anthropic',
+        label: 'Anthropic',
+        available: hasAnthropicAvailable,
+        source: resolveSource('anthropic'),
+      },
+    ]
+  }, [
+    anthropicKey,
+    config?.systemKeyDefaults?.anthropic,
+    config?.systemKeyDefaults?.openai,
+    config?.userKeyDefaults?.anthropic,
+    config?.userKeyDefaults?.openai,
+    hasAnthropicAvailable,
+    hasOpenAiAvailable,
+    openaiKey,
+  ])
 
   useEffect(() => {
     if (!hydrated) return
@@ -73,6 +114,9 @@ export function ByokWizard() {
   if (!user && !config?.authDisabled) return null
 
   const handleSave = () => {
+    if (!openaiKey.trim() && !anthropicKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic) {
+      showWarning('No LLM keys detected yet. Add OpenAI or Anthropic, or rely on configured defaults before running agents.')
+    }
     writeStoredByokKeys({
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
@@ -153,6 +197,26 @@ export function ByokWizard() {
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
                   <div className="font-medium text-gray-900 dark:text-gray-100">Current status</div>
                   <div className="mt-1">{statusText}</div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {providerChecks.map((provider) => (
+                      <div
+                        key={provider.id}
+                        className={`rounded-lg border px-3 py-2 ${
+                          provider.available
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                            : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium">{provider.label}</span>
+                          <span className="text-xs uppercase tracking-wide opacity-80">
+                            {provider.available ? 'available' : 'missing'}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="mt-5 space-y-4">
@@ -185,7 +249,7 @@ export function ByokWizard() {
                   </div>
 
                   {/* Preferred model */}
-                  {(openaiKey || anthropicKey || config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic) && (
+                  {(hasOpenAiAvailable || hasAnthropicAvailable) && (
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Preferred model for new agents
@@ -196,13 +260,13 @@ export function ByokWizard() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                       >
                         <option value="">Auto (best for configured keys)</option>
-                        {(anthropicKey || config?.systemKeyDefaults?.anthropic) && (
+                        {hasAnthropicAvailable && (
                           <>
                             <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
                             <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
                           </>
                         )}
-                        {(openaiKey || config?.systemKeyDefaults?.openai) && (
+                        {hasOpenAiAvailable && (
                           <>
                             <option value="openai/gpt-5">GPT-5 (latest)</option>
                             <option value="openai/gpt-4o">GPT-4o (balanced)</option>
