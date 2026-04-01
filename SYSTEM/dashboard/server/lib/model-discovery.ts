@@ -185,6 +185,35 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
   }
 }
 
+async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '') || 'http://localhost:11434'
+  const cacheKey = `ollama:${normalizedBaseUrl}`
+  const cached = getCached(cacheKey)
+  if (cached) return cached
+
+  try {
+    const res = await fetch(`${normalizedBaseUrl}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      console.warn(`Ollama tags API returned ${res.status}`)
+      return []
+    }
+    const body = await res.json() as { models?: Array<{ name?: string }> }
+    const models = (body.models || [])
+      .map((m) => (m.name || '').trim())
+      .filter(Boolean)
+      .sort()
+      .map((id) => `ollama/${id}`)
+
+    setCache(cacheKey, models)
+    return models
+  } catch (err) {
+    console.warn('Failed to fetch Ollama models:', (err as Error).message)
+    return []
+  }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini'): string | undefined {
@@ -194,10 +223,11 @@ function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini'): string | un
 }
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
-export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string; gemini?: string }): Promise<ModelsResponse> {
+export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
   const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
+  const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []
 
@@ -226,6 +256,16 @@ export async function discoverModels(byokKeys?: { openai?: string; anthropic?: s
       fetchGeminiModels(geminiKey).then(models => ({
         provider: 'gemini',
         name: 'Gemini',
+        models,
+      }))
+    )
+  }
+
+  if (ollamaBaseUrl) {
+    fetches.push(
+      fetchOllamaModels(ollamaBaseUrl).then(models => ({
+        provider: 'ollama',
+        name: 'Ollama',
         models,
       }))
     )

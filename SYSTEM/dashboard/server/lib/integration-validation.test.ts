@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOpenAIKey, validateOpikConfig } from './integration-validation'
+import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAIKey, validateOpikConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -38,6 +38,14 @@ function mockFetch(status: number, body: any = {}): typeof fetch {
   })) as any
 }
 
+function mockOllamaFetch(models: string[]): typeof fetch {
+  return (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ models: models.map((name) => ({ name })) }),
+  })) as any
+}
+
 console.log(`\n${YELLOW}=== Integration Validation Test Suite ===${RESET}\n`)
 
 async function run() {
@@ -61,19 +69,40 @@ async function run() {
     assert(result.status === 'invalid', 'Expected invalid status for missing workspace')
   })
 
+  await test('validateOllamaConfig returns valid when default model exists', async () => {
+    const result = await validateOllamaConfig('http://localhost:11434', 'llama3.2', mockOllamaFetch(['llama3.2', 'qwen2.5']))
+    assert(result.status === 'valid', 'Expected valid status')
+  })
+
   await test('validateIntegrations aggregates provider checks', async () => {
     const result = await validateIntegrations({
       openai: 'sk-openai',
       anthropic: 'sk-ant',
       gemini: 'gemini-key',
+      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaDefaultModel: 'llama3.2',
       opikApiKey: 'opik-key',
       opikWorkspace: 'team',
       opikProject: 'clawmax',
-    }, mockFetch(200))
+    }, (async (url: string) => {
+      if (url.includes('/api/tags')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ models: [{ name: 'llama3.2' }] }),
+        } as any
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as any
+    }) as any)
 
     assert(result.openai?.status === 'valid', 'Expected OpenAI valid')
     assert(result.anthropic?.status === 'valid', 'Expected Anthropic valid')
     assert(result.gemini?.status === 'valid', 'Expected Gemini valid')
+    assert(result.ollama?.status === 'valid', 'Expected Ollama valid')
     assert(result.opik?.status === 'valid', 'Expected Opik valid')
   })
 

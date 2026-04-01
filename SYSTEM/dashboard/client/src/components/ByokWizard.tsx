@@ -10,7 +10,7 @@ function maskKey(value: string) {
 
 type Step = 'models' | 'senso' | 'monitoring' | 'github'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
-type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
+type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
 
 export function ByokWizard() {
   const { user, config } = useAuth()
@@ -34,6 +34,7 @@ export function ByokWizard() {
     openai: { status: 'idle', message: '' },
     anthropic: { status: 'idle', message: '' },
     gemini: { status: 'idle', message: '' },
+    ollama: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
   })
   const [dismissed, setDismissed] = useState(false)
@@ -66,6 +67,7 @@ export function ByokWizard() {
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!sensoApiKey.trim()
   const opikConfigured = !!opikApiKey.trim()
+  const ollamaConfigured = !!ollamaBaseUrl.trim()
 
   const providerChecks = useMemo(() => {
     const resolveSource = (provider: ProviderKey) => {
@@ -153,6 +155,11 @@ export function ByokWizard() {
     return 'Not configured — ClawMax still works, but monitoring visibility may be reduced'
   }, [opikApiKey, opikWorkspace, opikProject])
 
+  const ollamaStatusText = useMemo(() => {
+    if (!ollamaConfigured) return 'Not configured — local open-source models are unavailable until Ollama is running'
+    return `Base URL: ${ollamaBaseUrl}${ollamaDefaultModel ? ` · default: ${ollamaDefaultModel}` : ''}`
+  }, [ollamaBaseUrl, ollamaConfigured, ollamaDefaultModel])
+
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
 
@@ -166,6 +173,8 @@ export function ByokWizard() {
           openai: openaiKey.trim(),
           anthropic: anthropicKey.trim(),
           gemini: geminiApiKey.trim(),
+          ollamaBaseUrl: ollamaBaseUrl.trim(),
+          ollamaDefaultModel: ollamaDefaultModel.trim(),
           opikApiKey: opikApiKey.trim(),
           opikWorkspace: opikWorkspace.trim(),
           opikProject: opikProject.trim(),
@@ -177,6 +186,7 @@ export function ByokWizard() {
           openai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
@@ -188,6 +198,7 @@ export function ByokWizard() {
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
         anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
+        ollama: { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
       }
       setValidation(nextState)
@@ -207,7 +218,7 @@ export function ByokWizard() {
   }
 
   const handleSave = async () => {
-    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || opikApiKey.trim())
+    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || ollamaBaseUrl.trim() || opikApiKey.trim())
     if (shouldValidate) {
       const ok = await runValidation()
       if (!ok) return
@@ -360,17 +371,19 @@ export function ByokWizard() {
                       {renderValidation('gemini')}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">Coming next</span>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Local open-source models. You manage the Ollama runtime and installed models on your own machine or host.</p>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Works best when Ollama is already running and the models you want have been pulled.
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Local open-source models. You manage the Ollama runtime and installed models.</p>
                       <input type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <input type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      {renderValidation('ollama')}
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{ollamaStatusText}</div>
                     </div>
                   </div>
 
-                  {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable) && (
+                  {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
                       <select value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
@@ -394,6 +407,9 @@ export function ByokWizard() {
                             <option value="gemini/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
                             <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
                           </>
+                        )}
+                        {ollamaConfigured && ollamaDefaultModel && (
+                          <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>
                         )}
                       </select>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates</p>

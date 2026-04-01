@@ -109,6 +109,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
               const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
               const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
+              const hasOllama = !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
 
               let defaultModel: string
               if (hasAnthropicKey) {
@@ -122,6 +123,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               } else if (hasOpenAiKey) {
                 defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
                   || models.find((m: string) => m.startsWith('openai/'))
+                  || models[0]
+              } else if (hasOllama) {
+                const preferredOllama = byok.ollamaDefaultModel ? `ollama/${byok.ollamaDefaultModel}` : ''
+                defaultModel = (preferredOllama && models.find((m: string) => m === preferredOllama))
+                  || models.find((m: string) => m.startsWith('ollama/'))
                   || models[0]
               } else {
                 defaultModel = models[0]
@@ -518,7 +524,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 </select>
                 {modelsLoaded && availableModels.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
-                    No API keys configured. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to SYSTEM/dashboard/.env and restart the dashboard.
+                    No models are available yet. Configure OpenAI, Anthropic, Gemini, or a local Ollama runtime in Workspaces Integrations.
                   </p>
                 )}
               </div>

@@ -308,8 +308,9 @@ router.get('/models', async (req, res) => {
       openai: req.query.openaiKey as string | undefined,
       anthropic: req.query.anthropicKey as string | undefined,
       gemini: req.query.geminiKey as string | undefined,
+      ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
     }
-    const result = await discoverModels(byokKeys.openai || byokKeys.anthropic || byokKeys.gemini ? byokKeys : undefined)
+    const result = await discoverModels(byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined)
     res.json(result)
   } catch (err) {
     console.error('Model discovery failed:', err)
@@ -321,8 +322,8 @@ router.get('/models', async (req, res) => {
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()
   try {
-    const byokKeys = req.body as { openai?: string; anthropic?: string; gemini?: string } | undefined
-    const result = await discoverModels(byokKeys?.openai || byokKeys?.anthropic || byokKeys?.gemini ? byokKeys : undefined)
+    const byokKeys = req.body as { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } | undefined
+    const result = await discoverModels(byokKeys?.openai || byokKeys?.anthropic || byokKeys?.gemini || byokKeys?.ollamaBaseUrl ? byokKeys : undefined)
     res.json(result)
   } catch (err) {
     console.error('Model refresh failed:', err)
@@ -456,6 +457,8 @@ router.post('/provision', (req, res) => {
       normalizedModel = `openai/${validatedModel}`
     } else if (validatedModel.startsWith('gemini-') || validatedModel.startsWith('gemini/')) {
       normalizedModel = validatedModel.startsWith('gemini/') ? validatedModel : `gemini/${validatedModel}`
+    } else if (validatedModel.startsWith('ollama/') || validatedModel.includes(':')) {
+      normalizedModel = validatedModel.startsWith('ollama/') ? validatedModel : `ollama/${validatedModel}`
     } else {
       // Default to openai for unknown models
       normalizedModel = `openai/${validatedModel}`
@@ -464,7 +467,7 @@ router.post('/provision', (req, res) => {
   }
 
   // Validate model is available - if not, use a sensible fallback
-  if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini)\//, ''))) {
+  if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|ollama)\//, ''))) {
     const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
     send('log', `⚠️  Model "${normalizedModel}" is not available with system API keys\n`)
     send('log', `Using fallback model: "${fallbackModel}"\n`)

@@ -8,6 +8,7 @@ export interface IntegrationValidationResponse {
   openai?: IntegrationValidationResult
   anthropic?: IntegrationValidationResult
   gemini?: IntegrationValidationResult
+  ollama?: IntegrationValidationResult
   opik?: IntegrationValidationResult
 }
 
@@ -76,6 +77,37 @@ export async function validateGeminiKey(apiKey: string, fetchImpl: FetchLike = f
   }
 }
 
+function normalizeOllamaBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim() || 'http://localhost:11434'
+  return trimmed.replace(/\/+$/, '')
+}
+
+export async function validateOllamaConfig(
+  baseUrl: string,
+  defaultModel: string,
+  fetchImpl: FetchLike = fetch
+): Promise<IntegrationValidationResult> {
+  const normalizedBaseUrl = normalizeOllamaBaseUrl(baseUrl)
+  try {
+    const res = await fetchImpl(`${normalizedBaseUrl}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      if (res.status === 404) return invalid('Ollama responded, but the tags API was not found')
+      return errored(`Ollama validation returned ${res.status}`)
+    }
+    const body = await res.json() as { models?: Array<{ name?: string }> }
+    const models = (body.models || []).map((m) => (m.name || '').trim()).filter(Boolean)
+    if (models.length === 0) return invalid('Connected to Ollama, but no local models are installed yet')
+    if (defaultModel.trim() && !models.includes(defaultModel.trim())) {
+      return invalid(`Ollama is reachable, but default model "${defaultModel.trim()}" is not installed`)
+    }
+    return valid(defaultModel.trim() ? `Ollama is reachable and ${defaultModel.trim()} is available` : `Ollama is reachable with ${models.length} installed model(s)`)
+  } catch (err: any) {
+    return errored(`Ollama validation failed: ${err.message || 'connection error'}`)
+  }
+}
+
 export async function validateOpikConfig(
   apiKey: string,
   workspace: string,
@@ -107,16 +139,19 @@ export async function validateIntegrations(input: {
   openai?: string
   anthropic?: string
   gemini?: string
+  ollamaBaseUrl?: string
+  ollamaDefaultModel?: string
   opikApiKey?: string
   opikWorkspace?: string
   opikProject?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, anthropic, gemini, opik] = await Promise.all([
+  const [openai, anthropic, gemini, ollama, opik] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
     validateGeminiKey(input.gemini || '', fetchImpl),
+    validateOllamaConfig(input.ollamaBaseUrl || '', input.ollamaDefaultModel || '', fetchImpl),
     validateOpikConfig(input.opikApiKey || '', input.opikWorkspace || '', input.opikProject || '', fetchImpl),
   ])
 
-  return { openai, anthropic, gemini, opik }
+  return { openai, anthropic, gemini, ollama, opik }
 }
