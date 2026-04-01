@@ -24,7 +24,7 @@
     {
       "id": "hr-lead",
       "name": "HR Lead",
-      "role": "Head of People \u2014 oversees recruiting pipeline, approves offers, manages team policies and culture initiatives",
+      "role": "Head of People — oversees recruiting pipeline, approves offers, manages team policies and culture initiatives",
       "tags": [
         "lead",
         "hr",
@@ -46,7 +46,7 @@
     {
       "id": "recruiter",
       "name": "Recruiter",
-      "role": "Talent acquisition \u2014 sources candidates, screens resumes, conducts initial interviews, and manages candidate pipeline",
+      "role": "Talent acquisition — sources candidates, screens resumes, conducts initial interviews, and manages candidate pipeline",
       "tags": [
         "hr",
         "recruiting"
@@ -61,7 +61,7 @@
     {
       "id": "people-ops",
       "name": "People Operations",
-      "role": "HR operations \u2014 maintains employee records, handles benefits questions, tracks PTO, and manages compliance documentation",
+      "role": "HR operations — maintains employee records, handles benefits questions, tracks PTO, and manages compliance documentation",
       "tags": [
         "hr",
         "ops",
@@ -78,7 +78,7 @@
     {
       "id": "onboarding-specialist",
       "name": "Onboarding Specialist",
-      "role": "New hire experience \u2014 creates onboarding plans, schedules orientation sessions, tracks 30/60/90 day milestones",
+      "role": "New hire experience — creates onboarding plans, schedules orientation sessions, tracks 30/60/90 day milestones",
       "tags": [
         "hr",
         "onboarding"
@@ -141,8 +141,9 @@
           "onboarding-specialist"
         ]
       },
-      "content": "# HR Team Kickoff\n\nYou are the HR Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 Series B startup, 85 employees]\n- **Open roles:** [e.g., 3 engineers, 1 designer, 1 PM]\n- **Hiring priorities:** [e.g., senior backend engineer by April]\n- **ATS/tools:** [GitHub issues, Lever, Greenhouse, Ashby, Workable, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the HR Team community\n2. Review the workspace for existing job descriptions or candidate data\n3. Assign focus areas to each recruiter\n4. Brief the onboarding specialist on any pending new hires\n5. Post initial priorities to the Status group",
-      "type": "once"
+      "content": "# HR Team Kickoff\n\nYou are the HR Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — Series B startup, 85 employees]\n- **Open roles:** [e.g., 3 engineers, 1 designer, 1 PM]\n- **Hiring priorities:** [e.g., senior backend engineer by April]\n- **ATS/tools:** [GitHub issues, Lever, Greenhouse, Ashby, Workable, custom]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the HR Team community\n2. Review the workspace for existing job descriptions or candidate data\n3. Assign focus areas to each recruiter\n4. Brief the onboarding specialist on any pending new hires\n5. Post initial priorities to the Status group",
+      "type": "once",
+      "owner": "hr-lead"
     },
     {
       "id": "job-posting-review",
@@ -159,7 +160,7 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Job Posting Review\n\n1. Recruiters: check application volume for each open role\n2. Flag postings with low application rates \u2014 suggest description improvements\n3. Review any new applications received since yesterday\n4. HR lead: approve or adjust job posting priorities\n5. Update recruiting pipeline metrics in Status group",
+      "content": "# Daily Job Posting Review\n\n1. Recruiters: check application volume for each open role\n2. Flag postings with low application rates — suggest description improvements\n3. Review any new applications received since yesterday\n4. HR lead: approve or adjust job posting priorities\n5. Update recruiting pipeline metrics in Status group",
       "dependsOn": [
         "team-kickoff"
       ],
@@ -203,11 +204,12 @@
           "onboarding-specialist"
         ]
       },
-      "content": "# New Hire Onboarding\n\n1. Create personalized onboarding plan with 30/60/90 day milestones\n2. Schedule orientation sessions (team intros, tools setup, culture overview)\n3. Set up access to required systems and documentation\n4. Assign an onboarding buddy from the relevant team\n5. Schedule check-ins at day 7, 30, 60, and 90 \u2014 track progress in Onboarding group",
+      "content": "# New Hire Onboarding\n\n1. Create personalized onboarding plan with 30/60/90 day milestones\n2. Schedule orientation sessions (team intros, tools setup, culture overview)\n3. Set up access to required systems and documentation\n4. Assign an onboarding buddy from the relevant team\n5. Schedule check-ins at day 7, 30, 60, and 90 — track progress in Onboarding group",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "onboarding-specialist"
     }
   ],
   "category": "business"

@@ -24,7 +24,7 @@
     {
       "id": "marketing-lead",
       "name": "Marketing Lead",
-      "role": "Head of marketing \u2014 sets campaign strategy, manages editorial calendar, approves content, and tracks ROI across channels",
+      "role": "Head of marketing — sets campaign strategy, manages editorial calendar, approves content, and tracks ROI across channels",
       "tags": [
         "lead",
         "marketing",
@@ -47,7 +47,7 @@
     {
       "id": "content-writer",
       "name": "Content Writer",
-      "role": "Content creation \u2014 writes blog posts, landing pages, email campaigns, and whitepapers based on editorial calendar",
+      "role": "Content creation — writes blog posts, landing pages, email campaigns, and whitepapers based on editorial calendar",
       "tags": [
         "marketing",
         "content",
@@ -67,7 +67,7 @@
     {
       "id": "seo-analyst",
       "name": "SEO Analyst",
-      "role": "Search optimization \u2014 conducts keyword research, audits on-page SEO, tracks rankings, and recommends content optimizations",
+      "role": "Search optimization — conducts keyword research, audits on-page SEO, tracks rankings, and recommends content optimizations",
       "tags": [
         "marketing",
         "seo",
@@ -88,7 +88,7 @@
     {
       "id": "social-mgr",
       "name": "Social Media Manager",
-      "role": "Social media \u2014 manages posting schedule, engages with audience, tracks social metrics, and adapts content for each platform",
+      "role": "Social media — manages posting schedule, engages with audience, tracks social metrics, and adapts content for each platform",
       "tags": [
         "marketing",
         "social",
@@ -152,8 +152,9 @@
           "social-mgr"
         ]
       },
-      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai \u2014 multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group",
-      "type": "once"
+      "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai — multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo — for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group",
+      "type": "once",
+      "owner": "marketing-lead"
     },
     {
       "id": "content-calendar",
@@ -174,7 +175,8 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "marketing-lead"
     },
     {
       "id": "campaign-review",
@@ -216,7 +218,8 @@
       "dependsOn": [
         "campaign-review"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "marketing-lead"
     }
   ],
   "category": "business"

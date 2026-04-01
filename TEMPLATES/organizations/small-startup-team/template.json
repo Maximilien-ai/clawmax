@@ -208,14 +208,15 @@
           "release-engineer"
         ]
       },
-      "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
+      "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
       "type": "once",
-      "dependsOn": []
+      "dependsOn": [],
+      "owner": "ceo"
     },
     {
       "id": "daily-standup",
       "name": "Daily Standup",
-      "description": "Morning sync \u2014 each team member shares progress, plans, and blockers",
+      "description": "Morning sync — each team member shares progress, plans, and blockers",
       "schedule": "0 9 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
@@ -236,7 +237,7 @@
     {
       "id": "status-check",
       "name": "Status Check",
-      "description": "Periodic status pulse \u2014 agents report current state every 2 hours",
+      "description": "Periodic status pulse — agents report current state every 2 hours",
       "schedule": "0 */2 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
@@ -257,7 +258,7 @@
     {
       "id": "issue-triage",
       "name": "Issue Triage",
-      "description": "Review and prioritize new GitHub issues \u2014 label, assign, and request info",
+      "description": "Review and prioritize new GitHub issues — label, assign, and request info",
       "schedule": "0 9,14 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
@@ -320,7 +321,7 @@
     {
       "id": "pr-merge",
       "name": "PR Merge",
-      "description": "Merge approved PRs that pass CI \u2014 squash merge and clean up branches",
+      "description": "Merge approved PRs that pass CI — squash merge and clean up branches",
       "schedule": "0 11,16 * * 1-5",
       "enabled": false,
       "executionMode": "automated",
@@ -341,7 +342,7 @@
     {
       "id": "release",
       "name": "Release",
-      "description": "Prepare and publish a release \u2014 version bump, changelog, tag, and deploy",
+      "description": "Prepare and publish a release — version bump, changelog, tag, and deploy",
       "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",

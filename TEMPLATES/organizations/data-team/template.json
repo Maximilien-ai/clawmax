@@ -25,7 +25,7 @@
     {
       "id": "data-lead",
       "name": "Data Lead",
-      "role": "Head of data \u2014 sets data strategy, manages pipeline priorities, coordinates analytics and ML efforts, and reports to stakeholders",
+      "role": "Head of data — sets data strategy, manages pipeline priorities, coordinates analytics and ML efforts, and reports to stakeholders",
       "tags": [
         "lead",
         "data",
@@ -48,7 +48,7 @@
     {
       "id": "data-engineer",
       "name": "Data Engineer",
-      "role": "Pipeline builder \u2014 designs ETL/ELT pipelines, manages data warehouse, ensures data freshness, and handles schema migrations",
+      "role": "Pipeline builder — designs ETL/ELT pipelines, manages data warehouse, ensures data freshness, and handles schema migrations",
       "tags": [
         "data",
         "pipeline",
@@ -69,7 +69,7 @@
     {
       "id": "analyst",
       "name": "Data Analyst",
-      "role": "Analytics \u2014 builds dashboards, runs ad-hoc queries, produces reports, and translates data into business insights",
+      "role": "Analytics — builds dashboards, runs ad-hoc queries, produces reports, and translates data into business insights",
       "tags": [
         "data",
         "analytics",
@@ -90,7 +90,7 @@
     {
       "id": "ml-engineer",
       "name": "ML Engineer",
-      "role": "Machine learning \u2014 trains models, manages experiments, deploys inference pipelines, and monitors model performance",
+      "role": "Machine learning — trains models, manages experiments, deploys inference pipelines, and monitors model performance",
       "tags": [
         "data",
         "ml",
@@ -159,8 +159,9 @@
           "ml-engineer"
         ]
       },
-      "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo \u2014 for pipeline code and models]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment",
-      "type": "once"
+      "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo — for pipeline code and models]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment",
+      "type": "once",
+      "owner": "data-lead"
     },
     {
       "id": "pipeline-monitoring",
@@ -177,7 +178,7 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Pipeline Monitoring\n\n1. Check all scheduled ETL/ELT job statuses\n2. Flag any failed or stalled pipelines with error details\n3. Verify data freshness \u2014 check latest timestamps in key tables\n4. For failures: notify the responsible data engineer and log incident\n5. Post pipeline health summary to Status group",
+      "content": "# Pipeline Monitoring\n\n1. Check all scheduled ETL/ELT job statuses\n2. Flag any failed or stalled pipelines with error details\n3. Verify data freshness — check latest timestamps in key tables\n4. For failures: notify the responsible data engineer and log incident\n5. Post pipeline health summary to Status group",
       "dependsOn": [
         "team-kickoff"
       ],
@@ -199,7 +200,7 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Data Quality Check\n\n1. Run schema validation on all ingested tables\n2. Check for null rates, duplicate keys, and referential integrity\n3. Compare row counts against expected ranges (detect drops or spikes)\n4. Run statistical anomaly detection on key business metrics\n5. Post quality scorecard to Status group \u2014 flag any violations",
+      "content": "# Daily Data Quality Check\n\n1. Run schema validation on all ingested tables\n2. Check for null rates, duplicate keys, and referential integrity\n3. Compare row counts against expected ranges (detect drops or spikes)\n4. Run statistical anomaly detection on key business metrics\n5. Post quality scorecard to Status group — flag any violations",
       "dependsOn": [
         "team-kickoff"
       ],
@@ -222,12 +223,13 @@
           "ml-engineer"
         ]
       },
-      "content": "# Weekly Model Evaluation\n\n1. Pull inference metrics for all deployed models (accuracy, latency, error rate)\n2. Compare current performance against baseline and SLA thresholds\n3. Check for data drift \u2014 distribution shifts in input features\n4. Recommend retraining if metrics degraded beyond threshold\n5. Post model performance report to Status group with trend charts",
+      "content": "# Weekly Model Evaluation\n\n1. Pull inference metrics for all deployed models (accuracy, latency, error rate)\n2. Compare current performance against baseline and SLA thresholds\n3. Check for data drift — distribution shifts in input features\n4. Recommend retraining if metrics degraded beyond threshold\n5. Post model performance report to Status group with trend charts",
       "dependsOn": [
         "pipeline-monitoring",
         "data-quality-check"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "ml-engineer"
     }
   ]
 }

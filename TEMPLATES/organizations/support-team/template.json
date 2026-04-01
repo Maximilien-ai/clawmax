@@ -24,7 +24,7 @@
     {
       "id": "support-lead",
       "name": "Support Lead",
-      "role": "Support manager \u2014 monitors SLA compliance, handles escalation decisions, coaches agents, and reports on CSAT metrics",
+      "role": "Support manager — monitors SLA compliance, handles escalation decisions, coaches agents, and reports on CSAT metrics",
       "tags": [
         "lead",
         "support",
@@ -46,7 +46,7 @@
     {
       "id": "support-agent",
       "name": "Support Agent",
-      "role": "Frontline support \u2014 responds to tickets, troubleshoots issues, documents solutions, and maintains first-response SLA",
+      "role": "Frontline support — responds to tickets, troubleshoots issues, documents solutions, and maintains first-response SLA",
       "tags": [
         "support",
         "frontline"
@@ -61,7 +61,7 @@
     {
       "id": "escalation-eng",
       "name": "Escalation Engineer",
-      "role": "Senior technical support \u2014 handles complex escalations, debugs difficult issues, and creates permanent fixes",
+      "role": "Senior technical support — handles complex escalations, debugs difficult issues, and creates permanent fixes",
       "tags": [
         "support",
         "escalation",
@@ -82,7 +82,7 @@
     {
       "id": "knowledge-mgr",
       "name": "Knowledge Base Manager",
-      "role": "Documentation \u2014 maintains FAQ, writes help articles, identifies documentation gaps from ticket patterns, and trains agents",
+      "role": "Documentation — maintains FAQ, writes help articles, identifies documentation gaps from ticket patterns, and trains agents",
       "tags": [
         "support",
         "knowledge",
@@ -150,8 +150,9 @@
           "knowledge-mgr"
         ]
       },
-      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas",
-      "type": "once"
+      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo — for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas",
+      "type": "once",
+      "owner": "support-lead"
     },
     {
       "id": "ticket-triage",
@@ -212,12 +213,13 @@
           "knowledge-mgr"
         ]
       },
-      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week \u2014 identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group",
+      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week — identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group",
       "dependsOn": [
         "ticket-triage",
         "sla-monitoring"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "knowledge-mgr"
     }
   ],
   "category": "business"

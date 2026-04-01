@@ -15,7 +15,7 @@
     {
       "id": "store-manager",
       "name": "Store Manager",
-      "role": "Overall store operations \u2014 manages P&L, approves restock orders, handles staffing decisions, and resolves escalated customer issues",
+      "role": "Overall store operations — manages P&L, approves restock orders, handles staffing decisions, and resolves escalated customer issues",
       "tags": [
         "lead",
         "management",
@@ -33,7 +33,7 @@
     {
       "id": "inventory-clerk",
       "name": "Inventory Clerk",
-      "role": "Inventory management \u2014 conducts daily counts, tracks stock levels, generates restock orders, and manages supplier communications",
+      "role": "Inventory management — conducts daily counts, tracks stock levels, generates restock orders, and manages supplier communications",
       "tags": [
         "inventory",
         "retail"
@@ -49,7 +49,7 @@
     {
       "id": "cashier-lead",
       "name": "Cashier Lead",
-      "role": "Floor operations \u2014 manages cash registers, handles customer complaints, trains new cashiers, and maintains store presentation",
+      "role": "Floor operations — manages cash registers, handles customer complaints, trains new cashiers, and maintains store presentation",
       "tags": [
         "retail",
         "floor",
@@ -107,8 +107,9 @@
           "cashier-lead"
         ]
       },
-      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group",
-      "type": "once"
+      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group",
+      "type": "once",
+      "owner": "store-manager"
     },
     {
       "id": "daily-inventory-count",
@@ -175,7 +176,8 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "store-manager"
     }
   ],
   "category": "business"

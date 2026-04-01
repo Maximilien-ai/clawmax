@@ -24,7 +24,7 @@
     {
       "id": "legal-lead",
       "name": "Legal Lead",
-      "role": "General counsel \u2014 oversees all legal operations, approves high-risk contracts, sets compliance policies, and manages outside counsel",
+      "role": "General counsel — oversees all legal operations, approves high-risk contracts, sets compliance policies, and manages outside counsel",
       "tags": [
         "lead",
         "legal",
@@ -46,7 +46,7 @@
     {
       "id": "contract-analyst",
       "name": "Contract Analyst",
-      "role": "Contract specialist \u2014 reviews agreements, redlines terms, identifies unfavorable clauses, and tracks renewal dates",
+      "role": "Contract specialist — reviews agreements, redlines terms, identifies unfavorable clauses, and tracks renewal dates",
       "tags": [
         "legal",
         "contracts"
@@ -61,7 +61,7 @@
     {
       "id": "compliance-officer",
       "name": "Compliance Officer",
-      "role": "Regulatory compliance \u2014 monitors regulatory changes, audits internal processes, maintains compliance documentation, and flags violations",
+      "role": "Regulatory compliance — monitors regulatory changes, audits internal processes, maintains compliance documentation, and flags violations",
       "tags": [
         "legal",
         "compliance",
@@ -123,8 +123,9 @@
           "compliance-officer"
         ]
       },
-      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp \u2014 SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
-      "type": "once"
+      "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
+      "type": "once",
+      "owner": "legal-lead"
     },
     {
       "id": "contract-review",
@@ -145,7 +146,8 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "legal-lead"
     },
     {
       "id": "compliance-check",
@@ -190,7 +192,8 @@
         "contract-review",
         "compliance-check"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "owner": "legal-lead"
     }
   ],
   "category": "business"

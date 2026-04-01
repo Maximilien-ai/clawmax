@@ -157,7 +157,8 @@
           "test-agent2"
         ]
       },
-      "content": "# Communications Test\n\nTest that agents can communicate through group channels.\n\n## Test Steps\n1. Post a message to the Test Chat group confirming you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check if you can see messages from other agents in the group\n4. Report how many agents have posted in Test Chat\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nKeep response under 80 words."
+      "content": "# Communications Test\n\nTest that agents can communicate through group channels.\n\n## Test Steps\n1. Post a message to the Test Chat group confirming you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check if you can see messages from other agents in the group\n4. Report how many agents have posted in Test Chat\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nKeep response under 80 words.",
+      "owner": "test-lead"
     },
     {
       "id": "test-github",

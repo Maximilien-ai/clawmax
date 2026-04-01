@@ -24,7 +24,7 @@
     {
       "id": "tech-lead",
       "name": "Tech Lead",
-      "role": "Technical leadership \u2014 sets architecture direction, reviews complex PRs, unblocks engineers, and manages technical debt priorities",
+      "role": "Technical leadership — sets architecture direction, reviews complex PRs, unblocks engineers, and manages technical debt priorities",
       "tags": [
         "lead",
         "engineering",
@@ -46,7 +46,7 @@
     {
       "id": "engineer",
       "name": "Software Engineer",
-      "role": "Feature development \u2014 writes code, submits PRs, fixes bugs, writes tests, and participates in code review",
+      "role": "Feature development — writes code, submits PRs, fixes bugs, writes tests, and participates in code review",
       "tags": [
         "engineering",
         "development"
@@ -65,7 +65,7 @@
     {
       "id": "qa-engineer",
       "name": "QA Engineer",
-      "role": "Quality assurance \u2014 writes and runs test suites, performs regression testing, validates bug fixes, and tracks test coverage",
+      "role": "Quality assurance — writes and runs test suites, performs regression testing, validates bug fixes, and tracks test coverage",
       "tags": [
         "engineering",
         "qa",
@@ -86,7 +86,7 @@
     {
       "id": "devops",
       "name": "DevOps Engineer",
-      "role": "Infrastructure & CI/CD \u2014 maintains build pipelines, monitors deployments, manages environments, and triages CI failures",
+      "role": "Infrastructure & CI/CD — maintains build pipelines, monitors deployments, manages environments, and triages CI failures",
       "tags": [
         "engineering",
         "devops",
@@ -154,8 +154,9 @@
           "devops"
         ]
       },
-      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo \u2014 the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 \u2014 specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n- **GitHub repo:** [e.g., owner/repo \u2014 for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup",
-      "type": "once"
+      "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo — the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 — specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup",
+      "type": "once",
+      "owner": "tech-lead"
     },
     {
       "id": "pr-review",
@@ -222,12 +223,13 @@
         "pr-review",
         "ci-triage"
       ],
-      "type": "conditional"
+      "type": "conditional",
+      "owner": "tech-lead"
     },
     {
       "id": "daily-standup",
       "name": "Daily Standup",
-      "description": "Async daily standup \u2014 what was done, what's planned, blockers",
+      "description": "Async daily standup — what was done, what's planned, blockers",
       "schedule": "30 9 * * *",
       "enabled": true,
       "executionMode": "automated",

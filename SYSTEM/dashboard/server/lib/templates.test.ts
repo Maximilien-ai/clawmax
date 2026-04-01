@@ -153,6 +153,27 @@ test('Workflows in org templates are complete', () => {
   console.log(`  Validated ${totalWorkflows} workflows across ${templatesWithWorkflows.length} templates`)
 })
 
+// Test 6b: Managed workflows carry explicit owner metadata and slug-aligned IDs
+test('Managed workflow template metadata matches published workflow spec', () => {
+  const templates = listTemplates('organization') as OrganizationTemplate[]
+  const toSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+  templates.forEach(template => {
+    template.workflows?.forEach(workflow => {
+      const workflowWithOwner = workflow as typeof workflow & { owner?: string }
+      assert(typeof workflow.id === 'string' && workflow.id.length > 0, 'workflow.id should be present')
+      assertEqual(workflow.id, toSlug(workflow.name), `workflow.id should match slugified name for ${template.name} / ${workflow.name}`)
+
+      const executionMode = workflow.executionMode || 'managed'
+      if (executionMode === 'managed') {
+        assert(typeof workflowWithOwner.owner === 'string' && workflowWithOwner.owner.length > 0, `managed workflow should include owner for ${template.name} / ${workflow.name}`)
+      }
+    })
+  })
+
+  console.log('  Managed workflows have explicit owners and slug-aligned IDs')
+})
+
 // Test 7: slugify function works correctly
 test('slugify() converts names to filesystem-safe slugs', () => {
   assertEqual(slugify('Small Startup Team'), 'small-startup-team')
