@@ -254,11 +254,11 @@ Implemented on `main`:
 - read-only shared dashboard page
 - overview, costs, agents, active notifications, workflows, kickoff summary, results, and group chats
 - persistent dashboard management from the workspace switcher
-- compact-mode summary charts for budget, agent status mix, and workflow status mix
+- compact-mode summary charts for agent status mix, workflow status mix, and notification severity
+- workflow kickoff summaries derived from `Project Configuration` content when present
+- normalized result artifacts from participant responses, URLs, and workspace file references
 
 Current limitations:
-- kickoff inputs are still best-effort summaries rather than structured run inputs
-- results are still inferred from available workflow/execution data, not normalized artifacts
 - costs are snapshot-focused; no time-series graph yet
 - group chats are summaries only, with no deep chat drilldown links yet
 - compact dashboard drag-and-drop still has an ordering bug when reordering upward within the same column
@@ -268,8 +268,6 @@ Current limitations:
 
 ## Remaining Follow-up Work
 
-- normalize workflow kickoff/start inputs for cleaner dashboard presentation
-- normalize workflow outputs/artifacts and expose consistent result links
 - add better cost history visualizations and time-series charts
 - push compact mode further toward one-screen summaries with richer charts and less repeated text
 - fix compact same-column upward drag-and-drop reordering so the layout editor is reliable in both directions

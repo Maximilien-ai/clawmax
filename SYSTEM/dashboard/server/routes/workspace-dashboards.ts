@@ -13,8 +13,41 @@ import path from 'path'
 
 const router = Router()
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
+const FILE_PATH_REGEX = /\/[^\s"'<>]+?\.(md|txt|pdf|json|csv|png|jpg|jpeg|gif|html)/gi
 
-function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
+export function summarizeSentence(value: string, maxLength = 220): string {
+  const trimmed = value.replace(/\s+/g, ' ').trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= maxLength) return trimmed
+  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+export function extractProjectConfigurationLines(content: string): string[] {
+  const lines = content.split('\n')
+  const startIndex = lines.findIndex((line) => /^##\s+Project Configuration\b/i.test(line.trim()))
+  if (startIndex === -1) return []
+
+  const collected: string[] = []
+  for (let i = startIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (!line) continue
+    if (/^##\s+/.test(line)) break
+    if (/^>\s*\*\*Customize/i.test(line)) continue
+    if (/^-\s+/.test(line) || /^\d+\.\s+/.test(line)) {
+      collected.push(line.replace(/^[-\d.\s]+/, '').trim())
+    }
+  }
+  return collected.slice(0, 6)
+}
+
+export function extractParticipantResponses(execution: any): string[] {
+  const participants: any[] = Array.isArray(execution?.participants) ? execution.participants : []
+  return participants
+    .map((participant: any) => participant?.response || participant?.result?.text || participant?.result?.response || '')
+    .filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
+export function extractLinks(values: Array<string | null | undefined>, limit = 6): string[] {
   const seen = new Set<string>()
   for (const value of values) {
     if (!value) continue
@@ -27,6 +60,59 @@ function extractLinks(values: Array<string | null | undefined>, limit = 6): stri
     }
   }
   return Array.from(seen)
+}
+
+export function extractWorkspaceFilePaths(values: Array<string | null | undefined>, workspacePath: string, limit = 6): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (!value) continue
+    for (const match of value.match(FILE_PATH_REGEX) || []) {
+      if (!match.startsWith(workspacePath)) continue
+      if (!fs.existsSync(match)) continue
+      if (!seen.has(match)) {
+        seen.add(match)
+        if (seen.size >= limit) return Array.from(seen)
+      }
+    }
+  }
+  return Array.from(seen)
+}
+
+export function normalizeResultArtifacts(input: {
+  links: string[]
+  filePaths: string[]
+  workspacePath: string
+}): Array<{ kind: 'link' | 'file'; label: string; url?: string; relativePath?: string }> {
+  const artifacts: Array<{ kind: 'link' | 'file'; label: string; url?: string; relativePath?: string }> = []
+
+  for (const link of input.links) {
+    try {
+      const parsed = new URL(link)
+      const pathName = parsed.pathname.split('/').filter(Boolean).pop() || parsed.hostname
+      artifacts.push({
+        kind: 'link',
+        label: summarizeSentence(`${parsed.hostname} / ${pathName}`, 64),
+        url: link,
+      })
+    } catch {
+      artifacts.push({
+        kind: 'link',
+        label: summarizeSentence(link, 64),
+        url: link,
+      })
+    }
+  }
+
+  for (const filePath of input.filePaths) {
+    const relativePath = path.relative(input.workspacePath, filePath)
+    artifacts.push({
+      kind: 'file',
+      label: path.basename(filePath),
+      relativePath,
+    })
+  }
+
+  return artifacts.slice(0, 8)
 }
 
 router.get('/:token', async (req, res) => {
@@ -114,6 +200,26 @@ router.get('/:token', async (req, res) => {
       const workflowSummaries = workflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
         const latest = executions[0] || null
+        const kickoffLines = extractProjectConfigurationLines(workflow.content || '')
+        const participantResponses = extractParticipantResponses(latest)
+        const resultLinks = extractLinks([
+          workflow.description,
+          workflow.content,
+          ...participantResponses,
+          ...(latest?.logs || []),
+        ])
+        const resultFilePaths = extractWorkspaceFilePaths([
+          workflow.description,
+          workflow.content,
+          ...participantResponses,
+          ...(latest?.logs || []),
+        ], workspace.path)
+        const normalizedKickoff = kickoffLines.length > 0
+          ? kickoffLines.map((line) => summarizeSentence(line, 160))
+          : (latest?.logs?.[0] ? [summarizeSentence(latest.logs[0], 160)] : [])
+        const normalizedResults = participantResponses.length > 0
+          ? participantResponses.slice(0, 3).map((response) => summarizeSentence(response, 220))
+          : (latest?.logs?.slice(-2) || []).map((line: string) => summarizeSentence(line, 220))
         return {
           id: workflow.id,
           name: workflow.name,
@@ -137,12 +243,15 @@ router.get('/:token', async (req, res) => {
             status: execution.status,
             triggerType: execution.triggerType,
           })),
-          kickoffSummary: latest?.logs?.[0] || null,
-          resultSummary: latest?.logs?.slice(-2) || [],
-          resultLinks: extractLinks([
-            workflow.description,
-            ...(latest?.logs || []),
-          ]),
+          kickoffSummary: normalizedKickoff[0] || null,
+          kickoffItems: normalizedKickoff,
+          resultSummary: normalizedResults,
+          resultLinks,
+          resultArtifacts: normalizeResultArtifacts({
+            links: resultLinks,
+            filePaths: resultFilePaths,
+            workspacePath: workspace.path,
+          }),
         }
       })
 
@@ -168,6 +277,7 @@ router.get('/:token', async (req, res) => {
           metering: {
             totalCostUsd: metering.estimatedCostUsd,
             totalTraces: metering.totalTraces,
+            dailyCost: metering.dailyCost,
             byAgent: metering.byAgent.slice(0, 10),
             byWorkflow: metering.byWorkflow.slice(0, 10),
           },

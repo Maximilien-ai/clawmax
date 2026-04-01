@@ -44,9 +44,34 @@ export interface WorkspaceMetering {
   totalOutputTokens: number
   totalTokens: number
   estimatedCostUsd: number
+  dailyCost: Array<{ date: string; estimatedCostUsd: number; traceCount: number }>
   byAgent: AgentMetering[]
   byWorkflow: WorkflowMetering[]
   period: string
+}
+
+export function buildDailyCostSeries(traces: TraceData[], days = 7): Array<{ date: string; estimatedCostUsd: number; traceCount: number }> {
+  const buckets = new Map<string, { date: string; estimatedCostUsd: number; traceCount: number }>()
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() - i)
+    const isoDate = date.toISOString().slice(0, 10)
+    buckets.set(isoDate, { date: isoDate, estimatedCostUsd: 0, traceCount: 0 })
+  }
+
+  for (const trace of traces) {
+    const isoDate = String(trace.start_time || '').slice(0, 10)
+    const bucket = buckets.get(isoDate)
+    if (!bucket) continue
+    bucket.estimatedCostUsd += Number(trace.metadata?.estimated_cost_usd || 0)
+    bucket.traceCount += 1
+  }
+
+  return Array.from(buckets.values()).map((entry) => ({
+    ...entry,
+    estimatedCostUsd: Math.round(entry.estimatedCostUsd * 10000) / 10000,
+  }))
 }
 
 function getOpikConfig() {
@@ -168,6 +193,7 @@ export async function getWorkspaceMetering(workspaceId?: string): Promise<Worksp
 
       existing.totalRuns++
       existing.totalTokens += meta.tokens_total || 0
+      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
       existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalRuns - 1)) + (meta.duration_ms || 0)) / existing.totalRuns
       if (!existing.lastRun || trace.start_time > existing.lastRun) {
         existing.lastRun = trace.start_time
@@ -188,6 +214,7 @@ export async function getWorkspaceMetering(workspaceId?: string): Promise<Worksp
     totalOutputTokens: totalOutput,
     totalTokens: totalInput + totalOutput,
     estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
+    dailyCost: buildDailyCostSeries(traces),
     byAgent,
     byWorkflow,
     period: 'all',

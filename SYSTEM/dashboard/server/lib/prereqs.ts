@@ -25,37 +25,75 @@ export interface PrereqResult {
   summary: { pass: number; fail: number; warn: number }
 }
 
+function commandExists(command: string): boolean {
+  try {
+    execSync(`command -v ${command}`, { stdio: 'pipe', shell: '/bin/bash' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getGhAuthStatusOutput(): { ok: boolean; output: string } {
+  try {
+    const output = execSync('gh auth status 2>&1', { encoding: 'utf-8', stdio: 'pipe', shell: '/bin/bash' }).toString()
+    return { ok: true, output }
+  } catch (err: any) {
+    const output = `${err?.stdout?.toString?.() || ''}\n${err?.stderr?.toString?.() || ''}`.trim()
+    return { ok: false, output }
+  }
+}
+
+function isGhAuthenticated(output: string): boolean {
+  const normalized = output.toLowerCase()
+  return (
+    normalized.includes('logged in') ||
+    normalized.includes('account ') ||
+    normalized.includes('github.com') ||
+    normalized.includes('token') ||
+    normalized.includes('gh_token')
+  )
+}
+
+function hasRepoScope(output: string): boolean {
+  const normalized = output.toLowerCase()
+  return normalized.includes("'repo'") || normalized.includes(' repo') || normalized.includes('scopes: repo')
+}
+
 // Skills that require specific auth or infrastructure
 const SKILL_REQUIREMENTS: Record<string, { label: string; check: () => PrereqCheck }> = {
   'github': {
     label: 'GitHub CLI',
     check: () => {
-      try {
-        execSync('which gh', { stdio: 'pipe' })
-        const authStatus = execSync('gh auth status 2>&1', { encoding: 'utf-8', stdio: 'pipe' }).toString()
-        if (authStatus.includes('Logged in')) {
-          return { id: 'github-auth', label: 'GitHub CLI authenticated', status: 'pass', message: 'gh CLI installed and authenticated', category: 'auth' }
-        }
-        return { id: 'github-auth', label: 'GitHub CLI authenticated', status: 'fail', message: 'gh CLI installed but not authenticated', fixHint: 'Run: gh auth login', category: 'auth' }
-      } catch {
+      if (!commandExists('gh')) {
         return { id: 'github-auth', label: 'GitHub CLI', status: 'fail', message: 'gh CLI not installed', fixHint: 'Run: brew install gh && gh auth login', category: 'auth' }
       }
+
+      const authStatus = getGhAuthStatusOutput()
+      if (isGhAuthenticated(authStatus.output)) {
+        return { id: 'github-auth', label: 'GitHub CLI authenticated', status: 'pass', message: 'gh CLI installed and authenticated', category: 'auth' }
+      }
+
+      return { id: 'github-auth', label: 'GitHub CLI authenticated', status: 'warn', message: 'gh CLI installed but authentication could not be confirmed', fixHint: 'Run: gh auth login', category: 'auth' }
     }
   },
   'gh-issues': {
     label: 'GitHub Issues',
     check: () => {
-      // Same as github — needs gh CLI
-      try {
-        execSync('which gh', { stdio: 'pipe' })
-        const scopes = execSync('gh auth status 2>&1', { encoding: 'utf-8', stdio: 'pipe' }).toString()
-        if (scopes.includes("'repo'") || scopes.includes('repo')) {
-          return { id: 'gh-issues', label: 'GitHub Issues (repo scope)', status: 'pass', message: 'gh CLI has repo scope for issue management', category: 'auth' }
-        }
-        return { id: 'gh-issues', label: 'GitHub Issues (repo scope)', status: 'warn', message: 'gh CLI may lack repo scope', fixHint: 'Run: gh auth refresh -s repo', category: 'auth' }
-      } catch {
+      if (!commandExists('gh')) {
         return { id: 'gh-issues', label: 'GitHub Issues', status: 'fail', message: 'gh CLI not installed', fixHint: 'Run: brew install gh && gh auth login', category: 'auth' }
       }
+
+      const authStatus = getGhAuthStatusOutput()
+      if (!isGhAuthenticated(authStatus.output)) {
+        return { id: 'gh-issues', label: 'GitHub Issues (repo scope)', status: 'warn', message: 'gh CLI installed but authentication could not be confirmed', fixHint: 'Run: gh auth login', category: 'auth' }
+      }
+
+      if (hasRepoScope(authStatus.output)) {
+          return { id: 'gh-issues', label: 'GitHub Issues (repo scope)', status: 'pass', message: 'gh CLI has repo scope for issue management', category: 'auth' }
+      }
+
+      return { id: 'gh-issues', label: 'GitHub Issues (repo scope)', status: 'warn', message: 'gh CLI authenticated, but repo scope could not be confirmed', fixHint: 'Run: gh auth refresh -s repo', category: 'auth' }
     }
   },
 }
@@ -70,7 +108,7 @@ export function checkTemplatePrereqs(template: {
   // ── Infrastructure checks ──
   // OpenClaw CLI
   try {
-    execSync('which openclaw', { stdio: 'pipe' })
+    execSync('command -v openclaw', { stdio: 'pipe', shell: '/bin/bash' })
     checks.push({ id: 'openclaw-cli', label: 'OpenClaw CLI', status: 'pass', message: 'Installed', category: 'infrastructure' })
   } catch {
     checks.push({ id: 'openclaw-cli', label: 'OpenClaw CLI', status: 'fail', message: 'Not installed — agents cannot be started', fixHint: 'Run: npm install -g openclaw', category: 'infrastructure' })

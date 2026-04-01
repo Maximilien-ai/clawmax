@@ -4,9 +4,15 @@ const DISMISS_KEY = 'clawmax-byok-preview-dismissed'
 export interface StoredByokKeys {
   openai?: string
   anthropic?: string
+  geminiApiKey?: string
+  ollamaBaseUrl?: string
+  ollamaDefaultModel?: string
+  sensoApiKey?: string
+  sensoContextLabel?: string
   opikApiKey?: string
   opikWorkspace?: string
   opikProject?: string
+  githubDefaultRepo?: string
   preferredModel?: string
 }
 

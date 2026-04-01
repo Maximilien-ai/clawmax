@@ -44,6 +44,7 @@ interface SharedDashboardPayload {
     metering: {
       totalCostUsd: number
       totalTraces: number
+      dailyCost: Array<{ date: string; estimatedCostUsd: number; traceCount: number }>
       byAgent: Array<{ agentId: string; estimatedCostUsd: number }>
       byWorkflow: Array<{ workflowId: string; workflowName: string; estimatedCostUsd: number }>
     }
@@ -75,6 +76,12 @@ interface SharedDashboardPayload {
     kickoffSummary: string | null
     resultSummary: string[]
     resultLinks: string[]
+    resultArtifacts?: Array<{
+      kind: 'link' | 'file'
+      label: string
+      url?: string
+      relativePath?: string
+    }>
     latestExecution: {
       status: string
       startedAt: string
@@ -169,6 +176,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
       metering: {
         totalCostUsd: Number(input?.costs?.metering?.totalCostUsd || 0),
         totalTraces: Number(input?.costs?.metering?.totalTraces || 0),
+        dailyCost: Array.isArray(input?.costs?.metering?.dailyCost) ? input.costs.metering.dailyCost : [],
         byAgent: Array.isArray(input?.costs?.metering?.byAgent) ? input.costs.metering.byAgent : [],
         byWorkflow: Array.isArray(input?.costs?.metering?.byWorkflow) ? input.costs.metering.byWorkflow : [],
       },
@@ -180,6 +188,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
           ...workflow,
           resultSummary: Array.isArray(workflow?.resultSummary) ? workflow.resultSummary : [],
           resultLinks: Array.isArray(workflow?.resultLinks) ? workflow.resultLinks : [],
+          resultArtifacts: Array.isArray(workflow?.resultArtifacts) ? workflow.resultArtifacts : [],
           executionHistory: Array.isArray(workflow?.executionHistory) ? workflow.executionHistory : [],
         }))
       : [],
@@ -285,6 +294,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const runningWorkflows = payload.workflows.filter(workflow => workflow.status === 'running').length
   const failedWorkflows = payload.workflows.filter(workflow => workflow.status === 'failed').length
   const idleWorkflows = Math.max(payload.workflows.length - runningWorkflows - failedWorkflows, 0)
+  const dailyCostMax = Math.max(...payload.costs.metering.dailyCost.map((entry) => entry.estimatedCostUsd), 0)
+  const criticalNotifications = payload.notifications.filter(notification => notification.severity === 'critical').length
+  const warningNotifications = payload.notifications.filter(notification => notification.severity === 'warning').length
+  const infoNotifications = Math.max(payload.notifications.length - criticalNotifications - warningNotifications, 0)
   const orderedTopLevelSections = payload.dashboard.sectionOrder
     .filter((key): key is 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' =>
       ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].includes(key)
@@ -301,6 +314,35 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const headerClass = 'rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-100 shadow-xl dark:border-white/10 dark:from-slate-900 dark:to-slate-800 dark:shadow-2xl'
   const cardClass = `rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${cardPadding}`
   const nestedClass = 'rounded-xl border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-slate-800/70'
+  const renderCostTrend = (dark: boolean) => {
+    if (!payload.costs.metering.dailyCost.length) return null
+    return (
+      <div className={`mt-4 rounded-xl border ${dark ? 'border-white/10 bg-slate-800/70' : 'border-gray-200 bg-gray-50'} ${compact ? 'p-3' : 'p-4'}`}>
+        <div className={`mb-3 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide ${dark ? 'text-slate-500' : 'text-gray-500'}`}>
+          <span>Spend trend</span>
+          <span>Last {payload.costs.metering.dailyCost.length}d</span>
+        </div>
+        <div className="flex items-end gap-2">
+          {payload.costs.metering.dailyCost.map((entry) => {
+            const heightPct = dailyCostMax > 0 ? Math.max((entry.estimatedCostUsd / dailyCostMax) * 100, entry.estimatedCostUsd > 0 ? 12 : 6) : 8
+            return (
+              <div key={entry.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>${entry.estimatedCostUsd.toFixed(2)}</div>
+                <div className={`flex h-20 w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
+                  <div
+                    className={`w-full rounded-md ${dark ? 'bg-emerald-400/90' : 'bg-emerald-500'}`}
+                    style={{ height: `${heightPct}%` }}
+                    title={`${entry.date}: $${entry.estimatedCostUsd.toFixed(4)} across ${entry.traceCount} traces`}
+                  />
+                </div>
+                <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>{entry.date.slice(5)}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   const ThemeToggle = () => (
     <button
@@ -348,6 +390,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
             </div>
             <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+            {renderCostTrend(false)}
           </section>
         )
       case 'agents':
@@ -355,6 +398,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-emerald-400" style={{ width: `${(onlineAgents / totalAgents) * 100}%` }} />
+                <div className="bg-slate-500" style={{ width: `${(pausedAgents / totalAgents) * 100}%` }} />
+                <div className="bg-amber-400" style={{ width: `${(offlineAgents / totalAgents) * 100}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Online {onlineAgents}</span>
+                <span>Paused {pausedAgents}</span>
+                <span>Offline {offlineAgents}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
               {payload.agents.slice(0, agentsToShow).map(agent => (
                 <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
@@ -380,6 +435,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Active Notifications</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-red-400" style={{ width: `${payload.notifications.length ? (criticalNotifications / payload.notifications.length) * 100 : 0}%` }} />
+                <div className="bg-yellow-400" style={{ width: `${payload.notifications.length ? (warningNotifications / payload.notifications.length) * 100 : 0}%` }} />
+                <div className="bg-sky-400" style={{ width: `${payload.notifications.length ? (infoNotifications / payload.notifications.length) * 100 : 0}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Critical {criticalNotifications}</span>
+                <span>Warning {warningNotifications}</span>
+                <span>Info {infoNotifications}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.notifications.slice(0, notificationsToShow).map(notification => (
                 <div key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/80">
@@ -399,6 +466,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-sky-400" style={{ width: `${(runningWorkflows / totalWorkflows) * 100}%` }} />
+                <div className="bg-red-400" style={{ width: `${(failedWorkflows / totalWorkflows) * 100}%` }} />
+                <div className="bg-slate-500" style={{ width: `${(idleWorkflows / totalWorkflows) * 100}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Running {runningWorkflows}</span>
+                <span>Failed {failedWorkflows}</span>
+                <span>Other {idleWorkflows}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                 <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
@@ -418,12 +497,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       {workflow.resultSummary.length > 0 && (
                         <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
                       )}
-                      {workflow.resultLinks.length > 0 && (
+                      {(workflow.resultArtifacts?.length || workflow.resultLinks.length) > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {workflow.resultLinks.map((link) => (
-                            <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20">
-                              Open result
-                            </a>
+                          {(workflow.resultArtifacts?.length ? workflow.resultArtifacts : workflow.resultLinks.map((link: string) => ({ kind: 'link', label: 'Open result', url: link }))).map((artifact: any) => (
+                            artifact.kind === 'link' && artifact.url ? (
+                              <a key={`${artifact.label}-${artifact.url}`} href={artifact.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-500/20">
+                                {artifact.label}
+                              </a>
+                            ) : (
+                              <span key={`${artifact.label}-${artifact.relativePath || 'file'}`} className="rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs text-gray-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300">
+                                {artifact.label}
+                              </span>
+                            )
                           ))}
                         </div>
                       )}
@@ -639,6 +724,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
               </div>
               <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
+              {renderCostTrend(true)}
               {compact && (
                 <div className="mt-3 rounded-xl border border-white/10 bg-slate-800/70 p-3">
                   <div className="mb-2 text-[11px] uppercase tracking-wide text-slate-500">Budget Snapshot</div>
@@ -796,18 +882,27 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                           Result: {workflow.resultSummary.join(' ')}
                         </div>
                       )}
-                      {payload.dashboard.sections.results && workflow.resultLinks.length > 0 && (
+                      {payload.dashboard.sections.results && ((workflow.resultArtifacts?.length || workflow.resultLinks.length) > 0) && (
                         <div className="flex flex-wrap gap-2">
-                          {workflow.resultLinks.map((link) => (
-                            <a
-                              key={link}
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`rounded-full border border-sky-500/30 bg-sky-500/10 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-sky-300 hover:bg-sky-500/20`}
-                            >
-                              Open result
-                            </a>
+                          {(workflow.resultArtifacts?.length ? workflow.resultArtifacts : workflow.resultLinks.map((link: string) => ({ kind: 'link', label: 'Open result', url: link }))).map((artifact: any) => (
+                            artifact.kind === 'link' && artifact.url ? (
+                              <a
+                                key={`${artifact.label}-${artifact.url}`}
+                                href={artifact.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`rounded-full border border-sky-500/30 bg-sky-500/10 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-sky-300 hover:bg-sky-500/20`}
+                              >
+                                {artifact.label}
+                              </a>
+                            ) : (
+                              <span
+                                key={`${artifact.label}-${artifact.relativePath || 'file'}`}
+                                className={`rounded-full border border-gray-300 bg-gray-100 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} text-gray-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300`}
+                              >
+                                {artifact.label}
+                              </span>
+                            )
                           ))}
                         </div>
                       )}
