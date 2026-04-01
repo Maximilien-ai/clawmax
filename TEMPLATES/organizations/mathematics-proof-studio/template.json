@@ -1,0 +1,154 @@
+{
+  "name": "Mathematics Proof Studio",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for theorem exploration, proof attempts, verification, and exposition. Early idea only and intended as a customizable starting point for mathematical workflows.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "mathematics",
+    "proofs",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "proof-lead",
+      "name": "Proof Lead",
+      "role": "Research lead — selects the conjecture, frames the proof agenda, and decides which branches to pursue or abandon.",
+      "tags": ["lead", "math", "proofs"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Proof Studio"],
+      "groups": ["Conjectures", "Proofs", "Verification", "Status"]
+    },
+    {
+      "id": "conjecture-scout",
+      "name": "Conjecture Scout",
+      "role": "Prior-work specialist — collects related lemmas, counterexamples, known results, and notation conventions.",
+      "tags": ["math", "literature", "prior-work"],
+      "communities": ["Proof Studio"],
+      "groups": ["Conjectures"]
+    },
+    {
+      "id": "proof-builder",
+      "name": "Proof Builder",
+      "role": "Primary derivation specialist — drafts proof sketches, explores strategies, and decomposes the argument into lemmas.",
+      "tags": ["math", "proofs", "derivation"],
+      "communities": ["Proof Studio"],
+      "groups": ["Proofs", "Status"]
+    },
+    {
+      "id": "proof-verifier",
+      "name": "Proof Verifier",
+      "role": "Verification specialist — checks logical steps, searches for edge cases, and improves the final exposition.",
+      "tags": ["math", "verification", "review"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Proof Studio"],
+      "groups": ["Verification", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Proof Studio",
+      "description": "Shared coordination space for conjecture selection, proof work, and verification."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Conjectures",
+      "description": "Problem statements, prior results, examples, and notation alignment.",
+      "community": "Proof Studio"
+    },
+    {
+      "name": "Proofs",
+      "description": "Proof sketches, branch exploration, lemma decomposition, and argument structure.",
+      "community": "Proof Studio"
+    },
+    {
+      "name": "Verification",
+      "description": "Step checking, counterexample search, edge-case review, and exposition cleanup.",
+      "community": "Proof Studio"
+    },
+    {
+      "name": "Status",
+      "description": "Current strategy, blockers, abandoned paths, and proof-readiness updates.",
+      "community": "Proof Studio"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "conjecture-kickoff",
+      "name": "Conjecture Kickoff",
+      "description": "Initialize the proof studio around one conjecture or theorem target.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["proof-lead", "conjecture-scout", "proof-builder", "proof-verifier"]
+      },
+      "content": "# Conjecture Kickoff\n\nYou are the Proof Lead. The studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Target statement:** [e.g., prove or disprove a conjecture]\n- **Domain:** [number theory, combinatorics, geometry, probability, custom]\n- **Known tools:** [e.g., generating functions, compactness, probabilistic method]\n- **Success artifact:** [proof sketch, counterexample, lemma map, exposition note]\n- **References:** [papers, books, notes, links]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Restate the target clearly in the Proof Studio community\n2. Define acceptable outcomes: proof, counterexample, or narrowed claim\n3. Ask Conjecture Scout for prior results and related lemmas\n4. Ask Proof Builder for the first candidate strategies\n5. Ask Proof Verifier to define the initial verification checklist\n6. Post the first milestone and risk notes to Status",
+      "type": "once",
+      "owner": "proof-lead"
+    },
+    {
+      "id": "prior-results-sweep",
+      "name": "Prior Results Sweep",
+      "description": "Collect prior results, examples, and known obstacles for the current theorem target.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Conjectures"],
+        "tags": [],
+        "agents": ["conjecture-scout"]
+      },
+      "content": "# Prior Results Sweep\n\n1. Gather the strongest known related theorems, lemmas, and counterexamples\n2. Clarify notation, assumptions, and hidden regularity requirements\n3. Summarize how close prior work gets to the target statement\n4. Post the most reusable ingredients to Conjectures\n5. Flag any evidence the claim should be weakened or split",
+      "dependsOn": ["conjecture-kickoff"],
+      "type": "recurring",
+      "owner": "proof-lead"
+    },
+    {
+      "id": "proof-attempt-cycle",
+      "name": "Proof Attempt Cycle",
+      "description": "Iterate on proof branches, lemma structure, and likely lines of attack.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Proofs"],
+        "tags": [],
+        "agents": ["proof-builder"]
+      },
+      "content": "# Proof Attempt Cycle\n\n1. Pick the most promising current proof strategy\n2. Break it into lemmas and note required assumptions for each step\n3. Record the exact point of failure if the branch breaks\n4. Suggest one refinement or alternate strategy\n5. Post the current proof state to Proofs and Status",
+      "dependsOn": ["prior-results-sweep"],
+      "type": "recurring",
+      "owner": "proof-lead"
+    },
+    {
+      "id": "verification-and-exposition-review",
+      "name": "Verification And Exposition Review",
+      "description": "Check proof integrity and produce a readable result summary.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Verification", "Status"],
+        "tags": [],
+        "agents": ["proof-verifier", "proof-lead"]
+      },
+      "content": "# Verification And Exposition Review\n\n1. Review the latest proof attempt line by line for logical correctness\n2. Search for edge cases, hidden assumptions, or missing justifications\n3. Rewrite the strongest current version into concise mathematical prose\n4. Label the outcome: viable proof, partial proof, or failed branch\n5. Post the result with confidence and recommended next step",
+      "dependsOn": ["proof-attempt-cycle"],
+      "type": "conditional",
+      "owner": "proof-lead"
+    }
+  ]
+}

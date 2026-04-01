@@ -17,12 +17,12 @@ A multimodal research team built for fast signal capture, evidence synthesis, an
 
 ## Agents
 
-| id | name | role | model | tags | skills |
-|----|------|------|-------|------|--------|
-| research-lead | Research Lead | Lead analyst and coordinator — defines the question, sets the scope, synthesizes evidence, and decides the next action path | openai/gpt-4.1 | lead, research, synthesis | senso-search-clawmax, senso-content-gen |
-| evidence-ingest | Evidence Ingest | Intake specialist — gathers source material, normalizes it, and stores it in Senso with consistent structure for downstream agents | openai/gpt-4.1-mini | research, intake, multimodal | senso-ingest-clawmax |
-| signal-analyst | Signal Analyst | Retrieval and triage analyst — searches Senso for matching evidence, compares new and prior signals, and highlights the strongest grounded findings | openai/gpt-4.1 | research, analysis, retrieval | senso-search-clawmax, senso-content-gen |
-| action-editor | Action Editor | Output and action owner — turns the grounded brief into a concise artifact, status note, and recommended next step for the team | openai/gpt-4.1-mini | research, writing, routing | senso-content-gen |
+| id | name | role | tags | skills |
+|----|------|------|------|--------|
+| research-lead | Research Lead | Lead analyst and coordinator — defines the question, sets the scope, synthesizes evidence, and decides the next action path | lead, research, synthesis | senso-search-clawmax, senso-content-gen |
+| evidence-ingest | Evidence Ingest | Intake specialist — gathers source material, normalizes it, and stores it in Senso with consistent structure for downstream agents | research, intake, multimodal | senso-ingest-clawmax |
+| signal-analyst | Signal Analyst | Retrieval and triage analyst — searches Senso for matching evidence, compares new and prior signals, and highlights the strongest grounded findings | research, analysis, retrieval | senso-search-clawmax, senso-content-gen |
+| action-editor | Action Editor | Output and action owner — turns the grounded brief into a concise artifact, status note, and recommended next step for the team | research, writing, routing | senso-content-gen |
 
 ## Communities
 
@@ -39,7 +39,6 @@ A multimodal research team built for fast signal capture, evidence synthesis, an
 
 ### Research Desk Kickoff
 - **Schedule:** manual
-- **Type:** once
 - **Mode:** managed
 - **Targets:** agents: research-lead; tags: lead
 
@@ -69,8 +68,7 @@ You are the Research Lead. Your team just came online.
 
 ### Evidence Intake
 - **Schedule:** 0 * * * *
-- **Type:** recurring
-- **Depends On:** Research Desk Kickoff
+- **Depends On:** research-desk-kickoff
 - **Mode:** automated
 - **Targets:** agents: evidence-ingest; groups: Intake
 
@@ -86,8 +84,7 @@ You are the Research Lead. Your team just came online.
 
 ### Context Retrieval
 - **Schedule:** 15 * * * *
-- **Type:** recurring
-- **Depends On:** Evidence Intake
+- **Depends On:** evidence-intake
 - **Mode:** automated
 - **Targets:** agents: signal-analyst; groups: Analysis
 
@@ -102,8 +99,7 @@ You are the Research Lead. Your team just came online.
 
 ### Brief & Action
 - **Schedule:** 30 * * * *
-- **Type:** recurring
-- **Depends On:** Context Retrieval
+- **Depends On:** context-retrieval
 - **Mode:** managed
 - **Targets:** agents: action-editor; groups: Actions, Status
 

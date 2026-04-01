@@ -1,0 +1,153 @@
+{
+  "name": "Statistics Research Lab",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for statistical study design, data audit, inference, and results review. Early idea only and intended as a starter scaffold for customization.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "statistics",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "stats-lead",
+      "name": "Statistics Lead",
+      "role": "Research lead — defines the inferential goal, coordinates the analysis plan, and decides the acceptable evidence bar.",
+      "tags": ["lead", "statistics", "research"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Statistics Lab"],
+      "groups": ["Design", "Data", "Inference", "Status"]
+    },
+    {
+      "id": "study-designer",
+      "name": "Study Designer",
+      "role": "Design specialist — sharpens assumptions, study structure, randomization needs, and power considerations.",
+      "tags": ["statistics", "design", "causal"],
+      "communities": ["Statistics Lab"],
+      "groups": ["Design"]
+    },
+    {
+      "id": "data-auditor",
+      "name": "Data Auditor",
+      "role": "Data quality specialist — checks schema, missingness, leakage, outliers, and sampling risks.",
+      "tags": ["statistics", "data", "quality"],
+      "communities": ["Statistics Lab"],
+      "groups": ["Data", "Status"]
+    },
+    {
+      "id": "inference-analyst",
+      "name": "Inference Analyst",
+      "role": "Modeling specialist — proposes estimators, diagnostics, sensitivity checks, and interpretation rules.",
+      "tags": ["statistics", "models", "inference"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Statistics Lab"],
+      "groups": ["Inference", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Statistics Lab",
+      "description": "Shared space for study design, data quality, and inference planning."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Design",
+      "description": "Problem framing, assumptions, sampling, power, and study structure.",
+      "community": "Statistics Lab"
+    },
+    {
+      "name": "Data",
+      "description": "Dataset audit, missingness, leakage, transformations, and quality issues.",
+      "community": "Statistics Lab"
+    },
+    {
+      "name": "Inference",
+      "description": "Estimators, diagnostics, uncertainty, sensitivity checks, and interpretation.",
+      "community": "Statistics Lab"
+    },
+    {
+      "name": "Status",
+      "description": "Decision log, evidence bar, open risks, and next-step guidance.",
+      "community": "Statistics Lab"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "study-kickoff",
+      "name": "Study Kickoff",
+      "description": "Initialize the statistics lab around one inferential goal and first analysis plan.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["stats-lead", "study-designer", "data-auditor", "inference-analyst"]
+      },
+      "content": "# Study Kickoff\n\nYou are the Statistics Lead. The lab just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Question:** [e.g., which intervention has the largest effect?]\n- **Goal:** [prediction, estimation, causal inference, uncertainty quantification, custom]\n- **Population or data source:** [who or what the data represents]\n- **Constraints:** [sample size, missingness, latency, compliance, cost]\n- **Output artifact:** [analysis memo, estimator comparison, study plan]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Define the inferential question and success criteria\n2. Ask Study Designer for the initial design assumptions and risks\n3. Ask Data Auditor for the first data-quality checklist\n4. Ask Inference Analyst for the first estimator and diagnostic plan\n5. Post the milestone summary and evidence bar in Status",
+      "type": "once",
+      "owner": "stats-lead"
+    },
+    {
+      "id": "data-and-design-audit",
+      "name": "Data And Design Audit",
+      "description": "Audit the study design and the current data against the inferential goal.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Design", "Data"],
+        "tags": [],
+        "agents": ["study-designer", "data-auditor"]
+      },
+      "content": "# Data And Design Audit\n\n1. Review whether the data and design can support the target inference\n2. Identify missingness, leakage, imbalance, or confounding risks\n3. Propose the highest-impact fixes or sensitivity checks\n4. Post the audit summary to Design and Data\n5. Escalate any issue that undermines the current analysis plan",
+      "dependsOn": ["study-kickoff"],
+      "type": "recurring",
+      "owner": "stats-lead"
+    },
+    {
+      "id": "model-and-inference-cycle",
+      "name": "Model And Inference Cycle",
+      "description": "Run the next model and diagnostic plan for the current statistical question.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Inference"],
+        "tags": [],
+        "agents": ["inference-analyst"]
+      },
+      "content": "# Model And Inference Cycle\n\n1. Select the current estimator or model family to evaluate\n2. Define diagnostics, uncertainty summaries, and failure conditions\n3. Compare the likely interpretation risks versus the alternative approaches\n4. Produce a concise inference note with confidence and caveats\n5. Post the result to Inference and Status",
+      "dependsOn": ["data-and-design-audit"],
+      "type": "recurring",
+      "owner": "stats-lead"
+    },
+    {
+      "id": "results-review",
+      "name": "Results Review",
+      "description": "Review the current analysis state and decide the next statistics step.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["stats-lead", "study-designer", "inference-analyst"]
+      },
+      "content": "# Results Review\n\n1. Review the strongest current estimate or model result\n2. Summarize uncertainty, assumptions, and the main interpretation risk\n3. Decide whether to collect more data, change design, or finalize the finding\n4. Produce a short statistics review memo with next step\n5. Post the outcome to Status",
+      "dependsOn": ["model-and-inference-cycle"],
+      "type": "conditional",
+      "owner": "stats-lead"
+    }
+  ]
+}

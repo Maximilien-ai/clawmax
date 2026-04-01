@@ -1,0 +1,154 @@
+{
+  "name": "AI Research Lab",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for AI research across data and baseline review, training planning, evaluation, and safety checks. Early idea only and meant as a customizable starter.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "ai",
+    "machine-learning",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "ai-lead",
+      "name": "AI Lead",
+      "role": "Research lead — defines the target capability, coordinates data, training, and evaluation, and decides the release bar.",
+      "tags": ["lead", "ai", "research"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["AI Lab"],
+      "groups": ["Data And Baselines", "Training", "Evaluation", "Status"]
+    },
+    {
+      "id": "baseline-analyst",
+      "name": "Baseline Analyst",
+      "role": "Baseline specialist — maps prior models, datasets, benchmarks, and strongest known baselines.",
+      "tags": ["ai", "baselines", "benchmarks"],
+      "communities": ["AI Lab"],
+      "groups": ["Data And Baselines"]
+    },
+    {
+      "id": "training-engineer",
+      "name": "Training Engineer",
+      "role": "Training specialist — outlines model variants, data mixtures, and compute-aware experiment plans.",
+      "tags": ["ai", "training", "models"],
+      "communities": ["AI Lab"],
+      "groups": ["Training", "Status"]
+    },
+    {
+      "id": "eval-safety-analyst",
+      "name": "Eval & Safety Analyst",
+      "role": "Evaluation specialist — defines quality, robustness, and safety checks and interprets failure modes.",
+      "tags": ["ai", "evaluation", "safety"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["AI Lab"],
+      "groups": ["Evaluation", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "AI Lab",
+      "description": "Shared coordination space for AI research planning, training, and evaluation."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Data And Baselines",
+      "description": "Datasets, prior models, benchmark references, and baseline selection.",
+      "community": "AI Lab"
+    },
+    {
+      "name": "Training",
+      "description": "Model variants, training runs, compute tradeoffs, and experiment planning.",
+      "community": "AI Lab"
+    },
+    {
+      "name": "Evaluation",
+      "description": "Benchmark design, qualitative review, robustness checks, and safety notes.",
+      "community": "AI Lab"
+    },
+    {
+      "name": "Status",
+      "description": "Progress updates, risks, release bar decisions, and recommended next steps.",
+      "community": "AI Lab"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "ai-kickoff",
+      "name": "AI Kickoff",
+      "description": "Initialize the AI lab and align the first baseline, training, and evaluation plan.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["ai-lead", "baseline-analyst", "training-engineer", "eval-safety-analyst"]
+      },
+      "content": "# AI Kickoff\n\nYou are the AI Lead. The lab just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research goal:** [e.g., improve multimodal reasoning, retrieval quality, tool use, custom]\n- **Model family or stack:** [transformer, diffusion, agentic stack, custom]\n- **Core baselines:** [open models, hosted models, internal baselines, custom]\n- **Key evaluation axes:** [quality, cost, latency, safety, robustness]\n- **Output artifact:** [research memo, experiment plan, eval brief]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Define the target capability and success criteria\n2. Ask Baseline Analyst for the strongest prior models and benchmark setup\n3. Ask Training Engineer for the first training or adaptation plan\n4. Ask Eval & Safety Analyst for the first eval and safety checklist\n5. Post the first milestone and release bar notes in Status",
+      "type": "once",
+      "owner": "ai-lead"
+    },
+    {
+      "id": "data-and-baseline-sweep",
+      "name": "Data And Baseline Sweep",
+      "description": "Map relevant datasets, baseline models, and benchmark expectations for the current AI goal.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Data And Baselines"],
+        "tags": [],
+        "agents": ["baseline-analyst"]
+      },
+      "content": "# Data And Baseline Sweep\n\n1. Gather the most relevant datasets, model baselines, and benchmark setups\n2. Compare current best-known numbers and where they may be weak or incomparable\n3. Flag likely data gaps, contamination risks, or evaluation blind spots\n4. Post the baseline summary to Data And Baselines\n5. Escalate anything that should change the training or evaluation plan",
+      "dependsOn": ["ai-kickoff"],
+      "type": "recurring",
+      "owner": "ai-lead"
+    },
+    {
+      "id": "training-and-eval-cycle",
+      "name": "Training And Eval Cycle",
+      "description": "Propose the next training variant and evaluation plan for the current AI research goal.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Training", "Evaluation"],
+        "tags": [],
+        "agents": ["training-engineer", "eval-safety-analyst"]
+      },
+      "content": "# Training And Eval Cycle\n\n1. Define the next model or pipeline variant worth testing\n2. State the data, compute, and safety tradeoffs involved\n3. Define the exact benchmark and qualitative review plan\n4. Produce a concise recommendation note with expected upside and main risks\n5. Post the cycle plan to Training, Evaluation, and Status",
+      "dependsOn": ["data-and-baseline-sweep"],
+      "type": "recurring",
+      "owner": "ai-lead"
+    },
+    {
+      "id": "release-bar-review",
+      "name": "Release Bar Review",
+      "description": "Review the current AI results and decide whether to iterate, pause, or publish.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["ai-lead", "training-engineer", "eval-safety-analyst"]
+      },
+      "content": "# Release Bar Review\n\n1. Review the latest training and evaluation evidence\n2. Summarize the strongest gain, the biggest safety or robustness concern, and the main unknown\n3. Decide whether to iterate, stop, or prepare a write-up or release candidate\n4. Produce a short AI research review memo with next step\n5. Post the decision to Status",
+      "dependsOn": ["training-and-eval-cycle"],
+      "type": "conditional",
+      "owner": "ai-lead"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "name": "Biological Research Lab",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for a biology-focused research lab. Starter scaffold for literature review, experiment planning, bioinformatics analysis, and manuscript drafting. Early idea only and expected to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "biology",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "biology-lead",
+      "name": "Biology Lead",
+      "role": "Principal investigator — defines the question, frames hypotheses, coordinates the team, and decides the next experimental direction.",
+      "tags": ["lead", "biology", "research"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Biology Lab"],
+      "groups": ["Literature", "Experiments", "Analysis", "Status"]
+    },
+    {
+      "id": "literature-reviewer",
+      "name": "Literature Reviewer",
+      "role": "Literature specialist — searches prior papers, extracts methods and findings, and highlights competing hypotheses.",
+      "tags": ["biology", "literature", "papers"],
+      "communities": ["Biology Lab"],
+      "groups": ["Literature"]
+    },
+    {
+      "id": "experiment-planner",
+      "name": "Experiment Planner",
+      "role": "Wet-lab planning specialist — outlines protocols, controls, sample sizing assumptions, and operational risks.",
+      "tags": ["biology", "experiments", "protocols"],
+      "communities": ["Biology Lab"],
+      "groups": ["Experiments", "Status"]
+    },
+    {
+      "id": "bioinformatics-analyst",
+      "name": "Bioinformatics Analyst",
+      "role": "Computational biology analyst — prepares datasets, runs analysis pipelines, and interprets signal quality and limitations.",
+      "tags": ["biology", "analysis", "bioinformatics"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Biology Lab"],
+      "groups": ["Analysis", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Biology Lab",
+      "description": "Shared coordination space for biology research planning and execution."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Literature",
+      "description": "Paper triage, prior work, methods comparison, and citation tracking.",
+      "community": "Biology Lab"
+    },
+    {
+      "name": "Experiments",
+      "description": "Protocol design, controls, sequencing of experiments, and operational risks.",
+      "community": "Biology Lab"
+    },
+    {
+      "name": "Analysis",
+      "description": "Data processing, bioinformatics review, result interpretation, and confidence calls.",
+      "community": "Biology Lab"
+    },
+    {
+      "name": "Status",
+      "description": "Milestones, blockers, decisions, and next-step coordination.",
+      "community": "Biology Lab"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "biology-kickoff",
+      "name": "Biology Kickoff",
+      "description": "Initialize the biology lab, define the research question, and align the first workstream.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["biology-lead", "literature-reviewer", "experiment-planner", "bioinformatics-analyst"]
+      },
+      "content": "# Biology Lab Kickoff\n\nYou are the Biology Lead. Your lab just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research topic:** [e.g., single-cell response to a treatment]\n- **Primary question:** [e.g., which pathway shifts most strongly after perturbation?]\n- **Experimental system:** [cell line, organoid, animal model, custom]\n- **Data sources:** [public datasets, wet-lab notes, sequencing outputs, custom]\n- **Output artifact:** [study brief, experiment plan, figure set, manuscript outline]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Introduce the lab in the Biology Lab community\n2. Define the main question, hypotheses, and success criteria\n3. Direct Literature Reviewer to map relevant prior work\n4. Direct Experiment Planner to draft the first experiment sequence\n5. Direct Bioinformatics Analyst to prepare the initial analysis path\n6. Post a milestone summary in Status",
+      "type": "once",
+      "owner": "biology-lead"
+    },
+    {
+      "id": "prior-work-sweep",
+      "name": "Prior Work Sweep",
+      "description": "Gather prior papers, protocols, and benchmark findings relevant to the biology question.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Literature"],
+        "tags": [],
+        "agents": ["literature-reviewer"]
+      },
+      "content": "# Prior Work Sweep\n\n1. Search the most relevant biology papers and protocol references for the configured topic\n2. Extract methods, sample sizes, controls, and key findings\n3. Highlight disagreements, gaps, or under-tested assumptions\n4. Post a concise literature matrix update in Literature\n5. Flag anything that changes the recommended experimental direction in Status",
+      "dependsOn": ["biology-kickoff"],
+      "type": "recurring",
+      "owner": "biology-lead"
+    },
+    {
+      "id": "experiment-and-analysis-cycle",
+      "name": "Experiment And Analysis Cycle",
+      "description": "Draft the next experiment and analysis plan based on current evidence.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Experiments", "Analysis"],
+        "tags": [],
+        "agents": ["experiment-planner", "bioinformatics-analyst"]
+      },
+      "content": "# Experiment And Analysis Cycle\n\n1. Translate the latest question and literature into a concrete experiment proposal\n2. Define controls, expected measurements, and the minimum signal needed to proceed\n3. Draft the associated analysis plan and quality checks\n4. Note major risks, assumptions, and missing inputs\n5. Post the proposed cycle to Experiments and Analysis with a recommendation",
+      "dependsOn": ["prior-work-sweep"],
+      "type": "recurring",
+      "owner": "biology-lead"
+    },
+    {
+      "id": "results-and-next-step-review",
+      "name": "Results And Next Step Review",
+      "description": "Review the current evidence, summarize confidence, and decide the next biology step.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["biology-lead", "experiment-planner", "bioinformatics-analyst"]
+      },
+      "content": "# Results And Next Step Review\n\n1. Review the current literature, experiment plan, and analysis notes\n2. Summarize the strongest grounded findings and open risks\n3. Decide whether to run, revise, or stop the next proposed experiment\n4. Produce a short biology brief with confidence and next step\n5. Post the decision and owner in Status",
+      "dependsOn": ["experiment-and-analysis-cycle"],
+      "type": "conditional",
+      "owner": "biology-lead"
+    }
+  ]
+}

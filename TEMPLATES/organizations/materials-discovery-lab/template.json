@@ -1,0 +1,152 @@
+{
+  "name": "Materials Discovery Lab",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for materials research spanning literature review, simulation planning, experiment design, and candidate ranking. Early idea and intended as a customizable starting point.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "materials",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "agents": [
+    {
+      "id": "materials-lead",
+      "name": "Materials Lead",
+      "role": "Research lead — selects target properties, coordinates the search strategy, and prioritizes candidate materials.",
+      "tags": ["lead", "materials", "research"],
+      "skills": ["github", "gh-issues"],
+      "communities": ["Materials Lab"],
+      "groups": ["Literature", "Simulation", "Experiments", "Status"]
+    },
+    {
+      "id": "literature-scout",
+      "name": "Literature Scout",
+      "role": "Prior-art specialist — tracks known compounds, processing methods, benchmarks, and open opportunities.",
+      "tags": ["materials", "literature", "prior-art"],
+      "communities": ["Materials Lab"],
+      "groups": ["Literature"]
+    },
+    {
+      "id": "simulation-analyst",
+      "name": "Simulation Analyst",
+      "role": "Modeling specialist — proposes computational screening strategies, approximations, and ranking criteria.",
+      "tags": ["materials", "simulation", "analysis"],
+      "communities": ["Materials Lab"],
+      "groups": ["Simulation", "Status"]
+    },
+    {
+      "id": "experiment-planner",
+      "name": "Experiment Planner",
+      "role": "Synthesis and validation planner — proposes fabrication, measurement, and validation sequences for promising candidates.",
+      "tags": ["materials", "experiments", "validation"],
+      "communities": ["Materials Lab"],
+      "groups": ["Experiments", "Status"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Materials Lab",
+      "description": "Shared space for materials discovery planning and evaluation."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Literature",
+      "description": "Known materials, prior syntheses, benchmark properties, and search gaps.",
+      "community": "Materials Lab"
+    },
+    {
+      "name": "Simulation",
+      "description": "Screening plans, computational approximations, and ranking criteria.",
+      "community": "Materials Lab"
+    },
+    {
+      "name": "Experiments",
+      "description": "Fabrication, characterization, and validation planning for selected candidates.",
+      "community": "Materials Lab"
+    },
+    {
+      "name": "Status",
+      "description": "Decision log, candidate rankings, blockers, and next-step recommendations.",
+      "community": "Materials Lab"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "materials-kickoff",
+      "name": "Materials Kickoff",
+      "description": "Initialize the materials discovery effort and define the target property profile.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [],
+        "tags": ["lead"],
+        "agents": ["materials-lead", "literature-scout", "simulation-analyst", "experiment-planner"]
+      },
+      "content": "# Materials Kickoff\n\nYou are the Materials Lead. The lab just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Target property:** [e.g., conductivity, hardness, battery lifetime, catalytic efficiency]\n- **Material class:** [polymers, alloys, ceramics, catalysts, semiconductors, custom]\n- **Constraints:** [cost, toxicity, processability, temperature range, custom]\n- **Evidence sources:** [papers, patents, prior experiments, simulation results]\n- **Output artifact:** [candidate shortlist, screening memo, experiment plan]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Define the target property profile and constraints\n2. Ask Literature Scout for the baseline candidate set and benchmarks\n3. Ask Simulation Analyst for the first computational screening plan\n4. Ask Experiment Planner for the validation path for top candidates\n5. Post a milestone summary and ranking criteria in Status",
+      "type": "once",
+      "owner": "materials-lead"
+    },
+    {
+      "id": "materials-prior-art-sweep",
+      "name": "Materials Prior Art Sweep",
+      "description": "Gather known compounds, process routes, and benchmark properties relevant to the target.",
+      "schedule": "0 9 * * *",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Literature"],
+        "tags": [],
+        "agents": ["literature-scout"]
+      },
+      "content": "# Materials Prior Art Sweep\n\n1. Collect the strongest prior examples relevant to the target property\n2. Extract process details, benchmark values, and failure modes\n3. Flag overused areas versus underexplored candidate spaces\n4. Update Literature with a candidate matrix and top gaps\n5. Escalate any important benchmark that changes the ranking logic",
+      "dependsOn": ["materials-kickoff"],
+      "type": "recurring",
+      "owner": "materials-lead"
+    },
+    {
+      "id": "screening-and-validation-cycle",
+      "name": "Screening And Validation Cycle",
+      "description": "Combine simulation ranking and validation planning for the next materials shortlist.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Simulation", "Experiments"],
+        "tags": [],
+        "agents": ["simulation-analyst", "experiment-planner"]
+      },
+      "content": "# Screening And Validation Cycle\n\n1. Rank current candidates against the target property profile\n2. Note the approximations and uncertainty in the computational screen\n3. Select a short list worth physical validation or deeper simulation\n4. Define the validation path, required measurements, and likely failure points\n5. Post the recommended shortlist and rationale",
+      "dependsOn": ["materials-prior-art-sweep"],
+      "type": "recurring",
+      "owner": "materials-lead"
+    },
+    {
+      "id": "candidate-review",
+      "name": "Candidate Review",
+      "description": "Review the current shortlist and choose the next materials step.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": ["Status"],
+        "tags": [],
+        "agents": ["materials-lead", "simulation-analyst", "experiment-planner"]
+      },
+      "content": "# Candidate Review\n\n1. Review the current candidate ranking and validation readiness\n2. Compare the strongest options against cost, feasibility, and uncertainty\n3. Choose whether to advance, revise, or replace the shortlist\n4. Produce a concise recommendation memo with confidence\n5. Post the final recommendation in Status",
+      "dependsOn": ["screening-and-validation-cycle"],
+      "type": "conditional",
+      "owner": "materials-lead"
+    }
+  ]
+}
