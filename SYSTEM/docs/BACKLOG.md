@@ -8,7 +8,8 @@
 
 ### Immediate Demo / Release Blockers
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
-- [ ] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable.
+- [ ] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable. GitHub: `#75`
+- [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 
 ### Security (Sprint Priority #1)
@@ -17,7 +18,7 @@
 ### Cost Management (Sprint Priority #2)
 - [x] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
 - [x] **Cost notifications** — toast/alert when approaching limits, email notification option
-- [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends
+- [ ] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends. GitHub: `#78`
 
 ### Backup & Restore (Sprint Priority #3)
 - [ ] **Workspace backup** — zip workspace + config, downloadable from UI. Trigger manually or schedule.
@@ -52,7 +53,10 @@
 ### Discovered During Manual + CLI Testing (March 29)
 - [x] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
 - [x] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
-- [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty)
+- [ ] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty). GitHub: `#69`
+
+### Workflow Import / Export
+- [ ] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#79`
 
 ### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
 - [x] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
