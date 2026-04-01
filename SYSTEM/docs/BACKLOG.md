@@ -8,6 +8,7 @@
 
 ### Immediate Demo / Release Blockers
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
+- [ ] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable.
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 
 ### Security (Sprint Priority #1)
@@ -28,7 +29,7 @@
 - [x] **Workspace dashboard compact charts** — added compact-mode segmented summary bars for agent status, workflow state, and notification severity so stakeholder views fit closer to one screen without relying only on text.
 - [x] **Workflow input normalization for dashboards** — kickoff/project configuration summaries now prefer structured workflow configuration extraction over raw execution-log tails.
 - [x] **Workflow output + artifact normalization for dashboards** — shared dashboards now normalize participant-result summaries plus labeled artifact links and workspace file references into a consistent result surface.
-- [ ] **Workspace dashboard compact reorder bug** — compact layout editor supports cross-column and downward drag, but upward reordering within the same column is still unreliable and needs a real fix.
+- [x] **Workspace dashboard compact reorder bug** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target.
 
 ## Deep Agents Hack — March 27 (immediate)
 > Plan: `docs/hacks/deep-agents-hack/PLAN.md`

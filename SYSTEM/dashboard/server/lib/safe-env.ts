@@ -32,6 +32,7 @@ function providerKeysToEnv(providerKeys: ProviderKeys): Record<string, string> |
   return {
     OPENAI_API_KEY: providerKeys.openai || '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
+    GEMINI_API_KEY: providerKeys.gemini || '',
     SENSO_API_KEY: process.env.SENSO_API_KEY || '',
   }
 }

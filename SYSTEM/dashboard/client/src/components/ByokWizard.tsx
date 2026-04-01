@@ -9,8 +9,8 @@ function maskKey(value: string) {
 }
 
 type Step = 'models' | 'senso' | 'monitoring' | 'github'
-type ProviderKey = 'openai' | 'anthropic'
-type ValidationState = Record<'openai' | 'anthropic' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
+type ProviderKey = 'openai' | 'anthropic' | 'gemini'
+type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
 
 export function ByokWizard() {
   const { user, config } = useAuth()
@@ -33,6 +33,7 @@ export function ByokWizard() {
   const [validation, setValidation] = useState<ValidationState>({
     openai: { status: 'idle', message: '' },
     anthropic: { status: 'idle', message: '' },
+    gemini: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
   })
   const [dismissed, setDismissed] = useState(false)
@@ -57,10 +58,11 @@ export function ByokWizard() {
     setHydrated(true)
   }, [])
 
-  const hasStoredKeys = !!(openaiKey || anthropicKey)
-  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic)
+  const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey)
+  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini)
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
+  const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!sensoApiKey.trim()
   const opikConfigured = !!opikApiKey.trim()
@@ -73,15 +75,22 @@ export function ByokWizard() {
         if (config?.systemKeyDefaults?.openai) return 'system default'
         return 'not configured'
       }
-      if (anthropicKey) return 'browser BYOK'
-      if (config?.userKeyDefaults?.anthropic) return 'user default'
-      if (config?.systemKeyDefaults?.anthropic) return 'system default'
+      if (provider === 'anthropic') {
+        if (anthropicKey) return 'browser BYOK'
+        if (config?.userKeyDefaults?.anthropic) return 'user default'
+        if (config?.systemKeyDefaults?.anthropic) return 'system default'
+        return 'not configured'
+      }
+      if (geminiApiKey) return 'browser BYOK'
+      if ((config as any)?.userKeyDefaults?.gemini) return 'user default'
+      if ((config as any)?.systemKeyDefaults?.gemini) return 'system default'
       return 'not configured'
     }
 
     return [
       { id: 'openai', label: 'OpenAI', available: hasOpenAiAvailable, source: resolveSource('openai') },
       { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
+      { id: 'gemini', label: 'Gemini', available: hasGeminiAvailable, source: resolveSource('gemini') },
     ]
   }, [
     anthropicKey,
@@ -90,7 +99,9 @@ export function ByokWizard() {
     config?.userKeyDefaults?.anthropic,
     config?.userKeyDefaults?.openai,
     hasAnthropicAvailable,
+    hasGeminiAvailable,
     hasOpenAiAvailable,
+    geminiApiKey,
     openaiKey,
   ])
 
@@ -125,11 +136,12 @@ export function ByokWizard() {
       const labels = [
         openaiKey ? `OpenAI ${maskKey(openaiKey)}` : null,
         anthropicKey ? `Anthropic ${maskKey(anthropicKey)}` : null,
+        geminiApiKey ? `Gemini ${maskKey(geminiApiKey)}` : null,
       ].filter(Boolean)
       return labels.join(' · ')
     }
     return 'No user keys configured yet'
-  }, [anthropicKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
+  }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
 
   const monitoringStatusText = useMemo(() => {
     if (opikApiKey) {
@@ -153,16 +165,29 @@ export function ByokWizard() {
         body: JSON.stringify({
           openai: openaiKey.trim(),
           anthropic: anthropicKey.trim(),
+          gemini: geminiApiKey.trim(),
           opikApiKey: opikApiKey.trim(),
           opikWorkspace: opikWorkspace.trim(),
           opikProject: opikProject.trim(),
         }),
       })
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setValidation({
+          openai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+        })
+        showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
+        return true
+      }
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to validate integrations')
       const nextState: ValidationState = {
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
         anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
+        gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
       }
       setValidation(nextState)
@@ -182,13 +207,13 @@ export function ByokWizard() {
   }
 
   const handleSave = async () => {
-    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || opikApiKey.trim())
+    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || opikApiKey.trim())
     if (shouldValidate) {
       const ok = await runValidation()
       if (!ok) return
     }
-    if (!openaiKey.trim() && !anthropicKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic) {
-      showWarning('No LLM keys detected yet. Add OpenAI or Anthropic, or rely on configured defaults before running agents.')
+    if (!openaiKey.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !(config as any)?.userKeyDefaults?.gemini && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic && !(config as any)?.systemKeyDefaults?.gemini) {
+      showWarning('No LLM keys detected yet. Add OpenAI, Anthropic, or Gemini, or rely on configured defaults before running agents.')
     }
     writeStoredByokKeys({
       openai: openaiKey.trim(),
@@ -329,12 +354,10 @@ export function ByokWizard() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">Coming next</span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hosted Google models will be added alongside OpenAI and Anthropic.</p>
-                      <input type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key (preview storage)" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hosted Google Gemini models are supported alongside OpenAI and Anthropic.</p>
+                      <input type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      {renderValidation('gemini')}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="flex items-center justify-between gap-3">
@@ -347,7 +370,7 @@ export function ByokWizard() {
                     </div>
                   </div>
 
-                  {(hasOpenAiAvailable || hasAnthropicAvailable) && (
+                  {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable) && (
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
                       <select value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
@@ -363,6 +386,13 @@ export function ByokWizard() {
                             <option value="openai/gpt-5">GPT-5 (latest)</option>
                             <option value="openai/gpt-4o">GPT-4o (balanced)</option>
                             <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                          </>
+                        )}
+                        {hasGeminiAvailable && (
+                          <>
+                            <option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (best reasoning)</option>
+                            <option value="gemini/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
+                            <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
                           </>
                         )}
                       </select>

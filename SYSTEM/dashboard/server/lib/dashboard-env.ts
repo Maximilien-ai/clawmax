@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 export interface ProviderKeys {
   openai?: string
   anthropic?: string
+  gemini?: string
 }
 
 // Try multiple paths to find .env — handles different working directories
@@ -70,6 +71,7 @@ export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboard
   return {
     openai: lookup('SYSTEM_OPENAI_API_KEY') || lookup('OPENAI_API_KEY'),
     anthropic: lookup('SYSTEM_ANTHROPIC_API_KEY') || lookup('ANTHROPIC_API_KEY'),
+    gemini: lookup('SYSTEM_GEMINI_API_KEY') || lookup('GEMINI_API_KEY'),
   }
 }
 
@@ -77,6 +79,7 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
   return {
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
+    gemini: firstNonEmpty(rawEnv, 'USER_GEMINI_API_KEY'),
   }
 }
 
@@ -92,6 +95,7 @@ export function resolveUserExecutionProviderKeys(
     return {
       openai: byokOverrides?.openai?.trim() || undefined,
       anthropic: byokOverrides?.anthropic?.trim() || undefined,
+      gemini: byokOverrides?.gemini?.trim() || undefined,
     }
   }
 
@@ -110,6 +114,7 @@ export function resolveUserExecutionProviderKeys(
 export function getBestAvailableModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
   if (keys.anthropic) return 'anthropic/claude-opus-4-6'
+  if (keys.gemini) return 'gemini/gemini-2.5-pro'
   if (keys.openai) return 'openai/gpt-5'
   return 'anthropic/claude-sonnet-4-20250514' // fallback — may fail without keys
 }
@@ -119,6 +124,7 @@ export function getBestAvailableModel(rawEnv: Record<string, string> = dashboard
  */
 export function getCostEfficientModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
+  if (keys.gemini) return 'gemini/gemini-2.5-flash'
   if (keys.openai) return 'openai/gpt-4o-mini'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
   return 'openai/gpt-4o-mini'

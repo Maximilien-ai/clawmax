@@ -39,9 +39,9 @@ export function writeStoredByokKeys(keys: StoredByokKeys) {
 /** Check if any LLM API keys are available (BYOK, system, or user defaults) */
 export function hasAnyLLMKeys(config?: { systemKeyDefaults?: { openai?: boolean; anthropic?: boolean }; userKeyDefaults?: { openai?: boolean; anthropic?: boolean } }): boolean {
   const byok = readStoredByokKeys()
-  if (byok.openai || byok.anthropic) return true
-  if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic) return true
-  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic) return true
+  if (byok.openai || byok.anthropic || byok.geminiApiKey) return true
+  if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.gemini) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini) return true
   return false
 }
 
@@ -51,6 +51,7 @@ export function byokModelParams(): string {
   const params = new URLSearchParams()
   if (keys.openai) params.set('openaiKey', keys.openai)
   if (keys.anthropic) params.set('anthropicKey', keys.anthropic)
+  if (keys.geminiApiKey) params.set('geminiKey', keys.geminiApiKey)
   const qs = params.toString()
   return qs ? `?${qs}` : ''
 }
@@ -68,7 +69,7 @@ export async function refreshModelsWithByok(): Promise<{ models: string[]; model
   const res = await fetch('/api/agents/models/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ openai: keys.openai, anthropic: keys.anthropic }),
+    body: JSON.stringify({ openai: keys.openai, anthropic: keys.anthropic, gemini: keys.geminiApiKey }),
   })
   if (!res.ok) throw new Error('Failed to refresh models')
   return res.json()

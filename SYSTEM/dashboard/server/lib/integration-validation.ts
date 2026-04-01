@@ -7,6 +7,7 @@ export interface IntegrationValidationResult {
 export interface IntegrationValidationResponse {
   openai?: IntegrationValidationResult
   anthropic?: IntegrationValidationResult
+  gemini?: IntegrationValidationResult
   opik?: IntegrationValidationResult
 }
 
@@ -61,6 +62,20 @@ export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike 
   }
 }
 
+export async function validateGeminiKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
+  if (!apiKey.trim()) return skipped('No Gemini key provided')
+  try {
+    const res = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.ok) return valid('Gemini key is valid')
+    if (res.status === 401 || res.status === 403) return invalid('Gemini rejected this key')
+    return errored(`Gemini validation returned ${res.status}`)
+  } catch (err: any) {
+    return errored(`Gemini validation failed: ${err.message || 'network error'}`)
+  }
+}
+
 export async function validateOpikConfig(
   apiKey: string,
   workspace: string,
@@ -91,15 +106,17 @@ export async function validateOpikConfig(
 export async function validateIntegrations(input: {
   openai?: string
   anthropic?: string
+  gemini?: string
   opikApiKey?: string
   opikWorkspace?: string
   opikProject?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, anthropic, opik] = await Promise.all([
+  const [openai, anthropic, gemini, opik] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
+    validateGeminiKey(input.gemini || '', fetchImpl),
     validateOpikConfig(input.opikApiKey || '', input.opikWorkspace || '', input.opikProject || '', fetchImpl),
   ])
 
-  return { openai, anthropic, opik }
+  return { openai, anthropic, gemini, opik }
 }

@@ -1,5 +1,5 @@
 /**
- * Dynamic model discovery — fetches available models from OpenAI and Anthropic APIs.
+ * Dynamic model discovery — fetches available models from OpenAI, Anthropic, and Gemini APIs.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
 import { getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
@@ -67,6 +67,13 @@ const FALLBACK_OPENAI = [
   'openai/o3',
   'openai/o3-mini',
   'openai/o4-mini',
+]
+
+const FALLBACK_GEMINI = [
+  'gemini/gemini-2.5-pro',
+  'gemini/gemini-2.5-flash',
+  'gemini/gemini-2.5-flash-lite',
+  'gemini/gemini-2.0-flash',
 ]
 
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
@@ -150,18 +157,47 @@ async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
   }
 }
 
+async function fetchGeminiModels(apiKey: string): Promise<string[]> {
+  const cached = getCached('gemini')
+  if (cached) return cached
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.warn(`Gemini models API returned ${res.status}`)
+      return FALLBACK_GEMINI
+    }
+    const body = await res.json() as { models?: Array<{ name: string }> }
+    const models = (body.models || [])
+      .map((m) => m.name.replace(/^models\//, ''))
+      .filter((id) => id.startsWith('gemini-') && !id.includes('embedding'))
+      .sort()
+      .map((id) => `gemini/${id}`)
+
+    if (models.length === 0) return FALLBACK_GEMINI
+    setCache('gemini', models)
+    return models
+  } catch (err) {
+    console.warn('Failed to fetch Gemini models, using fallback:', (err as Error).message)
+    return FALLBACK_GEMINI
+  }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-function resolveApiKey(provider: 'openai' | 'anthropic'): string | undefined {
+function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini'): string | undefined {
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
   return systemKeys[provider] || userKeys[provider]
 }
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
-export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string }): Promise<ModelsResponse> {
+export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string; gemini?: string }): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
+  const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []
 
@@ -180,6 +216,16 @@ export async function discoverModels(byokKeys?: { openai?: string; anthropic?: s
       fetchOpenAIModels(openaiKey).then(models => ({
         provider: 'openai',
         name: 'OpenAI',
+        models,
+      }))
+    )
+  }
+
+  if (geminiKey) {
+    fetches.push(
+      fetchGeminiModels(geminiKey).then(models => ({
+        provider: 'gemini',
+        name: 'Gemini',
         models,
       }))
     )
@@ -209,12 +255,16 @@ export function getAvailableModelsCached(): string[] {
   const models: string[] = []
   const openaiKey = resolveApiKey('openai')
   const anthropicKey = resolveApiKey('anthropic')
+  const geminiKey = resolveApiKey('gemini')
 
   if (anthropicKey) {
     models.push(...(getCached('anthropic') || FALLBACK_ANTHROPIC))
   }
   if (openaiKey) {
     models.push(...(getCached('openai') || FALLBACK_OPENAI))
+  }
+  if (geminiKey) {
+    models.push(...(getCached('gemini') || FALLBACK_GEMINI))
   }
   return models
 }

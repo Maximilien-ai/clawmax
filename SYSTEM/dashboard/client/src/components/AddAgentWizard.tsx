@@ -108,11 +108,16 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               const byok = readStoredByokKeys()
               const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
               const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
+              const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
 
               let defaultModel: string
               if (hasAnthropicKey) {
                 defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
                   || models.find((m: string) => m.startsWith('anthropic/'))
+                  || models[0]
+              } else if (hasGeminiKey) {
+                defaultModel = models.find((m: string) => m === 'gemini/gemini-2.5-pro' || m === 'gemini/gemini-2.5-flash')
+                  || models.find((m: string) => m.startsWith('gemini/'))
                   || models[0]
               } else if (hasOpenAiKey) {
                 defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateIntegrations, validateOpenAIKey, validateOpikConfig } from './integration-validation'
+import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOpenAIKey, validateOpikConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -51,6 +51,11 @@ async function run() {
     assert(result.status === 'invalid', 'Expected invalid status')
   })
 
+  await test('validateGeminiKey returns valid on 200', async () => {
+    const result = await validateGeminiKey('gemini-test', mockFetch(200))
+    assert(result.status === 'valid', 'Expected valid status')
+  })
+
   await test('validateOpikConfig requires workspace when key is present', async () => {
     const result = await validateOpikConfig('opik-key', '', 'clawmax', mockFetch(200))
     assert(result.status === 'invalid', 'Expected invalid status for missing workspace')
@@ -60,6 +65,7 @@ async function run() {
     const result = await validateIntegrations({
       openai: 'sk-openai',
       anthropic: 'sk-ant',
+      gemini: 'gemini-key',
       opikApiKey: 'opik-key',
       opikWorkspace: 'team',
       opikProject: 'clawmax',
@@ -67,6 +73,7 @@ async function run() {
 
     assert(result.openai?.status === 'valid', 'Expected OpenAI valid')
     assert(result.anthropic?.status === 'valid', 'Expected Anthropic valid')
+    assert(result.gemini?.status === 'valid', 'Expected Gemini valid')
     assert(result.opik?.status === 'valid', 'Expected Opik valid')
   })
 
