@@ -843,14 +843,27 @@ router.get('/direct-messages', (_req, res) => {
           const data = JSON.parse(fs.readFileSync(path.join(messagesDir, file), 'utf-8'))
           const messages: Message[] = Array.isArray(data) ? data : data.messages || []
           if (messages.length > 0) {
-            const agents = file.replace('.json', '').split(':')
+            const agentSet = new Set<string>()
+            for (const message of messages) {
+              if (message?.from) {
+                agentSet.add(message.from)
+              }
+              for (const mention of message?.mentions || []) {
+                if (mention) {
+                  agentSet.add(mention)
+                }
+              }
+            }
+            const agents = Array.from(agentSet).sort()
             const last = messages[messages.length - 1]
-            conversations.push({
-              agents,
-              lastMessage: last?.content?.slice(0, 100),
-              lastTimestamp: last?.timestamp,
-              messageCount: messages.length,
-            })
+            if (agents.length >= 2) {
+              conversations.push({
+                agents,
+                lastMessage: last?.content?.slice(0, 100),
+                lastTimestamp: last?.timestamp,
+                messageCount: messages.length,
+              })
+            }
           }
         } catch {}
       }
