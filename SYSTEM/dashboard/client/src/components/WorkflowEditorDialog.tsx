@@ -336,7 +336,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               {/* Recent crons */}
               {recentCrons.length > 0 && (
                 <div className="mb-2">
-                  <span className="text-xs text-gray-500 font-medium mr-2">Recent:</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium mr-2">Recent:</span>
                   {recentCrons.map(cron => (
                     <button
                       key={cron}
@@ -350,7 +350,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       className={`text-xs px-2.5 py-1.5 rounded border transition-colors mr-2 ${
                         formData.schedule === cron
                           ? 'bg-purple-100 border-purple-500 text-purple-700 font-medium'
-                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
+                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
                       }`}
                     >
                       {cron}
@@ -385,7 +385,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                     className={`text-xs px-2.5 py-1.5 rounded border transition-colors ${
                       formData.schedule === preset.cron
                         ? 'bg-sky-100 border-sky-500 text-sky-700 font-medium'
-                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 hover:border-sky-400 hover:bg-sky-50'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30'
                     }`}
                   >
                     {preset.label}
@@ -394,7 +394,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <button
                   type="button"
                   onClick={() => setShowCronBuilder(!showCronBuilder)}
-                  className="text-xs px-2.5 py-1.5 rounded border bg-white dark:bg-gray-800 border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50 transition-colors dark:text-gray-300 dark:border-gray-600"
+                  className="text-xs px-2.5 py-1.5 rounded border bg-white dark:bg-gray-800 border-gray-300 text-gray-700 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300 dark:border-gray-600"
                 >
                   {showCronBuilder ? '✕ Close' : '🔧 Builder'}
                 </button>
@@ -436,11 +436,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md space-y-3 dark:border-gray-700 dark:bg-gray-900">
                   <div className="grid grid-cols-5 gap-2 text-xs">
                     <div>
-                      <label className="block text-gray-600 mb-1 font-medium">Minute</label>
+                      <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">Minute</label>
                       <input
                         type="text"
                         placeholder="0-59 or *"
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[0] = e.target.value || '*'
@@ -449,11 +449,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-600 mb-1 font-medium">Hour</label>
+                      <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">Hour</label>
                       <input
                         type="text"
                         placeholder="0-23 or *"
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[1] = e.target.value || '*'
@@ -462,11 +462,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-600 mb-1 font-medium">Day</label>
+                      <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">Day</label>
                       <input
                         type="text"
                         placeholder="1-31 or *"
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[2] = e.target.value || '*'
@@ -475,11 +475,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-600 mb-1 font-medium">Month</label>
+                      <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">Month</label>
                       <input
                         type="text"
                         placeholder="1-12 or *"
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[3] = e.target.value || '*'
@@ -488,11 +488,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-600 mb-1 font-medium">Weekday</label>
+                      <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">Weekday</label>
                       <input
                         type="text"
                         placeholder="0-6 or *"
-                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                        className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
                         onChange={e => {
                           const parts = formData.schedule.split(' ')
                           parts[4] = e.target.value || '*'
@@ -501,7 +501,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     Use * for any, numbers for specific values, or ranges like 1-5
                   </p>
                 </div>
@@ -525,7 +525,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               {(cronError || validationErrors.schedule) && (
                 <p className="text-xs text-red-600 mt-1">{validationErrors.schedule || cronError}</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Format: minute hour day month weekday
               </p>
             </div>
@@ -545,7 +545,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   />
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Automated</div>
-                    <div className="text-xs text-gray-500">Fully automated by execution engine</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Fully automated by execution engine</div>
                   </div>
                 </label>
                 <label className="flex items-start gap-3">
@@ -557,7 +557,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   />
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Managed</div>
-                    <div className="text-xs text-gray-500">Agent owner manages execution lifecycle</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Agent owner manages execution lifecycle</div>
                   </div>
                 </label>
               </div>
@@ -604,7 +604,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               }`}>
                 {/* Specific Agents */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Specific Agents</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Specific Agents</label>
                   {/* Search */}
                   <div className="relative mb-2">
                     <input
@@ -612,7 +612,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       placeholder="Search agents..."
                       value={agentSearch}
                       onChange={e => setAgentSearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                     {agentSearch && (
                       <button
@@ -651,7 +651,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                 {/* Groups */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Groups</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Groups</label>
                   {/* Search */}
                   <div className="relative mb-2">
                     <input
@@ -659,7 +659,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       placeholder="Search groups..."
                       value={groupSearch}
                       onChange={e => setGroupSearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                     {groupSearch && (
                       <button
@@ -698,14 +698,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                 {/* Communities */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Communities</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Communities</label>
                   <div className="relative mb-2">
                     <input
                       type="text"
                       placeholder="Search communities..."
                       value={communitySearch}
                       onChange={e => setCommunitySearch(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-gray-600"
+                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                     {communitySearch && (
                       <button onClick={() => setCommunitySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
@@ -733,7 +733,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
                 {/* Tags */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Tags</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Tags</label>
 
                   {/* Selected tags */}
                   {formData.targeting.tags.length > 0 && (
@@ -818,7 +818,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               {validationErrors.content && (
                 <p className="text-xs text-red-600 mt-1">{validationErrors.content}</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 This content will be sent to all matching agents when the workflow executes
               </p>
             </div>

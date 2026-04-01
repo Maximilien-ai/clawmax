@@ -974,7 +974,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
@@ -1084,7 +1084,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400"
           >
             ×
           </button>
@@ -1103,7 +1103,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   selectedTags.size === 0
                     ? 'bg-sky-600 text-white border border-sky-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                 }`}
               >
                 All
@@ -1115,7 +1115,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedTags.has(tag)
                       ? 'bg-sky-600 text-white border border-sky-600'
-                      : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                   }`}
                 >
                   {tag}
@@ -1135,7 +1135,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                         allMatchingSelected
                           ? 'bg-blue-600 text-white border border-blue-600'
-                          : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-blue-300 hover:text-blue-600'
                       }`}
                     >
                       {allMatchingSelected ? 'Deselect' : 'Select'} {tag}
@@ -1266,7 +1266,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
           {/* Panel */}
           <div className="fixed top-0 right-0 bottom-0 w-full md:w-2/3 lg:w-1/2 bg-white dark:bg-gray-800 shadow-2xl z-50 overflow-auto">
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{selectedWorkflow.name}</h2>
               <div className="flex items-center gap-3">
                 <button
@@ -1338,7 +1338,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 </button>
                 <button
                   onClick={() => setShowDetailPanel(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
                 >
                   ✕
                 </button>
@@ -1371,14 +1371,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Description */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Description</h3>
-                <p className="text-sm text-gray-600">{selectedWorkflow.description}</p>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Description</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{selectedWorkflow.description}</p>
               </div>
 
               {/* Schedule */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Schedule</h3>
-                <p className="text-sm text-gray-900 font-mono dark:text-gray-100">{selectedWorkflow.schedule}</p>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Schedule</h3>
+                <p className="text-sm text-gray-900 dark:text-gray-100 font-mono dark:text-gray-100">{selectedWorkflow.schedule}</p>
                 <p className="text-xs text-gray-500 mt-1">{selectedWorkflow.scheduleHuman}</p>
                 <p className="text-xs text-sky-600 dark:text-sky-400 mt-1">
                   Next run: {formatNextRun(selectedWorkflow.nextRunAt)} · {formatNextRunRelative(selectedWorkflow.nextRunAt)}
@@ -1397,7 +1397,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Participants */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                   Target Agents ({selectedWorkflow.participantCount})
                 </h3>
                 <div className="space-y-2">
@@ -1479,8 +1479,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Content */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Workflow Content</h3>
-                <pre className="text-xs text-gray-700 bg-gray-50 p-4 rounded border border-gray-200 overflow-x-auto whitespace-pre-wrap dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Workflow Content</h3>
+                <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-pre-wrap dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                   {stripFrontmatter(selectedWorkflow.content) || '(No content)'}
                 </pre>
               </div>
@@ -1492,7 +1492,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Executions</h3>
                     <button
                       onClick={() => fetchArchivedExecutions(selectedWorkflow.id)}
-                      className="px-2 py-0.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded border border-gray-300 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                      className="px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
                       title="View archived executions"
                     >
                       📦 Archived
@@ -1503,7 +1503,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       <button
                         onClick={() => setExecutionsPage(p => Math.max(1, p - 1))}
                         disabled={executionsPage === 1}
-                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-gray-100"
+                        className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-gray-100"
                       >
                         ‹ Prev
                       </button>
@@ -1513,7 +1513,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       <button
                         onClick={() => setExecutionsPage(p => Math.min(Math.ceil(executions.length / executionsPerPage), p + 1))}
                         disabled={executionsPage >= Math.ceil(executions.length / executionsPerPage)}
-                        className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-gray-100"
+                        className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-gray-100"
                       >
                         Next ›
                       </button>
@@ -1530,19 +1530,19 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <div key={exec.id} className="relative group">
                           <button
                             onClick={() => fetchExecutionDetails(selectedWorkflow.id, exec.id)}
-                            className="w-full text-left text-sm border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                            className="w-full text-left text-sm border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 hover:border-gray-300 dark:border-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
                           >
                             <div className="flex items-center mb-1">
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                exec.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                exec.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                exec.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                                'bg-yellow-100 text-yellow-700'
+                                exec.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                exec.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                exec.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 animate-pulse' :
+                                'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                               }`}>
                                 {exec.status}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-600 mb-1">
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                               {exec.participantCount} agent{exec.participantCount !== 1 ? 's' : ''} · {exec.successCount} succeeded · {exec.failureCount} failed
                             </div>
                             <div className="text-xs text-gray-500">
@@ -1554,7 +1554,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                               e.stopPropagation()
                               archiveExecution(selectedWorkflow.id, exec.id)
                             }}
-                            className="absolute top-2 right-9 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-9 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Archive execution"
                           >
                             📦
@@ -1571,7 +1571,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                                   .catch(() => showError('Failed to delete execution'))
                               }
                             }}
-                            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Delete execution"
                           >
                             🗑
@@ -1583,7 +1583,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </div>
 
               {/* Metadata */}
-              <div className="pt-4 border-t border-gray-200 text-xs text-gray-500 space-y-1 dark:border-gray-700">
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 space-y-1 dark:border-gray-700">
                 <div>ID: <span className="font-mono">{selectedWorkflow.id}</span></div>
                 <div>Created: {new Date(selectedWorkflow.created).toLocaleString()}</div>
                 <div>Modified: {new Date(selectedWorkflow.modified).toLocaleString()}</div>
@@ -1602,7 +1602,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             onClick={() => setShowExecutionPanel(false)}
           />
           <div className="fixed right-0 top-0 bottom-0 w-2/3 bg-white dark:bg-gray-800 shadow-2xl z-50 overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 dark:border-gray-700">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <button
@@ -1612,7 +1612,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         fetchWorkflowDetails(executionWorkflow.id)
                       }
                     }}
-                    className="text-gray-400 hover:text-gray-600 text-xl"
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl"
                     title="Back to workflow"
                   >
                     ←
@@ -1628,7 +1628,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 </div>
                 <button
                   onClick={() => setShowExecutionPanel(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
                 >
                   ✕
                 </button>
@@ -1656,13 +1656,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="p-6 space-y-6">
               {/* Status and timing */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Status</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Status</h3>
                 <div className="flex items-center gap-4">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${
-                    selectedExecution.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    selectedExecution.status === 'failed' ? 'bg-red-100 text-red-700' :
-                    selectedExecution.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                    'bg-yellow-100 text-yellow-700'
+                    selectedExecution.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                    selectedExecution.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                    selectedExecution.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 animate-pulse' :
+                    'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                   }`}>
                     {selectedExecution.status}
                   </span>
@@ -1671,7 +1671,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     {selectedExecution.triggeredBy && ` by ${selectedExecution.triggeredBy}`}
                   </span>
                 </div>
-                <div className="mt-2 text-xs text-gray-600 space-y-1">
+                <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
                   <div>Started: {new Date(selectedExecution.startedAt).toLocaleString()}</div>
                   {selectedExecution.completedAt && (
                     <div>Completed: {new Date(selectedExecution.completedAt).toLocaleString()}</div>
@@ -1682,7 +1682,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               {/* Workflow Targeting */}
               {executionWorkflow && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Workflow Targets</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Workflow Targets</h3>
                   <div className="space-y-2">
                     {executionWorkflow.targeting.groups.length > 0 && (
                       <div className="text-sm">
@@ -1728,7 +1728,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Participants */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                   Participants ({selectedExecution.participants.length})
                 </h3>
                 {selectedExecution.participants.length === 0 ? (
@@ -1738,7 +1738,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     {selectedExecution.participants.map(participant => (
                       <div
                         key={participant.agentId}
-                        className="border border-gray-200 rounded p-3 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+                        className="border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <button
@@ -1748,21 +1748,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                             {participant.agentName}
                           </button>
                           <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                            participant.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            participant.status === 'failed' ? 'bg-red-100 text-red-700' :
-                            participant.status === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                            'bg-gray-100 text-gray-700'
+                            participant.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                            participant.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                            participant.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 animate-pulse' :
+                            'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
                           }`}>
                             {participant.status}
                           </span>
                         </div>
                         {participant.error && (
-                          <div className="text-xs text-red-600 mt-1 bg-red-50 p-2 rounded">
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1 bg-red-50 dark:bg-red-900/20 p-2 rounded">
                             Error: {participant.error}
                           </div>
                         )}
                         {participant.result && (
-                          <div className="text-xs text-gray-600 mt-1">
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                             Result: <pre className="inline font-mono">{JSON.stringify(participant.result, null, 2)}</pre>
                           </div>
                         )}
@@ -1784,7 +1784,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
               {/* Logs */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Execution Logs</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Execution Logs</h3>
                 {selectedExecution.logs.length === 0 ? (
                   <p className="text-sm text-gray-500">No logs available</p>
                 ) : (
@@ -1807,7 +1807,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Generate Workflow with AI</h2>
-              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Describe what you want the workflow to do in natural language. The AI will generate a workflow definition you can review and edit.
@@ -1876,7 +1876,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Archived Executions</h2>
               <button
                 onClick={() => setShowArchivedModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 ✕
               </button>
@@ -1888,17 +1888,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               ) : (
                 <div className="space-y-2">
                   {archivedExecutions.map(exec => (
-                    <div key={exec.id} className="relative group border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:hover:bg-gray-700">
+                    <div key={exec.id} className="relative group border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:hover:bg-gray-700">
                       <div className="flex items-center mb-1">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                          exec.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          exec.status === 'failed' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
+                          exec.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                          exec.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                          'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                         }`}>
                           {exec.status}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-600 mb-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                         {exec.participantCount} agent{exec.participantCount !== 1 ? 's' : ''} · {exec.successCount} succeeded · {exec.failureCount} failed
                       </div>
                       <div className="text-xs text-gray-500">
@@ -1906,7 +1906,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       </div>
                       <button
                         onClick={() => archivedWorkflowId && unarchiveExecution(archivedWorkflowId, exec.id)}
-                        className="absolute top-2 right-2 p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-1 text-gray-400 hover:text-green-600 dark:text-green-400 hover:bg-green-50 dark:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Unarchive execution"
                       >
                         ↩️
@@ -1920,7 +1920,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => setShowArchivedModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
               >
                 Close
               </button>
@@ -2039,7 +2039,7 @@ function WorkflowsTable({
   const SortHeader = ({ column, label }: { column: WorkflowSortColumn; label: string }) => (
     <button
       onClick={() => onSort(column)}
-      className="flex items-center gap-1 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+      className="flex items-center gap-1 font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
     >
       {label}
       {sortColumn === column && (
@@ -2136,11 +2136,11 @@ function WorkflowsTable({
                         healthState === 'running'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
                           : healthState === 'failed'
-                            ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                            ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
                             : healthState === 'paused'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
+                              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
                               : healthState === 'disabled'
-                                ? 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
                                 : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800'
                     }`}>
                       <span className={`h-2 w-2 rounded-full shrink-0 ${statusDotClass}`} />
@@ -2170,7 +2170,7 @@ function WorkflowsTable({
                     {workflow.progress != null && workflow.progress > 0 && (
                       <div className="mt-1 flex items-center gap-1.5">
                         <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${workflow.progress >= 100 ? 'bg-emerald-500' : workflow.status === 'blocked' ? 'bg-amber-500' : 'bg-sky-500'}`} style={{ width: `${Math.min(workflow.progress, 100)}%` }} />
+                          <div className={`h-full rounded-full transition-all ${workflow.progress >= 100 ? 'bg-emerald-500' : workflow.status === 'blocked' ? 'bg-amber-50 dark:bg-amber-900/200' : 'bg-sky-500'}`} style={{ width: `${Math.min(workflow.progress, 100)}%` }} />
                         </div>
                         <span className="text-[10px] text-gray-400 shrink-0">{workflow.progress}%</span>
                       </div>
@@ -2267,7 +2267,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2 pr-8">
             <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
-            <h3 className="font-semibold text-gray-900 text-sm dark:text-gray-100">{workflow.name}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm dark:text-gray-100">{workflow.name}</h3>
             {isRunning && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
                 Running
@@ -2287,7 +2287,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
           </div>
         </div>
 
-        <p className="text-xs text-gray-600 mb-3 line-clamp-2">{workflow.description}</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{workflow.description}</p>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 mb-3">
           <span>{workflow.scheduleHuman || workflow.schedule}</span>
@@ -2337,22 +2337,22 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
             className="fixed inset-0 z-10"
             onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}
           />
-          <div className="absolute right-4 top-12 z-20 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] dark:border-gray-700">
+          <div className="absolute right-4 top-12 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[140px] dark:border-gray-700">
             <button
               onClick={(e) => { e.stopPropagation(); onOpenFile(); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 flex items-center gap-2 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               📄 Open File
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onToggle(workflow.enabled); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               {workflow.enabled ? 'Disable' : 'Enable'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); setShowMenu(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
             >
               Delete
             </button>
@@ -2384,7 +2384,7 @@ function getWorkflowHealthDotClass(state: WorkflowHealthState): string {
     case 'paused':
       return 'bg-amber-400'
     case 'disabled':
-      return 'bg-gray-400 dark:bg-gray-500'
+      return 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000'
     case 'enabled':
     default:
       return 'bg-sky-400'

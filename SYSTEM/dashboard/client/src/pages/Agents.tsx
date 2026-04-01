@@ -927,7 +927,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* View toggle */}
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view (compact)"
@@ -962,7 +962,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <div className="relative">
             <button
               onClick={() => setShowRestartMenu(!showRestartMenu)}
-              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-1.5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
               title="Restart agents"
             >
               ↻ Restart {showRestartMenu ? '▲' : '▼'}
@@ -970,12 +970,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             {showRestartMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowRestartMenu(false)} />
-                <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden dark:border-gray-700">
+                <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 overflow-hidden dark:border-gray-700">
                   {/* System Status */}
                   {systemStatus && (
-                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="text-xs font-semibold text-gray-700 mb-2 dark:text-gray-300">System Status</div>
-                      <div className="space-y-1 text-xs text-gray-600">
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">System Status</div>
+                      <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                         <div className="flex justify-between">
                           <span>Total Agents:</span>
                           <span className="font-medium">{systemStatus.total}</span>
@@ -1014,8 +1014,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       disabled={!systemStatus?.gatewayAvailable}
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                         systemStatus?.gatewayAvailable
-                          ? 'text-gray-700 hover:bg-gray-50'
-                          : 'text-gray-400 cursor-not-allowed bg-gray-50'
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
+                          : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
                       }`}
                     >
                       <span className="text-amber-500">↻</span> Restart All Agents
@@ -1025,8 +1025,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       disabled={!systemStatus?.gatewayAvailable || !agents.some(a => a.status === 'offline')}
                       className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                         systemStatus?.gatewayAvailable && agents.some(a => a.status === 'offline')
-                          ? 'text-gray-700 hover:bg-gray-50'
-                          : 'text-gray-400 cursor-not-allowed bg-gray-50'
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
+                          : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
                       }`}
                     >
                       <span className="text-yellow-500">↻</span> Restart Offline Agents
@@ -1128,13 +1128,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {/* Archive tabs */}
       <div className="mb-4">
-        <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+        <div className="inline-flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700">
           <button
             onClick={() => setArchiveTab('active')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               archiveTab === 'active'
                 ? 'bg-sky-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
             }`}
           >
             Active ({agents.filter(a => !a.archived).length})
@@ -1144,7 +1144,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               archiveTab === 'archived'
                 ? 'bg-sky-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
             }`}
           >
             Archived ({agents.filter(a => a.archived).length})
@@ -1165,7 +1165,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
               title="Clear search"
             >
               ✕
@@ -1189,7 +1189,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedTags.size === 0
                   ? 'bg-sky-600 text-white border border-sky-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
               }`}
             >
               All
@@ -1201,7 +1201,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   selectedTags.has(tag)
                     ? 'bg-sky-600 text-white border border-sky-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                 }`}
               >
                 {tag}
@@ -1210,7 +1210,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             {secondaryTags.length > 0 && (
               <button
                 onClick={() => setShowSecondaryTags(!showSecondaryTags)}
-                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
+                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:border-gray-600 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
               >
                 {showSecondaryTags ? '▼' : '▶'} Secondary tags ({secondaryTags.length})
               </button>
@@ -1225,7 +1225,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedTags.has(tag)
                       ? 'bg-sky-600 text-white border border-sky-600'
-                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                   }`}
                 >
                   {tag}
@@ -1240,17 +1240,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <div className="space-y-4">
           {/* Loading skeletons */}
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 shadow-sm animate-pulse dark:border-gray-700">
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-pulse dark:border-gray-700">
               <div className="flex items-center justify-between px-5 pt-4 pb-3">
                 <div className="flex items-center gap-2 flex-1">
                   <div className="w-2 h-2 rounded-full bg-gray-200"></div>
                   <div className="h-5 bg-gray-200 rounded w-32"></div>
-                  <div className="h-5 bg-gray-100 rounded w-16 dark:bg-gray-800"></div>
+                  <div className="h-5 bg-gray-100 dark:bg-gray-800 rounded w-16 dark:bg-gray-800"></div>
                 </div>
                 <div className="flex gap-1">
-                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
-                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
-                  <div className="w-6 h-6 bg-gray-100 rounded dark:bg-gray-800"></div>
+                  <div className="w-6 h-6 bg-gray-100 dark:bg-gray-800 rounded dark:bg-gray-800"></div>
+                  <div className="w-6 h-6 bg-gray-100 dark:bg-gray-800 rounded dark:bg-gray-800"></div>
+                  <div className="w-6 h-6 bg-gray-100 dark:bg-gray-800 rounded dark:bg-gray-800"></div>
                 </div>
               </div>
             </div>
@@ -1314,7 +1314,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               <>
                 {title && (
                   <div className="mb-4 flex items-center gap-3">
-                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
+                    <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
                       {title.includes('Built-in') && <span>🤖</span>}
                       {title}
                     </h2>
@@ -1421,7 +1421,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               <>
                 {sectionTitle && groupedAgents.size > 0 && (
                   <div className="mb-4">
-                    <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
+                    <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
                       {sectionTitle === 'Built-in System Agents' && <span>🤖</span>}
                       {sectionTitle}
                       <span className="text-sm font-normal text-gray-400">
@@ -1507,7 +1507,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                             return next
                           })
                         }}
-                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
                       >
                         {isExpanded ? '▼' : '▶'} Additional agents ({secondaryAgentsNotShown.length})
                       </button>
@@ -1647,7 +1647,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {builtInAgents.length > 0 && (
                   <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200 dark:border-gray-700" : ""}>
                     <div className="mb-4 flex items-center gap-3">
-                      <h2 className="text-base font-bold text-gray-800 flex items-center gap-2 dark:text-gray-200">
+                      <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
                         <span>🤖</span> Built-in System Agents ({builtInAgents.length})
                       </h2>
                       {selectionMode && (
@@ -1923,8 +1923,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           fallback={
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2 dark:text-gray-200">Chat Error</h3>
-                <p className="text-sm text-gray-600 mb-4">Failed to load chat panel</p>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2 dark:text-gray-200">Chat Error</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Failed to load chat panel</p>
                 <button
                   onClick={() => setChatTarget(null)}
                   className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700"
@@ -1964,8 +1964,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {tagToRemove && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Remove Primary Tag</h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Remove Primary Tag</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               You're removing the primary tag <span className="font-semibold text-sky-600">"{tagToRemove.tag}"</span>.
               {(() => {
                 const agent = agents.find(a => a.id === tagToRemove.agentId)
@@ -1980,7 +1980,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setTagToRemove(null)}
-                className="px-4 py-2 text-sm rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
@@ -2392,7 +2392,7 @@ function ImportOpenClawAgentModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-300 dark:hover:text-gray-100"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100 transition-colors dark:text-gray-300 dark:hover:text-gray-100"
                 disabled={importing}
               >
                 Cancel
@@ -2747,7 +2747,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Manage Tags</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Manage Tags</h3>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
         <div className="space-y-2 mb-4">
@@ -2801,7 +2801,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -2845,13 +2845,13 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Agent</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Rename Agent</h3>
         <p className="text-xs text-gray-500 mb-4">
           Renaming will update the agent directory and all references in communities and groups
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">
             Current ID: <span className="font-mono text-gray-500">{agent.id}</span>
           </label>
           <input
@@ -2863,7 +2863,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
             }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder="Enter new agent ID..."
-            className="w-full text-sm px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
           />
           {error && (
             <p className="mt-1 text-xs text-red-600">{error}</p>
@@ -2873,7 +2873,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -2978,8 +2978,8 @@ const AgentCard = React.memo(function AgentCard({
       {/* Card header — always visible */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0 pr-8">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-500' : STATUS_COLORS[agent.status]}`} />
-          <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">{agent.name}</h3>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate dark:text-gray-100">{agent.name}</h3>
           {agent.archived ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700">
               📦 Archived
@@ -3035,7 +3035,7 @@ const AgentCard = React.memo(function AgentCard({
             {showActionsMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
-                <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
+                <div className={`absolute right-0 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
                   menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
                 }`}>
                   <div className="px-3 py-2 space-y-3">
@@ -3045,26 +3045,26 @@ const AgentCard = React.memo(function AgentCard({
                         {onEdit && (
                           <button
                             onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                           >
                             ✏️ Edit
                           </button>
                         )}
                         <button
                           onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                         >
                           📋 Clone
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                         >
                           💾 Template
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
                         >
                           📦 Export
                         </button>
@@ -3075,7 +3075,7 @@ const AgentCard = React.memo(function AgentCard({
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
                         >
                           ↻ Restart
                         </button>
@@ -3104,40 +3104,40 @@ const AgentCard = React.memo(function AgentCard({
                               }
                             } catch {}
                           }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                         >
                           🩺 Doctor
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
                           ✎ Rename
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
                           💲 Budget
                         </button>
                         {agent.archived ? (
                           <button
                             onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                           >
                             📤 Restore
                           </button>
                         ) : (
                           <button
                             onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
                           >
                             📦 Archive
                           </button>
                         )}
                       </div>
                     </div>
-                    <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                       <button
                         onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
                         className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
@@ -3166,7 +3166,7 @@ const AgentCard = React.memo(function AgentCard({
           <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
           <div id={`doctor-status-${agent.id}`} />
 
-          <div className="space-y-1.5 text-sm text-gray-600">
+          <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
             <div className="flex items-center gap-2">
               <span className="text-gray-400 w-20 shrink-0">Heartbeat</span>
               <span className="font-mono text-xs">{timeAgo(agent.lastHeartbeat)}</span>
@@ -3203,7 +3203,7 @@ const AgentCard = React.memo(function AgentCard({
                       </button>
                       <button
                         onClick={() => setConfirmUnlink(false)}
-                        className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+                        className="text-xs px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         Cancel
                       </button>
@@ -3214,7 +3214,7 @@ const AgentCard = React.memo(function AgentCard({
                     <span className="font-mono text-xs text-gray-900 dark:text-gray-100">+{agent.whatsapp}</span>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmUnlink(true) }}
-                      className="text-xs text-gray-300 dark:text-gray-600 hover:text-red-400 dark:hover:text-red-400 transition-colors"
+                      className="text-xs text-gray-300 dark:text-gray-600 dark:text-gray-400 hover:text-red-400 dark:hover:text-red-400 transition-colors"
                       title="Unlink WhatsApp"
                     >
                       ×
@@ -3232,7 +3232,7 @@ const AgentCard = React.memo(function AgentCard({
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-400">Groups</span>
               <div className="flex items-center gap-1.5">
@@ -3283,7 +3283,7 @@ const AgentCard = React.memo(function AgentCard({
           </div>
 
           {/* Skills & Tools */}
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-400">Skills & Tools</span>
               {onNavigateToSkills && (
@@ -3312,7 +3312,7 @@ const AgentCard = React.memo(function AgentCard({
               onNavigateToSkills ? (
                 <button
                   onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="text-xs px-2 py-1 rounded bg-gray-50 dark:bg-gray-900 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:bg-gray-800 hover:text-gray-700 dark:text-gray-300 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   + Add Skills
                 </button>
@@ -3323,7 +3323,7 @@ const AgentCard = React.memo(function AgentCard({
           </div>
 
           {/* Workflows */}
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-400">
                 Workflows {workflows && workflows.length > 0 && `(${workflows.length})`}
@@ -3349,7 +3349,7 @@ const AgentCard = React.memo(function AgentCard({
             )}
           </div>
 
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-400">Tags</span>
               <button
@@ -3381,7 +3381,7 @@ const AgentCard = React.memo(function AgentCard({
           </div>
 
           {agent.validationWarnings && agent.validationWarnings.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
                 <span className="text-amber-600 text-xs shrink-0">⚠️</span>
                 <div className="flex-1 min-w-0">
@@ -3396,7 +3396,7 @@ const AgentCard = React.memo(function AgentCard({
             </div>
           )}
 
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             {costLimit && costLimit > 0 && (
               <div className="mb-2">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-gray-400">
@@ -3481,8 +3481,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       )}
       {/* Line 1: Name + chat icon */}
       <div className="flex items-center gap-1.5 mb-1">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-500' : STATUS_COLORS[agent.status]}`} />
-        <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
+        <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
+        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
         {agent.tags.includes('built-in') && <span className="shrink-0" title="Built-in system agent">🤖</span>}
         {agent.archived && <span className="shrink-0">📦</span>}
         {!agent.archived && (
@@ -3579,7 +3579,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {showActionsMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
-              <div className={`absolute right-0 w-52 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
+              <div className={`absolute right-0 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto ${
                 menuPlacement === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
               }`}>
                 <div className="px-3 py-2 space-y-3">
@@ -3588,26 +3588,26 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                       >
                         👁️ Details
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onChat(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                       >
                         💬 Chat
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                       >
                         📊 Status
                       </button>
                       {onViewDocs && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onViewDocs(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
                           📄 Docs
                         </button>
@@ -3620,26 +3620,26 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       {onEdit && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
                           ✏️ Edit
                         </button>
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                       >
                         📋 Clone
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                       >
                         💾 Template
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
                       >
                         📦 Export
                       </button>
@@ -3650,7 +3650,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
                       >
                         ↻ Restart
                       </button>
@@ -3680,40 +3680,40 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                             }
                           } catch {}
                         }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                       >
                         🩺 Doctor
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                       >
                         ✎ Rename
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                       >
                         💲 Budget
                       </button>
                       {agent.archived ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                         >
                           📤 Restore
                         </button>
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
                         >
                           📦 Archive
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
                       className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
@@ -3825,7 +3825,7 @@ const AgentTableView = React.memo(function AgentTableView({
   const SortHeader = ({ column, label }: { column: string; label: string }) => (
     <th
       onClick={() => onSort(column)}
-      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none dark:bg-gray-800 dark:hover:bg-gray-700"
+      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:bg-gray-800 transition-colors select-none dark:bg-gray-800 dark:hover:bg-gray-700"
     >
       <div className="flex items-center gap-1">
         {label}
@@ -3841,7 +3841,7 @@ const AgentTableView = React.memo(function AgentTableView({
   return (
     <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 sticky top-0 z-10 dark:bg-gray-900">
+        <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10 dark:bg-gray-900">
           <tr>
             {selectionMode && (
               <th className="px-4 py-3 w-14 dark:bg-gray-800">
@@ -3921,7 +3921,7 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 whitespace-nowrap">
                 {agent.paused && !agent.archived ? (
                   <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000"></span>
                     paused
                   </span>
                 ) : (
@@ -3931,7 +3931,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   </span>
                 )}
               </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                 {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">
@@ -3945,10 +3945,10 @@ const AgentTableView = React.memo(function AgentTableView({
                   <span className="text-gray-400">—</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.groups.slice(0, 3).map(g => (
-                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={g.name}>
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={g.name}>
                       {g.name}
                     </span>
                   ))}
@@ -3957,7 +3957,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.skills?.slice(0, 3).map(s => (
                     <span key={s} className="inline-block px-1.5 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded">
@@ -3969,7 +3969,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
+              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.tags.filter(t => t !== 'archived').slice(0, 2).map(t => (
                     <span key={t} className="inline-block px-1.5 py-0.5 text-xs bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-700 rounded">
@@ -4009,21 +4009,21 @@ const AgentTableView = React.memo(function AgentTableView({
                       e.stopPropagation()
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-gray-800 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                     title="More actions"
                   >
                     ⋮
                   </button>
 
                   {openDropdown === agent.id && (
-                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-20 dark:border-gray-700">
+                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 dark:border-gray-700">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setOpenDropdown(null)
                           onSelectAgent(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <span>👁️</span>
                         View Details
@@ -4034,7 +4034,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onChat(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <span>💬</span>
                         Chat
@@ -4045,7 +4045,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onStatus(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
                       >
                         <span className="text-green-500">📊</span>
                         Status & Logs
@@ -4057,13 +4057,13 @@ const AgentTableView = React.memo(function AgentTableView({
                             setOpenDropdown(null)
                             onEdit(agent)
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
                           <span className="text-emerald-500">✏️</span>
                           Edit Config
                         </button>
                       )}
-                      <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1 dark:border-gray-700"></div>
                       {agent.archived ? (
                         <button
                           onClick={(e) => {
@@ -4071,7 +4071,7 @@ const AgentTableView = React.memo(function AgentTableView({
                             setOpenDropdown(null)
                             onUnarchive(agent)
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
                           <span>📤</span>
                           Unarchive
@@ -4083,13 +4083,13 @@ const AgentTableView = React.memo(function AgentTableView({
                             setOpenDropdown(null)
                             onArchive(agent)
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
                           <span>📦</span>
                           Archive
                         </button>
                       )}
-                      <div className="border-t border-gray-200 my-1 dark:border-gray-700"></div>
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1 dark:border-gray-700"></div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

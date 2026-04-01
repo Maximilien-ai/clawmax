@@ -312,8 +312,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Apply Organization Template</h2>
-        <p className="text-sm text-gray-600 mb-4">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Apply Organization Template</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           <span className="font-semibold">{template.name}</span> —
           Will create {agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}
           {template.communities && template.communities.length > 0 && `, ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}`}
@@ -360,7 +360,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         ) : null}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
             {error}
           </div>
         )}
@@ -375,7 +375,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   type="checkbox"
                   checked={includeBuiltIn}
                   onChange={e => setIncludeBuiltIn(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 dark:border-gray-600"
+                  className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 dark:border-gray-600"
                 />
                 <div className="flex-1">
                   <label htmlFor="include-built-in" className="text-sm font-semibold text-purple-900 cursor-pointer">
@@ -411,7 +411,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
           {/* Agent Count Parameters */}
           {template.parameters && template.parameters.length > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-green-900/20 dark:border-green-700">
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 dark:bg-green-900/20 dark:border-green-700">
               <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-3">Team Size</h3>
               <div className="space-y-3">
                 {template.parameters.map(param => (
@@ -603,7 +603,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               <button
                 type="button"
                 onClick={() => { setShowWorkflowSection(!showWorkflowSection); setWorkflowStep(0) }}
-                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Customize Workflows ({template.workflows.length} workflow{template.workflows.length !== 1 ? 's' : ''})
@@ -806,11 +806,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent List with Models (collapsible) */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700">
             <button
               type="button"
               onClick={() => setShowModelSection(!showModelSection)}
-              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
             >
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Agents, Skills & Models ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''})
@@ -821,7 +821,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             {showModelSection && (
               <div className="p-4 space-y-3 border-t border-gray-200 dark:border-gray-700">
                 {/* Agent table with models */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 dark:bg-gray-900">
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 dark:bg-gray-900">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-100 dark:bg-gray-800">
@@ -865,7 +865,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 </div>
 
                 {/* Model override dropdown */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 dark:bg-amber-900/20 dark:border-amber-700">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 dark:bg-amber-900/20 dark:border-amber-700">
                   <label className="text-xs font-medium text-amber-900 dark:text-amber-200">Override model for all agents:</label>
                   <select
                     value={modelOverride}
@@ -888,12 +888,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                     )}
                   </select>
                   {modelLoadError && (
-                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
                       {modelLoadError}. You can still apply with template defaults.
                     </p>
                   )}
                   {!modelLoadError && modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
-                    <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
                       No discovered models are available right now. You can still apply with template defaults.
                     </p>
                   )}
@@ -902,7 +902,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                       ⚠ Changing the model may affect agent behavior. Templates are tested with their default models.
                     </p>
                   )}
-                  <p className="text-xs text-amber-700 mt-2 dark:text-amber-500">
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
                     You can also change individual agent models after import via the agent's Edit Config menu.
                   </p>
                 </div>
@@ -915,7 +915,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-700 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
             disabled={applying}
           >
             Cancel

@@ -193,14 +193,14 @@ export default function BulkOperationsPanel({
         </div>
 
         {/* Agent list */}
-        <div className="px-6 py-3 border-b border-gray-100">
-          <div className="text-sm text-gray-600 mb-2">Selected agents:</div>
+        <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Selected agents:</div>
           <div className="flex flex-wrap gap-2">
             {selectedAgents.map(a => (
               <span
                 key={a.id}
                 className={`px-2 py-1 rounded text-xs font-medium ${
-                  a.archived ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                  a.archived ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                 }`}
               >
                 {a.name}{a.archived ? ' (archived)' : ''}
@@ -315,7 +315,7 @@ export default function BulkOperationsPanel({
 
             {/* Communities selection */}
             {operation === 'communities' && (
-              <div className="px-6 py-4 border-t border-gray-100">
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select communities:</div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {allCommunities.map(c => (
@@ -328,7 +328,7 @@ export default function BulkOperationsPanel({
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-900 dark:text-gray-100">{c.name}</div>
-                        {c.description && <div className="text-sm text-gray-500">{c.description}</div>}
+                        {c.description && <div className="text-sm text-gray-500 dark:text-gray-400">{c.description}</div>}
                       </div>
                     </label>
                   ))}
@@ -338,7 +338,7 @@ export default function BulkOperationsPanel({
 
             {/* Groups selection */}
             {operation === 'groups' && (
-              <div className="px-6 py-4 border-t border-gray-100">
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select groups:</div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {allGroups.map(g => (
@@ -351,7 +351,7 @@ export default function BulkOperationsPanel({
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-900 dark:text-gray-100">{g.name}</div>
-                        {g.description && <div className="text-sm text-gray-500">{g.description}</div>}
+                        {g.description && <div className="text-sm text-gray-500 dark:text-gray-400">{g.description}</div>}
                       </div>
                     </label>
                   ))}
@@ -571,7 +571,7 @@ export default function BulkOperationsPanel({
           <>
             {/* Second Confirmation screen (for delete only) */}
             <div className="px-6 py-6">
-              <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
                 <div className="flex items-start gap-3">
                   <div className="text-red-600 text-2xl">🚨</div>
                   <div>
@@ -589,7 +589,7 @@ export default function BulkOperationsPanel({
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Impact Summary:</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-gray-50 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="text-xs text-gray-500">Agents to delete</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Agents to delete</div>
                       <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{deleteImpact.agentCount}</div>
                     </div>
                     <div className="p-3 bg-purple-50 rounded border border-purple-200">
@@ -624,7 +624,7 @@ export default function BulkOperationsPanel({
             </div>
 
             {/* Second confirmation footer */}
-            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t-2 border-red-200 px-6 py-4 flex gap-3 justify-end bg-red-50">
+            <div className="sticky bottom-0 bg-red-50 dark:bg-red-900/20 border-t-2 border-red-200 dark:border-red-800 px-6 py-4 flex gap-3 justify-end">
               <button
                 onClick={() => setShowSecondConfirm(false)}
                 className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium dark:text-gray-100 dark:text-gray-300"

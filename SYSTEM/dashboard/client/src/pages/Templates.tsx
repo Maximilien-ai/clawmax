@@ -448,7 +448,7 @@ export default function Templates() {
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex gap-2">
-            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
                 onClick={() => setViewMode('grid')}
                 title="Grid view"
@@ -504,7 +504,7 @@ export default function Templates() {
             {selectionMode && selectedTemplateKeys.size > 0 && (
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-red-50 dark:bg-red-900/200 text-white hover:bg-red-600 transition-colors"
               >
                 Delete Selected ({selectedTemplateKeys.size})
               </button>
@@ -561,7 +561,7 @@ export default function Templates() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
               title="Clear search"
             >
               ✕
@@ -575,7 +575,7 @@ export default function Templates() {
         {totalTemplates === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">📑</div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2 dark:text-gray-300">No templates yet</h2>
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">No templates yet</h2>
             <p className="text-gray-500 mb-4">
               Save agents as templates to reuse them later
             </p>
@@ -586,7 +586,7 @@ export default function Templates() {
         ) : totalFiltered === 0 && searchQuery ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2 dark:text-gray-300">No templates found</h2>
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">No templates found</h2>
             <p className="text-gray-500 mb-4">
               No templates match your search query "{searchQuery}"
             </p>
@@ -603,7 +603,7 @@ export default function Templates() {
             {/* Agent Templates */}
             {filteredAgentTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>🤖 Agent Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
                   {selectionMode && (
@@ -636,7 +636,7 @@ export default function Templates() {
             {/* Organization Templates */}
             {filteredOrgTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>🏢 Organization Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
                   {selectionMode && (
@@ -669,7 +669,7 @@ export default function Templates() {
             {/* Workflow Templates */}
             {filteredWorkflowTemplates.length > 0 && (
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2 dark:text-gray-100">
                   <span>⚡ Workflow Templates</span>
                   <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
                   {selectionMode && (
@@ -843,7 +843,7 @@ function TemplatesTable({
   const SortHeader = ({ column, label }: { column: TemplateSortColumn; label: string }) => (
     <button
       onClick={() => onSort(column)}
-      className="flex items-center gap-1 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+      className="flex items-center gap-1 font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
     >
       {label}
       {sortColumn === column && (
@@ -1010,7 +1010,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
         </button>
       )}
       <div className="flex items-start justify-between mb-2">
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 dark:text-gray-100">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
           {template.name}
         </h3>
         <div className="flex items-center gap-1 pr-7">
@@ -1072,7 +1072,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
         </div>
       )}
 
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
         <span>v{template.version}</span>
         <div className="flex items-center gap-2">
           {template.source === 'system' && <span className="text-amber-500">System</span>}
@@ -1098,9 +1098,9 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{template.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl leading-none">
             ×
           </button>
         </div>
@@ -1120,23 +1120,23 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           {/* Description */}
           {template.description && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Description</h3>
-              <p className="text-sm text-gray-600">{template.description}</p>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Description</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{template.description}</p>
             </div>
           )}
 
           {/* Author */}
           {template.author && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Author</h3>
-              <p className="text-sm text-gray-600">{template.author}</p>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Author</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{template.author}</p>
             </div>
           )}
 
           {/* Tags */}
           {!isWorkflow && template.tags && template.tags.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Tags</h3>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Tags</h3>
               <div className="flex flex-wrap gap-1">
                 {template.tags.map(tag => (
                   <span key={tag} className="text-xs px-2 py-1 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700">
@@ -1151,23 +1151,23 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           {isWorkflow && (
             <>
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Schedule</h3>
-                <p className="text-sm text-gray-600 font-mono">{template.schedule}</p>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Schedule</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">{template.schedule}</p>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Execution Mode</h3>
-                <p className="text-sm text-gray-600 capitalize">{template.executionMode}</p>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Execution Mode</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">{template.executionMode}</p>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Status</h3>
-                <p className="text-sm text-gray-600">{template.enabled ? '✓ Enabled' : '○ Disabled'}</p>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Status</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{template.enabled ? '✓ Enabled' : '○ Disabled'}</p>
               </div>
 
               {/* Targeting */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Targeting</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Targeting</h3>
                 <div className="space-y-2 text-sm">
                   {template.targeting.communities.length > 0 && (
                     <div>
@@ -1210,7 +1210,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
                       <span className="text-gray-500">Agents:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {template.targeting.agents.map((a, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded bg-green-50 text-green-600 border border-green-200">
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800">
                             {a}
                           </span>
                         ))}
@@ -1229,8 +1229,8 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
               {/* Workflow Content Preview */}
               {template.content && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">Content Preview</h3>
-                  <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-auto max-h-60 text-gray-700 whitespace-pre-wrap dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Content Preview</h3>
+                  <pre className="text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3 overflow-auto max-h-60 text-gray-700 dark:text-gray-300 whitespace-pre-wrap dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                     {template.content.substring(0, 500)}{template.content.length > 500 ? '...' : ''}
                   </pre>
                 </div>
@@ -1241,12 +1241,12 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           {/* Agents */}
           {!isWorkflow && (
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
               Agents ({template.agents.length})
             </h3>
             <div className="space-y-2">
               {template.agents.map((agent, idx) => (
-                <div key={idx} className="bg-gray-50 rounded px-3 py-2 text-sm dark:bg-gray-900">
+                <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded px-3 py-2 text-sm dark:bg-gray-900">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-sky-600 dark:text-sky-400">{agent.id}</span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">{agent.role}</span>
@@ -1267,7 +1267,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           {/* Communities & Groups (for org templates) */}
           {isOrg && template.communities && template.communities.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                 Communities ({template.communities.length})
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -1282,7 +1282,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
 
           {isOrg && template.groups && template.groups.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                 Groups ({template.groups.length})
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -1298,7 +1298,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
           {/* Workflows (for org templates) */}
           {isOrg && (template as any).workflows && (template as any).workflows.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                 Workflows ({(template as any).workflows.length})
               </h3>
               <div className="space-y-2">
@@ -1367,14 +1367,14 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
             {canDelete && (
               <button
                 onClick={onDelete}
-                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
+                className="px-4 py-2 bg-red-50 dark:bg-red-900/200 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
               >
                 {isWorkflow ? 'Delete Workflow' : 'Delete Template'}
               </button>
             )}
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm dark:bg-gray-800 dark:text-gray-300"
+              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm dark:bg-gray-800 dark:text-gray-300"
             >
               Close
             </button>
@@ -1413,7 +1413,7 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
         </button>
       )}
       <div className="flex items-start justify-between mb-2">
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 dark:text-gray-100">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
           {template.name}
         </h3>
         <span className="text-lg">⚡</span>
@@ -1423,7 +1423,7 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
         <p className="text-xs text-gray-500 mb-3 line-clamp-2">{template.description}</p>
       )}
 
-      <div className="space-y-2 text-xs text-gray-600">
+      <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
         <div className="flex items-center gap-2">
           <span className="text-gray-400">📅</span>
           <span>{template.schedule}</span>
@@ -1440,7 +1440,7 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
         <span>{template.enabled ? '✓ Enabled' : '○ Disabled'}</span>
         {template.author && <span>by {template.author}</span>}
       </div>
