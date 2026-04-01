@@ -206,7 +206,7 @@ export default function Templates() {
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'science'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'science' | 'travel' | 'hobbies' | 'family'>('all')
   const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
     const saved = localStorage.getItem('templates-view-mode')
     return saved === 'list' ? 'list' : 'grid'
@@ -670,6 +670,9 @@ export default function Templates() {
           { key: 'business', label: 'Business', icon: '💼' },
           { key: 'technical', label: 'Technical', icon: '⚙️' },
           { key: 'personal', label: 'Personal', icon: '📚' },
+          { key: 'travel', label: 'Travel', icon: '✈️' },
+          { key: 'hobbies', label: 'Hobbies', icon: '🎨' },
+          { key: 'family', label: 'Family', icon: '🏡' },
           { key: 'science', label: 'Science', icon: '🔬' },
         ] as const).map(cat => (
           <button

@@ -1,0 +1,153 @@
+{
+  "name": "Photography Studio",
+  "emoji": "\ud83d\udcf7",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "hobbies",
+  "description": "Proposal template for hobbyist photography planning, shoot organization, photo review, and portfolio building. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "hobbies",
+    "photography",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Photo Studio",
+      "description": "Shared coordination space for photography studio."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Shoots",
+      "community": "Photo Studio",
+      "description": "Shoot ideas, shot lists, and prep notes."
+    },
+    {
+      "name": "Edits",
+      "community": "Photo Studio",
+      "description": "Selections, edit directions, and post-processing notes."
+    },
+    {
+      "name": "Portfolio",
+      "community": "Photo Studio",
+      "description": "Portfolio picks, project themes, and publishing ideas."
+    },
+    {
+      "name": "Status",
+      "community": "Photo Studio",
+      "description": "Current projects, goals, and next sessions."
+    }
+  ],
+  "agents": [
+    {
+      "id": "photo-lead",
+      "name": "Photo Lead",
+      "role": "Creative lead \u2014 sets the project theme, quality bar, and final output direction.",
+      "tags": [
+        "lead",
+        "photography"
+      ],
+      "communities": [
+        "Photo Studio"
+      ],
+      "groups": [
+        "Shoots",
+        "Status"
+      ]
+    },
+    {
+      "id": "shoot-planner",
+      "name": "Shoot Planner",
+      "role": "Shoot specialist \u2014 plans locations, timing, concepts, and shot lists.",
+      "tags": [
+        "photography",
+        "planning"
+      ],
+      "communities": [
+        "Photo Studio"
+      ],
+      "groups": [
+        "Shoots"
+      ]
+    },
+    {
+      "id": "edit-critic",
+      "name": "Edit Critic",
+      "role": "Review specialist \u2014 selects strong frames and suggests editing direction.",
+      "tags": [
+        "photography",
+        "editing"
+      ],
+      "communities": [
+        "Photo Studio"
+      ],
+      "groups": [
+        "Edits"
+      ]
+    },
+    {
+      "id": "portfolio-curator",
+      "name": "Portfolio Curator",
+      "role": "Portfolio specialist \u2014 turns strong photos into a coherent collection or release plan.",
+      "tags": [
+        "photography",
+        "portfolio"
+      ],
+      "communities": [
+        "Photo Studio"
+      ],
+      "groups": [
+        "Portfolio"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "photo-project-kickoff",
+      "name": "Photo Project Kickoff",
+      "description": "Photo Project Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "photo-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "photo-lead"
+        ]
+      },
+      "content": "# Photo Project Kickoff\n\nYou are the Photo Lead. The photography studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Project theme:** [street, portraits, travel, product, nature, custom]\n- **Shoot goal:** [practice, portfolio, client-style, social post, custom]\n- **Constraints:** [time, gear, weather, budget, custom]\n- **Output artifact:** [shot list, edit shortlist, portfolio board]\n\n## Your Tasks\n1. Define the creative goal and output standard\n2. Ask Shoot Planner for the first session plan\n3. Ask Edit Critic for evaluation criteria\n4. Ask Portfolio Curator for the output path\n5. Post the current project plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "shoot-review",
+      "name": "Shoot Review",
+      "description": "Shoot Review",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "edit-critic",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Edits",
+          "Portfolio"
+        ],
+        "tags": [],
+        "agents": [
+          "edit-critic",
+          "portfolio-curator"
+        ]
+      },
+      "content": "# Shoot Review\n\n1. Review the latest shoot results or selections\n2. Identify the strongest frames and recurring weaknesses\n3. Suggest editing or sequencing priorities\n4. Post the shortlist and next steps to Edits and Portfolio",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

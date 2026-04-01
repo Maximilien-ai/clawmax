@@ -1,0 +1,151 @@
+{
+  "name": "Home Cooking Studio",
+  "emoji": "\ud83c\udf73",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "hobbies",
+  "description": "Proposal template for meal planning, recipe experimentation, and cooking project tracking at home. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "hobbies",
+    "cooking",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Cooking Studio",
+      "description": "Shared coordination space for home cooking studio."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Recipes",
+      "community": "Cooking Studio",
+      "description": "Recipe ideas, substitutions, and technique notes."
+    },
+    {
+      "name": "Kitchen Prep",
+      "community": "Cooking Studio",
+      "description": "Shopping, prep plans, and equipment notes."
+    },
+    {
+      "name": "Review",
+      "community": "Cooking Studio",
+      "description": "Taste notes, repeatability, and future improvements."
+    },
+    {
+      "name": "Status",
+      "community": "Cooking Studio",
+      "description": "Current cooking goals and next experiments."
+    }
+  ],
+  "agents": [
+    {
+      "id": "kitchen-lead",
+      "name": "Kitchen Lead",
+      "role": "Cooking lead \u2014 sets the meal goal, dietary constraints, and quality bar for the session.",
+      "tags": [
+        "lead",
+        "cooking"
+      ],
+      "communities": [
+        "Cooking Studio"
+      ],
+      "groups": [
+        "Recipes",
+        "Status"
+      ]
+    },
+    {
+      "id": "menu-planner",
+      "name": "Menu Planner",
+      "role": "Planning specialist \u2014 proposes recipes, sequencing, and serving ideas.",
+      "tags": [
+        "cooking",
+        "planning"
+      ],
+      "communities": [
+        "Cooking Studio"
+      ],
+      "groups": [
+        "Recipes"
+      ]
+    },
+    {
+      "id": "prep-coordinator",
+      "name": "Prep Coordinator",
+      "role": "Prep specialist \u2014 organizes ingredients, shopping, and kitchen workflow.",
+      "tags": [
+        "cooking",
+        "prep"
+      ],
+      "communities": [
+        "Cooking Studio"
+      ],
+      "groups": [
+        "Kitchen Prep"
+      ]
+    },
+    {
+      "id": "taste-reviewer",
+      "name": "Taste Reviewer",
+      "role": "Review specialist \u2014 captures what worked, what failed, and what to adjust next time.",
+      "tags": [
+        "cooking",
+        "review"
+      ],
+      "communities": [
+        "Cooking Studio"
+      ],
+      "groups": [
+        "Review"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "cooking-kickoff",
+      "name": "Cooking Kickoff",
+      "description": "Cooking Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "kitchen-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "kitchen-lead"
+        ]
+      },
+      "content": "# Cooking Kickoff\n\nYou are the Kitchen Lead. The home cooking studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meal or project:** [weeknight dinner, baking, meal prep, special occasion, custom]\n- **Constraints:** [budget, time, dietary needs, equipment, custom]\n- **Skill goal:** [learn a technique, repeat a favorite, experiment, custom]\n- **Output artifact:** [meal plan, shopping list, recipe note]\n\n## Your Tasks\n1. Define the cooking goal and constraints\n2. Ask Menu Planner for the first proposal\n3. Ask Prep Coordinator for the ingredient and timing plan\n4. Ask Taste Reviewer to define the review rubric\n5. Post the current kitchen plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "recipe-retro",
+      "name": "Recipe Retro",
+      "description": "Recipe Retro",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "taste-reviewer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Review"
+        ],
+        "tags": [],
+        "agents": [
+          "taste-reviewer"
+        ]
+      },
+      "content": "# Recipe Retro\n\n1. Review how the recipe or cooking session went\n2. Capture what worked, what failed, and what to change\n3. Suggest whether to repeat, revise, or retire the recipe\n4. Post the retro to Review",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

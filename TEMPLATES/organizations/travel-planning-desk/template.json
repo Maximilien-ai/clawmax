@@ -1,0 +1,173 @@
+{
+  "name": "Travel Planning Desk",
+  "emoji": "\u2708\ufe0f",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "travel",
+  "description": "Proposal template for planning trips, building itineraries, coordinating bookings, and keeping travel notes in one place. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "travel",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Travel Desk",
+      "description": "Shared coordination space for travel planning desk."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Planning",
+      "community": "Travel Desk",
+      "description": "Trip planning, destination ideas, and itinerary drafts."
+    },
+    {
+      "name": "Logistics",
+      "community": "Travel Desk",
+      "description": "Bookings, packing, transport, and travel-day coordination."
+    },
+    {
+      "name": "Memories",
+      "community": "Travel Desk",
+      "description": "Trip notes, highlights, photos, and post-trip recap ideas."
+    },
+    {
+      "name": "Status",
+      "community": "Travel Desk",
+      "description": "Current priorities, blockers, and travel timeline updates."
+    }
+  ],
+  "agents": [
+    {
+      "id": "travel-lead",
+      "name": "Travel Lead",
+      "role": "Travel planning lead \u2014 defines the trip goals, constraints, and final itinerary shape.",
+      "tags": [
+        "lead",
+        "travel",
+        "planning"
+      ],
+      "communities": [
+        "Travel Desk"
+      ],
+      "groups": [
+        "Planning",
+        "Status"
+      ]
+    },
+    {
+      "id": "itinerary-designer",
+      "name": "Itinerary Designer",
+      "role": "Experience planner \u2014 builds day-by-day plans, route ideas, and pacing recommendations.",
+      "tags": [
+        "travel",
+        "itinerary",
+        "experience"
+      ],
+      "communities": [
+        "Travel Desk"
+      ],
+      "groups": [
+        "Planning"
+      ]
+    },
+    {
+      "id": "logistics-coordinator",
+      "name": "Logistics Coordinator",
+      "role": "Logistics specialist \u2014 tracks flights, trains, hotels, packing, and transport details.",
+      "tags": [
+        "travel",
+        "logistics"
+      ],
+      "communities": [
+        "Travel Desk"
+      ],
+      "groups": [
+        "Logistics"
+      ]
+    },
+    {
+      "id": "memory-curator",
+      "name": "Memory Curator",
+      "role": "Memory specialist \u2014 organizes highlights, trip notes, and keepsake ideas during and after the trip.",
+      "tags": [
+        "travel",
+        "memories"
+      ],
+      "communities": [
+        "Travel Desk"
+      ],
+      "groups": [
+        "Memories"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "trip-kickoff",
+      "name": "Trip Kickoff",
+      "description": "Trip Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "travel-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "travel-lead"
+        ]
+      },
+      "content": "# Trip Kickoff\n\nYou are the Travel Lead. The travel planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Destination or route:** [city, region, country, road trip, custom]\n- **Travel dates or window:** [exact dates, month, flexible range]\n- **Trip style:** [vacation, family visit, work trip, adventure, mixed]\n- **Budget range:** [lean, moderate, premium, custom]\n- **Travel party:** [solo, couple, family, friends, custom]\n- **Output artifact:** [itinerary, booking checklist, memory plan]\n\n## Your Tasks\n1. Restate the trip goal, budget, and pacing\n2. Direct Itinerary Designer to propose the first route or day plan\n3. Direct Logistics Coordinator to list the main booking and prep needs\n4. Ask Memory Curator to suggest how to capture highlights along the way\n5. Post the initial travel plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "itinerary-build",
+      "name": "Itinerary Build",
+      "description": "Itinerary Build",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "itinerary-designer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Planning"
+        ],
+        "tags": [],
+        "agents": [
+          "itinerary-designer"
+        ]
+      },
+      "content": "# Itinerary Build\n\n1. Draft the first itinerary structure based on the trip goals\n2. Balance travel time, activities, and rest\n3. Call out must-do moments versus optional items\n4. Post the itinerary draft and open questions to Planning",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "logistics-check",
+      "name": "Logistics Check",
+      "description": "Logistics Check",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "logistics-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Logistics"
+        ],
+        "tags": [],
+        "agents": [
+          "logistics-coordinator"
+        ]
+      },
+      "content": "# Logistics Check\n\n1. List the main bookings, transfers, and packing needs\n2. Flag any risky gaps or deadline-sensitive tasks\n3. Provide a short travel-day checklist\n4. Post the logistics summary to Logistics and any blockers to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

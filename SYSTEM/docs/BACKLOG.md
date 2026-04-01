@@ -47,6 +47,7 @@
 - [ ] **Templates explorer org/agent grouping and collapse** — allow users to collapse or expand organization templates vs agent templates for easier browsing as the catalog grows. GitHub: `#82`
 - [ ] **Expand agent template library from org-template agents** — promote stronger org-template agents into richer reusable agent templates with deeper starter instructions and clearer reuse paths. GitHub: `#83`
 - [ ] **Template delete confirmation dialog** — deleting a user-created template from the trash button should use the same consequences + confirm dialog pattern as other destructive deletes instead of deleting immediately.
+- [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
 
 ### Backlog from March 28 Sprint + Live Execution
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to IDENTITY.md so agents remember across sessions

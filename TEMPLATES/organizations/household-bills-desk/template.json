@@ -1,0 +1,154 @@
+{
+  "name": "Household Bills Desk",
+  "emoji": "\ud83d\udcb8",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "family",
+  "description": "Proposal template for tracking recurring bills, payment reminders, and household admin follow-through. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "family",
+    "bills",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Bills Desk",
+      "description": "Shared coordination space for household bills desk."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Bills",
+      "community": "Bills Desk",
+      "description": "Recurring bills, due dates, and payment tracking."
+    },
+    {
+      "name": "Admin",
+      "community": "Bills Desk",
+      "description": "Account changes, paperwork, and household admin tasks."
+    },
+    {
+      "name": "Review",
+      "community": "Bills Desk",
+      "description": "Monthly review, exceptions, and cleanup."
+    },
+    {
+      "name": "Status",
+      "community": "Bills Desk",
+      "description": "Current deadlines and admin priorities."
+    }
+  ],
+  "agents": [
+    {
+      "id": "admin-lead",
+      "name": "Admin Lead",
+      "role": "Household admin lead \u2014 defines which bills and admin tasks matter most right now.",
+      "tags": [
+        "lead",
+        "family",
+        "admin"
+      ],
+      "communities": [
+        "Bills Desk"
+      ],
+      "groups": [
+        "Bills",
+        "Status"
+      ]
+    },
+    {
+      "id": "bill-tracker",
+      "name": "Bill Tracker",
+      "role": "Tracking specialist \u2014 keeps due dates, categories, and payment status visible.",
+      "tags": [
+        "family",
+        "bills"
+      ],
+      "communities": [
+        "Bills Desk"
+      ],
+      "groups": [
+        "Bills"
+      ]
+    },
+    {
+      "id": "paperwork-coordinator",
+      "name": "Paperwork Coordinator",
+      "role": "Admin specialist \u2014 tracks forms, account updates, and household paperwork.",
+      "tags": [
+        "family",
+        "paperwork"
+      ],
+      "communities": [
+        "Bills Desk"
+      ],
+      "groups": [
+        "Admin"
+      ]
+    },
+    {
+      "id": "review-analyst",
+      "name": "Review Analyst",
+      "role": "Review specialist \u2014 checks for missed items, duplicates, and follow-up needs.",
+      "tags": [
+        "family",
+        "review"
+      ],
+      "communities": [
+        "Bills Desk"
+      ],
+      "groups": [
+        "Review"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "bills-kickoff",
+      "name": "Bills Kickoff",
+      "description": "Bills Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "admin-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "admin-lead"
+        ]
+      },
+      "content": "# Bills Kickoff\n\nYou are the Admin Lead. The household bills desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Recurring bills in scope:** [rent, utilities, subscriptions, school, insurance, custom]\n- **Review window:** [this week, this month, custom]\n- **Pain points:** [late fees, missed renewals, unclear ownership, custom]\n- **Output artifact:** [bill calendar, admin checklist, monthly review]\n\n## Your Tasks\n1. Define the current admin and payment scope\n2. Ask Bill Tracker for the upcoming due-date view\n3. Ask Paperwork Coordinator for any open admin items\n4. Ask Review Analyst for missed-risk checks\n5. Post the current household admin plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "monthly-admin-review",
+      "name": "Monthly Admin Review",
+      "description": "Monthly Admin Review",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "review-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Review",
+          "Bills"
+        ],
+        "tags": [],
+        "agents": [
+          "review-analyst",
+          "bill-tracker"
+        ]
+      },
+      "content": "# Monthly Admin Review\n\n1. Review the current bill list and status\n2. Identify anything overdue, unclear, or duplicated\n3. Suggest the next cleanup or reminder actions\n4. Post the review summary to Review",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

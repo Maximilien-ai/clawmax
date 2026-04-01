@@ -1,0 +1,153 @@
+{
+  "name": "Movie Club",
+  "emoji": "\ud83c\udfac",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "hobbies",
+  "description": "Proposal template for choosing films, planning themed viewings, and capturing reactions or recommendations. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "hobbies",
+    "movies",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Movie Club",
+      "description": "Shared coordination space for movie club."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Watchlist",
+      "community": "Movie Club",
+      "description": "Film candidates, themes, and viewing priorities."
+    },
+    {
+      "name": "Discussion",
+      "community": "Movie Club",
+      "description": "Notes, reactions, and analysis after watching."
+    },
+    {
+      "name": "Recommendations",
+      "community": "Movie Club",
+      "description": "Future picks, rankings, and themed collections."
+    },
+    {
+      "name": "Status",
+      "community": "Movie Club",
+      "description": "Current cycle, next watch, and open decisions."
+    }
+  ],
+  "agents": [
+    {
+      "id": "club-lead",
+      "name": "Club Lead",
+      "role": "Viewing lead \u2014 defines the movie-night theme and what kind of discussion or output is wanted.",
+      "tags": [
+        "lead",
+        "movies"
+      ],
+      "communities": [
+        "Movie Club"
+      ],
+      "groups": [
+        "Watchlist",
+        "Status"
+      ]
+    },
+    {
+      "id": "programmer",
+      "name": "Programmer",
+      "role": "Programming specialist \u2014 chooses films, sequencing, and themed watchlists.",
+      "tags": [
+        "movies",
+        "programming"
+      ],
+      "communities": [
+        "Movie Club"
+      ],
+      "groups": [
+        "Watchlist"
+      ]
+    },
+    {
+      "id": "discussion-host",
+      "name": "Discussion Host",
+      "role": "Discussion specialist \u2014 frames questions, reactions, and takeaways after each viewing.",
+      "tags": [
+        "movies",
+        "discussion"
+      ],
+      "communities": [
+        "Movie Club"
+      ],
+      "groups": [
+        "Discussion"
+      ]
+    },
+    {
+      "id": "recommendation-editor",
+      "name": "Recommendation Editor",
+      "role": "Recommendation specialist \u2014 turns reactions into future picks and ranked lists.",
+      "tags": [
+        "movies",
+        "recommendations"
+      ],
+      "communities": [
+        "Movie Club"
+      ],
+      "groups": [
+        "Recommendations"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "movie-night-kickoff",
+      "name": "Movie Night Kickoff",
+      "description": "Movie Night Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "club-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "club-lead"
+        ]
+      },
+      "content": "# Movie Night Kickoff\n\nYou are the Club Lead. The movie club just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme or mood:** [classic, sci-fi, family, thriller, director study, custom]\n- **Audience:** [solo, couple, family, club, custom]\n- **Decision horizon:** [tonight, this week, long-term watchlist]\n- **Output artifact:** [watchlist, ranked picks, discussion guide]\n\n## Your Tasks\n1. Define the viewing goal and constraints\n2. Ask Programmer for the first set of picks\n3. Ask Discussion Host for prompts or angles to watch for\n4. Ask Recommendation Editor for what to queue next\n5. Post the current watch plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "watchlist-refresh",
+      "name": "Watchlist Refresh",
+      "description": "Watchlist Refresh",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "programmer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Watchlist",
+          "Recommendations"
+        ],
+        "tags": [],
+        "agents": [
+          "programmer",
+          "recommendation-editor"
+        ]
+      },
+      "content": "# Watchlist Refresh\n\n1. Refresh the best current movie options for the chosen theme\n2. Rank the top picks with quick reasoning\n3. Suggest one wild card and one safe choice\n4. Post the refreshed list to Watchlist",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

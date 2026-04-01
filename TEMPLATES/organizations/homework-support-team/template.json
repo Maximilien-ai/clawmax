@@ -1,0 +1,153 @@
+{
+  "name": "Homework Support Team",
+  "emoji": "\ud83d\udcda",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "family",
+  "description": "Proposal template for helping families organize homework, school projects, and study support without losing track of due dates. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "family",
+    "homework",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Homework Desk",
+      "description": "Shared coordination space for homework support team."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Assignments",
+      "community": "Homework Desk",
+      "description": "Current homework, due dates, and study tasks."
+    },
+    {
+      "name": "Projects",
+      "community": "Homework Desk",
+      "description": "Longer projects, milestones, and research needs."
+    },
+    {
+      "name": "Study Support",
+      "community": "Homework Desk",
+      "description": "Practice plans, explanations, and review help."
+    },
+    {
+      "name": "Status",
+      "community": "Homework Desk",
+      "description": "Current workload and what needs help first."
+    }
+  ],
+  "agents": [
+    {
+      "id": "study-lead",
+      "name": "Study Lead",
+      "role": "Study lead \u2014 prioritizes assignments and decides where support is most needed.",
+      "tags": [
+        "lead",
+        "family",
+        "study"
+      ],
+      "communities": [
+        "Homework Desk"
+      ],
+      "groups": [
+        "Assignments",
+        "Status"
+      ]
+    },
+    {
+      "id": "assignment-planner",
+      "name": "Assignment Planner",
+      "role": "Planning specialist \u2014 breaks homework into smaller tasks and sequencing.",
+      "tags": [
+        "family",
+        "homework",
+        "planning"
+      ],
+      "communities": [
+        "Homework Desk"
+      ],
+      "groups": [
+        "Assignments"
+      ]
+    },
+    {
+      "id": "project-coach",
+      "name": "Project Coach",
+      "role": "Project specialist \u2014 organizes larger school projects into milestones.",
+      "tags": [
+        "family",
+        "projects"
+      ],
+      "communities": [
+        "Homework Desk"
+      ],
+      "groups": [
+        "Projects"
+      ]
+    },
+    {
+      "id": "review-tutor",
+      "name": "Review Tutor",
+      "role": "Review specialist \u2014 suggests practice, revision, and confidence-building study steps.",
+      "tags": [
+        "family",
+        "study-support"
+      ],
+      "communities": [
+        "Homework Desk"
+      ],
+      "groups": [
+        "Study Support"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "homework-kickoff",
+      "name": "Homework Kickoff",
+      "description": "Homework Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "study-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "study-lead"
+        ]
+      },
+      "content": "# Homework Kickoff\n\nYou are the Study Lead. The homework support team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Student or learners:** [names, grades, roles]\n- **Current subjects:** [math, reading, science, writing, custom]\n- **Known deadlines:** [today, this week, projects, tests]\n- **Pain points:** [motivation, confusion, time management, custom]\n- **Output artifact:** [study plan, homework board, project checklist]\n\n## Your Tasks\n1. Define the current homework priorities\n2. Ask Assignment Planner for the first work breakdown\n3. Ask Project Coach for any larger-project milestone plan\n4. Ask Review Tutor for the best study support approach\n5. Post the study plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "assignment-breakdown",
+      "name": "Assignment Breakdown",
+      "description": "Assignment Breakdown",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "assignment-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Assignments"
+        ],
+        "tags": [],
+        "agents": [
+          "assignment-planner"
+        ]
+      },
+      "content": "# Assignment Breakdown\n\n1. Break the current homework load into clear steps\n2. Sort by deadline and difficulty\n3. Identify where adult help or extra review is needed\n4. Post the breakdown to Assignments",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

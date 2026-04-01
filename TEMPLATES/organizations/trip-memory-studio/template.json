@@ -1,0 +1,154 @@
+{
+  "name": "Trip Memory Studio",
+  "emoji": "\ud83d\uddfa\ufe0f",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "travel",
+  "description": "Proposal template for organizing travel memories, highlights, and trip recaps so a journey turns into something worth keeping and sharing. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "travel",
+    "memories",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "communities": [
+    {
+      "name": "Trip Memory Studio",
+      "description": "Shared coordination space for trip memory studio."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Capture",
+      "community": "Trip Memory Studio",
+      "description": "Photos, notes, snippets, and daily highlight collection."
+    },
+    {
+      "name": "Curate",
+      "community": "Trip Memory Studio",
+      "description": "Selection, sorting, and story shaping for the trip."
+    },
+    {
+      "name": "Share",
+      "community": "Trip Memory Studio",
+      "description": "Albums, recap drafts, and things to send or print."
+    },
+    {
+      "name": "Status",
+      "community": "Trip Memory Studio",
+      "description": "Current progress, missing pieces, and final outputs."
+    }
+  ],
+  "agents": [
+    {
+      "id": "memory-lead",
+      "name": "Memory Lead",
+      "role": "Memory lead \u2014 decides what story the trip should tell and how polished the outputs need to be.",
+      "tags": [
+        "lead",
+        "travel",
+        "memories"
+      ],
+      "communities": [
+        "Trip Memory Studio"
+      ],
+      "groups": [
+        "Capture",
+        "Status"
+      ]
+    },
+    {
+      "id": "highlight-collector",
+      "name": "Highlight Collector",
+      "role": "Capture specialist \u2014 gathers daily moments, notes, and standout images or clips.",
+      "tags": [
+        "travel",
+        "capture"
+      ],
+      "communities": [
+        "Trip Memory Studio"
+      ],
+      "groups": [
+        "Capture"
+      ]
+    },
+    {
+      "id": "story-editor",
+      "name": "Story Editor",
+      "role": "Story specialist \u2014 turns raw moments into a coherent recap or album structure.",
+      "tags": [
+        "travel",
+        "story"
+      ],
+      "communities": [
+        "Trip Memory Studio"
+      ],
+      "groups": [
+        "Curate"
+      ]
+    },
+    {
+      "id": "sharing-coordinator",
+      "name": "Sharing Coordinator",
+      "role": "Sharing specialist \u2014 prepares albums, recap messages, or print-ready selections.",
+      "tags": [
+        "travel",
+        "sharing"
+      ],
+      "communities": [
+        "Trip Memory Studio"
+      ],
+      "groups": [
+        "Share"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "memory-kickoff",
+      "name": "Memory Kickoff",
+      "description": "Memory Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "memory-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "memory-lead"
+        ]
+      },
+      "content": "# Memory Kickoff\n\nYou are the Memory Lead. The trip memory studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Trip name:** [destination or trip title]\n- **Media inputs:** [photos, notes, videos, voice memos, custom]\n- **Audience:** [private archive, family, friends, public, custom]\n- **Output artifact:** [album, recap note, highlight reel plan, printed keepsake]\n\n## Your Tasks\n1. Define the story goal for the trip recap\n2. Ask Highlight Collector for the strongest moments and gaps\n3. Ask Story Editor for the first recap structure\n4. Ask Sharing Coordinator for the best sharing format\n5. Post the current memory plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "highlight-curation",
+      "name": "Highlight Curation",
+      "description": "Highlight Curation",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "highlight-collector",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Capture",
+          "Curate"
+        ],
+        "tags": [],
+        "agents": [
+          "highlight-collector",
+          "story-editor"
+        ]
+      },
+      "content": "# Highlight Curation\n\n1. Identify the strongest moments from the trip inputs\n2. Group them into themes or days\n3. Suggest what should make the final cut\n4. Post the shortlist and rationale to Curate",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}
