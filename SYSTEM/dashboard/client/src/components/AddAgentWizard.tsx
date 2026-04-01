@@ -434,12 +434,12 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full sm:w-[560px] mx-2 sm:mx-0 max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Add Agent</h2>
           <button
             onClick={onClose}
             disabled={provisioning}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors text-lg leading-none"
           >×</button>
         </div>
 
@@ -450,7 +450,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 s < step ? 'bg-sky-600 text-white' :
                 s === step ? 'bg-sky-100 text-sky-700 ring-2 ring-sky-400' :
-                'bg-gray-100 text-gray-400'
+                'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
               }`}>
                 {s < step ? '✓' : s}
               </div>
@@ -475,27 +475,27 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Agent name <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Agent name <span className="text-red-400">*</span></label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={e => set('name', e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   placeholder={suggested?.id ?? 'max1'}
                   className={`w-full px-3 py-2 text-sm border rounded-md outline-none transition-colors font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
-                    form.name && !nameOk ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-700 focus:border-sky-400 dark:focus:border-sky-600'
+                    form.name && !nameOk ? 'border-red-300 dark:border-red-700 bg-red-50 dark:border-red-700 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-700 focus:border-sky-400 dark:focus:border-sky-600'
                   }`}
                 />
                 <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Model <span className="text-red-400">*</span>
                   {preFilled && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from {form.cloneFrom}</span>}
                 </label>
                 <select
                   value={form.model}
                   onChange={e => set('model', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
                   disabled={availableModels.length === 0}
                 >
                   {availableModels.length === 0 && (
@@ -519,7 +519,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               </div>
               {agentTemplates.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                     Create from template <span className="text-gray-400">(optional)</span>
                     {preFilled && form.templateSlug && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from template</span>}
                   </label>
@@ -537,7 +537,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                         setPreFilled(false)
                       }
                     }}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
                     disabled={!!form.cloneFrom}
                   >
                     <option value="">— Choose a template —</option>
@@ -556,14 +556,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               )}
               {existingAgents.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Or clone from agent <span className="text-gray-400">(optional)</span></label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Or clone from agent <span className="text-gray-400">(optional)</span></label>
                   <select
                     value={form.cloneFrom}
                     onChange={e => {
                       set('cloneFrom', e.target.value)
                       if (e.target.value) set('templateSlug', '')  // Clear template if clone selected
                     }}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
                     disabled={!!form.templateSlug}
                   >
                     <option value="">— Fresh setup —</option>
@@ -573,7 +573,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Tags <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Tags <span className="text-gray-400">(optional)</span></label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {PREDEFINED_TAGS.map(tag => (
                     <button
@@ -589,7 +589,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       className={`px-2 py-1 text-xs rounded border transition-colors ${
                         form.tags.includes(tag)
                           ? 'bg-sky-100 border-sky-400 text-sky-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                          : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:border-gray-600'
                       }`}
                     >
                       {tag}
@@ -624,7 +624,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       }
                     }}
                     disabled={!form.customTag.trim()}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded border border-gray-200 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-800"
+                    className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-800"
                   >
                     Add
                   </button>
@@ -651,11 +651,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           {/* Step 2: AI Generation (Optional) */}
           {step === 2 && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Optionally use AI to generate your agent's personality files (IDENTITY, SOUL, TOOLS). Skip this step to clone or create from scratch.
               </p>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Describe your agent <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Describe your agent <span className="text-gray-400">(optional)</span></label>
                 <textarea
                   value={form.aiDescription}
                   onChange={e => set('aiDescription', e.target.value)}
@@ -670,9 +670,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 disabled={!form.aiDescription.trim() || generating || !!generatedFiles}
                 className={`w-full px-4 py-2 text-sm rounded font-medium transition-colors ${
                   generating || !!generatedFiles
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                     : !form.aiDescription.trim()
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                     : 'bg-sky-600 text-white hover:bg-sky-700'
                 }`}
               >
@@ -685,35 +685,35 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
               {generatedFiles && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                  <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 font-medium">
                     <span>✓</span>
                     <span>Files generated successfully</span>
                   </div>
 
                   <div className="space-y-2">
-                    <details className="bg-gray-50 border border-gray-200 rounded-lg dark:border-gray-700 dark:bg-gray-900">
-                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <details className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:border-gray-700 dark:bg-gray-900">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                         IDENTITY.md Preview
                       </summary>
-                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
+                      <pre className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
                         {generatedFiles.identity}
                       </pre>
                     </details>
 
-                    <details className="bg-gray-50 border border-gray-200 rounded-lg dark:border-gray-700 dark:bg-gray-900">
-                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <details className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:border-gray-700 dark:bg-gray-900">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                         SOUL.md Preview
                       </summary>
-                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
+                      <pre className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
                         {generatedFiles.soul}
                       </pre>
                     </details>
 
-                    <details className="bg-gray-50 border border-gray-200 rounded-lg dark:border-gray-700 dark:bg-gray-900">
-                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <details className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:border-gray-700 dark:bg-gray-900">
+                      <summary className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                         TOOLS.md Preview
                       </summary>
-                      <pre className="px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
+                      <pre className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap border-t border-gray-200 dark:border-gray-700">
                         {generatedFiles.tools}
                       </pre>
                     </details>
@@ -724,7 +724,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       setGeneratedFiles(null)
                       set('useAI', false)
                     }}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline dark:text-gray-300"
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-300 underline dark:text-gray-300"
                   >
                     Start over
                   </button>
@@ -738,7 +738,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
             <div className="space-y-4">
               <p className="text-sm text-gray-500">Optionally link a WhatsApp number to this agent. Leave blank to skip.</p>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp number <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">WhatsApp number <span className="text-gray-400">(optional)</span></label>
                 <input
                   type="text"
                   value={form.whatsapp}
@@ -755,7 +755,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           {step === 4 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
                 <input
                   type="number"
                   value={form.port || ''}
@@ -776,22 +776,22 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
             <div className="space-y-4">
               {!provisioning && !done && !provError && (
                 <>
-                  <p className="text-sm text-gray-600">Review the configuration and click <strong>Provision</strong> to run <code>setup.sh</code>.</p>
-                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-gray-700 overflow-x-auto dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Review the configuration and click <strong>Provision</strong> to run <code>setup.sh</code>.</p>
+                  <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-700 dark:text-gray-300 overflow-x-auto dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                     {JSON.stringify(preview, null, 2)}
                   </pre>
                 </>
               )}
 
               {validationErrors.length > 0 && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 whitespace-pre-line">
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
                   <div className="font-medium mb-1">Validation errors</div>
                   {validationErrors.join('\n')}
                 </div>
               )}
 
               {validationWarnings.length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 whitespace-pre-line">
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-lg text-sm text-amber-800 dark:text-amber-200 whitespace-pre-line">
                   <div className="font-medium mb-1">Warnings</div>
                   {validationWarnings.join('\n')}
                 </div>
@@ -809,11 +809,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               )}
 
               {provError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{provError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{provError}</div>
               )}
 
               {done && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
                   Agent <code>{form.name}</code> provisioned successfully!
                 </div>
               )}
@@ -822,11 +822,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between shrink-0">
           <button
             onClick={() => step > 1 && !provisioning && setStep(s => (s - 1) as Step)}
             disabled={step === 1 || provisioning}
-            className="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+            className="text-sm px-4 py-1.5 rounded border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Back
           </button>
@@ -846,7 +846,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 onClick={provision}
                 disabled={provisioning || validatingProvision}
                 className={`text-sm px-4 py-1.5 rounded font-medium transition-colors ${
-                  provisioning || validatingProvision ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  provisioning || validatingProvision ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 }`}
               >
                 {provisioning ? 'Provisioning…' : validatingProvision ? 'Validating…' : 'Provision'}

@@ -447,7 +447,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         </div>
         <div className="flex items-center gap-3">
           {/* View toggle */}
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view"
@@ -504,7 +504,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           {selectionMode && selectedChannelKeys.size > 0 && (
             <button
               onClick={handleBulkDeleteChannels}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/200 text-white hover:bg-red-600 transition-colors"
             >
               Delete Selected ({selectedChannelKeys.size})
             </button>
@@ -525,7 +525,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
               title="Clear search"
             >
               ✕
@@ -549,7 +549,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedTags.size === 0
                   ? 'bg-sky-600 text-white border border-sky-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
               }`}
             >
               All
@@ -561,7 +561,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   selectedTags.has(tag)
                     ? 'bg-sky-600 text-white border border-sky-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                 }`}
               >
                 {tag}
@@ -570,7 +570,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             {secondaryTags.length > 0 && (
               <button
                 onClick={() => setShowSecondaryTags(!showSecondaryTags)}
-                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-gray-300 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
+                className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:border-gray-600 hover:text-gray-600 dark:border-gray-700 dark:border-gray-600"
               >
                 {showSecondaryTags ? '▼' : '▶'} Secondary tags ({secondaryTags.length})
               </button>
@@ -585,7 +585,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedTags.has(tag)
                       ? 'bg-sky-600 text-white border border-sky-600'
-                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
                   }`}
                 >
                   {tag}
@@ -606,7 +606,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                 selectedAgents.size === 0
                   ? 'bg-emerald-600 text-white border border-emerald-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-emerald-300 hover:text-emerald-600'
               }`}
             >
               All agents
@@ -621,7 +621,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                     selectedAgents.has(agentId)
                       ? 'bg-emerald-600 text-white border border-emerald-600'
-                      : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-emerald-300 hover:text-emerald-600'
                   }`}
                 >
                   {agent.name}
@@ -685,7 +685,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         <div className="space-y-6">
           {communities.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1 dark:text-gray-300">
                 Communities
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   {communities.length} channel{communities.length !== 1 ? 's' : ''}
@@ -700,7 +700,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           )}
           {groups.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 px-1 dark:text-gray-300">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1 dark:text-gray-300">
                 Groups
                 <span className="ml-2 text-xs font-normal text-gray-400">
                   {groups.length} channel{groups.length !== 1 ? 's' : ''}
@@ -863,7 +863,7 @@ function CommunicationTable({
   const SortHeader = ({ column, label }: { column: ChannelSortColumn; label: string }) => (
     <button
       onClick={() => onSort(column)}
-      className="flex items-center gap-1 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+      className="flex items-center gap-1 font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
     >
       {label}
       {sortColumn === column && (
@@ -909,7 +909,7 @@ function CommunicationTable({
                       <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                         <span>{channel.name}</span>
                         {unreadCount > 0 && (
-                          <span className="min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                          <span className="min-w-[18px] h-[18px] rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold flex items-center justify-center px-1">
                             {unreadCount > 99 ? '99+' : unreadCount}
                           </span>
                         )}
@@ -1012,8 +1012,8 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Manage Members</h3>
-        <p className="text-sm text-gray-600 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
         <p className="text-xs text-gray-500 mb-4">
           {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
         </p>
@@ -1037,7 +1037,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-sky-600 text-white border border-sky-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-sky-300 hover:text-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
             }`}
           >
             All
@@ -1047,7 +1047,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'in_group'
                 ? 'bg-emerald-600 text-white border border-emerald-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-emerald-300 hover:text-emerald-600'
             }`}
           >
             In Group ({currentMemberIds.size})
@@ -1057,7 +1057,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
               filter === 'not_in_group'
                 ? 'bg-orange-600 text-white border border-orange-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-orange-300 hover:text-orange-600'
             }`}
           >
             Not in Group ({allAgents.length - currentMemberIds.size})
@@ -1065,7 +1065,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
         </div>
 
         {/* Agent list */}
-        <div className="flex-1 overflow-y-auto border border-gray-200 rounded p-3 mb-4 dark:border-gray-700">
+        <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-3 mb-4 dark:border-gray-700">
           {filteredAgents.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-8">No agents found</p>
           )}
@@ -1080,7 +1080,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100'
-                      : 'bg-white dark:bg-gray-800 border border-gray-100 hover:bg-gray-50'
+                      : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900'
                   }`}
                 >
                   <input
@@ -1106,7 +1106,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1160,8 +1160,8 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1 dark:text-gray-100">Manage Tags</h3>
-        <p className="text-sm text-gray-600 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Tags</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
         <div className="space-y-2 mb-4">
@@ -1215,7 +1215,7 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -1436,9 +1436,9 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-gray-900 text-sm truncate dark:text-gray-100">{channel.name}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.name}</h3>
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0">
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold shrink-0">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -1464,20 +1464,20 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                 e.stopPropagation()
                 setShowMenu(!showMenu)
               }}
-              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              className="text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors p-1"
               title="Actions"
             >
               ⋮
             </button>
             {showMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px] dark:border-gray-700">
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px] dark:border-gray-700">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowMenu(false)
                     setShowDeleteConfirm(true)
                   }}
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors rounded-lg"
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 transition-colors rounded-lg"
                 >
                   Delete
                 </button>
@@ -1589,7 +1589,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
               : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/40 dark:hover:border-indigo-600 dark:text-indigo-300'
 
             if (workflows.length === 0) {
-              return <span className="text-xs text-gray-300 dark:text-gray-600">No workflows</span>
+              return <span className="text-xs text-gray-300 dark:text-gray-600 dark:text-gray-400">No workflows</span>
             }
 
             return (
@@ -1614,14 +1614,14 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       </div>
 
       {/* Messaging Section */}
-      <div className="border-t border-gray-100 pt-3 -mx-4 px-4 -mb-4 pb-4">
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-3 -mx-4 px-4 -mb-4 pb-4">
         <div className="flex items-center justify-between gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation()
               onOpenChat?.()
             }}
-            className="flex-1 flex items-center justify-center text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors"
+            className="flex-1 flex items-center justify-center text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-sky-600 transition-colors"
           >
             <span className="flex items-center gap-1.5">
               💬 Chat
@@ -1633,7 +1633,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
               e.stopPropagation()
               setExpanded(!expanded)
             }}
-            className="text-xs font-medium text-gray-600 hover:text-sky-600 transition-colors px-2"
+            className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-sky-600 transition-colors px-2"
             title={expanded ? "Collapse details" : "Show workflows"}
           >
             {expanded ? '▼' : '▶'}
@@ -1644,7 +1644,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
           <div className="mt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
             {/* Message History */}
             {messages.length > 0 || typingAgents.size > 0 ? (
-              <div className="bg-gray-50 rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 dark:bg-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 dark:bg-gray-900">
                 {messages.map((msg) => (
                   <div key={msg.id} className="bg-white dark:bg-gray-800 rounded p-2 shadow-sm">
                     <div className="flex items-center justify-between mb-1">
@@ -1653,7 +1653,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap dark:text-gray-200">{msg.content}</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap dark:text-gray-200">{msg.content}</p>
                   </div>
                 ))}
                 {/* Typing indicators */}
@@ -1674,7 +1674,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                 })}
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-center dark:bg-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-center dark:bg-gray-900">
                 <p className="text-xs text-gray-400">No messages yet</p>
               </div>
             )}
@@ -1713,14 +1713,14 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                   }
                 }}
                 placeholder="Type a message... use @name or @all to mention agents"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent dark:border-gray-700"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent dark:border-gray-700"
                 rows={2}
                 disabled={sending}
               />
 
               {/* @Mention Dropdown */}
               {showMentions && filteredMentionAgents.length > 0 && (
-                <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10 dark:border-gray-700">
+                <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-32 overflow-y-auto z-10 dark:border-gray-700">
                   {filteredMentionAgents
                     .filter((agent, index, self) =>
                       // Remove duplicates
@@ -1865,9 +1865,9 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
     <div className={`rounded-lg border-2 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${typeColor}`}>
       <div className="flex items-center gap-1.5 mb-2">
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
-        <span className="font-semibold text-gray-900 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
         {unreadCount > 0 && (
-          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0">
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold shrink-0">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -1892,7 +1892,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
       <div className="text-xs text-gray-500 mb-2">
         {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}
         {onlineCount > 0 && (
-          <span className="ml-1 text-green-600">· {onlineCount} online</span>
+          <span className="ml-1 text-green-600 dark:text-green-400">· {onlineCount} online</span>
         )}
       </div>
       <div className="mt-2 flex items-end gap-0.5">
