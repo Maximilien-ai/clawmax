@@ -292,6 +292,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const runningWorkflows = payload.workflows.filter(workflow => workflow.status === 'running').length
   const failedWorkflows = payload.workflows.filter(workflow => workflow.status === 'failed').length
   const idleWorkflows = Math.max(payload.workflows.length - runningWorkflows - failedWorkflows, 0)
+  const criticalNotifications = payload.notifications.filter(notification => notification.severity === 'critical').length
+  const warningNotifications = payload.notifications.filter(notification => notification.severity === 'warning').length
+  const infoNotifications = Math.max(payload.notifications.length - criticalNotifications - warningNotifications, 0)
   const orderedTopLevelSections = payload.dashboard.sectionOrder
     .filter((key): key is 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' =>
       ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].includes(key)
@@ -362,6 +365,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Agent Status</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-emerald-400" style={{ width: `${(onlineAgents / totalAgents) * 100}%` }} />
+                <div className="bg-slate-500" style={{ width: `${(pausedAgents / totalAgents) * 100}%` }} />
+                <div className="bg-amber-400" style={{ width: `${(offlineAgents / totalAgents) * 100}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Online {onlineAgents}</span>
+                <span>Paused {pausedAgents}</span>
+                <span>Offline {offlineAgents}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
               {payload.agents.slice(0, agentsToShow).map(agent => (
                 <div key={agent.id} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
@@ -387,6 +402,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Active Notifications</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-red-400" style={{ width: `${payload.notifications.length ? (criticalNotifications / payload.notifications.length) * 100 : 0}%` }} />
+                <div className="bg-yellow-400" style={{ width: `${payload.notifications.length ? (warningNotifications / payload.notifications.length) * 100 : 0}%` }} />
+                <div className="bg-sky-400" style={{ width: `${payload.notifications.length ? (infoNotifications / payload.notifications.length) * 100 : 0}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Critical {criticalNotifications}</span>
+                <span>Warning {warningNotifications}</span>
+                <span>Info {infoNotifications}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.notifications.slice(0, notificationsToShow).map(notification => (
                 <div key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/80">
@@ -406,6 +433,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         return (
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Workflows</h2>
+            <div className="mb-3">
+              <div className="flex h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                <div className="bg-sky-400" style={{ width: `${(runningWorkflows / totalWorkflows) * 100}%` }} />
+                <div className="bg-red-400" style={{ width: `${(failedWorkflows / totalWorkflows) * 100}%` }} />
+                <div className="bg-slate-500" style={{ width: `${(idleWorkflows / totalWorkflows) * 100}%` }} />
+              </div>
+              <div className={`mt-2 flex flex-wrap gap-3 ${compact ? 'text-[11px]' : 'text-xs'} text-gray-500 dark:text-slate-400`}>
+                <span>Running {runningWorkflows}</span>
+                <span>Failed {failedWorkflows}</span>
+                <span>Other {idleWorkflows}</span>
+              </div>
+            </div>
             <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                 <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
