@@ -175,6 +175,22 @@ test('Managed workflow template metadata matches published workflow spec', () =>
   console.log('  Managed workflows have explicit owners and slug-aligned IDs')
 })
 
+test('ClawMax System Test workflows use current workflow groups instead of separate session labels', () => {
+  const template = getTemplate('organization', 'clawmax-system-test') as OrganizationTemplate | null
+  assert(template !== null, 'ClawMax System Test template should exist')
+
+  const comms = template!.workflows?.find(workflow => workflow.id === 'test-communications')
+  const report = template!.workflows?.find(workflow => workflow.id === 'test-report')
+
+  assert(comms !== undefined, 'test-communications workflow should exist')
+  assert(report !== undefined, 'test-report workflow should exist')
+
+  assert(comms!.content.includes('current group channel'), 'Communications workflow should instruct agents to use the current group channel')
+  assert(!/session label/i.test(comms!.content.replace('Do not create or look up a separate session label.', '')), 'Communications workflow should not rely on session labels')
+  assert(report!.content.includes('current group channel'), 'Report workflow should instruct agents to use the current group channel')
+  assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
+})
+
 // Test 7: slugify function works correctly
 test('slugify() converts names to filesystem-safe slugs', () => {
   assertEqual(slugify('Small Startup Team'), 'small-startup-team')

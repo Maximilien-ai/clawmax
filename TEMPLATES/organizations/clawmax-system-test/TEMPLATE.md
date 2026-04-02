@@ -17,7 +17,7 @@ tags: [test, system-test, integration, validation]
 ### Tier 1 — Core (must pass for any deploy)
 - **Kickoff**: Agents online, skills listed, groups confirmed
 - **Filesystem**: Read/write files in workspace
-- **Communications**: Group chat send/receive
+- **Communications**: Group chat send/receive in the workflow's assigned channel
 - **DAG Parallel**: Parallel workflow execution + fan-in
 
 ### Tier 2 — Coordination (must pass for templates)
@@ -42,6 +42,10 @@ test-kickoff
 - **Test Status**: Final pass/fail reports
 - **Test Chat**: Group messaging tests
 - **Test Work**: Workflow execution coordination
+
+## Notes
+- Communications and report workflows should use their currently assigned workflow group channel.
+- They should not depend on separately bootstrapped session labels in a clean workspace.
 
 ## Prerequisites
 - OpenClaw CLI installed

@@ -158,7 +158,7 @@
           "test-agent2"
         ]
       },
-      "content": "# Communications Test\n\nTest that agents can communicate through group channels.\n\n## Test Steps\n1. Post a message to the Test Chat group confirming you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check if you can see messages from other agents in the group\n4. Report how many agents have posted in Test Chat\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nKeep response under 80 words.",
+      "content": "# Communications Test\n\nTest that agents can communicate through the workflow's assigned group channel.\n\n## Test Steps\n1. Reply in this workflow run's current group channel to confirm you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check whether you can see messages from the other test agents in the same group channel\n4. Report how many distinct test agents have posted in this channel during this run\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nDo not create or look up a separate session label. Use the current workflow group channel only.\n\nKeep response under 80 words.",
       "owner": "test-lead"
     },
     {
@@ -250,7 +250,7 @@
           "test-lead"
         ]
       },
-      "content": "# Test Report\n\nAll test workflows have executed. Compile the final report.\n\n## Report Template\nPost this to the Test Status group:\n\n```\nCLAWMAX SYSTEM TEST REPORT\n========================\nTimestamp: {current time}\n\nTier 1 — Core:\n- Kickoff: {PASS/FAIL}\n- Filesystem: {PASS/FAIL}\n- Communications: {PASS/FAIL}\n- DAG Parallel: {PASS/FAIL}\n\nTier 2 — Coordination:\n- GitHub: {PASS/FAIL}\n\nOverall: {ALL PASS / X FAILURES}\n========================\n```\n\nBe honest about failures. Include error details for any FAIL results."
+      "content": "# Test Report\n\nAll test workflows have executed. Compile the final report.\n\n## Report Template\nPublish the following report in this workflow run's current group channel:\n\n```\nCLAWMAX SYSTEM TEST REPORT\n========================\nTimestamp: {current time}\n\nTier 1 — Core:\n- Kickoff: {PASS/FAIL}\n- Filesystem: {PASS/FAIL}\n- Communications: {PASS/FAIL}\n- DAG Parallel: {PASS/FAIL}\n\nTier 2 — Coordination:\n- GitHub: {PASS/FAIL}\n\nOverall: {ALL PASS / X FAILURES}\n========================\n```\n\nDo not create or look up a separate session label. Use the current workflow group channel only.\n\nBe honest about failures. Include error details for any FAIL results."
     }
   ]
 }
