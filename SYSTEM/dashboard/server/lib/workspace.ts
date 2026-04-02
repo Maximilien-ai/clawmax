@@ -1512,6 +1512,7 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   const agentsDir = getAgentsDir()
   const archiveDir = getArchiveDir()
   const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
+  const sharedHomeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', id)
 
   // Remove workspace AGENTS dir (or archive dir)
   try {
@@ -1519,6 +1520,18 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
     steps.push(`Removed workspace ${archived ? 'AGENTS/archive/' : 'AGENTS/'}${id}/`)
   } catch (e) {
     errors.push(`Failed to remove workspace: ${e}`)
+  }
+
+  // Remove shared home agent dir (~/.openclaw/agents/<id>)
+  try {
+    if (fs.existsSync(sharedHomeAgentDir)) {
+      fs.rmSync(sharedHomeAgentDir, { recursive: true, force: true })
+      steps.push(`Removed shared agent dir ~/.openclaw/agents/${id}/`)
+    } else {
+      steps.push(`Shared agent dir ~/.openclaw/agents/${id}/ not found (skipped)`)
+    }
+  } catch (e) {
+    errors.push(`Failed to remove shared agent dir: ${e}`)
   }
 
   // Optionally remove profile state dir (~/.openclaw-<id>)
