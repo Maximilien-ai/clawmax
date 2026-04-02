@@ -5,13 +5,14 @@
 
 ## Top Priority
 
+- [ ] **Temp chat/runtime resolves duplicate agent IDs against the wrong workspace** — when the same agent id exists across workspaces, temp group/direct chat can resolve runtime/session state from the wrong global OpenClaw agent record, leading to stale models/providers and misleading activity metadata. High-priority post-`v1.2.1` runtime fix. GitHub: `#94`
 - [ ] **ClawMax Doctor: Restart Gateway action** — add an in-product `openclaw gateway restart` action when gateway is configured but not running, so users can recover skills/chat capability without leaving the UI
 
 ## Today Focus — April 2, 2026
 
-- [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
+- [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Agent-to-agent direct messaging follow-through** — validate the post-merge user path on top of the new direct messaging API and close any UX/runtime gaps. GitHub: `#64`
-- [ ] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
+- [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
 
 ## April Launch Readiness
 
@@ -58,8 +59,8 @@
 ## Active Product Work
 
 ### Templates & Discovery
-- [ ] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
-- [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
+- [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
+- [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
 - [ ] **Template AI Generate UI** — wire POST `/api/templates/generate` to the Templates page AI flow
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, and groups via a multi-step wizard

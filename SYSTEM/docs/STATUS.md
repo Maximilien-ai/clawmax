@@ -98,6 +98,7 @@
 
 ## Active Risks
 
+- duplicate agent IDs across multiple workspaces can still confuse temp chat/runtime resolution and show the wrong model/provider/session history in ad-hoc chats (`#94`)
 - GitHub Actions on `main` is still being stabilized for true clean-room runs
 - live GitHub issue list is stale and includes items already fixed in code
 - secure multi-user BYOK storage is still deferred; current flow is intentionally a preview/dev slice

@@ -1317,10 +1317,16 @@ fi
 # Set a cost limit on a test agent (if agents exist)
 FIRST_AGENT=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id // empty')
 if [ -n "$FIRST_AGENT" ]; then
+  workspace_budget=$(apicurl "$API_BASE/api/budget" | jq -r '.config.limitUsd // 10')
+  if [ -z "$workspace_budget" ] || [ "$workspace_budget" = "null" ]; then
+    workspace_budget="10"
+  fi
+  agent_limit=$(awk -v budget="$workspace_budget" 'BEGIN { if (budget > 1) print 1; else print budget }')
+
   # PUT cost limit
   response=$(apicurl -X PUT "$API_BASE/api/agents/$FIRST_AGENT/cost-limit" \
     -H 'Content-Type: application/json' \
-    -d '{"limitUsd": 5.00}')
+    -d "{\"limitUsd\": $agent_limit}")
   if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     pass "Set per-agent cost limit"
   else
@@ -1329,7 +1335,7 @@ if [ -n "$FIRST_AGENT" ]; then
 
   # GET cost limit
   response=$(apicurl "$API_BASE/api/agents/$FIRST_AGENT/cost-limit")
-  if echo "$response" | jq -e '.limitUsd == 5' > /dev/null 2>&1; then
+  if echo "$response" | jq -e --argjson expected "$agent_limit" '.limitUsd == $expected' > /dev/null 2>&1; then
     pass "Get per-agent cost limit"
   else
     fail "Get per-agent cost limit failed (got: $(echo $response | jq '.limitUsd'))"

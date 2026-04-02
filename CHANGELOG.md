@@ -29,6 +29,9 @@ All notable changes to ClawMax are documented here.
 - **Workspace Switcher Actions Layout** — workspace row actions no longer overlap long workspace names
 - **DAG Connector / Unread Badge Polish** — workflow connector lines align correctly across zoom levels and Communication unread badges are visible again
 
+### Follow-up
+- **Known Runtime Follow-up** — temporary chat/direct runtime can still resolve duplicate agent IDs against the wrong global OpenClaw workspace record when the same agent id exists in multiple workspaces. This is tracked as high-priority issue `#94`.
+
 ### Features — Discovery
 - **Template / Workflow Suggestions** — search now suggests nearby templates and workflows instead of dead-ending on weak or empty matches
 
