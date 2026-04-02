@@ -2103,7 +2103,27 @@ for agent_id in $(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/
 done
 # Dismiss all test notifications
 apicurl -X POST "$API_BASE/api/notifications/dismiss-all" > /dev/null 2>&1
-pass "System-test workspace cleaned up"
+
+# Recreate a clean system-test workspace so later runs start from a known state.
+if [ -n "$SYSTEM_TEST_WS" ] && [ "$SYSTEM_TEST_WS" != "$ORIGINAL_WORKSPACE_ID" ]; then
+  # Switch away from the active system-test workspace before deleting it.
+  apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
+  delete_ws_result=$(apicurl -X DELETE "$API_BASE/api/workspaces/$SYSTEM_TEST_WS" 2>/dev/null)
+  if echo "$delete_ws_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+    recreate_ws_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
+      -H 'Content-Type: application/json' \
+      -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
+    if echo "$recreate_ws_result" | jq -e '.workspace.id' > /dev/null 2>&1; then
+      pass "System-test workspace cleaned up and recreated fresh"
+    else
+      warn "System-test workspace deleted but could not be recreated automatically"
+    fi
+  else
+    warn "Could not fully reset system-test workspace"
+  fi
+else
+  pass "System-test workspace cleaned up"
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
