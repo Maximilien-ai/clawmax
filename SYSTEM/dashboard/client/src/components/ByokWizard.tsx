@@ -17,6 +17,7 @@ type IntegrationStatus = {
   providers: string[]
   notes?: string[]
 }
+type ModelsByProvider = Record<string, { name: string; models: string[] }>
 
 export function ByokWizard() {
   const { user, config } = useAuth()
@@ -50,6 +51,7 @@ export function ByokWizard() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
+  const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
 
   useEffect(() => {
     const stored = readStoredByokKeys()
@@ -180,37 +182,71 @@ export function ByokWizard() {
       .catch(() => setGithubChecks([]))
   }, [open])
 
-  useEffect(() => {
-    if (!open || step !== 'models') return
+  const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
     const baseUrl = ollamaBaseUrl.trim()
     if (!baseUrl) {
       setOllamaModels([])
       return
     }
 
-    const controller = new AbortController()
-    const params = new URLSearchParams()
-    params.set('ollamaBaseUrl', baseUrl)
-
     setOllamaModelsLoading(true)
-    fetch(`/api/agents/models?${params.toString()}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const providerModels = data?.modelsByProvider?.ollama?.models
-        const models = Array.isArray(providerModels)
-          ? providerModels.map((name: string) => name.replace(/^ollama\//, ''))
-          : []
-        setOllamaModels(models)
-      })
-      .catch(() => {
-        setOllamaModels([])
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setOllamaModelsLoading(false)
-      })
+    try {
+      const res = await fetch(
+        forceRefresh
+          ? '/api/agents/models/refresh'
+          : `/api/agents/models?${new URLSearchParams({ ollamaBaseUrl: baseUrl }).toString()}`,
+        forceRefresh
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ollamaBaseUrl: baseUrl }),
+            }
+          : undefined
+      )
+      const data = res.ok ? await res.json() : null
+      const providerModels = data?.modelsByProvider?.ollama?.models
+      const models = Array.isArray(providerModels)
+        ? providerModels.map((name: string) => name.replace(/^ollama\//, ''))
+        : []
+      setOllamaModels(models)
+    } catch {
+      setOllamaModels([])
+    } finally {
+      setOllamaModelsLoading(false)
+    }
+  }, [ollamaBaseUrl])
 
-    return () => controller.abort()
-  }, [open, step, ollamaBaseUrl])
+  const loadAvailableModels = React.useCallback(async (forceRefresh: boolean = false) => {
+    const payload = {
+      openai: openaiKey.trim(),
+      anthropic: anthropicKey.trim(),
+      gemini: geminiApiKey.trim(),
+      ollamaBaseUrl: ollamaBaseUrl.trim(),
+    }
+
+    try {
+      const res = await fetch(
+        forceRefresh ? '/api/agents/models/refresh' : '/api/agents/models',
+        forceRefresh
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            }
+          : undefined
+      )
+      const data = res.ok ? await res.json() : null
+      setModelsByProvider(data?.modelsByProvider || {})
+    } catch {
+      setModelsByProvider({})
+    }
+  }, [openaiKey, anthropicKey, geminiApiKey, ollamaBaseUrl])
+
+  useEffect(() => {
+    if (!open || step !== 'models') return
+    void loadOllamaModels(false)
+    void loadAvailableModels(false)
+  }, [open, step, loadOllamaModels, loadAvailableModels])
 
   const statusText = useMemo(() => {
     if (hasDefaultUserKeys) return 'Default user keys available from env'
@@ -282,6 +318,10 @@ export function ByokWizard() {
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
       }
       setValidation(nextState)
+      if (nextState.ollama.status === 'valid') {
+        void loadOllamaModels(true)
+      }
+      void loadAvailableModels(true)
       const failures = Object.entries(nextState).filter(([, entry]) => entry.status === 'invalid' || entry.status === 'error')
       if (failures.length > 0) {
         const labels: Record<string, string> = {
@@ -376,6 +416,16 @@ export function ByokWizard() {
       </div>
     )
   }
+
+  const discoveredPreferredOptions = [
+    ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
+    ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai\//, '')} (OpenAI)` }))),
+    ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^gemini\//, '')} (Gemini)` }))),
+    ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
+  ]
+  const uniquePreferredOptions = discoveredPreferredOptions.filter((option, index, arr) =>
+    arr.findIndex((candidate) => candidate.value === option.value) === index
+  )
 
   return (
     <>
@@ -504,9 +554,18 @@ export function ByokWizard() {
                       <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Installed Ollama models</div>
-                          {ollamaModelsLoading && (
-                            <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {ollamaModelsLoading && (
+                              <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void loadOllamaModels(true)}
+                              className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                            >
+                              Refresh
+                            </button>
+                          </div>
                         </div>
                         {ollamaModels.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -546,31 +605,41 @@ export function ByokWizard() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
                       <select value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
-                        {hasAnthropicAvailable && (
+                        {uniquePreferredOptions.length > 0 ? (
+                          uniquePreferredOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))
+                        ) : (
                           <>
-                            <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
-                            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
+                            {hasAnthropicAvailable && (
+                              <>
+                                <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
+                                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
+                              </>
+                            )}
+                            {hasOpenAiAvailable && (
+                              <>
+                                <option value="openai/gpt-5">GPT-5 (latest)</option>
+                                <option value="openai/gpt-4o">GPT-4o (balanced)</option>
+                                <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                              </>
+                            )}
+                            {hasGeminiAvailable && (
+                              <>
+                                <option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (best reasoning)</option>
+                                <option value="gemini/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
+                                <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
+                              </>
+                            )}
+                            {ollamaConfigured && ollamaDefaultModel && (
+                              <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>
+                            )}
                           </>
-                        )}
-                        {hasOpenAiAvailable && (
-                          <>
-                            <option value="openai/gpt-5">GPT-5 (latest)</option>
-                            <option value="openai/gpt-4o">GPT-4o (balanced)</option>
-                            <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
-                          </>
-                        )}
-                        {hasGeminiAvailable && (
-                          <>
-                            <option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (best reasoning)</option>
-                            <option value="gemini/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
-                            <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
-                          </>
-                        )}
-                        {ollamaConfigured && ollamaDefaultModel && (
-                          <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>
                         )}
                       </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates. Discovered provider models appear here automatically when available.</p>
                     </div>
                   )}
                 </div>
