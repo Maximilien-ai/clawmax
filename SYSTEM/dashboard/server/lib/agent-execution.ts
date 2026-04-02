@@ -65,6 +65,12 @@ export function resolveAgentExecutionConfig(agentId: string): {
   }
 }
 
+export function scopeSessionIdToModel(sessionId: string, model?: string): string {
+  if (!model) return sessionId
+  const modelToken = model.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  return modelToken ? `${sessionId}:${modelToken}` : sessionId
+}
+
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}

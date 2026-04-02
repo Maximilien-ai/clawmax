@@ -9,7 +9,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured } from '../lib/gateway-rpc'
-import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 
 const router = Router()
 
@@ -165,10 +165,11 @@ router.delete('/groups/:name', (req, res) => {
 async function callAgent(agentId: string, message: string, sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const providerKeys = { openai: byokKeys?.openai, anthropic: byokKeys?.anthropic, gemini: byokKeys?.gemini }
+  const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
 
   return withTemporaryAgentAuthProfiles(agentId, providerKeys, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = ['agent', '--agent', agentId, '--session-id', sessionId, '--message', message, '--json', '--local']
+      const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', '--local']
       const env = { ...safeEnv() }
       if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
       if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic

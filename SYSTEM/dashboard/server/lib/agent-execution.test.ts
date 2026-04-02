@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
+import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from './agent-execution'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -86,6 +86,12 @@ test('resolveAgentExecutionConfig detects ollama provider from model', () => {
   const resolved = resolveAgentExecutionConfig('test-ollama')
   assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected Ollama model to resolve')
   assert(resolved.provider === 'ollama', 'Expected provider derived from Ollama model')
+})
+
+test('scopeSessionIdToModel isolates chats across model changes', () => {
+  const scoped = scopeSessionIdToModel('group:temp:test-agent1', 'ollama/qwen2.5:latest')
+  assert(scoped.includes('group:temp:test-agent1:'), 'Expected original session prefix preserved')
+  assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
 })
 
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {
