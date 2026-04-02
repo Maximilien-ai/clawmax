@@ -162,13 +162,13 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
+async function callAgent(agentId: string, message: string, sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const providerKeys = { openai: byokKeys?.openai, anthropic: byokKeys?.anthropic, gemini: byokKeys?.gemini }
 
   return withTemporaryAgentAuthProfiles(agentId, providerKeys, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = ['agent', '--agent', agentId, '--message', message, '--json', '--local']
+      const args = ['agent', '--agent', agentId, '--session-id', sessionId, '--message', message, '--json', '--local']
       const env = { ...safeEnv() }
       if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
       if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic
