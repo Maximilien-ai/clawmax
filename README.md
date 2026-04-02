@@ -2,7 +2,7 @@
 
 **Multiagent orchestration platform for OpenClaw**
 
-ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team templates, visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
+ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.0)
@@ -15,7 +15,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Workspaces Integrations** — unified setup surface for Models, Senso, Opik, GitHub, Gemini, and Ollama with validation and saved defaults
 - **Shareable Workspace Dashboards** — stakeholder-friendly live dashboards with compact/standard/detail modes, compact charts, and generated links
 - **Massively Expanded Template Catalog** — science, travel, hobbies, family, personal assistant, and finance proposal templates plus richer reusable agent templates
-- **Template & Workflow Import/Export** — first-pass `TEMPLATE.md` and `WORKFLOW.md` import/export flows in-product
+- **Template & Workflow Import/Export** — first-pass [`TEMPLATE.md`](https://github.com/Maximilien-ai/templates) and [`WORKFLOW.md`](https://github.com/Maximilien-ai/workflows) import/export flows in-product
 - **Docker Deployment Support** — canonical public Docker assets for cloud/on-prem handoff
 
 ---
