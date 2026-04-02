@@ -4,6 +4,7 @@ import os from 'os'
 import matter from 'gray-matter'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
+import { REPO_ROOT } from './paths'
 
 /**
  * Get workspace directory (uses active workspace from workspace manager)
@@ -84,6 +85,7 @@ function findOpenClawSkillsDir(): string {
 
 const BUNDLED_SKILLS_DIR = findOpenClawSkillsDir()
 const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
+const REPO_CUSTOM_SKILLS_DIR = path.join(REPO_ROOT, 'SKILLS', 'custom')
 
 /**
  * Get workspace custom skills directory
@@ -97,6 +99,14 @@ export function getWorkspaceSkillsDir(): string {
  */
 export function listAvailableSkills(): OpenClawSkill[] {
   const skills: OpenClawSkill[] = []
+  const seenNames = new Set<string>()
+
+  function pushSkill(skill: OpenClawSkill | null) {
+    if (!skill) return
+    if (seenNames.has(skill.name)) return
+    seenNames.add(skill.name)
+    skills.push(skill)
+  }
 
   // Load bundled skills from OpenClaw repo
   if (fs.existsSync(BUNDLED_SKILLS_DIR)) {
@@ -108,11 +118,37 @@ export function listAvailableSkills(): OpenClawSkill[] {
         const skillPath = path.join(BUNDLED_SKILLS_DIR, dir.name, 'SKILL.md')
         if (fs.existsSync(skillPath)) {
           const skill = parseSkillFile(skillPath, 'bundled')
-          if (skill) skills.push(skill)
+          pushSkill(skill)
         }
       }
     } catch (err) {
       console.error('Error loading bundled skills:', err)
+    }
+  }
+
+  // Load ClawMax repo-level packaged custom skills
+  if (fs.existsSync(REPO_CUSTOM_SKILLS_DIR)) {
+    try {
+      const dirs = fs.readdirSync(REPO_CUSTOM_SKILLS_DIR, { withFileTypes: true })
+      for (const dir of dirs) {
+        if (!dir.isDirectory() || dir.name.startsWith('.')) continue
+
+        const uppercaseSkillPath = path.join(REPO_CUSTOM_SKILLS_DIR, dir.name, 'SKILL.md')
+        const lowercaseSkillPath = path.join(REPO_CUSTOM_SKILLS_DIR, dir.name, 'skill.md')
+        const skillPath = fs.existsSync(uppercaseSkillPath) ? uppercaseSkillPath : lowercaseSkillPath
+        if (fs.existsSync(skillPath)) {
+          const skill = parseWorkspaceSkillFile(skillPath, dir.name)
+          if (skill) {
+            pushSkill({
+              ...skill,
+              bundled: true,
+              source: 'bundled'
+            })
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error loading repo custom skills:', err)
     }
   }
 
@@ -126,7 +162,7 @@ export function listAvailableSkills(): OpenClawSkill[] {
         const skillPath = path.join(MANAGED_SKILLS_DIR, dir.name, 'SKILL.md')
         if (fs.existsSync(skillPath)) {
           const skill = parseSkillFile(skillPath, 'managed')
-          if (skill) skills.push(skill)
+          pushSkill(skill)
         }
       }
     } catch (err) {
@@ -147,7 +183,7 @@ export function listAvailableSkills(): OpenClawSkill[] {
         const skillPath = fs.existsSync(uppercaseSkillPath) ? uppercaseSkillPath : lowercaseSkillPath
         if (fs.existsSync(skillPath)) {
           const skill = parseWorkspaceSkillFile(skillPath, dir.name)
-          if (skill) skills.push(skill)
+          pushSkill(skill)
         }
       }
     } catch (err) {

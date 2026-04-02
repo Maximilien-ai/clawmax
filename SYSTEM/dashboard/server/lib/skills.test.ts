@@ -139,6 +139,14 @@ test('getSkillById("github") returns github skill', () => {
   console.log(`  Found: ${skill!.name} ${skill!.emoji}`)
 })
 
+test('getSkillById("workspace-ls") returns packaged ClawMax repo skill', () => {
+  const skill = getSkillById('workspace-ls')
+
+  assert(skill !== null, 'Should find workspace-ls skill')
+  assertEqual(skill!.name, 'workspace-ls', 'Name should be "workspace-ls"')
+  assert(skill!.source === 'bundled' || skill!.source === 'workspace', 'workspace-ls should be discoverable in the catalog')
+})
+
 // Test 4: Get skill by ID - invalid skill
 test('getSkillById("invalid-skill") returns null', () => {
   const skill = getSkillById('invalid-skill')
