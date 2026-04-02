@@ -136,6 +136,31 @@ function ensureUniqueId(baseId: string): string {
   return id
 }
 
+function getRecursiveDownstreamWorkflowIds(workflowId: string, workflows: Workflow[]): string[] {
+  const dependentsById = new Map<string, string[]>()
+  for (const workflow of workflows) {
+    for (const dep of workflow.dependsOn || []) {
+      const current = dependentsById.get(dep) || []
+      current.push(workflow.id)
+      dependentsById.set(dep, current)
+    }
+  }
+
+  const visited = new Set<string>()
+  const queue = [...(dependentsById.get(workflowId) || [])]
+
+  while (queue.length > 0) {
+    const nextId = queue.shift()!
+    if (visited.has(nextId)) continue
+    visited.add(nextId)
+    for (const childId of dependentsById.get(nextId) || []) {
+      if (!visited.has(childId)) queue.push(childId)
+    }
+  }
+
+  return Array.from(visited)
+}
+
 // ============================================================================
 // WORKFLOW.md Format — Parse and Serialize
 // ============================================================================
@@ -758,13 +783,12 @@ export function triggerWorkflow(workflowId: string, options?: {
     const newRunCount = (workflow.runCount || 0) + 1
     updateWorkflow(workflowId, { runCount: newRunCount, status: 'running', progress: 0 } as any)
 
-    // Reset all downstream dependent workflows to idle
+    // Reset all downstream dependent workflows to idle for a clean rerun
     const allWorkflows = listWorkflows()
-    for (const wf of allWorkflows) {
-      if (wf.dependsOn?.includes(workflowId) && (wf.status === 'completed' || wf.status === 'blocked')) {
-        updateWorkflow(wf.id, { status: 'idle', progress: 0 } as any)
-        console.log(`[Workflow] Reset downstream ${wf.id} to idle (depends on re-triggered ${workflowId})`)
-      }
+    const downstreamWorkflowIds = getRecursiveDownstreamWorkflowIds(workflowId, allWorkflows)
+    for (const downstreamId of downstreamWorkflowIds) {
+      updateWorkflow(downstreamId, { status: 'idle', progress: 0 } as any)
+      console.log(`[Workflow] Reset downstream ${downstreamId} to idle (depends on re-triggered ${workflowId})`)
     }
 
     // Check if this run will hit the limit — disable after this run
@@ -828,6 +852,11 @@ export function triggerWorkflow(workflowId: string, options?: {
     }
     if (integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
       runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
+    }
+    if ((workflow.targeting.groups || []).length > 0) {
+      runtimeContextLines.push(`- Current workflow group channel(s): ${(workflow.targeting.groups || []).join(', ')}`)
+      runtimeContextLines.push('- Use the current workflow group channel for replies and reports in this run')
+      runtimeContextLines.push('- Do not create or look up separate session labels unless explicitly configured in the workspace')
     }
     const executionMessage = runtimeContextLines.length > 0
       ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`

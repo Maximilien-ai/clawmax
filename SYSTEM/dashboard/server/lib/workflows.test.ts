@@ -16,6 +16,7 @@ import {
   areDependenciesMet,
   completeWorkflow,
   getDAGStatus,
+  triggerWorkflow,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -256,6 +257,61 @@ test('getDAGStatus returns all workflows with dep info', () => {
   const entry = dag.find(d => d.id === createdIds[1])
   assert(entry !== undefined, 'Should find our workflow')
   assert(entry!.dependenciesMet === true, 'Deps should now be met')
+})
+
+test('triggerWorkflow recursively resets downstream DAG progress on rerun', () => {
+  const root = createWorkflow({
+    name: 'Reset Root',
+    description: 'Root',
+    schedule: 'manual',
+    content: '# Root',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  })
+  assert(!!(root.success && root.id), 'Root workflow should be created')
+  createdIds.push(root.id as string)
+
+  const child = createWorkflow({
+    name: 'Reset Child',
+    description: 'Child',
+    schedule: 'manual',
+    content: '# Child',
+    executionMode: 'automated',
+    dependsOn: [root.id!],
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  })
+  assert(!!(child.success && child.id), 'Child workflow should be created')
+  createdIds.push(child.id as string)
+
+  const grandchild = createWorkflow({
+    name: 'Reset Grandchild',
+    description: 'Grandchild',
+    schedule: 'manual',
+    content: '# Grandchild',
+    executionMode: 'automated',
+    dependsOn: [child.id!],
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  })
+  assert(!!(grandchild.success && grandchild.id), 'Grandchild workflow should be created')
+  createdIds.push(grandchild.id as string)
+
+  updateWorkflow(root.id!, { status: 'completed', progress: 100 } as any)
+  updateWorkflow(child.id!, { status: 'completed', progress: 100 } as any)
+  updateWorkflow(grandchild.id!, { status: 'completed', progress: 100 } as any)
+
+  const triggered = triggerWorkflow(root.id!, { manual: true })
+  assert(triggered.success, `Rerun should succeed: ${triggered.error}`)
+
+  const rerunRoot = getWorkflow(root.id!)
+  const rerunChild = getWorkflow(child.id!)
+  const rerunGrandchild = getWorkflow(grandchild.id!)
+
+  assert(rerunRoot?.status === 'running', 'Root should be running after rerun')
+  assert(rerunRoot?.progress === 0, 'Root progress should reset to 0')
+  assert(rerunChild?.status === 'idle', 'Direct downstream should reset to idle')
+  assert(rerunChild?.progress === 0, 'Direct downstream progress should reset to 0')
+  assert(rerunGrandchild?.status === 'idle', 'Nested downstream should also reset to idle')
+  assert(rerunGrandchild?.progress === 0, 'Nested downstream progress should reset to 0')
 })
 
 // ============================================================================
