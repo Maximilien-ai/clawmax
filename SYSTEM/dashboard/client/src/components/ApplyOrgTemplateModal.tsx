@@ -232,10 +232,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       if (useGithub && githubRepo.trim() && template.workflows) {
         const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`
         for (const wf of template.workflows) {
-          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          let existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          existing = existing.replace(
+            /^(-\s+\*\*GitHub repo:\*\*)\s+.*$/gim,
+            `$1 ${githubRepo.trim()}`
+          )
           if (!existing.includes('GitHub Coordination')) {
-            finalOverrides[wf.id] = existing + ghBlock
+            existing += ghBlock
           }
+          finalOverrides[wf.id] = existing
         }
       }
       if (useSenso && template.workflows) {
