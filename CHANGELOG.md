@@ -2,6 +2,22 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.1] - 2026-04-02
+
+### Fixes — Workspaces Integrations
+- **Optional Integration Save Flow** — optional partner/provider validation failures no longer block save, and warnings now clearly name the failing integrations
+- **Toast Visibility** — validation toasts now render above the integrations modal instead of behind it
+- **Discovered Model Loading** — Gemini and Ollama discovered models now populate the preferred-model selector when available
+- **Ollama Model Picker** — installed local Ollama models are surfaced inline with refresh support and one-click selection
+
+### Fixes — Runtime Defaults and Import Validation
+- **Workspace Integration Defaults Persistence** — non-secret Senso and GitHub defaults persist per workspace and flow back in after restart
+- **Runtime Follow-Through** — saved GitHub repo and Senso context defaults now flow into template apply, workflow structured inputs, and runtime context
+- **Template Import Schema Validation** — `TEMPLATE.md` imports now validate against the shared schema before save
+
+### Features — Discovery
+- **Template / Workflow Suggestions** — search now suggests nearby templates and workflows instead of dead-ending on weak or empty matches
+
 ## [v1.2.0] - 2026-04-01
 
 ### Features — Workspaces Integrations

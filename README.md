@@ -5,12 +5,20 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.0)
+[![Version](https://img.shields.io/badge/version-1.2.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.1)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.0
+## 🔥 What's New in v1.2.1
+
+- **Workspaces Integrations UX polish** — optional integration checks no longer block save, warnings identify the exact failing providers, and validation toasts stay visible above the modal
+- **Discovered provider model lists** — Gemini and Ollama discovered models now appear directly in the preferred-model selector, and Ollama installed models can be refreshed/selected inline
+- **Runtime defaults follow-through** — saved Senso context and GitHub repo defaults now persist per workspace and flow into template apply plus workflow execution context
+- **Safer template import validation** — `TEMPLATE.md` imports are schema-validated before save
+- **Search suggestions** — Templates and Workflows now suggest nearby starting points when search is weak or empty
+
+## 🔥 Previously in v1.2.0
 
 - **Workspaces Integrations** — unified setup surface for Models, Senso, Opik, GitHub, Gemini, and Ollama with validation and saved defaults
 - **Shareable Workspace Dashboards** — stakeholder-friendly live dashboards with compact/standard/detail modes, compact charts, and generated links

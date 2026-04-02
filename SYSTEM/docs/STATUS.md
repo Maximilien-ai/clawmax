@@ -1,20 +1,35 @@
 # ClawMax Status
 
-**Current Version**: v1.2.0
-**Last Updated**: April 1, 2026
-**Status**: Release prep — expanded template catalog, workspace dashboards, integrations shell, and deployment support are on main
+**Current Version**: v1.2.1
+**Last Updated**: April 2, 2026
+**Status**: Point release ready — integrations follow-through, import validation, and discovery suggestions are on main
 
 ---
 
 ## Current State
 
-- `v1.2.0` prep on main — workspace dashboards, integrations, deployment, and expanded template families
+- `v1.2.1` ready on main — integrations polish, runtime follow-through, import validation, and discovery suggestions
 - 39 organization templates + 12 reusable agent templates across Business, Technical, Personal, Science, Travel, Hobbies, and Family
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
 - Shareable workspace dashboards with compact/standard/detail display modes
 - Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+
+## v1.2.1 — Follow-through Point Release
+
+### Integrations
+- optional integration validation no longer blocks save for Gemini, Ollama, Opik, or other optional providers
+- warning toasts now name the failing integrations and render above the modal
+- discovered Gemini and Ollama models now appear in the preferred-model selector
+- Ollama installed models can be refreshed and selected inline
+
+### Runtime and Validation
+- workspace-level Senso and GitHub defaults now persist and flow into apply/runtime paths
+- `TEMPLATE.md` imports now validate against the shared schema before save
+
+### Discovery
+- Templates and Workflows search now suggests nearby starting points when exact matches are weak or absent
 
 ## v1.2.0 — Expansion Release
 
