@@ -179,10 +179,10 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
           const gap = 8
           const toWf = workflows.find(w => w.id === edge.to)
           forestLines.push({
-            x1: fromRect.right - rect.left + gap,
-            y1: fromRect.top + fromRect.height / 2 - rect.top,
-            x2: toRect.left - rect.left - gap,
-            y2: toRect.top + toRect.height / 2 - rect.top,
+            x1: (fromRect.right - rect.left + gap) / zoom,
+            y1: (fromRect.top + fromRect.height / 2 - rect.top) / zoom,
+            x2: (toRect.left - rect.left - gap) / zoom,
+            y2: (toRect.top + toRect.height / 2 - rect.top) / zoom,
             status: toWf?.status || 'idle',
             fromId: edge.from,
             toId: edge.to,
@@ -195,7 +195,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
     }, 50)
 
     return () => clearTimeout(timer)
-  }, [forestLayouts, workflows])
+  }, [forestLayouts, workflows, zoom])
 
   if (workflows.length === 0) {
     return (
