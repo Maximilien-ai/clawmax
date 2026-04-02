@@ -180,6 +180,42 @@ export function validateTemplate(template: any): { valid: boolean; errors?: stri
   return { valid: true }
 }
 
+export function validateImportedTemplateMd(
+  content: string,
+  typeOverride?: string
+): { valid: boolean; template?: Template; errors: string[]; warnings: string[] } {
+  const template = parseTemplateMd(content)
+  if (!template) {
+    return {
+      valid: false,
+      errors: ['Failed to parse TEMPLATE.md — ensure it has valid YAML frontmatter with name and type'],
+      warnings: [],
+    }
+  }
+
+  if (typeOverride) {
+    ;(template as any).type = typeOverride
+  }
+
+  const validation = validateTemplate(template)
+  if (!validation.valid) {
+    return {
+      valid: false,
+      template,
+      errors: validation.errors || ['Template validation failed'],
+      warnings: [],
+    }
+  }
+
+  const refs = validateTemplateReferences(template)
+  return {
+    valid: true,
+    template,
+    errors: [],
+    warnings: refs.warnings,
+  }
+}
+
 export function validateAgentTemplateFiles(templateDir: string, expectedAgentId: string): { valid: boolean; errors: string[]; warnings: string[] } {
   const identityPath = path.join(templateDir, 'IDENTITY.md')
   const soulPath = path.join(templateDir, 'SOUL.md')

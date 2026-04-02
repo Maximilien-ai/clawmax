@@ -10,6 +10,7 @@ import {
   importOrganizationTemplate,
   validateTemplate,
   validateTemplateReferences,
+  validateImportedTemplateMd,
   slugify,
   parseTemplateMd,
   templateToMarkdown,
@@ -414,28 +415,26 @@ router.post('/import-md', (req, res) => {
       return res.status(400).json({ error: 'Markdown content is required' })
     }
 
-    const template = parseTemplateMd(content)
-    if (!template) {
-      return res.status(400).json({ error: 'Failed to parse TEMPLATE.md — ensure it has valid YAML frontmatter with name and type' })
-    }
-
-    // Override type if provided
-    if (type) template.type = type
-
-    // Validate
-    const validation = validateTemplate(template)
-    if (!validation.valid) {
-      return res.status(400).json({ error: `Validation failed: ${validation.errors?.join(', ')}`, errors: validation.errors })
+    const validation = validateImportedTemplateMd(content, typeof type === 'string' ? type : undefined)
+    if (!validation.valid || !validation.template) {
+      return res.status(400).json({
+        error: validation.errors[0] || 'Failed to import template',
+        errors: validation.errors,
+      })
     }
 
     // Save
-    const result = saveTemplate(template)
+    const result = saveTemplate(validation.template)
     if (!result.ok) {
       return res.status(500).json({ error: result.error })
     }
 
-    const refs = validateTemplateReferences(template)
-    res.json({ ok: true, template, slug: slugify(template.name), warnings: refs.warnings.length > 0 ? refs.warnings : undefined })
+    res.json({
+      ok: true,
+      template: validation.template,
+      slug: slugify(validation.template.name),
+      warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
+    })
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to import template' })
   }

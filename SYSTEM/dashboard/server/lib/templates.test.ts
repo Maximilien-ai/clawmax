@@ -8,6 +8,7 @@ import {
   listTemplates,
   getTemplate,
   validateTemplate,
+  validateImportedTemplateMd,
   validateAgentTemplateFiles,
   createOrganizationTemplate,
   slugify,
@@ -589,6 +590,45 @@ test('Lean TEMPLATE.md has minimal frontmatter', () => {
 
   assert(fmLines < 40, `Frontmatter should be lean (< 40 lines), got ${fmLines}`)
   assert(mdContent.includes('## Agents'), 'Should have ## Agents section')
+})
+
+test('validateImportedTemplateMd accepts valid TEMPLATE.md content', () => {
+  const md = `---
+name: Import Validation Org
+type: organization
+version: 1.0.0
+---
+
+Organization import validation test.
+
+## Agents
+
+| id | name | role | tags | skills |
+|----|------|------|------|--------|
+| test-owner | Test Owner | Coordinate the team | lead | |
+
+## Workflows
+
+- **Kickoff** — Run kickoff`
+
+  const result = validateImportedTemplateMd(md)
+  assert(result.valid === true, 'Expected import validation to succeed')
+  assert(result.template?.name === 'Import Validation Org', 'Expected parsed template')
+})
+
+test('validateImportedTemplateMd rejects schema-invalid TEMPLATE.md content', () => {
+  const md = `---
+name: Broken Import Org
+type: organization
+version: 1.0.0
+---
+
+Broken import validation test.
+`
+
+  const result = validateImportedTemplateMd(md)
+  assert(result.valid === false, 'Expected import validation to fail')
+  assert(result.errors.some((error: string) => error.toLowerCase().includes('agents')), 'Expected schema error mentioning missing agents')
 })
 
 // Summary
