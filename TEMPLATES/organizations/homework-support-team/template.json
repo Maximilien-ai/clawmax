@@ -13,6 +13,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "review-tutor",
+      "label": "Number of Review Tutors",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
   "communities": [
     {
       "name": "Homework Desk",

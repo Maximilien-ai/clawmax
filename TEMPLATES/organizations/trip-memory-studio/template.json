@@ -13,6 +13,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "highlight-collector",
+      "label": "Number of Highlight Collectors",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
   "communities": [
     {
       "name": "Trip Memory Studio",

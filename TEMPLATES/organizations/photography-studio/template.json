@@ -13,6 +13,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "shoot-planner",
+      "label": "Number of Shoot Planners",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
   "communities": [
     {
       "name": "Photo Studio",

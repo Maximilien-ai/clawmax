@@ -12,6 +12,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "itinerary-designer",
+      "label": "Number of Itinerary Designers",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
   "communities": [
     {
       "name": "Travel Desk",

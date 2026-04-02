@@ -13,6 +13,15 @@
     "hackathon"
   ],
   "category": "technical",
+  "parameters": [
+    {
+      "agentId": "signal-analyst",
+      "label": "Number of Signal Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
   "agents": [
     {
       "id": "research-lead",

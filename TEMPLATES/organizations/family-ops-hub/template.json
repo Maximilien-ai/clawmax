@@ -12,6 +12,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "kids-support-coordinator",
+      "label": "Number of Kids Support Coordinators",
+      "default": 1,
+      "min": 1,
+      "max": 6
+    }
+  ],
   "communities": [
     {
       "name": "Family Ops",

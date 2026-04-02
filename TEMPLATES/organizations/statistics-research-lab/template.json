@@ -14,6 +14,15 @@
     "experimental",
     "early-idea"
   ],
+  "parameters": [
+    {
+      "agentId": "inference-analyst",
+      "label": "Number of Inference Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
   "agents": [
     {
       "id": "stats-lead",
