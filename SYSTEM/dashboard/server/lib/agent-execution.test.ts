@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from './agent-execution'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -58,6 +59,7 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('test1')
   assert(resolved.model === 'openai/gpt-4o-mini', 'Expected IDENTITY model fallback')
@@ -82,10 +84,62 @@ test('resolveAgentExecutionConfig detects ollama provider from model', () => {
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('test-ollama')
   assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected Ollama model to resolve')
   assert(resolved.provider === 'ollama', 'Expected provider derived from Ollama model')
+})
+
+test('resolveAgentExecutionConfig prefers the active workspace agent when ids collide across workspaces', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'clawmax-system-test')
+  const defaultAgentWorkspace = path.join(defaultWorkspace, 'AGENTS', 'test1')
+  const activeAgentWorkspace = path.join(activeWorkspace, 'AGENTS', 'test1')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+
+  fs.mkdirSync(defaultAgentWorkspace, { recursive: true })
+  fs.mkdirSync(activeAgentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(defaultAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** anthropic/claude-opus-4-6\n', 'utf-8')
+  fs.writeFileSync(path.join(activeAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** ollama/qwen2.5:latest\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: defaultAgentWorkspace, agentDir }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'system-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Default',
+        path: defaultWorkspace,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+      {
+        id: 'system-test',
+        name: 'ClawMax System Test',
+        path: activeWorkspace,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      }
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('test1')
+  assert(resolved.workspace === activeAgentWorkspace, 'Expected active workspace agent to win over stale global record')
+  assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected active workspace model to be used')
+  assert(resolved.provider === 'ollama', 'Expected provider derived from active workspace model')
 })
 
 test('scopeSessionIdToModel isolates chats across model changes', () => {
@@ -118,6 +172,7 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   }, null, 2))
 
   process.env.HOME = home
+  resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
     const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
@@ -158,6 +213,7 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama'
   }, null, 2))
 
   process.env.HOME = home
+  resetWorkspaceManagerForTests()
   const before = fs.readFileSync(authProfilePath, 'utf-8')
   const beforeConfig = fs.readFileSync(configPath, 'utf-8')
 

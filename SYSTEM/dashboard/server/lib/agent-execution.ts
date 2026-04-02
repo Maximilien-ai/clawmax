@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { parseIdentity } from './workspace'
+import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { updateAgentModelInConfigFile } from './agent-model'
 
@@ -46,9 +46,18 @@ export function resolveAgentExecutionConfig(agentId: string): {
   provider?: ExecutionProvider
 } {
   const record = readOpenClawAgentRecord(agentId)
-  const identityPath = record?.workspace
-    ? path.join(record.workspace, 'IDENTITY.md')
-    : path.join(process.env.OPENCLAW_WORKSPACE || '', 'AGENTS', agentId, 'IDENTITY.md')
+  const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  const activeWorkspaceIdentityPath = path.join(activeWorkspaceAgentDir, 'IDENTITY.md')
+  const hasActiveWorkspaceAgent = fs.existsSync(activeWorkspaceIdentityPath)
+
+  const resolvedWorkspace = hasActiveWorkspaceAgent
+    ? activeWorkspaceAgentDir
+    : record?.workspace
+  const identityPath = hasActiveWorkspaceAgent
+    ? activeWorkspaceIdentityPath
+    : record?.workspace
+      ? path.join(record.workspace, 'IDENTITY.md')
+      : path.join(process.env.OPENCLAW_WORKSPACE || '', 'AGENTS', agentId, 'IDENTITY.md')
 
   let identityModel: string | undefined
   try {
@@ -59,7 +68,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   const model = record?.model || identityModel
   return {
     model,
-    workspace: record?.workspace,
+    workspace: resolvedWorkspace,
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
   }
