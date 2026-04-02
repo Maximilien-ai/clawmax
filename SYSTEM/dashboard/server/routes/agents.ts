@@ -10,7 +10,7 @@ import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGate
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
-import { updateAgentModelInConfigFile } from '../lib/agent-model'
+import { updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
@@ -63,6 +63,11 @@ function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
   const configPath = fs.existsSync(profileConfigPath) ? profileConfigPath : defaultConfigPath
   return updateAgentModelInConfigFile(configPath, agentId, model)
+}
+
+function updateAgentIdentityModel(identityPath: string, model: string) {
+  const content = fs.readFileSync(identityPath, 'utf-8')
+  fs.writeFileSync(identityPath, upsertAgentModelInIdentityContent(content, model), 'utf-8')
 }
 
 /**
@@ -1498,26 +1503,7 @@ router.post('/bulk-model', async (req, res) => {
       const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
       const identityPath = path.join(agentDir, 'IDENTITY.md')
       if (fs.existsSync(identityPath)) {
-        let content = fs.readFileSync(identityPath, 'utf-8')
-        if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
-          content = content.replace(
-            /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
-            `- **Model:** ${model}`
-          )
-        } else if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
-          content = content.replace(
-            /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
-            `- **Model:** ${model}\n$&`
-          )
-        } else if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
-          content = content.replace(
-            /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
-            `$&\n- **Model:** ${model}`
-          )
-        } else {
-          content = `${content.trimEnd()}\n\n- **Model:** ${model}\n`
-        }
-        fs.writeFileSync(identityPath, content, 'utf-8')
+        updateAgentIdentityModel(identityPath, model)
       }
 
       results.push({ id: agentId, ok: true })
@@ -1691,29 +1677,7 @@ router.patch('/:id/model', (req, res) => {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
     }
 
-    const content = fs.readFileSync(identityPath, 'utf-8')
-    let updatedContent = content
-
-    if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
-      updatedContent = content.replace(
-        /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
-        `- **Model:** ${model}`
-      )
-    } else if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
-      updatedContent = content.replace(
-        /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
-        `- **Model:** ${model}\n$&`
-      )
-    } else if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
-      updatedContent = content.replace(
-        /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
-        `$&\n- **Model:** ${model}`
-      )
-    } else {
-      updatedContent = `${content.trimEnd()}\n\n- **Model:** ${model}\n`
-    }
-
-    fs.writeFileSync(identityPath, updatedContent, 'utf-8')
+    updateAgentIdentityModel(identityPath, model)
     res.json({ ok: true, model })
   } catch (err) {
     console.error('Failed to update model:', err)

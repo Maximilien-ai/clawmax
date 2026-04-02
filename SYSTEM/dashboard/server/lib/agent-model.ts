@@ -34,3 +34,35 @@ export function updateAgentModelInConfigFile(configPath: string, agentId: string
     return { ok: false, error: err.message || String(err) }
   }
 }
+
+export function upsertAgentModelInIdentityContent(content: string, model: string): string {
+  if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
+    return content.replace(
+      /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
+      `- **Model:** ${model}`
+    )
+  }
+
+  if (/^[-*]\s+\*\*Avatar:\*\*\s*$/m.test(content)) {
+    return content.replace(
+      /^[-*]\s+\*\*Avatar:\*\*\s*$(\n\s+.*)?/m,
+      match => `${match}\n- **Model:** ${model}`
+    )
+  }
+
+  if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
+    return content.replace(
+      /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
+      `- **Model:** ${model}\n$&`
+    )
+  }
+
+  if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
+    return content.replace(
+      /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
+      `$&\n- **Model:** ${model}`
+    )
+  }
+
+  return `${content.trimEnd()}\n\n- **Model:** ${model}\n`
+}

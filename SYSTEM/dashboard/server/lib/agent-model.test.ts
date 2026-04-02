@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { updateAgentModelInConfigFile } from './agent-model'
+import { updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from './agent-model'
 import { parseIdentity } from './workspace'
 
 const GREEN = '\x1b[32m'
@@ -93,6 +93,28 @@ test('parseIdentity extracts model from legacy bullet format and keeps empty Wha
   assert(identity.model === 'openai/gpt-4.1', 'Expected parseIdentity to extract bullet-list model')
   assert(identity.whatsapp === null, 'Expected empty WhatsApp to normalize to null')
   assert(Array.isArray(identity.tags) && identity.tags.includes('leadership'), 'Expected tags to still parse after empty WhatsApp')
+})
+
+test('upsertAgentModelInIdentityContent inserts model into bootstrap identity template', () => {
+  const content = `# IDENTITY.md - Who Am I?
+
+_Fill this in during your first conversation. Make it yours._
+
+- **Name:**
+  _(pick something you like)_
+- **Creature:**
+  _(AI? robot? familiar? ghost in the machine? something weirder?)_
+- **Vibe:**
+  _(how do you come across? sharp? warm? chaotic? calm?)_
+- **Emoji:**
+  _(your signature — pick one that feels right)_
+- **Avatar:**
+  _(workspace-relative path, http(s) URL, or data URI)_`
+
+  const updated = upsertAgentModelInIdentityContent(content, 'ollama/qwen2.5:latest')
+  assert(updated.includes('- **Model:** ollama/qwen2.5:latest'), 'Expected model line inserted')
+  const parsed = parseIdentity(updated)
+  assert(parsed.model === 'ollama/qwen2.5:latest', 'Expected inserted model to parse correctly')
 })
 
 setTimeout(() => {
