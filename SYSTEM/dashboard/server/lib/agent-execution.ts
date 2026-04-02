@@ -110,6 +110,10 @@ export async function withTemporaryAgentAuthProfiles<T>(
   preferredProvider: ExecutionProvider | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
+  if (preferredProvider === 'ollama') {
+    return fn()
+  }
+
   const execution = resolveAgentExecutionConfig(agentId)
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')

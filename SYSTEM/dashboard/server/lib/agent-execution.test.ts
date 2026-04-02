@@ -134,6 +134,40 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
 })
 
+test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-ollama', workspace: path.join(home, 'workspace', 'AGENTS', 'test-ollama'), agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(authProfilePath, JSON.stringify({
+    version: 1,
+    profiles: {
+      'anthropic-key': { type: 'api_key', provider: 'anthropic', key: 'stale-anthropic' }
+    },
+    lastGood: { anthropic: 'anthropic-key' }
+  }, null, 2))
+
+  process.env.HOME = home
+  const before = fs.readFileSync(authProfilePath, 'utf-8')
+  const beforeConfig = fs.readFileSync(configPath, 'utf-8')
+
+  await withTemporaryAgentAuthProfiles('test-ollama', {}, 'ollama/qwen2.5:latest', 'ollama', async () => {
+    const current = fs.readFileSync(authProfilePath, 'utf-8')
+    const currentConfig = fs.readFileSync(configPath, 'utf-8')
+    assert(current === before, 'Expected auth profiles unchanged for Ollama')
+    assert(currentConfig === beforeConfig, 'Expected openclaw.json unchanged for Ollama')
+  })
+})
+
 setTimeout(() => {
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
