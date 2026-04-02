@@ -1,6 +1,7 @@
 import express from 'express'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
+import archiver from 'archiver'
 import {
   createWorkspaceDashboard,
   deleteWorkspaceDashboard,
@@ -8,6 +9,7 @@ import {
   regenerateWorkspaceDashboardToken,
   updateWorkspaceDashboard,
 } from '../lib/workspace-dashboards'
+import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName } from '../lib/workspace-export'
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
@@ -107,6 +109,38 @@ router.get('/:id', (req, res) => {
   } catch (err: any) {
     console.error('Error getting workspace:', err)
     res.status(500).json({ error: 'Failed to load workspace' })
+  }
+})
+
+// GET /api/workspaces/:id/export - Export workspace as zip archive
+router.get('/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+
+    const manifest = await buildWorkspaceExportManifest(id)
+    const archiveName = getWorkspaceExportFileName(workspace)
+    const rootName = getWorkspaceExportRootName(workspace)
+
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename="${archiveName}"`)
+
+    const archive = archiver('zip', { zlib: { level: 9 } })
+    archive.on('error', (err) => {
+      throw err
+    })
+    archive.pipe(res)
+    archive.directory(workspace.path, rootName)
+    archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
+    await archive.finalize()
+  } catch (err: any) {
+    console.error('Error exporting workspace:', err)
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || 'Failed to export workspace' })
+    }
   }
 })
 

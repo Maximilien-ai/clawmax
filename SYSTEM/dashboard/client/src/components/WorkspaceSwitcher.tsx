@@ -160,6 +160,33 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     }
   }
 
+  const exportWorkspace = async (workspace: Workspace) => {
+    try {
+      const response = await fetch(`/api/workspaces/${workspace.id}/export`)
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to export workspace')
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const disposition = response.headers.get('content-disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || `${workspace.id}.zip`
+
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(downloadUrl)
+      showSuccess(`Workspace "${workspace.name}" exported`)
+    } catch (err: any) {
+      showError(err.message || 'Failed to export workspace')
+    }
+  }
+
   const deleteDashboard = async (workspaceId: string, dashboardId: string) => {
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/dashboards/${dashboardId}`, { method: 'DELETE' })
@@ -452,10 +479,20 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openDashboardManager(workspace)
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            exportWorkspace(workspace)
+                          }}
+                          className="p-2 rounded-md text-gray-400 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          title="Export workspace"
+                        >
+                          ⤓
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openDashboardManager(workspace)
                     }}
                     className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-all"
                     title="Manage workspace dashboard"
