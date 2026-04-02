@@ -180,7 +180,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       document.body.appendChild(link)
       link.click()
       link.remove()
-      URL.revokeObjectURL(downloadUrl)
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000)
       showSuccess(`Workspace "${workspace.name}" exported`)
     } catch (err: any) {
       showError(err.message || 'Failed to export workspace')
