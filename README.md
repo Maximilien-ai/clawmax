@@ -493,14 +493,7 @@ Visit **[ClawMax.ai](https://clawmax.ai)** for commercial offerings:
 - Deploy via Docker, Kubernetes, or bare metal
 - Connect to your own LLM endpoints (Azure OpenAI, AWS Bedrock, self-hosted models)
 - Integrate with internal tools (Jira, Confluence, Slack, custom APIs) via skills
-- Ideal for regulated industries (finance, healthcare, government) requiring data residency
-
-Quick start:
-```bash
-cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
-docker compose up --build
-```
-Then open `http://localhost:3001`.
+- Ideal for personal use and regulated industries (finance, healthcare, government) requiring data residency
 
 **ClawMax Enterprise**
 - Everything in On-Premise, plus:
