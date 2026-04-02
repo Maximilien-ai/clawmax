@@ -137,7 +137,14 @@ export function checkTemplatePrereqs(template: {
   } else if (hasUserKeys) {
     checks.push({ id: 'api-keys', label: 'LLM API Keys', status: 'pass', message: 'User default keys configured', category: 'keys' })
   } else {
-    checks.push({ id: 'api-keys', label: 'LLM API Keys', status: 'warn', message: 'No system keys — BYOK keys from browser required', fixHint: 'Configure keys via BYOK wizard or add to SYSTEM/dashboard/.env', category: 'keys' })
+    checks.push({
+      id: 'api-keys',
+      label: 'LLM API Keys',
+      status: 'warn',
+      message: 'No server-side LLM keys configured — browser BYOK may still work for template apply and manual runs',
+      fixHint: 'Configure keys via Workspaces Integrations / BYOK, or add server keys to SYSTEM/dashboard/.env',
+      category: 'keys'
+    })
   }
 
   // ── Per-skill checks ──
