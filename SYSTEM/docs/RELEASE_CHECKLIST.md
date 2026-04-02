@@ -5,8 +5,10 @@ Use this as the final pass before the next dashboard release.
 ## 1. Environment and Startup
 
 - Copy values from [SYSTEM/dashboard/.env.example](../dashboard/.env.example) into `SYSTEM/dashboard/.env`
-- Confirm `CORS_ORIGIN=http://localhost:5174` for local dev
-- Confirm `DASHBOARD_APP_URL=http://localhost:5174` if you want explicit post-login/logout redirects
+- Confirm `CORS_ORIGIN=http://localhost:5173` for local dev
+- If another local dashboard is already using the defaults, use:
+  `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174`
+- Confirm `DASHBOARD_APP_URL=http://localhost:5173` if you want explicit post-login/logout redirects
 - Confirm `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are present
 - Confirm at least one system model key is set:
   - `SYSTEM_OPENAI_API_KEY`
@@ -37,10 +39,10 @@ Expected:
 
 ## 3. OAuth / Auth Flow
 
-- Open `http://localhost:5174`
+- Open `http://localhost:5173`
 - Verify login page loads with hero image and GitHub button
 - Login via GitHub
-- Verify redirect returns to `http://localhost:5174/`
+- Verify redirect returns to `http://localhost:5173/`
 - Verify user avatar/name and `Logout` are visible in the dashboard
 - Verify both logout affordances work:
   - top-right

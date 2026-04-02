@@ -105,7 +105,7 @@ ClawMax templates and workflows are open source and community-driven:
 
 - **OpenClaw** installed and running ([Installation Guide](https://docs.openclaw.ai))
   - **Tested Version**: commit `55c2aaf` (March 2026)
-  - **Version Note**: ClawMax v1.0.1 is tested with OpenClaw v0.3.0
+  - **Version Note**: ClawMax evolves quickly with OpenClaw. Prefer a recent OpenClaw build from March 2026 or later.
 - **Node.js** 18+ and npm
 - **Git** for cloning the repository
 - **API Keys** (required for agents):
@@ -155,6 +155,9 @@ cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
 
 # Dashboard will be available at http://localhost:5173
 # API server runs on http://localhost:3001
+
+# Alternate local ports when another instance is already running:
+DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh
 ```
 
 ### First Steps
@@ -181,7 +184,7 @@ cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
    - Save and enable
 
 5. **Explore Templates & DAG**
-   - Go to **Templates** and browse 15+ team templates by category (Business, Technical, Personal, Science, Travel, Hobbies, Family)
+   - Go to **Templates** and browse 35+ team templates by category (Business, Technical, Personal, Science, Travel, Hobbies, Family)
    - Try **"Technical Writing"** — creates a full writing team with editor, writers, reviewer, and publisher
    - Try **"ClawMax System Test"** — a test template with 3 agents and a 5-step workflow DAG (kickoff → sequential → parallel → final)
    - After applying a template, go to **Workflows** → click the **◇ DAG view** button to see the dependency graph
@@ -257,6 +260,15 @@ DASHBOARD_APP_URL=http://localhost:5173
 GitHub OAuth app values:
 - Homepage URL: `http://localhost:5173`
 - Callback URL: `http://localhost:3001/api/auth/github/callback`
+
+If you run on alternate local ports, keep the pair aligned. Example:
+
+```env
+DASHBOARD_PORT=3002
+DASHBOARD_CLIENT_PORT=5174
+DASHBOARD_APP_URL=http://localhost:5174
+CORS_ORIGIN=http://localhost:5174
+```
 
 Detailed setup and troubleshooting:
 - [SYSTEM/docs/OAUTH_SETUP.md](SYSTEM/docs/OAUTH_SETUP.md)
@@ -469,7 +481,7 @@ Visit **[ClawMax.ai](https://clawmax.ai)** for commercial offerings:
 
 **ClawMax Cloud**
 - Fully managed multiagent orchestration platform
-- Deploy teams from 15+ templates in minutes
+- Deploy teams from 35+ templates in minutes
 - Built-in workflow DAG visualization and monitoring
 - Shipables.dev skill marketplace integration
 - No infrastructure to manage

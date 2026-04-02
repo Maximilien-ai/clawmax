@@ -1,8 +1,15 @@
 # Backlog
 
-> Last updated: April 1, 2026
-> Deadline: Cloud deployment by April 1st, dashboard ready by March 26
-> Completed items archived — see CHANGELOG.md for full history
+> Last updated: April 2, 2026
+> Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
+
+## Today Focus — April 2, 2026
+
+- [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
+- [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
+- [ ] **Agent-to-agent direct messaging follow-through** — validate the post-merge user path on top of the new direct messaging API and close any UX/runtime gaps. GitHub: `#64`
+- [ ] **README.md release cleanup** — fix post-v1.2 drift and keep local port guidance explicit. GitHub: `#88`
+- [ ] **Backlog / docs archive consolidation** — trim stale sprint-only notes and keep one active source of truth. GitHub: `#89`
 
 ## CRITICAL — Dashboard Ready by March 26 (Wed)
 
