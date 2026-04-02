@@ -88,6 +88,13 @@ export async function validateOllamaConfig(
   fetchImpl: FetchLike = fetch
 ): Promise<IntegrationValidationResult> {
   const normalizedBaseUrl = normalizeOllamaBaseUrl(baseUrl)
+  const normalizedModel = defaultModel.trim()
+  if (!baseUrl.trim() && !normalizedModel) {
+    return skipped('Ollama is optional and not configured')
+  }
+  if (normalizedBaseUrl === 'http://localhost:11434' && !normalizedModel) {
+    return skipped('Ollama is optional and not configured')
+  }
   try {
     const res = await fetchImpl(`${normalizedBaseUrl}/api/tags`, {
       signal: AbortSignal.timeout(5000),
@@ -99,10 +106,10 @@ export async function validateOllamaConfig(
     const body = await res.json() as { models?: Array<{ name?: string }> }
     const models = (body.models || []).map((m) => (m.name || '').trim()).filter(Boolean)
     if (models.length === 0) return invalid('Connected to Ollama, but no local models are installed yet')
-    if (defaultModel.trim() && !models.includes(defaultModel.trim())) {
-      return invalid(`Ollama is reachable, but default model "${defaultModel.trim()}" is not installed`)
+    if (normalizedModel && !models.includes(normalizedModel)) {
+      return invalid(`Ollama is reachable, but default model "${normalizedModel}" is not installed`)
     }
-    return valid(defaultModel.trim() ? `Ollama is reachable and ${defaultModel.trim()} is available` : `Ollama is reachable with ${models.length} installed model(s)`)
+    return valid(normalizedModel ? `Ollama is reachable and ${normalizedModel} is available` : `Ollama is reachable with ${models.length} installed model(s)`)
   } catch (err: any) {
     return errored(`Ollama validation failed: ${err.message || 'connection error'}`)
   }

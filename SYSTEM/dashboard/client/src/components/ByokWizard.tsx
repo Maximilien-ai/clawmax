@@ -21,6 +21,7 @@ type IntegrationStatus = {
 export function ByokWizard() {
   const { user, config } = useAuth()
   const { showSuccess, showInfo, showWarning } = useToast()
+  const defaultOllamaBaseUrl = 'http://localhost:11434'
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('models')
   const [openaiKey, setOpenaiKey] = useState('')
@@ -47,6 +48,8 @@ export function ByokWizard() {
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
 
   useEffect(() => {
     const stored = readStoredByokKeys()
@@ -91,7 +94,8 @@ export function ByokWizard() {
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!sensoApiKey.trim()
   const opikConfigured = !!opikApiKey.trim()
-  const ollamaConfigured = !!ollamaBaseUrl.trim()
+  const normalizedOllamaBaseUrl = ollamaBaseUrl.trim()
+  const ollamaConfigured = !!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl)
 
   const providerChecks = useMemo(() => {
     const resolveSource = (provider: ProviderKey) => {
@@ -176,6 +180,38 @@ export function ByokWizard() {
       .catch(() => setGithubChecks([]))
   }, [open])
 
+  useEffect(() => {
+    if (!open || step !== 'models') return
+    const baseUrl = ollamaBaseUrl.trim()
+    if (!baseUrl) {
+      setOllamaModels([])
+      return
+    }
+
+    const controller = new AbortController()
+    const params = new URLSearchParams()
+    params.set('ollamaBaseUrl', baseUrl)
+
+    setOllamaModelsLoading(true)
+    fetch(`/api/agents/models?${params.toString()}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const providerModels = data?.modelsByProvider?.ollama?.models
+        const models = Array.isArray(providerModels)
+          ? providerModels.map((name: string) => name.replace(/^ollama\//, ''))
+          : []
+        setOllamaModels(models)
+      })
+      .catch(() => {
+        setOllamaModels([])
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setOllamaModelsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [open, step, ollamaBaseUrl])
+
   const statusText = useMemo(() => {
     if (hasDefaultUserKeys) return 'Default user keys available from env'
     if (hasStoredKeys) {
@@ -200,7 +236,7 @@ export function ByokWizard() {
   }, [opikApiKey, opikWorkspace, opikProject])
 
   const ollamaStatusText = useMemo(() => {
-    if (!ollamaConfigured) return 'Not configured — local open-source models are unavailable until Ollama is running'
+    if (!ollamaConfigured) return 'Not configured — local open-source models are optional and unavailable until Ollama is running'
     return `Base URL: ${ollamaBaseUrl}${ollamaDefaultModel ? ` · default: ${ollamaDefaultModel}` : ''}`
   }, [ollamaBaseUrl, ollamaConfigured, ollamaDefaultModel])
 
@@ -246,10 +282,18 @@ export function ByokWizard() {
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
       }
       setValidation(nextState)
-      const failures = Object.values(nextState).filter((entry) => entry.status === 'invalid' || entry.status === 'error')
+      const failures = Object.entries(nextState).filter(([, entry]) => entry.status === 'invalid' || entry.status === 'error')
       if (failures.length > 0) {
-        showWarning('Some integration checks failed. Review the messages before saving.')
-        return false
+        const labels: Record<string, string> = {
+          openai: 'OpenAI',
+          anthropic: 'Anthropic',
+          gemini: 'Gemini',
+          ollama: 'Ollama',
+          opik: 'Opik',
+        }
+        const failedNames = failures.map(([key]) => labels[key] || key).join(', ')
+        showWarning(`Some integration checks failed: ${failedNames}. Review the messages below. You can still save and complete optional integrations later.`)
+        return true
       }
       showSuccess('Integration checks completed')
       return true
@@ -262,7 +306,7 @@ export function ByokWizard() {
   }
 
   const handleSave = async () => {
-    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || ollamaBaseUrl.trim() || opikApiKey.trim())
+    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || opikApiKey.trim() || ollamaConfigured)
     if (shouldValidate) {
       const ok = await runValidation()
       if (!ok) return
@@ -457,6 +501,41 @@ export function ByokWizard() {
                       </div>
                       <input type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <input type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Installed Ollama models</div>
+                          {ollamaModelsLoading && (
+                            <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>
+                          )}
+                        </div>
+                        {ollamaModels.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {ollamaModels.map((model) => {
+                              const selected = ollamaDefaultModel.trim() === model
+                              return (
+                                <button
+                                  key={model}
+                                  type="button"
+                                  onClick={() => setOllamaDefaultModel(model)}
+                                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                                    selected
+                                      ? 'border-sky-500 bg-sky-100 text-sky-700 dark:border-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:border-sky-300 hover:text-sky-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-300'
+                                  }`}
+                                >
+                                  {model}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                            {ollamaModelsLoading
+                              ? 'Checking Ollama for installed models…'
+                              : 'No installed models found yet. Pull a model with Ollama, then reopen or update the base URL.'}
+                          </div>
+                        )}
+                      </div>
                       {renderValidation('ollama')}
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{ollamaStatusText}</div>
                     </div>
