@@ -1822,15 +1822,26 @@ INTEGRATION_START=$(date +%s)
 
 # Step 1: Create/activate system-test workspace
 echo -e "${YELLOW}→ Setting up system-test workspace...${NC}"
-SYSTEM_TEST_WS="system-test"
+SYSTEM_TEST_WS_NAME="ClawMax System Test"
+SYSTEM_TEST_WS_PATH="${HOME}/.openclaw/workspaces/clawmax-system-test"
+
+workspaces_json=$(apicurl "$API_BASE/api/workspaces")
+SYSTEM_TEST_WS=$(echo "$workspaces_json" | jq -r \
+  ".workspaces[] | select(.id==\"clawmax-system-test\" or .name==\"$SYSTEM_TEST_WS_NAME\" or .path==\"$SYSTEM_TEST_WS_PATH\") | .id" \
+  2>/dev/null | head -1)
 
 # Check if workspace exists, create if not
-ws_check=$(apicurl "$API_BASE/api/workspaces" | jq -r ".workspaces[] | select(.id==\"$SYSTEM_TEST_WS\") | .id" 2>/dev/null)
-if [ -z "$ws_check" ]; then
-  apicurl -X POST "$API_BASE/api/workspaces" \
+if [ -z "$SYSTEM_TEST_WS" ]; then
+  create_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
     -H 'Content-Type: application/json' \
-    -d "{\"name\":\"System Test\",\"id\":\"$SYSTEM_TEST_WS\"}" > /dev/null 2>&1
-  echo "  Created workspace: $SYSTEM_TEST_WS"
+    -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
+  SYSTEM_TEST_WS=$(echo "$create_result" | jq -r '.workspace.id // empty' 2>/dev/null)
+  if [ -n "$SYSTEM_TEST_WS" ]; then
+    echo "  Created workspace: $SYSTEM_TEST_WS"
+  else
+    fail "Failed to create system test workspace"
+    SYSTEM_TEST_WS="default"
+  fi
 fi
 
 # Activate system-test workspace
