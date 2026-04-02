@@ -87,6 +87,32 @@ export interface WorkflowExecution {
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
 }
 
+function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
+  if (workflow.status !== 'running') return workflow
+
+  const latestExecution = listExecutions(workflow.id, 1).at(-1)
+  if (!latestExecution) return workflow
+  if (latestExecution.status === 'running') return workflow
+
+  if (latestExecution.status === 'completed') {
+    return {
+      ...workflow,
+      status: 'completed',
+      progress: 100,
+    }
+  }
+
+  if (latestExecution.status === 'failed') {
+    return {
+      ...workflow,
+      status: 'blocked',
+      progress: Math.max(workflow.progress || 0, 100),
+    }
+  }
+
+  return workflow
+}
+
 // Helper: Generate ID from name
 function generateId(name: string): string {
   return name
@@ -381,7 +407,7 @@ export function getWorkflow(id: string): Workflow | null {
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const { data, content } = matter(fileContent)
 
-    return {
+    return reconcileWorkflowStateFromExecutions({
       id,
       name: data.name || '',
       description: data.description || '',
@@ -406,7 +432,7 @@ export function getWorkflow(id: string): Workflow | null {
       type: data.type,
       progress: data.progress,
       status: data.status,
-    }
+    })
   } catch (error) {
     console.error(`Error parsing workflow ${id}:`, error)
     return null
