@@ -1004,7 +1004,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                     <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
                       <div className="text-xs text-amber-800">
                         <span className="font-semibold">⚠️ Restart Unavailable</span>
-                        <p className="mt-1">openclaw-gateway not found in PATH</p>
+                        <p className="mt-1">openclaw CLI not found in PATH, so gateway restart commands are unavailable</p>
                       </div>
                     </div>
                   )}

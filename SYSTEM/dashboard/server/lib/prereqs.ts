@@ -7,7 +7,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { isGatewayConfigured } from './gateway-rpc'
+import { getConfiguredGatewayPort, isGatewayConfigured, isGatewayRunning } from './gateway-rpc'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from './dashboard-env'
 
 export interface PrereqCheck {
@@ -116,11 +116,11 @@ export function checkTemplatePrereqs(template: {
 
   // Gateway
   if (isGatewayConfigured()) {
-    try {
-      execSync('lsof -ti:18789', { stdio: 'pipe' })
-      checks.push({ id: 'gateway', label: 'Gateway', status: 'pass', message: 'Running on port 18789 (skills enabled)', category: 'infrastructure' })
-    } catch {
-      checks.push({ id: 'gateway', label: 'Gateway', status: 'warn', message: 'Configured but not running — skills will not work', fixHint: 'Run: openclaw gateway restart', category: 'infrastructure' })
+    const gatewayStatus = isGatewayRunning()
+    if (gatewayStatus.running) {
+      checks.push({ id: 'gateway', label: 'Gateway', status: 'pass', message: `Running on port ${gatewayStatus.port} (skills enabled)`, category: 'infrastructure' })
+    } else {
+      checks.push({ id: 'gateway', label: 'Gateway', status: 'warn', message: `Configured on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'} but not running — skills will not work`, fixHint: 'Run: openclaw gateway restart', category: 'infrastructure' })
     }
   } else {
     checks.push({ id: 'gateway', label: 'Gateway', status: 'warn', message: 'Not configured — agents will chat but cannot use skills', fixHint: 'Run: openclaw config set gateway.mode local && openclaw gateway restart', category: 'infrastructure' })

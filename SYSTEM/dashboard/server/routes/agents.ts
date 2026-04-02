@@ -6,7 +6,7 @@ import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
-import { getGatewayClient, isGatewayConfigured } from '../lib/gateway-rpc'
+import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
@@ -616,12 +616,8 @@ router.post('/doctor', async (req, res) => {
     hasOpenclawCli = true
   } catch {}
 
-  // Check gateway
-  let gatewayRunning = false
-  try {
-    require('child_process').execSync('lsof -ti:18789', { stdio: 'pipe' })
-    gatewayRunning = true
-  } catch {}
+  const gatewayStatus = isGatewayRunning()
+  const gatewayRunning = gatewayStatus.running
 
   // Read registered agents from openclaw.json
   const registeredIds = new Set<string>()
@@ -753,6 +749,7 @@ router.post('/doctor', async (req, res) => {
     platform: {
       cli: hasOpenclawCli,
       gateway: gatewayRunning,
+      gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort(),
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,

@@ -3,12 +3,35 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { randomUUID } from 'crypto'
+import { execSync } from 'child_process'
 
 interface GatewayConfig {
   port: number
   auth: {
     mode: string
     token: string
+  }
+}
+
+function loadGatewayConfigFromDisk(): GatewayConfig | null {
+  try {
+    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+    const content = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(content)
+
+    if (!config.gateway?.port || !config.gateway?.auth?.token) {
+      return null
+    }
+
+    return {
+      port: config.gateway.port,
+      auth: {
+        mode: config.gateway.auth.mode || 'token',
+        token: config.gateway.auth.token,
+      },
+    }
+  } catch {
+    return null
   }
 }
 
@@ -59,35 +82,11 @@ export class GatewayRPCClient {
   }
 
   private loadGatewayConfig(): GatewayConfig {
-    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
-
-    try {
-      const content = fs.readFileSync(configPath, 'utf-8')
-      const config = JSON.parse(content)
-
-      if (!config.gateway) {
-        throw new Error('No gateway configuration found in openclaw.json')
-      }
-
-      if (!config.gateway.port) {
-        throw new Error('Gateway port not configured')
-      }
-
-      if (!config.gateway.auth?.token) {
-        throw new Error('Gateway auth token not configured')
-      }
-
-      return {
-        port: config.gateway.port,
-        auth: {
-          mode: config.gateway.auth.mode || 'token',
-          token: config.gateway.auth.token
-        }
-      }
-    } catch (err) {
-      console.error('Error loading gateway config:', err)
+    const config = loadGatewayConfigFromDisk()
+    if (!config) {
       throw new Error('Failed to load gateway configuration')
     }
+    return config
   }
 
   /**
@@ -341,12 +340,21 @@ export function getGatewayClient(): GatewayRPCClient {
 }
 
 export function isGatewayConfigured(): boolean {
+  return !!loadGatewayConfigFromDisk()
+}
+
+export function getConfiguredGatewayPort(): number | null {
+  return loadGatewayConfigFromDisk()?.port ?? null
+}
+
+export function isGatewayRunning(): { running: boolean; port: number | null } {
+  const port = getConfiguredGatewayPort()
+  if (!port) return { running: false, port: null }
+
   try {
-    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
-    const content = fs.readFileSync(configPath, 'utf-8')
-    const config = JSON.parse(content)
-    return !!(config.gateway?.port && config.gateway?.auth?.token)
+    execSync(`lsof -ti:${port}`, { stdio: 'pipe' })
+    return { running: true, port }
   } catch {
-    return false
+    return { running: false, port }
   }
 }

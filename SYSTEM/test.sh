@@ -7,6 +7,10 @@
 # Usage: ./test.sh [--with-validation] [integration]
 #   --with-validation: Include sections 3-6 (validation tests that modify files)
 #   integration: Run integration tests with live agents (requires gateway + API keys)
+# Env overrides:
+#   DASHBOARD_PORT=3002
+#   DASHBOARD_CLIENT_PORT=5174
+#   DASHBOARD_APP_URL=http://localhost:5174
 #
 # WARNING: Validation tests (sections 3-6) modify live data files!
 # Run without --with-validation flag to skip them (recommended).
@@ -105,7 +109,7 @@ fi
 # Check dashboard server is running
 if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
   echo -e "  ${RED}✗${NC} Dashboard server not running on $API_BASE"
-  echo -e "    Start it with: ${YELLOW}DASHBOARD_PORT=${BACKEND_PORT} DASHBOARD_CLIENT_PORT=${FRONTEND_PORT} ./SYSTEM/start.sh${NC}"
+  echo -e "    Start it with: ${YELLOW}DASHBOARD_PORT=${BACKEND_PORT} DASHBOARD_CLIENT_PORT=${FRONTEND_PORT} DASHBOARD_APP_URL=${FRONTEND_URL} ./SYSTEM/start.sh${NC}"
   preflight_ok=false
 else
   echo -e "  ${GREEN}✓${NC} Dashboard server running on $API_BASE"
@@ -120,7 +124,7 @@ fi
 
 if [ "$preflight_ok" = false ]; then
   echo ""
-  echo -e "${RED}Pre-flight checks failed.${NC} Please run ${YELLOW}./setup.sh${NC} first, then ${YELLOW}./SYSTEM/start.sh${NC}"
+  echo -e "${RED}Pre-flight checks failed.${NC} Please run ${YELLOW}./setup.sh${NC} first, then ${YELLOW}./SYSTEM/start.sh${NC} with matching DASHBOARD_PORT / DASHBOARD_CLIENT_PORT if you are not on defaults 3001 / 5173."
   exit 1
 fi
 
