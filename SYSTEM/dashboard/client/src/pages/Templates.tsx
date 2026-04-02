@@ -4,6 +4,7 @@ import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import TemplateWizard from '../components/TemplateWizard'
+import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 
 interface AgentTemplate {
   name: string
@@ -457,6 +458,45 @@ export default function Templates() {
   const sortedAgentRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'agent'), [sortedTemplateRows])
   const sortedOrgRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'organization'), [sortedTemplateRows])
   const sortedWorkflowRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'workflow'), [sortedTemplateRows])
+  const templateSuggestionRows = React.useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const visibleOrgTemplates = categoryFilter === 'all'
+      ? orgTemplates
+      : orgTemplates.filter(t => (t as any).category === categoryFilter || t.tags?.includes(categoryFilter))
+    const candidateRows = [
+      ...agentTemplates.map(getTemplateRow),
+      ...visibleOrgTemplates.map(getTemplateRow),
+      ...workflowTemplates.map(getTemplateRow),
+    ]
+    const suggestions = getDiscoverySuggestions(
+      searchQuery,
+      candidateRows.map((row) => ({
+        id: row.key,
+        name: row.name,
+        description: (row.template as any).description || '',
+        type: row.type,
+        category: (row.template as any).category,
+        tags: row.tags,
+        keywords:
+          row.type === 'workflow'
+            ? [
+                ...(row.template as WorkflowTemplate).targeting.agents,
+                ...(row.template as WorkflowTemplate).targeting.groups,
+                ...(row.template as WorkflowTemplate).targeting.tags,
+                ...(row.template as WorkflowTemplate).targeting.communities,
+              ]
+            : (row.template as any).agents?.flatMap((agent: any) => [agent.id, agent.role, ...(agent.tags || [])]) || [],
+      })),
+      6
+    )
+    return suggestions
+      .map((suggestion) => ({
+        row: candidateRows.find((row) => row.key === suggestion.id),
+        reasons: suggestion.reasons,
+      }))
+      .filter((entry): entry is { row: TemplateRow; reasons: string[] } => !!entry.row)
+  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter])
+  const shouldShowTemplateSuggestions = !!searchQuery.trim() && templateSuggestionRows.length > 0 && totalFiltered < 4
 
   if (loading) {
     return (
@@ -768,6 +808,33 @@ export default function Templates() {
             <p className="text-gray-500 mb-4">
               No templates match your search query "{searchQuery}"
             </p>
+            {templateSuggestionRows.length > 0 && (
+              <div className="mb-5 w-full max-w-3xl rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-left">
+                <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
+                <div className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                  AI-assisted discovery based on names, descriptions, tags, categories, and roles.
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {templateSuggestionRows.map(({ row, reasons }) => (
+                    <button
+                      key={`suggest-empty-${row.key}`}
+                      onClick={() => setSelectedTemplate(row.template)}
+                      className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">
+                        {row.type} · {(row.template as any).category || row.author || 'template'}
+                      </div>
+                      {reasons.length > 0 && (
+                        <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                          You may want this for: {reasons.join(', ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               onClick={() => setSearchQuery('')}
               className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm"
@@ -778,6 +845,31 @@ export default function Templates() {
         ) : (
           viewMode === 'grid' ? (
           <div className="space-y-8">
+            {shouldShowTemplateSuggestions && (
+              <section className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4">
+                <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
+                <div className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                  AI-assisted discovery based on nearby names, descriptions, tags, categories, and roles.
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {templateSuggestionRows.map(({ row, reasons }) => (
+                    <button
+                      key={`suggest-${row.key}`}
+                      onClick={() => setSelectedTemplate(row.template)}
+                      className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">{row.type}</div>
+                      {reasons.length > 0 && (
+                        <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                          Matches: {reasons.join(', ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             {/* Agent Templates */}
             {filteredAgentTemplates.length > 0 && (
               <section>

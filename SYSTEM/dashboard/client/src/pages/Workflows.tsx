@@ -5,6 +5,7 @@ import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
+import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 
 interface AgentTargeting {
   communities: string[]
@@ -1047,6 +1048,37 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     return rows
   }, [filteredWorkflows, sortColumn, sortDirection, runningWorkflows])
+  const workflowSuggestions = React.useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const candidateWorkflows = selectedTags.size > 0
+      ? workflows.filter(w => w.targeting.tags.some(t => selectedTags.has(t)))
+      : workflows
+    const suggestions = getDiscoverySuggestions(
+      searchQuery,
+      candidateWorkflows.map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        tags: workflow.targeting.tags,
+        keywords: [
+          workflow.id,
+          ...workflow.targeting.agents,
+          ...workflow.targeting.groups,
+          ...workflow.targeting.communities,
+          workflow.executionMode,
+          workflow.schedule,
+        ],
+      })),
+      5
+    )
+    return suggestions
+      .map((suggestion) => ({
+        workflow: candidateWorkflows.find((workflow) => workflow.id === suggestion.id),
+        reasons: suggestion.reasons,
+      }))
+      .filter((entry): entry is { workflow: Workflow; reasons: string[] } => !!entry.workflow)
+  }, [workflows, searchQuery, selectedTags])
+  const shouldShowWorkflowSuggestions = !!searchQuery.trim() && workflowSuggestions.length > 0 && sortedWorkflows.length < 4
 
   const allVisibleSelected = sortedWorkflows.length > 0 && sortedWorkflows.every(workflow => selectedWorkflowIds.has(workflow.id))
   const selectedWorkflows = workflows.filter(workflow => selectedWorkflowIds.has(workflow.id))
@@ -1269,7 +1301,36 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="text-center text-gray-500 py-12">Loading workflows...</div>
         ) : sortedWorkflows.length === 0 ? (
           <div className="text-center text-gray-500 py-12">
-            {searchQuery ? 'No workflows match your search' : 'No workflows yet'}
+            {searchQuery ? (
+              <div className="mx-auto max-w-3xl">
+                <div>No workflows match your search</div>
+                {workflowSuggestions.length > 0 && (
+                  <div className="mt-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-left">
+                    <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
+                    <div className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                      AI-assisted discovery based on workflow names, descriptions, tags, and targets.
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {workflowSuggestions.map(({ workflow, reasons }) => (
+                        <button
+                          key={`workflow-suggest-empty-${workflow.id}`}
+                          onClick={() => fetchWorkflowDetails(workflow.id)}
+                          className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
+                        >
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
+                          {reasons.length > 0 && (
+                            <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                              You may want this for: {reasons.join(', ')}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : 'No workflows yet'}
           </div>
         ) : viewMode === 'dag' ? (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -1333,43 +1394,97 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             />
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedWorkflows.map(workflow => (
-              <WorkflowCard
-                key={workflow.id}
-                workflow={workflow}
-                onClick={() => fetchWorkflowDetails(workflow.id)}
-                onToggle={(enabled) => handleToggleEnabled(workflow.id, enabled)}
-                onDelete={() => handleDelete(workflow.id)}
-                onOpenFile={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
-                isSelected={selectedWorkflowIds.has(workflow.id)}
-                onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
-                isRunning={runningWorkflows.has(workflow.id)}
-                healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
-                totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
-              />
-            ))}
+          <div className="space-y-4">
+            {shouldShowWorkflowSuggestions && (
+              <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4">
+                <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
+                <div className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                  AI-assisted discovery based on nearby workflow names, descriptions, tags, and targets.
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {workflowSuggestions.map(({ workflow, reasons }) => (
+                    <button
+                      key={`workflow-suggest-${workflow.id}`}
+                      onClick={() => fetchWorkflowDetails(workflow.id)}
+                      className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
+                      {reasons.length > 0 && (
+                        <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                          Matches: {reasons.join(', ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedWorkflows.map(workflow => (
+                <WorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  onClick={() => fetchWorkflowDetails(workflow.id)}
+                  onToggle={(enabled) => handleToggleEnabled(workflow.id, enabled)}
+                  onDelete={() => handleDelete(workflow.id)}
+                  onOpenFile={() => onNavigateToDoc?.(`WORKFLOWS/${workflow.id}.md`)}
+                  isSelected={selectedWorkflowIds.has(workflow.id)}
+                  onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
+                  isRunning={runningWorkflows.has(workflow.id)}
+                  healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
+                  totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+                />
+              ))}
+            </div>
           </div>
         ) : (
-          <WorkflowsTable
-            workflows={sortedWorkflows}
-            selectionMode={selectionMode}
-            selectedWorkflowIds={selectedWorkflowIds}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            onToggleSelect={toggleWorkflowSelection}
-            onOpenWorkflow={fetchWorkflowDetails}
-            onToggleEnabled={handleToggleEnabled}
-            onDelete={handleDelete}
-            onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
-            runningWorkflows={runningWorkflows}
-            latestExecutionStatuses={latestExecutionStatuses}
-            totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
-            allVisibleSelected={allVisibleSelected}
-            onSelectVisible={selectVisibleWorkflows}
-            onDeselectVisible={deselectVisibleWorkflows}
-          />
+          <div className="space-y-4">
+            {shouldShowWorkflowSuggestions && (
+              <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4">
+                <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
+                <div className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                  AI-assisted discovery based on nearby workflow names, descriptions, tags, and targets.
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {workflowSuggestions.map(({ workflow, reasons }) => (
+                    <button
+                      key={`workflow-suggest-table-${workflow.id}`}
+                      onClick={() => fetchWorkflowDetails(workflow.id)}
+                      className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
+                      {reasons.length > 0 && (
+                        <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                          Matches: {reasons.join(', ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <WorkflowsTable
+              workflows={sortedWorkflows}
+              selectionMode={selectionMode}
+              selectedWorkflowIds={selectedWorkflowIds}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              onToggleSelect={toggleWorkflowSelection}
+              onOpenWorkflow={fetchWorkflowDetails}
+              onToggleEnabled={handleToggleEnabled}
+              onDelete={handleDelete}
+              onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
+              runningWorkflows={runningWorkflows}
+              latestExecutionStatuses={latestExecutionStatuses}
+              totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+              allVisibleSelected={allVisibleSelected}
+              onSelectVisible={selectVisibleWorkflows}
+              onDeselectVisible={deselectVisibleWorkflows}
+            />
+          </div>
         )}
       </div>
 
