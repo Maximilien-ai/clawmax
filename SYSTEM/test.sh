@@ -1819,7 +1819,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "INTEGRATION TESTS — Live Agent Execution"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Model: openai/gpt-4o-mini (cost-efficient)"
+echo "Model: server-selected cost-efficient default"
 echo ""
 
 INTEGRATION_START=$(date +%s)
@@ -1868,10 +1868,15 @@ for wf_id in $existing_wfs; do
   apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
 done
 
-# Apply system-test template with gpt-4o-mini
+# Apply system-test template with the server-selected cost-efficient model
+auth_config=$(apicurl "$API_BASE/api/auth/config")
+SYSTEM_TEST_MODEL=$(echo "$auth_config" | jq -r '.costEfficientModel // empty' 2>/dev/null)
+if [ -z "$SYSTEM_TEST_MODEL" ] || [ "$SYSTEM_TEST_MODEL" = "null" ]; then
+  SYSTEM_TEST_MODEL="openai/gpt-4o-mini"
+fi
 apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
   -H 'Content-Type: application/json' \
-  -d '{"templateSlug":"clawmax-system-test","modelOverride":"openai/gpt-4o-mini","agentCounts":{"test-agent":2}}')
+  -d "{\"templateSlug\":\"clawmax-system-test\",\"modelOverride\":\"$SYSTEM_TEST_MODEL\",\"agentCounts\":{\"test-agent\":2}}")
 
 if echo "$apply_result" | jq -e '.ok == true' > /dev/null 2>&1; then
   agent_count=$(echo "$apply_result" | jq '.agentIds | length')
@@ -1969,12 +1974,15 @@ apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-b" -H 'Content-Type: a
 apicurl -X PUT "$API_BASE/api/workflows/test-report" -H 'Content-Type: application/json' -d '{"dependsOn":["test-github","test-dag-parallel-a","test-dag-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
 pass "DAG dependencies configured"
 
-# Read BYOK keys from dashboard .env for agent execution
+# Read provider keys from dashboard .env for agent execution
 BYOK_ANTHROPIC=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
 BYOK_OPENAI=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
+BYOK_GEMINI=$(grep SYSTEM_GEMINI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
 BYOK_JSON="{}"
 if [ -n "$BYOK_OPENAI" ]; then
   BYOK_JSON="{\"openai\":\"$BYOK_OPENAI\"}"
+elif [ -n "$BYOK_GEMINI" ]; then
+  BYOK_JSON="{\"gemini\":\"$BYOK_GEMINI\"}"
 elif [ -n "$BYOK_ANTHROPIC" ]; then
   BYOK_JSON="{\"anthropic\":\"$BYOK_ANTHROPIC\"}"
 fi
@@ -2130,7 +2138,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Integration Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Duration: ${INTEGRATION_DURATION}s"
-echo "Model: openai/gpt-4o-mini"
+echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
 echo "Est. cost: ~\$0.01-0.05 (based on ~3 agent calls)"
 echo ""
 

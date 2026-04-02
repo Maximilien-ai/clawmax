@@ -56,7 +56,7 @@ function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): strin
 const isContainerMode = Object.keys(dashboardEnv).length === 0
 
 function hasAnyProviderKey(keys: ProviderKeys): boolean {
-  return !!(keys.openai || keys.anthropic)
+  return !!(keys.openai || keys.anthropic || keys.gemini)
 }
 
 export function getDashboardEnvRaw(): Record<string, string> {
@@ -108,24 +108,26 @@ export function resolveUserExecutionProviderKeys(
 }
 
 /**
- * Get the best available model based on configured API keys.
- * Prefers Anthropic (better for coding/reasoning) when both available.
+ * Get the best available hosted model based on configured API keys.
+ * Workspace-level Ollama preference is handled in integrations/template apply UI paths.
+ * Provider order: OpenAI → Gemini → Anthropic.
  */
 export function getBestAvailableModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
-  if (keys.anthropic) return 'anthropic/claude-opus-4-6'
-  if (keys.gemini) return 'gemini/gemini-2.5-pro'
   if (keys.openai) return 'openai/gpt-5'
-  return 'anthropic/claude-sonnet-4-20250514' // fallback — may fail without keys
+  if (keys.gemini) return 'gemini/gemini-2.5-pro'
+  if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
+  return 'openai/gpt-4o-mini' // fallback — may fail without keys
 }
 
 /**
- * Get a cost-efficient model for bulk/test operations.
+ * Get a cost-efficient hosted model for bulk/test operations.
+ * Provider order: OpenAI → Gemini → Anthropic.
  */
 export function getCostEfficientModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
-  if (keys.gemini) return 'gemini/gemini-2.5-flash'
   if (keys.openai) return 'openai/gpt-4o-mini'
+  if (keys.gemini) return 'gemini/gemini-2.5-flash'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
   return 'openai/gpt-4o-mini'
 }

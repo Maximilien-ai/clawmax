@@ -121,8 +121,8 @@ export function ByokWizard() {
 
     return [
       { id: 'openai', label: 'OpenAI', available: hasOpenAiAvailable, source: resolveSource('openai') },
-      { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
       { id: 'gemini', label: 'Gemini', available: hasGeminiAvailable, source: resolveSource('gemini') },
+      { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
     ]
   }, [
     anthropicKey,
@@ -434,9 +434,9 @@ export function ByokWizard() {
   }
 
   const discoveredPreferredOptions = [
-    ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
     ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai\//, '')} (OpenAI)` }))),
     ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^gemini\//, '')} (Gemini)` }))),
+    ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
     ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
   ]
   const uniquePreferredOptions = discoveredPreferredOptions.filter((option, index, arr) =>

@@ -1304,7 +1304,12 @@ export function importOrganizationTemplate(
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
         const { getBestAvailableModel: getBest } = require('./dashboard-env')
-        const appliedModel = options?.modelOverride || templateAgent.model || getBest()
+        const { readWorkspaceIntegrationConfig } = require('./workspace-integrations')
+        const integrationConfig = readWorkspaceIntegrationConfig()
+        const workspacePreferredModel =
+          integrationConfig.preferredModel
+          || (integrationConfig.ollamaDefaultModel ? `ollama/${integrationConfig.ollamaDefaultModel}` : undefined)
+        const appliedModel = options?.modelOverride || templateAgent.model || workspacePreferredModel || getBest()
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
