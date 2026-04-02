@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { buildLocalAgentArgs, resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
+import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -86,12 +86,6 @@ test('resolveAgentExecutionConfig detects ollama provider from model', () => {
   const resolved = resolveAgentExecutionConfig('test-ollama')
   assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected Ollama model to resolve')
   assert(resolved.provider === 'ollama', 'Expected provider derived from Ollama model')
-})
-
-test('buildLocalAgentArgs includes explicit model when provided', () => {
-  const args = buildLocalAgentArgs('test-ollama', 'hello', 'chat:123', 'ollama/qwen2.5:latest')
-  assert(args.includes('--model'), 'Expected explicit --model flag')
-  assert(args.includes('ollama/qwen2.5:latest'), 'Expected configured model included in args')
 })
 
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {

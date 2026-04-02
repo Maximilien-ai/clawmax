@@ -9,7 +9,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured } from '../lib/gateway-rpc'
-import { buildLocalAgentArgs, resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 
 const router = Router()
 
@@ -168,7 +168,7 @@ async function callAgent(agentId: string, message: string, sessionId: string, by
 
   return withTemporaryAgentAuthProfiles(agentId, providerKeys, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = buildLocalAgentArgs(agentId, message, sessionId, resolvedAgent.model)
+      const args = ['agent', '--agent', agentId, '--session-id', sessionId, '--message', message, '--json', '--local']
       const env = { ...safeEnv() }
       if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
       if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic

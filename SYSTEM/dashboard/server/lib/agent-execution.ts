@@ -65,21 +65,6 @@ export function resolveAgentExecutionConfig(agentId: string): {
   }
 }
 
-export function buildLocalAgentArgs(agentId: string, message: string, sessionId: string, model?: string): string[] {
-  return [
-    'agent',
-    '--agent',
-    agentId,
-    ...(model ? ['--model', model] : []),
-    '--session-id',
-    sessionId,
-    '--message',
-    message,
-    '--json',
-    '--local',
-  ]
-}
-
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
