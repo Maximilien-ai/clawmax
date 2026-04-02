@@ -40,6 +40,14 @@ const FALLBACK_MODELS = [
 ]
 
 type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
+type CustomizeStep = 'team' | 'context' | 'workflows' | 'agents'
+
+const CUSTOMIZE_STEPS: Array<{ id: CustomizeStep; label: string }> = [
+  { id: 'team', label: 'Team' },
+  { id: 'context', label: 'Context' },
+  { id: 'workflows', label: 'Workflows' },
+  { id: 'agents', label: 'Agents' },
+]
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
@@ -66,6 +74,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
+  const [customizeStep, setCustomizeStep] = useState<CustomizeStep>('team')
   const [prefilledGithubDefault, setPrefilledGithubDefault] = useState(false)
   const [prefilledSensoDefault, setPrefilledSensoDefault] = useState(false)
   const { showSuccess, showError: showToastError } = useToast()
@@ -463,7 +472,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         ) : null}
             <div className="flex justify-between mt-4">
               <button onClick={() => setWizardStep('preview')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Preview</button>
-              <button onClick={() => setWizardStep('customize')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors font-medium">Next: Customize &rarr;</button>
+              <button onClick={() => { setCustomizeStep('team'); setWizardStep('customize') }} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors font-medium">Next: Customize &rarr;</button>
             </div>
           </div>
         )}
@@ -478,9 +487,32 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           </div>
         )}
 
+        {wizardStep === 'customize' && (
+          <div className="mb-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {CUSTOMIZE_STEPS.map((step, index) => (
+                <React.Fragment key={step.id}>
+                  {index > 0 && <span className="text-gray-300 dark:text-gray-600">&rarr;</span>}
+                  <button
+                    onClick={() => !applying && setCustomizeStep(step.id)}
+                    disabled={applying}
+                    className={`px-2.5 py-1 rounded-full transition-colors ${
+                      customizeStep === step.id
+                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Customize: {step.label}
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-4">
           {/* Built-in Agents Option */}
-          {builtInAgents.length > 0 && (
+          {customizeStep === 'team' && builtInAgents.length > 0 && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <input
@@ -523,7 +555,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent Count Parameters */}
-          {template.parameters && template.parameters.length > 0 && (
+          {customizeStep === 'team' && template.parameters && template.parameters.length > 0 && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 dark:bg-green-900/20 dark:border-green-700">
               <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-3">Team Size</h3>
               <div className="space-y-3">
@@ -565,6 +597,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent ID Customization */}
+          {customizeStep === 'team' && (
           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-200 mb-3">Agent ID Customization</h3>
             <p className="text-xs text-sky-700 dark:text-sky-400 mb-3">
@@ -606,8 +639,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             </div>
           </div>
+          )}
 
           {/* External Context & Coordination */}
+          {customizeStep === 'context' && (
           <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">External Context & Coordination</h3>
             {(prefilledGithubDefault || prefilledSensoDefault) && (
@@ -721,9 +756,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             </div>
           </div>
+          )}
 
           {/* Customize Workflows — paginated wizard */}
-          {template.workflows && template.workflows.length > 0 && (
+          {customizeStep === 'workflows' && template.workflows && template.workflows.length > 0 && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -996,6 +1032,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
 
           {/* Agent List with Models (collapsible) */}
+          {customizeStep === 'agents' && (
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700">
             <button
               type="button"
@@ -1099,6 +1136,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -1111,12 +1149,39 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             Cancel
           </button>
           {wizardStep === 'customize' && (
-            <button
-              onClick={() => setWizardStep('deploy')}
-              className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
-            >
-              Next: Deploy &rarr;
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  const currentIndex = CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep)
+                  if (currentIndex <= 0) {
+                    setWizardStep('prereqs')
+                  } else {
+                    setCustomizeStep(CUSTOMIZE_STEPS[currentIndex - 1].id)
+                  }
+                }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                ← {CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep) === 0 ? 'Prereqs' : 'Previous'}
+              </button>
+              {customizeStep !== CUSTOMIZE_STEPS[CUSTOMIZE_STEPS.length - 1].id ? (
+                <button
+                  onClick={() => {
+                    const currentIndex = CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep)
+                    setCustomizeStep(CUSTOMIZE_STEPS[Math.min(CUSTOMIZE_STEPS.length - 1, currentIndex + 1)].id)
+                  }}
+                  className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
+                >
+                  Next: Customize {CUSTOMIZE_STEPS[CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep) + 1].label} →
+                </button>
+              ) : (
+                <button
+                  onClick={() => setWizardStep('deploy')}
+                  className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
+                >
+                  Next: Deploy &rarr;
+                </button>
+              )}
+            </>
           )}
           {wizardStep === 'deploy' && (
             <button
