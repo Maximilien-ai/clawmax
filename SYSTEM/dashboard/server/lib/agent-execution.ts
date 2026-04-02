@@ -67,8 +67,11 @@ export function resolveAgentExecutionConfig(agentId: string): {
 
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
   if (!model) return sessionId
-  const modelToken = model.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  return modelToken ? `${sessionId}:${modelToken}` : sessionId
+  const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const modelToken = model.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
+  if (!modelToken) return safeBase || 'chat'
+  const base = safeBase || 'chat'
+  return `${base}-${modelToken}`.slice(0, 80)
 }
 
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {

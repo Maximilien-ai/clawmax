@@ -90,7 +90,8 @@ test('resolveAgentExecutionConfig detects ollama provider from model', () => {
 
 test('scopeSessionIdToModel isolates chats across model changes', () => {
   const scoped = scopeSessionIdToModel('group:temp:test-agent1', 'ollama/qwen2.5:latest')
-  assert(scoped.includes('group:temp:test-agent1:'), 'Expected original session prefix preserved')
+  assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
+  assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
 })
 
