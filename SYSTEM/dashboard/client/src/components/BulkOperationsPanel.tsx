@@ -49,6 +49,7 @@ export default function BulkOperationsPanel({
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState('')
+  const [modelSearch, setModelSearch] = useState('')
   const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; emoji?: string }>>([])
   const [selectedSkillsToAdd, setSelectedSkillsToAdd] = useState<Set<string>>(new Set())
   const [skillSearch, setSkillSearch] = useState('')
@@ -174,6 +175,11 @@ export default function BulkOperationsPanel({
     else next.add(name)
     setSelectedGroups(next)
   }
+
+  const filteredModels = availableModels.filter((model) => {
+    if (!modelSearch.trim()) return true
+    return model.toLowerCase().includes(modelSearch.trim().toLowerCase())
+  })
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
@@ -363,11 +369,33 @@ export default function BulkOperationsPanel({
             {operation === 'model' && (
               <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="text-sm font-medium text-gray-700 mb-3 dark:text-gray-300">Select model:</div>
+                <div className="relative mb-3">
+                  <input
+                    type="text"
+                    value={modelSearch}
+                    onChange={e => setModelSearch(e.target.value)}
+                    placeholder="Search models..."
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 pr-9 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  {modelSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setModelSearch('')}
+                      className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      aria-label="Clear model search"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-1.5 max-h-60 overflow-y-auto">
                   {availableModels.length === 0 && (
                     <div className="text-sm text-gray-400">Loading models...</div>
                   )}
-                  {availableModels.map(model => (
+                  {availableModels.length > 0 && filteredModels.length === 0 && (
+                    <div className="text-sm text-gray-400">No models match your search.</div>
+                  )}
+                  {filteredModels.map(model => (
                     <label key={model} className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${selectedModel === model ? 'bg-cyan-50 dark:bg-cyan-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                       <input
                         type="radio"
