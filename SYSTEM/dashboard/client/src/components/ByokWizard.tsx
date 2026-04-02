@@ -266,6 +266,7 @@ export function ByokWizard() {
       const parts = [`Opik ${maskKey(opikApiKey)}`]
       if (opikWorkspace) parts.push(`workspace: ${opikWorkspace}`)
       if (opikProject) parts.push(`project: ${opikProject}`)
+      parts.push('server env required for live tracing')
       return parts.join(' · ')
     }
     return 'Not configured — ClawMax still works, but monitoring visibility may be reduced'
@@ -399,6 +400,21 @@ export function ByokWizard() {
   const handleReopen = () => {
     setStep('models')
     setOpen(true)
+  }
+
+  const handleCopyOpikEnv = async () => {
+    const snippet = [
+      `OPIK_API_KEY=${opikApiKey.trim() || '<your-opik-api-key>'}`,
+      `OPIK_WORKSPACE=${opikWorkspace.trim() || '<your-opik-workspace>'}`,
+      `OPIK_PROJECT_NAME=${opikProject.trim() || '<your-opik-project>'}`,
+    ].join('\n')
+
+    try {
+      await navigator.clipboard.writeText(snippet)
+      showSuccess('Copied OPIK_* env snippet. Paste into SYSTEM/dashboard/.env and restart the dashboard.')
+    } catch {
+      showWarning('Could not copy automatically. Select the generated OPIK_* values and paste them into SYSTEM/dashboard/.env.')
+    }
   }
 
   const renderValidation = (key: keyof ValidationState) => {
@@ -700,6 +716,9 @@ export function ByokWizard() {
                   <div className="mt-2 text-xs opacity-80">
                     Optional partner integration. Opik offers OSS and free-tier options. Login: <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">comet.com/site/products/opik</a>
                   </div>
+                  <div className="mt-2 text-xs opacity-80">
+                    Current limitation: browser-local Opik entry validates your account details, but live tracing still requires server-side <span className="font-mono">OPIK_API_KEY</span>, <span className="font-mono">OPIK_WORKSPACE</span>, and <span className="font-mono">OPIK_PROJECT_NAME</span> in <span className="font-mono">SYSTEM/dashboard/.env</span> plus a server restart.
+                  </div>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
@@ -721,13 +740,19 @@ export function ByokWizard() {
                   <div>
                     <label htmlFor="byok-opik-project" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik project name</label>
                     <input id="byok-opik-project" type="text" value={opikProject} onChange={(e) => setOpikProject(e.target.value)} placeholder="e.g. clawmax-agents" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    <p className="mt-1 text-xs text-gray-400">All agent traces will be logged under this project</p>
+                    <p className="mt-1 text-xs text-gray-400">All agent traces will be logged under this project once matching server env is configured and the dashboard restarts.</p>
                   </div>
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={() => setStep('senso')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCopyOpikEnv}
+                      className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Copy .env Snippet
+                    </button>
                     <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
                     <button onClick={() => setStep('github')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
                   </div>

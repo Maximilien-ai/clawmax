@@ -1491,34 +1491,37 @@ router.post('/bulk-model', async (req, res) => {
   const results: { id: string; ok: boolean; error?: string }[] = []
   for (const agentId of agentIds) {
     try {
+      const configUpdate = updateAgentModelInConfig(agentId, model)
+      if (!configUpdate.ok) {
+        results.push({ id: agentId, ok: false, error: configUpdate.error || 'Failed to update live model config' })
+        continue
+      }
+
       // Update IDENTITY.md
       const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
       const identityPath = path.join(agentDir, 'IDENTITY.md')
       if (fs.existsSync(identityPath)) {
         let content = fs.readFileSync(identityPath, 'utf-8')
-        if (/^-\s+\*\*Model:\*\*/m.test(content)) {
-          content = content.replace(/^-\s+\*\*Model:\*\*.*$/m, `- **Model:** ${model}`)
+        if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
+          content = content.replace(
+            /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
+            `- **Model:** ${model}`
+          )
+        } else if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
+          content = content.replace(
+            /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
+            `- **Model:** ${model}\n$&`
+          )
+        } else if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
+          content = content.replace(
+            /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
+            `$&\n- **Model:** ${model}`
+          )
         } else {
-          const lines = content.split('\n')
-          const insertIdx = lines.findIndex((l, i) => i > 0 && /^#+\s/.test(l))
-          if (insertIdx > 0) {
-            lines.splice(insertIdx, 0, `- **Model:** ${model}`, '')
-          } else {
-            lines.push('', `- **Model:** ${model}`)
-          }
-          content = lines.join('\n')
+          content = `${content.trimEnd()}\n\n- **Model:** ${model}\n`
         }
         fs.writeFileSync(identityPath, content, 'utf-8')
       }
-
-      // Update openclaw.json model
-      try {
-        const { updateAgentModelInConfigFile } = require('../lib/agent-execution')
-        const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
-        if (fs.existsSync(configPath)) {
-          updateAgentModelInConfigFile(configPath, agentId, model)
-        }
-      } catch {}
 
       results.push({ id: agentId, ok: true })
     } catch (err: any) {
@@ -1527,7 +1530,7 @@ router.post('/bulk-model', async (req, res) => {
   }
 
   const succeeded = results.filter(r => r.ok).length
-  res.json({ ok: true, updated: succeeded, total: agentIds.length, results })
+  res.json({ ok: succeeded === agentIds.length, updated: succeeded, total: agentIds.length, results })
 })
 
 // GET /api/agents/:id/cost-limit — get cost limit for a specific agent
