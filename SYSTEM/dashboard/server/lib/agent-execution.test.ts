@@ -64,6 +64,30 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
   assert(resolved.provider === 'openai', 'Expected provider derived from model')
 })
 
+test('resolveAgentExecutionConfig detects ollama provider from model', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-ollama')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** ollama/qwen2.5:latest\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-ollama', workspace: agentWorkspace, agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+
+  const resolved = resolveAgentExecutionConfig('test-ollama')
+  assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected Ollama model to resolve')
+  assert(resolved.provider === 'ollama', 'Expected provider derived from Ollama model')
+})
+
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')

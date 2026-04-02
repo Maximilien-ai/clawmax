@@ -18,6 +18,8 @@ interface AuthProfileFile {
   usageStats?: Record<string, any>
 }
 
+type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
+
 function readOpenClawAgentRecord(agentId: string): OpenClawAgentRecord | null {
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
@@ -28,10 +30,12 @@ function readOpenClawAgentRecord(agentId: string): OpenClawAgentRecord | null {
   }
 }
 
-function providerFromModel(model?: string): 'openai' | 'anthropic' | null {
+function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai/') || model.startsWith('gpt-') || model.startsWith('o1')) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
+  if (model.startsWith('gemini/') || model.startsWith('gemini-')) return 'gemini'
+  if (model.startsWith('ollama/') || model.includes(':')) return 'ollama'
   return null
 }
 
@@ -39,7 +43,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   workspace?: string
   agentDir?: string
-  provider?: 'openai' | 'anthropic' | null
+  provider?: ExecutionProvider
 } {
   const record = readOpenClawAgentRecord(agentId)
   const identityPath = record?.workspace
@@ -61,7 +65,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   }
 }
 
-function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'openai' | 'anthropic' | null): AuthProfileFile {
+function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
 
@@ -78,6 +82,12 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: 'open
       lastGood.anthropic = 'anthropic-key'
     }
   }
+  if (providerKeys.gemini) {
+    profiles['gemini-key'] = { type: 'api_key', provider: 'gemini', key: providerKeys.gemini }
+    if (preferredProvider === 'gemini' || (!providerKeys.openai && !providerKeys.anthropic)) {
+      lastGood.gemini = 'gemini-key'
+    }
+  }
 
   return {
     version: 1,
@@ -91,7 +101,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
   preferredModel: string | undefined,
-  preferredProvider: 'openai' | 'anthropic' | null | undefined,
+  preferredProvider: ExecutionProvider | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
   const execution = resolveAgentExecutionConfig(agentId)
@@ -115,6 +125,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
     effectiveModel = 'anthropic/claude-sonnet-4-20250514'
     effectiveProvider = 'anthropic'
     console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)
+  } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.openai) {
+    effectiveModel = 'openai/gpt-4o'
+    effectiveProvider = 'openai'
+    console.log(`[Auth] Agent ${agentId}: no Gemini key, falling back to ${effectiveModel}`)
+  } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.anthropic) {
+    effectiveModel = 'anthropic/claude-sonnet-4-20250514'
+    effectiveProvider = 'anthropic'
+    console.log(`[Auth] Agent ${agentId}: no Gemini key, falling back to ${effectiveModel}`)
   }
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)

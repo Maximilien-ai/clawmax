@@ -162,9 +162,9 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string }): Promise<string> {
+async function callAgent(agentId: string, message: string, _sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
-  const providerKeys = { openai: byokKeys?.openai, anthropic: byokKeys?.anthropic }
+  const providerKeys = { openai: byokKeys?.openai, anthropic: byokKeys?.anthropic, gemini: byokKeys?.gemini }
 
   return withTemporaryAgentAuthProfiles(agentId, providerKeys, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
@@ -172,6 +172,8 @@ async function callAgent(agentId: string, message: string, _sessionId: string, b
       const env = { ...safeEnv() }
       if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
       if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic
+      if (byokKeys?.gemini) env.GEMINI_API_KEY = byokKeys.gemini
+      if (byokKeys?.ollamaBaseUrl) env.OLLAMA_BASE_URL = byokKeys.ollamaBaseUrl
       const proc = spawn('openclaw', args, { env })
 
     let stdout = ''
@@ -529,7 +531,7 @@ router.get('/communities/:name/messages', (req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -609,7 +611,7 @@ router.get('/groups/:name/messages', (req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
