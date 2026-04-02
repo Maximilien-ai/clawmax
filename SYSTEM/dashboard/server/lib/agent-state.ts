@@ -7,11 +7,13 @@ interface AgentState {
   costLimits: Record<string, number> // agentId -> USD limit
 }
 
-const STATE_PATH = path.join(getWorkspacePath(), 'SYSTEM', 'agent-state.json')
+function getStatePath(): string {
+  return path.join(getWorkspacePath(), 'SYSTEM', 'agent-state.json')
+}
 
 function loadState(): AgentState {
   try {
-    const raw = fs.readFileSync(STATE_PATH, 'utf-8')
+    const raw = fs.readFileSync(getStatePath(), 'utf-8')
     const parsed = JSON.parse(raw)
     return {
       paused: Array.isArray(parsed.paused) ? parsed.paused : [],
@@ -23,9 +25,10 @@ function loadState(): AgentState {
 }
 
 function saveState(state: AgentState): void {
-  const dir = path.dirname(STATE_PATH)
+  const statePath = getStatePath()
+  const dir = path.dirname(statePath)
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
+  fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8')
 }
 
 export function getPausedAgents(): Set<string> {
