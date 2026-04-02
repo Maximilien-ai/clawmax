@@ -1438,7 +1438,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
           <div className="flex items-center gap-1.5">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.name}</h3>
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold shrink-0">
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -1867,7 +1867,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
         <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
         {unreadCount > 0 && (
-          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold shrink-0">
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
