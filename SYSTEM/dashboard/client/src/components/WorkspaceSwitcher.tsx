@@ -391,7 +391,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                 }`}
               >
                 <div
-                  className={`flex items-center gap-3 px-4 py-2.5 pr-20 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  className={`flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                     workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
@@ -462,9 +462,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       </div>
                     </div>
                   </button>
-                </div>
-                {/* Action buttons */}
-                <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="ml-2 flex shrink-0 items-center gap-1 self-start opacity-70 transition-opacity group-hover:opacity-100">
                   {/* Edit button */}
                   <button
                     onClick={(e) => {
@@ -474,25 +472,27 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     }}
                     className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-all"
                     title="Edit workspace"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            exportWorkspace(workspace)
-                          }}
-                          className="p-2 rounded-md text-gray-400 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          title="Export workspace"
-                        >
-                          ⤓
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openDashboardManager(workspace)
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      exportWorkspace(workspace)
+                    }}
+                    className="p-1 text-gray-500 hover:bg-gray-100 hover:text-emerald-500 dark:hover:bg-gray-700 rounded transition-all"
+                    title="Export workspace"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4m-5 8h18" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openDashboardManager(workspace)
                     }}
                     className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-all"
                     title="Manage workspace dashboard"
@@ -514,6 +514,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
+                  </div>
                 </div>
               </div>
             ))}

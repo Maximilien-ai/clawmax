@@ -17,6 +17,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Runtime defaults follow-through** — saved Senso context and GitHub repo defaults now persist per workspace and flow into template apply plus workflow execution context
 - **Safer template import validation** — `TEMPLATE.md` imports are schema-validated before save
 - **Search suggestions** — Templates and Workflows now suggest nearby starting points when search is weak or empty
+- **Workspace export and clean-slate testing** — workspace exports download cleanly, system-test cleanup is cleaner, and `SYSTEM/test.sh` supports custom dashboard ports for repeatable validation
+- **DAG rerun truthfulness** — rerunning upstream workflows now resets downstream progress instead of reusing stale completion state
+- **Packaged skills in Skills Manager** — built-in ClawMax skills like `workspace-ls` now show up in the catalog consistently
+- **UI polish** — workspace switcher actions no longer overlap long workspace names, unread badges are visible again, and DAG connectors stay aligned across zoom levels
 
 ## 🔥 Previously in v1.2.0
 

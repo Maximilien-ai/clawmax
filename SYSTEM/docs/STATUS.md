@@ -2,13 +2,13 @@
 
 **Current Version**: v1.2.1
 **Last Updated**: April 2, 2026
-**Status**: Point release ready — integrations follow-through, import validation, and discovery suggestions are on main
+**Status**: Point release ready — integrations follow-through, export reliability, clean-slate system testing, and rerun truthfulness are on main
 
 ---
 
 ## Current State
 
-- `v1.2.1` ready on main — integrations polish, runtime follow-through, import validation, and discovery suggestions
+- `v1.2.1` ready on main — integrations polish, runtime follow-through, export reliability, clean-slate system testing, and discovery suggestions
 - 39 organization templates + 12 reusable agent templates across Business, Technical, Personal, Science, Travel, Hobbies, and Family
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
@@ -27,9 +27,17 @@
 ### Runtime and Validation
 - workspace-level Senso and GitHub defaults now persist and flow into apply/runtime paths
 - `TEMPLATE.md` imports now validate against the shared schema before save
+- rerunning an upstream workflow now resets the downstream DAG branch for a truthful fresh run
+- group-targeted workflows now explicitly use the current workflow group channel rather than stale session-label assumptions
 
 ### Discovery
 - Templates and Workflows search now suggests nearby starting points when exact matches are weak or absent
+
+### Export, Test, and Catalog Polish
+- workspace zip exports download reliably and include a recovery manifest
+- deleting agents fully removes shared test residue from `~/.openclaw/agents`
+- `SYSTEM/test.sh` supports custom dashboard ports and resolves the real system-test workspace cleanly
+- packaged ClawMax repo skills like `workspace-ls` now appear in Skills Manager
 
 ## v1.2.0 — Expansion Release
 

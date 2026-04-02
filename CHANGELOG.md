@@ -15,6 +15,20 @@ All notable changes to ClawMax are documented here.
 - **Runtime Follow-Through** — saved GitHub repo and Senso context defaults now flow into template apply, workflow structured inputs, and runtime context
 - **Template Import Schema Validation** — `TEMPLATE.md` imports now validate against the shared schema before save
 
+### Fixes — Testing, Export, and Workflow Reliability
+- **Workspace Export Reliability** — workspace zip exports no longer truncate on download, and exported workspaces include a recovery manifest
+- **System Test Cleanup** — deleting agents now removes shared agent-state residue so test runs do not pollute future workspaces
+- **System Test Workspace Resolution** — `SYSTEM/test.sh` now resolves the real system-test workspace id/path and supports custom dashboard ports cleanly
+- **Workflow Rerun Reset** — rerunning an upstream workflow now recursively resets downstream DAG progress/status instead of showing stale completion from an earlier run
+- **System Test Group Messaging Guidance** — group-targeted system-test workflows now use the current workflow group channel rather than depending on separate session labels
+
+### Fixes — Skills, Doctor, and UI Polish
+- **Packaged ClawMax Skills in Catalog** — repo-root packaged skills such as `workspace-ls` now appear in Skills Manager instead of only showing as assigned orphan skills
+- **Doctor / Prereq Messaging** — gateway and key warnings better reflect configured ports and browser BYOK reality
+- **Bulk Model Search** — bulk model operations now include live search with quick clear
+- **Workspace Switcher Actions Layout** — workspace row actions no longer overlap long workspace names
+- **DAG Connector / Unread Badge Polish** — workflow connector lines align correctly across zoom levels and Communication unread badges are visible again
+
 ### Features — Discovery
 - **Template / Workflow Suggestions** — search now suggests nearby templates and workflows instead of dead-ending on weak or empty matches
 
