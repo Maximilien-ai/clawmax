@@ -12,6 +12,7 @@ import { isGatewayConfigured } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
+import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -773,6 +774,8 @@ export function triggerWorkflow(workflowId: string, options?: {
       status: 'pending' as const
     }))
 
+    const integrationDefaults = readWorkspaceIntegrationConfig()
+
     // Parse structured inputs from workflow content (e.g., **Label:** value)
     const inputs: Record<string, string> = {}
     const content = workflow.content || ''
@@ -785,6 +788,24 @@ export function triggerWorkflow(workflowId: string, options?: {
         inputs[label] = value
       }
     }
+
+    if (integrationDefaults.githubDefaultRepo && !Object.keys(inputs).some((key) => /github repo/i.test(key))) {
+      inputs['GitHub repo'] = integrationDefaults.githubDefaultRepo
+    }
+    if (integrationDefaults.sensoContextLabel && !Object.keys(inputs).some((key) => /senso context|senso folder|context label/i.test(key))) {
+      inputs['Senso context'] = integrationDefaults.sensoContextLabel
+    }
+
+    const runtimeContextLines: string[] = []
+    if (integrationDefaults.githubDefaultRepo && !content.includes(integrationDefaults.githubDefaultRepo)) {
+      runtimeContextLines.push(`- GitHub repo: \`${integrationDefaults.githubDefaultRepo}\``)
+    }
+    if (integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
+      runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
+    }
+    const executionMessage = runtimeContextLines.length > 0
+      ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
+      : (workflow.content || 'Execute workflow')
 
     // Create execution record with participants and inputs
     const execution: WorkflowExecution = {
@@ -816,7 +837,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const useLocal = !isGatewayConfigured()
-            const args = ['agent', '--agent', participant.agentId, '--message', workflow.content || 'Execute workflow', '--json', ...(useLocal ? ['--local'] : [])]
+            const args = ['agent', '--agent', participant.agentId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
@@ -910,7 +931,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
 
           // Trace individual agent call to Opik
-          traceAgentChat(participant.agentId, workflow.content || '', agentText, {
+          traceAgentChat(participant.agentId, executionMessage, agentText, {
             model: agentMeta.model,
             provider: agentMeta.provider,
             inputTokens: agentMeta.usage?.input,

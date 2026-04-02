@@ -97,6 +97,26 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         return stored.sensoContextLabel!.trim()
       })
     }
+    fetch('/api/integrations/config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const config = data?.config || {}
+        if (config.githubDefaultRepo?.trim()) {
+          setGithubRepo((current) => {
+            if (current) return current
+            setPrefilledGithubDefault(true)
+            return config.githubDefaultRepo.trim()
+          })
+        }
+        if (config.sensoContextLabel?.trim()) {
+          setSensoFolder((current) => {
+            if (current) return current
+            setPrefilledSensoDefault(true)
+            return config.sensoContextLabel.trim()
+          })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   React.useEffect(() => {

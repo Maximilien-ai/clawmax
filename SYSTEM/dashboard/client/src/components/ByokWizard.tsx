@@ -66,6 +66,23 @@ export function ByokWizard() {
     setHydrated(true)
   }, [])
 
+  useEffect(() => {
+    if (!hydrated) return
+    fetch('/api/integrations/config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const config = data?.config || {}
+        setPreferredModel((current) => current || config.preferredModel || '')
+        setGithubDefaultRepo((current) => current || config.githubDefaultRepo || '')
+        setSensoContextLabel((current) => current || config.sensoContextLabel || '')
+        setOllamaBaseUrl((current) => (current && current !== 'http://localhost:11434') ? current : (config.ollamaBaseUrl || current))
+        setOllamaDefaultModel((current) => current || config.ollamaDefaultModel || '')
+        setOpikWorkspace((current) => current || config.opikWorkspace || '')
+        setOpikProject((current) => current || config.opikProject || '')
+      })
+      .catch(() => {})
+  }, [hydrated])
+
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini)
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
@@ -267,11 +284,24 @@ export function ByokWizard() {
       githubDefaultRepo: githubDefaultRepo.trim(),
       preferredModel: preferredModel || undefined,
     })
+    await fetch('/api/integrations/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        preferredModel: preferredModel || undefined,
+        githubDefaultRepo: githubDefaultRepo.trim() || undefined,
+        sensoContextLabel: sensoContextLabel.trim() || undefined,
+        ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
+        ollamaDefaultModel: ollamaDefaultModel.trim() || undefined,
+        opikWorkspace: opikWorkspace.trim() || undefined,
+        opikProject: opikProject.trim() || undefined,
+      }),
+    }).catch(() => {})
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
     setStep('models')
-    showSuccess('Workspace integrations saved locally for this browser')
+    showSuccess('Workspace integrations saved. Provider secrets stay local; workspace defaults now persist for this workspace.')
   }
 
   const handleSkip = () => {
@@ -320,7 +350,7 @@ export function ByokWizard() {
               <div>
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspaces Integrations</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Dev preview. These settings stay local to this browser for now and are meant for flow testing, not final secure storage.
+                  Dev preview. Provider secrets stay local to this browser for now. Non-secret workspace defaults persist per workspace for template apply and runtime follow-through.
                 </p>
               </div>
               <button

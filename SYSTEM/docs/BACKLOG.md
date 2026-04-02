@@ -5,18 +5,16 @@
 
 ## Today Focus — April 2, 2026
 
-- [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
 - [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Agent-to-agent direct messaging follow-through** — validate the post-merge user path on top of the new direct messaging API and close any UX/runtime gaps. GitHub: `#64`
-- [ ] **README.md release cleanup** — fix post-v1.2 drift and keep local port guidance explicit. GitHub: `#88`
-- [ ] **Backlog / docs archive consolidation** — trim stale sprint-only notes and keep one active source of truth. GitHub: `#89`
+- [ ] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
 
 ## April Launch Readiness
 
 ### Immediate Demo / Release Blockers
 - [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
 - [x] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable. GitHub: `#75`
-- [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
+- [x] **Workspaces Integrations deeper runtime follow-through** — non-secret workspace defaults now persist per workspace and flow through template apply plus workflow execution inputs/runtime context. Keep the live end-to-end verification pass as a separate launch-readiness item. GitHub: `#77`
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 
 ### Security (Sprint Priority #1)
@@ -39,44 +37,19 @@
 - [x] **Workflow output + artifact normalization for dashboards** — shared dashboards now normalize participant-result summaries plus labeled artifact links and workspace file references into a consistent result surface.
 - [x] **Workspace dashboard compact reorder bug** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target.
 
-## Deep Agents Hack — March 27 (immediate)
-> Plan: `docs/hacks/deep-agents-hack/PLAN.md`
+## Hack / Research
 
-### Hackathon Deliverables
-
-### Backlog from Hackathon
-- [x] **Chat message normalization** — server-side: normalize gateway payloads before sending to client, strip JSON wrappers, ANSI codes, and internal metadata at the API layer instead of client-side regex. Currently the client does best-effort parsing of raw gateway formats (`[ { id, from, content } ]`, `{ payloads }`) which is fragile.
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
-- [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
-- [ ] **Imported Shipables skills emoji/metadata** — skills imported from registry don't show emoji in skill cards
-- [ ] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
-- [x] **Templates explorer org/agent grouping and collapse** — allow users to collapse or expand organization templates vs agent templates for easier browsing as the catalog grows. GitHub: `#82`
-- [x] **Expand agent template library from org-template agents** — promote stronger org-template agents into richer reusable agent templates with deeper starter instructions and clearer reuse paths. GitHub: `#83`
-- [x] **Template delete confirmation dialog** — deleting a user-created template from the trash button should use the same consequences + confirm dialog pattern as other destructive deletes instead of deleting immediately.
-- [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
-
-### Backlog from March 28 Sprint + Live Execution
-- [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to IDENTITY.md so agents remember across sessions
+- [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers
+- [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
 - [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
-- [ ] **DAG auto-advance on cron triggers** — currently only manual triggers cascade; cron-triggered completions should also advance DAG
-
-### Discovered During Manual + CLI Testing (March 29)
-- [x] **Budget exceeded error unclear** — when workspace budget is exceeded, workflow execution fails but error message doesn't mention budget as the cause. Should say "Workflow blocked: workspace budget exceeded"
-- [x] **Per-workspace budget isolation** — budget appears to apply across all workspaces but users set it per workspace. Need workspace slug in Opik traces and per-workspace cost tracking
-- [x] **Workflow customization field validation** — validate user inputs in Apply modal (e.g., GitHub repo exists via API, URLs are valid, required fields not empty). GitHub: `#69`
-
-### Workflow Import / Export
-- [x] **Import workflow from WORKFLOW.md** — add first-pass workflow import UX in the Workflows page, matching agent import patterns where sensible. Support paste/upload of `WORKFLOW.md` content into the existing parser/import route. GitHub: `#76`
-
-### Customer Request: OpenClaw Agent Import/Export (HIGH PRIORITY)
-- [x] **Import OpenClaw agent into ClawMax** — import from `~/.openclaw/agents/` with IDENTITY.md, SOUL.md, TOOLS.md, skills, groups, communities
-- [x] **Export ClawMax agent to OpenClaw** — export agent as zip or to `~/.openclaw/agents/` with all config + skills
-- [ ] **Bulk import/export** — multiple agents at once
-- [x] **Integration test** — round-trip: create → export → import → verify identity, skills, groups preserved
-
-### Spec Team Issues (clawmax #52, #53)
+- [ ] **DAG auto-advance on cron triggers** — cron-triggered completions should also advance DAG
+- [ ] **Bulk import/export for OpenClaw agents** — multiple agents at once
+- [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
+- [ ] **Template breadth publication** — publish additional non-showcase template specs after the selected flows stabilize
+- [ ] **Demo / research hardening** — re-run high-value template flows end-to-end without manual unblocks and keep runtime mismatches visible
 
 ## Active Product Work
 
@@ -96,7 +69,6 @@
 - [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
 
 ### Integrations & Runtime
-- [ ] **Workspaces Integrations deeper runtime follow-through** — make saved Senso and GitHub defaults reliably flow through real runtime paths, not just local settings and template prefill. Verify live Senso/GitHub behavior during apply, workflow execution, and restarted dashboard sessions. GitHub: `#77`
 - [ ] **OAuth clean-room auth test** — run end-to-end on a fresh machine/config and document exact setup failures
 - [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
