@@ -25,29 +25,54 @@
   "communities": [
     {
       "name": "Trip Memory Studio",
-      "description": "Shared coordination space for trip memory studio."
+      "description": "Shared coordination space for trip memory studio.",
+      "tags": [
+        "travel",
+        "memories",
+        "trip-memory-studio"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Capture",
       "community": "Trip Memory Studio",
-      "description": "Photos, notes, snippets, and daily highlight collection."
+      "description": "Photos, notes, snippets, and daily highlight collection.",
+      "tags": [
+        "travel",
+        "trip-memory-studio",
+        "capture"
+      ]
     },
     {
       "name": "Curate",
       "community": "Trip Memory Studio",
-      "description": "Selection, sorting, and story shaping for the trip."
+      "description": "Selection, sorting, and story shaping for the trip.",
+      "tags": [
+        "travel",
+        "trip-memory-studio",
+        "curate"
+      ]
     },
     {
       "name": "Share",
       "community": "Trip Memory Studio",
-      "description": "Albums, recap drafts, and things to send or print."
+      "description": "Albums, recap drafts, and things to send or print.",
+      "tags": [
+        "travel",
+        "trip-memory-studio",
+        "share"
+      ]
     },
     {
       "name": "Status",
       "community": "Trip Memory Studio",
-      "description": "Current progress, missing pieces, and final outputs."
+      "description": "Current progress, missing pieces, and final outputs.",
+      "tags": [
+        "travel",
+        "trip-memory-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -134,7 +159,13 @@
       },
       "content": "# Memory Kickoff\n\nYou are the Memory Lead. The trip memory studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Trip name:** [destination or trip title]\n- **Media inputs:** [photos, notes, videos, voice memos, custom]\n- **Audience:** [private archive, family, friends, public, custom]\n- **Output artifact:** [album, recap note, highlight reel plan, printed keepsake]\n\n## Your Tasks\n1. Define the story goal for the trip recap\n2. Ask Highlight Collector for the strongest moments and gaps\n3. Ask Story Editor for the first recap structure\n4. Ask Sharing Coordinator for the best sharing format\n5. Post the current memory plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "travel",
+        "trip-memory-studio",
+        "memory-kickoff"
+      ]
     },
     {
       "id": "highlight-curation",
@@ -160,6 +191,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "memory-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "trip-memory-studio",
+        "highlight-curation"
       ]
     }
   ]

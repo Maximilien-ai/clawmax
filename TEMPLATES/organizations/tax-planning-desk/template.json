@@ -28,61 +28,125 @@
       "id": "tax-lead",
       "name": "Tax Lead",
       "role": "Planning lead — defines the tax question, evidence needed, and planning horizon for the user.",
-      "tags": ["lead", "tax", "planning"],
-      "communities": ["Tax Desk"],
-      "groups": ["Documents", "Strategy", "Deadlines", "Status"]
+      "tags": [
+        "lead",
+        "tax",
+        "planning"
+      ],
+      "communities": [
+        "Tax Desk"
+      ],
+      "groups": [
+        "Documents",
+        "Strategy",
+        "Deadlines",
+        "Status"
+      ]
     },
     {
       "id": "document-organizer",
       "name": "Document Organizer",
       "role": "Document specialist — identifies missing forms, organizes records, and tracks what is ready versus incomplete.",
-      "tags": ["tax", "documents", "organization"],
-      "communities": ["Tax Desk"],
-      "groups": ["Documents", "Status"]
+      "tags": [
+        "tax",
+        "documents",
+        "organization"
+      ],
+      "communities": [
+        "Tax Desk"
+      ],
+      "groups": [
+        "Documents",
+        "Status"
+      ]
     },
     {
       "id": "deduction-reviewer",
       "name": "Deduction Reviewer",
       "role": "Review specialist — checks likely deduction or credit categories, edge cases, and areas needing professional confirmation.",
-      "tags": ["tax", "deductions", "review"],
-      "communities": ["Tax Desk"],
-      "groups": ["Strategy", "Status"]
+      "tags": [
+        "tax",
+        "deductions",
+        "review"
+      ],
+      "communities": [
+        "Tax Desk"
+      ],
+      "groups": [
+        "Strategy",
+        "Status"
+      ]
     },
     {
       "id": "deadline-tracker",
       "name": "Deadline Tracker",
       "role": "Deadline specialist — tracks filing dates, estimated payment windows, and the next action sequence for the user.",
-      "tags": ["tax", "deadlines", "planning"],
-      "communities": ["Tax Desk"],
-      "groups": ["Deadlines", "Status"]
+      "tags": [
+        "tax",
+        "deadlines",
+        "planning"
+      ],
+      "communities": [
+        "Tax Desk"
+      ],
+      "groups": [
+        "Deadlines",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Tax Desk",
-      "description": "Shared space for personal tax planning, records review, and deadline tracking."
+      "description": "Shared space for personal tax planning, records review, and deadline tracking.",
+      "tags": [
+        "personal",
+        "taxes",
+        "tax-planning-desk",
+        "tax-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Documents",
       "description": "Tax forms, receipts, records, and missing-document tracking.",
-      "community": "Tax Desk"
+      "community": "Tax Desk",
+      "tags": [
+        "personal",
+        "tax-planning-desk",
+        "documents"
+      ]
     },
     {
       "name": "Strategy",
       "description": "Potential planning moves, deduction review, and areas needing professional guidance.",
-      "community": "Tax Desk"
+      "community": "Tax Desk",
+      "tags": [
+        "personal",
+        "tax-planning-desk",
+        "strategy"
+      ]
     },
     {
       "name": "Deadlines",
       "description": "Filing dates, payment windows, and sequencing of next actions.",
-      "community": "Tax Desk"
+      "community": "Tax Desk",
+      "tags": [
+        "personal",
+        "tax-planning-desk",
+        "deadlines"
+      ]
     },
     {
       "name": "Status",
       "description": "Readiness, blockers, open questions, and final planning recommendations.",
-      "community": "Tax Desk"
+      "community": "Tax Desk",
+      "tags": [
+        "personal",
+        "tax-planning-desk",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -96,12 +160,25 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["lead"],
-        "agents": ["tax-lead", "document-organizer", "deduction-reviewer", "deadline-tracker"]
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "tax-lead",
+          "document-organizer",
+          "deduction-reviewer",
+          "deadline-tracker"
+        ]
       },
       "content": "# Tax Kickoff\n\nYou are the Tax Lead. The personal tax planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Tax year or period:** [e.g., 2025 filing, quarterly estimate review]\n- **Primary question:** [e.g., readiness, deduction review, entity choice, estimated payments]\n- **Known tax documents:** [W-2, 1099, K-1, receipts, brokerage statements, custom]\n- **Open concerns:** [e.g., RSUs, self-employment, multi-state, charitable giving]\n- **Output artifact:** [tax readiness memo, missing-doc list, deadline checklist]\n\n## Your Tasks\n1. Define the tax-planning goal and scope\n2. Ask Document Organizer for the current readiness view\n3. Ask Deduction Reviewer for likely opportunity or risk areas\n4. Ask Deadline Tracker for the next filing and payment milestones\n5. Post the first planning summary to Status\n\n## Important Note\nThis is a planning and organization starter template, not tax advice. Escalate anything material to a qualified tax professional.",
       "type": "once",
-      "owner": "tax-lead"
+      "owner": "tax-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "tax-planning-desk",
+        "tax-kickoff"
+      ]
     },
     {
       "id": "document-readiness-sweep",
@@ -112,14 +189,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Documents"],
+        "groups": [
+          "Documents"
+        ],
         "tags": [],
-        "agents": ["document-organizer"]
+        "agents": [
+          "document-organizer"
+        ]
       },
       "content": "# Document Readiness Sweep\n\n1. Review the current tax-document inventory for completeness\n2. Separate confirmed records from expected but missing records\n3. Highlight anything that blocks filing readiness or strategy review\n4. Post the readiness summary to Documents and Status\n5. Escalate anything that likely requires professional clarification",
-      "dependsOn": ["tax-kickoff"],
+      "dependsOn": [
+        "tax-kickoff"
+      ],
       "type": "recurring",
-      "owner": "tax-lead"
+      "owner": "tax-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "tax-planning-desk",
+        "document-readiness-sweep"
+      ]
     },
     {
       "id": "planning-and-deadline-review",
@@ -130,14 +219,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Strategy", "Deadlines"],
+        "groups": [
+          "Strategy",
+          "Deadlines"
+        ],
         "tags": [],
-        "agents": ["deduction-reviewer", "deadline-tracker"]
+        "agents": [
+          "deduction-reviewer",
+          "deadline-tracker"
+        ]
       },
       "content": "# Planning And Deadline Review\n\n1. Review likely deduction, credit, or timing considerations from the current fact set\n2. Identify what is clear versus what requires external confirmation\n3. Build the next deadline and payment sequence for the user\n4. Produce a concise planning note with confidence and caveats\n5. Post the result to Strategy, Deadlines, and Status",
-      "dependsOn": ["document-readiness-sweep"],
+      "dependsOn": [
+        "document-readiness-sweep"
+      ],
       "type": "recurring",
-      "owner": "tax-lead"
+      "owner": "tax-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "tax-planning-desk",
+        "planning-and-deadline-review"
+      ]
     },
     {
       "id": "tax-readiness-review",
@@ -148,14 +251,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Status"],
+        "groups": [
+          "Status"
+        ],
         "tags": [],
-        "agents": ["tax-lead", "document-organizer", "deadline-tracker"]
+        "agents": [
+          "tax-lead",
+          "document-organizer",
+          "deadline-tracker"
+        ]
       },
       "content": "# Tax Readiness Review\n\n1. Review the current document, planning, and deadline outputs\n2. Summarize readiness, open risks, and the highest-priority next action\n3. Distinguish administrative next steps from questions that need a tax professional\n4. Produce a short tax readiness memo\n5. Post the final review to Status",
-      "dependsOn": ["planning-and-deadline-review"],
+      "dependsOn": [
+        "planning-and-deadline-review"
+      ],
       "type": "conditional",
-      "owner": "tax-lead"
+      "owner": "tax-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "tax-planning-desk",
+        "tax-readiness-review"
+      ]
     }
   ]
 }

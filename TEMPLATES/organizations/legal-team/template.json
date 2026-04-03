@@ -84,24 +84,44 @@
   "communities": [
     {
       "name": "Legal Team",
-      "description": "All legal team coordination and announcements"
+      "description": "All legal team coordination and announcements",
+      "tags": [
+        "business",
+        "legal",
+        "legal-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Contracts",
       "description": "Contract review queue, redlines, and approvals",
-      "community": "Legal Team"
+      "community": "Legal Team",
+      "tags": [
+        "business",
+        "legal-team",
+        "contracts"
+      ]
     },
     {
       "name": "Compliance",
       "description": "Regulatory updates, audit findings, and compliance tracking",
-      "community": "Legal Team"
+      "community": "Legal Team",
+      "tags": [
+        "business",
+        "legal-team",
+        "compliance"
+      ]
     },
     {
       "name": "Status",
       "description": "Team updates and risk dashboard",
-      "community": "Legal Team"
+      "community": "Legal Team",
+      "tags": [
+        "business",
+        "legal-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -126,7 +146,13 @@
       },
       "content": "# Legal Team Kickoff\n\nYou are the Legal Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — SaaS platform]\n- **Priority matters:** [e.g., vendor contracts, privacy policy update, SOC2]\n- **Jurisdictions:** [US only, US + EU/GDPR, US + EU + California/CCPA, global, custom]\n- **Contract volume:** [e.g., ~20 vendor contracts/quarter]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Legal Team community\n2. Review the workspace for existing contracts or compliance docs\n3. Assign contract review queues to analysts\n4. Brief the compliance officer on regulatory areas to monitor\n5. Post initial risk assessment to Status group",
       "type": "once",
-      "owner": "legal-lead"
+      "owner": "legal-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "legal-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "contract-review",
@@ -148,7 +174,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "legal-lead"
+      "owner": "legal-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "legal-team",
+        "contract-review"
+      ]
     },
     {
       "id": "compliance-check",
@@ -171,7 +203,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "legal-team",
+        "compliance-check"
+      ]
     },
     {
       "id": "risk-assessment",
@@ -194,7 +232,13 @@
         "compliance-check"
       ],
       "type": "recurring",
-      "owner": "legal-lead"
+      "owner": "legal-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "legal-team",
+        "risk-assessment"
+      ]
     }
   ],
   "category": "business"

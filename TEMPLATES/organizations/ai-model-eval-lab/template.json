@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "AI Model Eval",
-      "description": "Shared coordination space for model comparisons, benchmarks, and evaluation notes."
+      "description": "Shared coordination space for model comparisons, benchmarks, and evaluation notes.",
+      "tags": [
+        "technical",
+        "ai",
+        "ai-model-eval-lab",
+        "ai-model-eval"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Benchmarks",
       "community": "AI Model Eval",
-      "description": "Evaluation criteria, tests, and result notes."
+      "description": "Evaluation criteria, tests, and result notes.",
+      "tags": [
+        "technical",
+        "ai-model-eval-lab",
+        "benchmarks"
+      ]
     },
     {
       "name": "Comparisons",
       "community": "AI Model Eval",
-      "description": "Direct tradeoffs across models, agents, and providers."
+      "description": "Direct tradeoffs across models, agents, and providers.",
+      "tags": [
+        "technical",
+        "ai-model-eval-lab",
+        "comparisons"
+      ]
     },
     {
       "name": "Recommendations",
       "community": "AI Model Eval",
-      "description": "Decision notes, fit by use case, and next experiments."
+      "description": "Decision notes, fit by use case, and next experiments.",
+      "tags": [
+        "technical",
+        "ai-model-eval-lab",
+        "recommendations"
+      ]
     },
     {
       "name": "Status",
       "community": "AI Model Eval",
-      "description": "Current scope, blockers, and final recommendation state."
+      "description": "Current scope, blockers, and final recommendation state.",
+      "tags": [
+        "technical",
+        "ai-model-eval-lab",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -138,7 +164,13 @@
       },
       "content": "# Model Eval Kickoff\n\nYou are the Eval Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Models or agents to compare:** [list]\n- **Primary use case:** [coding, research, support, automation, custom]\n- **Evaluation focus:** [quality, speed, cost, safety, reliability, custom]\n- **Test scenarios:** [few-shot tasks, benchmark set, workflow trial, custom]\n- **Output artifact:** [comparison memo, eval report, recommendation]\n\n## Your Tasks\n1. Restate the comparison set and use case\n2. Ask Benchmark Designer for the rubric and scenarios\n3. Ask Eval Runners for structured results\n4. Ask Recommendation Editor for the decision memo\n5. Post the eval plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "technical",
+        "ai-model-eval-lab",
+        "model-eval-kickoff"
+      ]
     },
     {
       "id": "comparison-memo",
@@ -162,6 +194,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "model-eval-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "ai-model-eval-lab",
+        "comparison-memo"
       ]
     }
   ]

@@ -114,29 +114,54 @@
   "communities": [
     {
       "name": "Data Team",
-      "description": "All data team coordination and announcements"
+      "description": "All data team coordination and announcements",
+      "tags": [
+        "technical",
+        "data",
+        "data-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Pipeline",
       "description": "Data pipeline health, ETL jobs, and schema changes",
-      "community": "Data Team"
+      "community": "Data Team",
+      "tags": [
+        "technical",
+        "data-team",
+        "pipeline"
+      ]
     },
     {
       "name": "Analytics",
       "description": "Dashboards, reports, and ad-hoc analysis requests",
-      "community": "Data Team"
+      "community": "Data Team",
+      "tags": [
+        "technical",
+        "data-team",
+        "analytics"
+      ]
     },
     {
       "name": "ML",
       "description": "Model training, experiments, and deployment",
-      "community": "Data Team"
+      "community": "Data Team",
+      "tags": [
+        "technical",
+        "data-team",
+        "ml"
+      ]
     },
     {
       "name": "Status",
       "description": "Daily standups and team coordination",
-      "community": "Data Team"
+      "community": "Data Team",
+      "tags": [
+        "technical",
+        "data-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -162,7 +187,13 @@
       },
       "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo — for pipeline code and models]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment",
       "type": "once",
-      "owner": "data-lead"
+      "owner": "data-lead",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "pipeline-monitoring",
@@ -183,7 +214,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "pipeline-monitoring"
+      ]
     },
     {
       "id": "data-quality-check",
@@ -205,7 +242,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "data-quality-check"
+      ]
     },
     {
       "id": "model-evaluation",
@@ -230,7 +273,13 @@
         "data-quality-check"
       ],
       "type": "recurring",
-      "owner": "ml-engineer"
+      "owner": "ml-engineer",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "model-evaluation"
+      ]
     }
   ]
 }

@@ -20,61 +20,124 @@
       "id": "meeting-ops-lead",
       "name": "Meeting Ops Lead",
       "role": "Lead coordinator — defines how the meeting should be captured and what follow-through matters most.",
-      "tags": ["lead", "meetings", "operations"],
-      "communities": ["Meeting Ops"],
-      "groups": ["Capture", "Actions", "Recaps", "Status"]
+      "tags": [
+        "lead",
+        "meetings",
+        "operations"
+      ],
+      "communities": [
+        "Meeting Ops"
+      ],
+      "groups": [
+        "Capture",
+        "Actions",
+        "Recaps",
+        "Status"
+      ]
     },
     {
       "id": "note-capturer",
       "name": "Note Capturer",
       "role": "Capture specialist — structures the live notes, highlights decisions, and preserves important quotes or facts.",
-      "tags": ["notes", "capture", "meetings"],
-      "communities": ["Meeting Ops"],
-      "groups": ["Capture"]
+      "tags": [
+        "notes",
+        "capture",
+        "meetings"
+      ],
+      "communities": [
+        "Meeting Ops"
+      ],
+      "groups": [
+        "Capture"
+      ]
     },
     {
       "id": "action-tracker",
       "name": "Action Tracker",
       "role": "Follow-up specialist — extracts commitments, owners, deadlines, and open questions from the meeting.",
-      "tags": ["follow-up", "actions", "tracking"],
-      "communities": ["Meeting Ops"],
-      "groups": ["Actions", "Status"]
+      "tags": [
+        "follow-up",
+        "actions",
+        "tracking"
+      ],
+      "communities": [
+        "Meeting Ops"
+      ],
+      "groups": [
+        "Actions",
+        "Status"
+      ]
     },
     {
       "id": "recap-writer",
       "name": "Recap Writer",
       "role": "Recap specialist — turns the meeting into a concise summary and follow-up message for stakeholders.",
-      "tags": ["recap", "writing", "communication"],
-      "communities": ["Meeting Ops"],
-      "groups": ["Recaps", "Status"]
+      "tags": [
+        "recap",
+        "writing",
+        "communication"
+      ],
+      "communities": [
+        "Meeting Ops"
+      ],
+      "groups": [
+        "Recaps",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Meeting Ops",
-      "description": "Shared space for meeting capture, action extraction, and recap output."
+      "description": "Shared space for meeting capture, action extraction, and recap output.",
+      "tags": [
+        "personal",
+        "assistant",
+        "meeting-capture-follow-up",
+        "meeting-ops"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Capture",
       "description": "Structured notes, facts, decisions, and quotes from the meeting.",
-      "community": "Meeting Ops"
+      "community": "Meeting Ops",
+      "tags": [
+        "personal",
+        "meeting-capture-follow-up",
+        "capture"
+      ]
     },
     {
       "name": "Actions",
       "description": "Action items, owners, deadlines, and unresolved follow-ups.",
-      "community": "Meeting Ops"
+      "community": "Meeting Ops",
+      "tags": [
+        "personal",
+        "meeting-capture-follow-up",
+        "actions"
+      ]
     },
     {
       "name": "Recaps",
       "description": "Readable meeting summaries and outbound follow-up drafts.",
-      "community": "Meeting Ops"
+      "community": "Meeting Ops",
+      "tags": [
+        "personal",
+        "meeting-capture-follow-up",
+        "recaps"
+      ]
     },
     {
       "name": "Status",
       "description": "What is closed, what is pending, and what the user should review next.",
-      "community": "Meeting Ops"
+      "community": "Meeting Ops",
+      "tags": [
+        "personal",
+        "meeting-capture-follow-up",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -88,12 +151,25 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["lead"],
-        "agents": ["meeting-ops-lead", "note-capturer", "action-tracker", "recap-writer"]
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "meeting-ops-lead",
+          "note-capturer",
+          "action-tracker",
+          "recap-writer"
+        ]
       },
       "content": "# Meeting Capture Kickoff\n\nYou are the Meeting Ops Lead. The follow-through team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meeting name:** [e.g., weekly staff sync, customer review, board prep]\n- **Participants:** [people or teams involved]\n- **What to capture:** [decisions, action items, questions, commitments, custom]\n- **Follow-up expectations:** [recap only, action list, owner routing, full follow-up packet]\n- **Output artifact:** [meeting notes, recap, action list, stakeholder follow-up]\n\n## Your Tasks\n1. Define the capture standard for this meeting\n2. Ask Note Capturer to structure the note format\n3. Ask Action Tracker to prepare the action-item extraction lens\n4. Ask Recap Writer to prepare the follow-up summary format\n5. Post the current capture plan to Status",
       "type": "once",
-      "owner": "meeting-ops-lead"
+      "owner": "meeting-ops-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "meeting-capture-follow-up",
+        "meeting-capture-kickoff"
+      ]
     },
     {
       "id": "live-notes-pass",
@@ -104,14 +180,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Capture"],
+        "groups": [
+          "Capture"
+        ],
         "tags": [],
-        "agents": ["note-capturer"]
+        "agents": [
+          "note-capturer"
+        ]
       },
       "content": "# Live Notes Pass\n\n1. Structure the meeting notes around decisions, facts, questions, and unresolved items\n2. Capture the most decision-relevant statements rather than every detail\n3. Distinguish confirmed outcomes from tentative suggestions\n4. Post the structured notes to Capture\n5. Flag any ambiguity that could break follow-through",
-      "dependsOn": ["meeting-capture-kickoff"],
+      "dependsOn": [
+        "meeting-capture-kickoff"
+      ],
       "type": "recurring",
-      "owner": "meeting-ops-lead"
+      "owner": "meeting-ops-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "meeting-capture-follow-up",
+        "live-notes-pass"
+      ]
     },
     {
       "id": "action-item-routing",
@@ -122,14 +210,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Actions"],
+        "groups": [
+          "Actions"
+        ],
         "tags": [],
-        "agents": ["action-tracker"]
+        "agents": [
+          "action-tracker"
+        ]
       },
       "content": "# Action Item Routing\n\n1. Review the structured notes and extract every real commitment or next step\n2. Assign owners, deadlines, and any dependency notes where possible\n3. Separate explicit commitments from inferred suggestions\n4. Build the follow-up list in order of urgency\n5. Post the routed actions to Actions and Status",
-      "dependsOn": ["live-notes-pass"],
+      "dependsOn": [
+        "live-notes-pass"
+      ],
       "type": "recurring",
-      "owner": "meeting-ops-lead"
+      "owner": "meeting-ops-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "meeting-capture-follow-up",
+        "action-item-routing"
+      ]
     },
     {
       "id": "recap-and-follow-up-review",
@@ -140,14 +240,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Recaps", "Status"],
+        "groups": [
+          "Recaps",
+          "Status"
+        ],
         "tags": [],
-        "agents": ["recap-writer", "meeting-ops-lead"]
+        "agents": [
+          "recap-writer",
+          "meeting-ops-lead"
+        ]
       },
       "content": "# Recap And Follow Up Review\n\n1. Review the notes and action list for completeness\n2. Produce a concise recap that highlights decisions, owners, and next steps\n3. Draft the most useful follow-up message for the user or stakeholders\n4. Call out anything still unresolved or risky\n5. Post the recap package to Recaps and Status",
-      "dependsOn": ["action-item-routing"],
+      "dependsOn": [
+        "action-item-routing"
+      ],
       "type": "conditional",
-      "owner": "meeting-ops-lead"
+      "owner": "meeting-ops-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "meeting-capture-follow-up",
+        "recap-and-follow-up-review"
+      ]
     }
   ]
 }

@@ -96,29 +96,54 @@
   "communities": [
     {
       "name": "HR Team",
-      "description": "All HR team coordination and announcements"
+      "description": "All HR team coordination and announcements",
+      "tags": [
+        "business",
+        "hr",
+        "hr-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Recruiting",
       "description": "Candidate pipeline, job postings, and interview coordination",
-      "community": "HR Team"
+      "community": "HR Team",
+      "tags": [
+        "business",
+        "hr-team",
+        "recruiting"
+      ]
     },
     {
       "name": "Onboarding",
       "description": "New hire onboarding plans and progress tracking",
-      "community": "HR Team"
+      "community": "HR Team",
+      "tags": [
+        "business",
+        "hr-team",
+        "onboarding"
+      ]
     },
     {
       "name": "People Ops",
       "description": "Employee records, benefits, policies, and compliance",
-      "community": "HR Team"
+      "community": "HR Team",
+      "tags": [
+        "business",
+        "hr-team",
+        "people-ops"
+      ]
     },
     {
       "name": "Status",
       "description": "Daily standups and team health",
-      "community": "HR Team"
+      "community": "HR Team",
+      "tags": [
+        "business",
+        "hr-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -144,7 +169,13 @@
       },
       "content": "# HR Team Kickoff\n\nYou are the HR Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — Series B startup, 85 employees]\n- **Open roles:** [e.g., 3 engineers, 1 designer, 1 PM]\n- **Hiring priorities:** [e.g., senior backend engineer by April]\n- **ATS/tools:** [GitHub issues, Lever, Greenhouse, Ashby, Workable, custom]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the HR Team community\n2. Review the workspace for existing job descriptions or candidate data\n3. Assign focus areas to each recruiter\n4. Brief the onboarding specialist on any pending new hires\n5. Post initial priorities to the Status group",
       "type": "once",
-      "owner": "hr-lead"
+      "owner": "hr-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "hr-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "job-posting-review",
@@ -165,7 +196,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "hr-team",
+        "job-posting-review"
+      ]
     },
     {
       "id": "candidate-screening",
@@ -186,7 +223,13 @@
       "dependsOn": [
         "job-posting-review"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "hr-team",
+        "candidate-screening"
+      ]
     },
     {
       "id": "onboarding-checklist",
@@ -210,7 +253,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "onboarding-specialist"
+      "owner": "onboarding-specialist",
+      "tags": [
+        "workflow",
+        "business",
+        "hr-team",
+        "onboarding-checklist"
+      ]
     }
   ],
   "category": "business"

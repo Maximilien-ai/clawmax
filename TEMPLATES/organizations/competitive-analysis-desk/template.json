@@ -27,29 +27,54 @@
   "communities": [
     {
       "name": "Competitive Analysis",
-      "description": "Shared coordination space for competitor mapping and market analysis."
+      "description": "Shared coordination space for competitor mapping and market analysis.",
+      "tags": [
+        "business",
+        "competitive-analysis",
+        "competitive-analysis-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Competitors",
       "community": "Competitive Analysis",
-      "description": "Current players, product comparisons, and positioning."
+      "description": "Current players, product comparisons, and positioning.",
+      "tags": [
+        "business",
+        "competitive-analysis-desk",
+        "competitors"
+      ]
     },
     {
       "name": "Market",
       "community": "Competitive Analysis",
-      "description": "TAM, segments, and market shape."
+      "description": "TAM, segments, and market shape.",
+      "tags": [
+        "business",
+        "competitive-analysis-desk",
+        "market"
+      ]
     },
     {
       "name": "Strategy",
       "community": "Competitive Analysis",
-      "description": "Opportunities, threats, and strategic recommendation."
+      "description": "Opportunities, threats, and strategic recommendation.",
+      "tags": [
+        "business",
+        "competitive-analysis-desk",
+        "strategy"
+      ]
     },
     {
       "name": "Status",
       "community": "Competitive Analysis",
-      "description": "Current market thesis, open questions, and final stance."
+      "description": "Current market thesis, open questions, and final stance.",
+      "tags": [
+        "business",
+        "competitive-analysis-desk",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -137,7 +162,13 @@
       },
       "content": "# Competitive Kickoff\n\nYou are the Analysis Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product idea:** [idea]\n- **Target market or user:** [market]\n- **Region or scope:** [global, US, enterprise, SMB, custom]\n- **Decision needed:** [invest, build, position, niche, custom]\n- **Output artifact:** [competitive memo, TAM brief, strategy note]\n\n## Your Tasks\n1. Restate the product idea and target market\n2. Ask Competitor Analysts for the strongest current players and products\n3. Ask TAM Estimator for the market shape and reachable slices\n4. Ask Positioning Editor for the likely differentiation paths\n5. Post the plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "business",
+        "competitive-analysis-desk",
+        "competitive-kickoff"
+      ]
     },
     {
       "id": "competitive-strategy-brief",
@@ -161,6 +192,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "competitive-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "competitive-analysis-desk",
+        "competitive-strategy-brief"
       ]
     }
   ]

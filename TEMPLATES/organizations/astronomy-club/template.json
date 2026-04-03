@@ -26,29 +26,54 @@
   "communities": [
     {
       "name": "Astronomy Club",
-      "description": "Shared coordination space for astronomy watching and monthly sky briefs."
+      "description": "Shared coordination space for astronomy watching and monthly sky briefs.",
+      "tags": [
+        "science",
+        "astronomy",
+        "astronomy-club"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Observing",
       "community": "Astronomy Club",
-      "description": "Telescope-worthy windows, visibility, and practical watch plans."
+      "description": "Telescope-worthy windows, visibility, and practical watch plans.",
+      "tags": [
+        "science",
+        "astronomy-club",
+        "observing"
+      ]
     },
     {
       "name": "Alignments",
       "community": "Astronomy Club",
-      "description": "Planetary alignments, meteor showers, conjunctions, and key sky events."
+      "description": "Planetary alignments, meteor showers, conjunctions, and key sky events.",
+      "tags": [
+        "science",
+        "astronomy-club",
+        "alignments"
+      ]
     },
     {
       "name": "Learning",
       "community": "Astronomy Club",
-      "description": "Background explanations, maps, and how-to notes."
+      "description": "Background explanations, maps, and how-to notes.",
+      "tags": [
+        "science",
+        "astronomy-club",
+        "learning"
+      ]
     },
     {
       "name": "Status",
       "community": "Astronomy Club",
-      "description": "Current month priorities, best nights, and alerts."
+      "description": "Current month priorities, best nights, and alerts.",
+      "tags": [
+        "science",
+        "astronomy-club",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -135,7 +160,13 @@
       },
       "content": "# Astronomy Monthly Kickoff\n\nYou are the Club Observer.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Location or sky conditions:** [city, suburb, dark sky, custom]\n- **Month or time horizon:** [this month, next 30 days, custom]\n- **Gear:** [naked eye, binoculars, small telescope, advanced telescope]\n- **Priority:** [planets, moon, deep sky, meteor showers, custom]\n- **Output artifact:** [monthly sky brief, telescope nights list, beginner guide]\n\n## Your Tasks\n1. Restate the observing context and gear limits\n2. Ask Skywatch Scouts for the best nights to go outside\n3. Ask Alignment Analyst for the key sky events this month\n4. Ask Astro Guide for a simple observer brief\n5. Post the best telescope-worthy nights to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "science",
+        "astronomy-club",
+        "astronomy-monthly-kickoff"
+      ]
     },
     {
       "id": "sky-event-digest",
@@ -159,7 +190,13 @@
       },
       "content": "# Sky Event Digest\n\n1. Summarize the most important upcoming alignments and sky events\n2. Note timing, visibility, and what gear is needed\n3. Call out any events that are likely overrated or hard to see\n4. Post the digest to Alignments and the top highlights to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "science",
+        "astronomy-club",
+        "sky-event-digest"
+      ]
     }
   ]
 }

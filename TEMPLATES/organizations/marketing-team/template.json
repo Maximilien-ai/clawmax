@@ -107,29 +107,54 @@
   "communities": [
     {
       "name": "Marketing Team",
-      "description": "All marketing team coordination and announcements"
+      "description": "All marketing team coordination and announcements",
+      "tags": [
+        "business",
+        "marketing",
+        "marketing-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Content",
       "description": "Content creation pipeline, drafts, and editorial calendar",
-      "community": "Marketing Team"
+      "community": "Marketing Team",
+      "tags": [
+        "business",
+        "marketing-team",
+        "content"
+      ]
     },
     {
       "name": "SEO",
       "description": "Keyword research, ranking tracking, and optimization tasks",
-      "community": "Marketing Team"
+      "community": "Marketing Team",
+      "tags": [
+        "business",
+        "marketing-team",
+        "seo"
+      ]
     },
     {
       "name": "Social",
       "description": "Social media scheduling, engagement, and platform analytics",
-      "community": "Marketing Team"
+      "community": "Marketing Team",
+      "tags": [
+        "business",
+        "marketing-team",
+        "social"
+      ]
     },
     {
       "name": "Status",
       "description": "Campaign performance and team updates",
-      "community": "Marketing Team"
+      "community": "Marketing Team",
+      "tags": [
+        "business",
+        "marketing-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -155,7 +180,13 @@
       },
       "content": "# Marketing Team Kickoff\n\nYou are the Marketing Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/brand:** [e.g., ClawMax.ai — multiagent orchestration platform]\n- **Target audience:** [e.g., developers, CTOs, DevOps teams]\n- **Content themes:** [e.g., AI agents, automation, developer productivity]\n- **Channels:** [blog + Twitter/X + LinkedIn, blog + newsletter + LinkedIn, blog + YouTube + Twitter/X, custom]\n- **GitHub repo:** [e.g., owner/repo — for content drafts]\n\n## Your Tasks\n1. Introduce yourself in the Marketing Team community\n2. Review the workspace for existing content or brand guidelines\n3. Set content themes and campaign goals\n4. Brief each team member on their focus area\n5. Kick off content calendar planning in the Content group",
       "type": "once",
-      "owner": "marketing-lead"
+      "owner": "marketing-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "marketing-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "content-calendar",
@@ -177,7 +208,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "marketing-lead"
+      "owner": "marketing-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "marketing-team",
+        "content-calendar"
+      ]
     },
     {
       "id": "campaign-review",
@@ -198,7 +235,13 @@
       "dependsOn": [
         "content-calendar"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "marketing-team",
+        "campaign-review"
+      ]
     },
     {
       "id": "analytics-report",
@@ -220,7 +263,13 @@
         "campaign-review"
       ],
       "type": "recurring",
-      "owner": "marketing-lead"
+      "owner": "marketing-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "marketing-team",
+        "analytics-report"
+      ]
     }
   ],
   "category": "business"

@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "Site Studio",
-      "description": "Shared coordination space for taking an idea to a simple live-ready site."
+      "description": "Shared coordination space for taking an idea to a simple live-ready site.",
+      "tags": [
+        "technical",
+        "website",
+        "idea-to-site-studio",
+        "site-studio"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Product",
       "community": "Site Studio",
-      "description": "Idea framing, target audience, and offer definition."
+      "description": "Idea framing, target audience, and offer definition.",
+      "tags": [
+        "technical",
+        "idea-to-site-studio",
+        "product"
+      ]
     },
     {
       "name": "Build",
       "community": "Site Studio",
-      "description": "Implementation, page structure, and technical decisions."
+      "description": "Implementation, page structure, and technical decisions.",
+      "tags": [
+        "technical",
+        "idea-to-site-studio",
+        "build"
+      ]
     },
     {
       "name": "Copy",
       "community": "Site Studio",
-      "description": "Headline, CTA, sections, and tone."
+      "description": "Headline, CTA, sections, and tone.",
+      "tags": [
+        "technical",
+        "idea-to-site-studio",
+        "copy"
+      ]
     },
     {
       "name": "Status",
       "community": "Site Studio",
-      "description": "Current build progress, repo status, and blockers."
+      "description": "Current build progress, repo status, and blockers.",
+      "tags": [
+        "technical",
+        "idea-to-site-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -139,7 +165,13 @@
       },
       "content": "# Site Idea Kickoff\n\nYou are the Site Director.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Idea or product:** [idea]\n- **Audience:** [audience]\n- **Site goal:** [landing page, waitlist, product teaser, portfolio, custom]\n- **Visual vibe:** [clean, bold, playful, premium, custom]\n- **GitHub repo:** [owner/repo]\n- **Output artifact:** [working site, GitHub push, launch-ready page]\n\n## Your Tasks\n1. Restate the site goal, audience, and vibe\n2. Ask Copy Writer for the first page messaging\n3. Ask Prototype Builders for the implementation plan\n4. Ask Ship Manager for the repo and handoff path\n5. Post the shipping plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "technical",
+        "idea-to-site-studio",
+        "site-idea-kickoff"
+      ]
     },
     {
       "id": "site-build-review",
@@ -163,6 +195,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "site-idea-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "idea-to-site-studio",
+        "site-build-review"
       ]
     }
   ]

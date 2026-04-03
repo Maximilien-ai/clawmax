@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "Blog Launch",
-      "description": "Shared coordination space for launching a blog or Substack with a real publishing plan."
+      "description": "Shared coordination space for launching a blog or Substack with a real publishing plan.",
+      "tags": [
+        "personal",
+        "blog",
+        "blog-launch-studio",
+        "blog-launch"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Positioning",
       "community": "Blog Launch",
-      "description": "Topic focus, audience, and voice decisions."
+      "description": "Topic focus, audience, and voice decisions.",
+      "tags": [
+        "personal",
+        "blog-launch-studio",
+        "positioning"
+      ]
     },
     {
       "name": "Calendar",
       "community": "Blog Launch",
-      "description": "Editorial calendar, themes, and publishing cadence."
+      "description": "Editorial calendar, themes, and publishing cadence.",
+      "tags": [
+        "personal",
+        "blog-launch-studio",
+        "calendar"
+      ]
     },
     {
       "name": "Drafts",
       "community": "Blog Launch",
-      "description": "Draft posts, outlines, and revisions."
+      "description": "Draft posts, outlines, and revisions.",
+      "tags": [
+        "personal",
+        "blog-launch-studio",
+        "drafts"
+      ]
     },
     {
       "name": "Status",
       "community": "Blog Launch",
-      "description": "Current launch readiness, draft count, and next publish steps."
+      "description": "Current launch readiness, draft count, and next publish steps.",
+      "tags": [
+        "personal",
+        "blog-launch-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -138,7 +164,13 @@
       },
       "content": "# Blog Launch Kickoff\n\nYou are the Editor In Chief.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topic:** [topic]\n- **Audience:** [audience]\n- **Cadence:** [weekly, biweekly, monthly, custom]\n- **Planning horizon:** [1 month, 3 months, 6 months]\n- **Platform:** [blog, Substack, newsletter, custom]\n- **Output artifact:** [editorial calendar, ready drafts, launch plan]\n\n## Your Tasks\n1. Restate the topic, audience, and cadence\n2. Ask Calendar Editor for the full publishing plan\n3. Ask Post Writers for the first draft set\n4. Ask Growth Notes Editor for hooks and distribution suggestions\n5. Post the launch plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "personal",
+        "blog-launch-studio",
+        "blog-launch-kickoff"
+      ]
     },
     {
       "id": "draft-pack-build",
@@ -162,6 +194,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "blog-launch-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "blog-launch-studio",
+        "draft-pack-build"
       ]
     }
   ]

@@ -112,29 +112,54 @@
   "communities": [
     {
       "name": "Sales Team",
-      "description": "All sales team coordination and announcements"
+      "description": "All sales team coordination and announcements",
+      "tags": [
+        "business",
+        "sales",
+        "sales-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Pipeline",
       "description": "Deal pipeline reviews and stage updates",
-      "community": "Sales Team"
+      "community": "Sales Team",
+      "tags": [
+        "business",
+        "sales-team",
+        "pipeline"
+      ]
     },
     {
       "name": "Prospecting",
       "description": "Lead gen, outbound sequences, and qualification",
-      "community": "Sales Team"
+      "community": "Sales Team",
+      "tags": [
+        "business",
+        "sales-team",
+        "prospecting"
+      ]
     },
     {
       "name": "Deals",
       "description": "Active opportunity discussions and deal strategy",
-      "community": "Sales Team"
+      "community": "Sales Team",
+      "tags": [
+        "business",
+        "sales-team",
+        "deals"
+      ]
     },
     {
       "name": "Status",
       "description": "Daily standups and team health",
-      "community": "Sales Team"
+      "community": "Sales Team",
+      "tags": [
+        "business",
+        "sales-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -160,7 +185,13 @@
       },
       "content": "# Sales Team Kickoff\n\nYou are the Sales Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax enterprise multiagent platform]\n- **Target market:** [e.g., mid-market SaaS companies, 50-500 employees]\n- **Pipeline targets:** [e.g., 500K quarterly, 20 new opportunities/month]\n- **CRM:** [GitHub issues, Salesforce, HubSpot, Pipedrive, custom]\n- **Key competitors:** [e.g., competitor A, competitor B]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Sales Team community\n2. Review the workspace for existing CRM data or pipeline info\n3. Assign territories or focus areas to each AE and SDR\n4. Set initial pipeline targets and quota expectations\n5. Kick off the first pipeline review in the Pipeline group",
       "type": "once",
-      "owner": "sales-lead"
+      "owner": "sales-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "sales-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "pipeline-review",
@@ -181,7 +212,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "sales-team",
+        "pipeline-review"
+      ]
     },
     {
       "id": "lead-qualification",
@@ -202,7 +239,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "sales-team",
+        "lead-qualification"
+      ]
     },
     {
       "id": "deal-forecast",
@@ -225,7 +268,13 @@
         "lead-qualification"
       ],
       "type": "recurring",
-      "owner": "sales-lead"
+      "owner": "sales-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "sales-team",
+        "deal-forecast"
+      ]
     }
   ],
   "category": "business"

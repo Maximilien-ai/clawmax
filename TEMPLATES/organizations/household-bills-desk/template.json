@@ -16,29 +16,55 @@
   "communities": [
     {
       "name": "Bills Desk",
-      "description": "Shared coordination space for household bills desk."
+      "description": "Shared coordination space for household bills desk.",
+      "tags": [
+        "family",
+        "bills",
+        "household-bills-desk",
+        "bills-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Bills",
       "community": "Bills Desk",
-      "description": "Recurring bills, due dates, and payment tracking."
+      "description": "Recurring bills, due dates, and payment tracking.",
+      "tags": [
+        "family",
+        "household-bills-desk",
+        "bills"
+      ]
     },
     {
       "name": "Admin",
       "community": "Bills Desk",
-      "description": "Account changes, paperwork, and household admin tasks."
+      "description": "Account changes, paperwork, and household admin tasks.",
+      "tags": [
+        "family",
+        "household-bills-desk",
+        "admin"
+      ]
     },
     {
       "name": "Review",
       "community": "Bills Desk",
-      "description": "Monthly review, exceptions, and cleanup."
+      "description": "Monthly review, exceptions, and cleanup.",
+      "tags": [
+        "family",
+        "household-bills-desk",
+        "review"
+      ]
     },
     {
       "name": "Status",
       "community": "Bills Desk",
-      "description": "Current deadlines and admin priorities."
+      "description": "Current deadlines and admin priorities.",
+      "tags": [
+        "family",
+        "household-bills-desk",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -125,7 +151,13 @@
       },
       "content": "# Bills Kickoff\n\nYou are the Admin Lead. The household bills desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Recurring bills in scope:** [rent, utilities, subscriptions, school, insurance, custom]\n- **Review window:** [this week, this month, custom]\n- **Pain points:** [late fees, missed renewals, unclear ownership, custom]\n- **Output artifact:** [bill calendar, admin checklist, monthly review]\n\n## Your Tasks\n1. Define the current admin and payment scope\n2. Ask Bill Tracker for the upcoming due-date view\n3. Ask Paperwork Coordinator for any open admin items\n4. Ask Review Analyst for missed-risk checks\n5. Post the current household admin plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "family",
+        "household-bills-desk",
+        "bills-kickoff"
+      ]
     },
     {
       "id": "monthly-admin-review",
@@ -151,6 +183,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "bills-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "household-bills-desk",
+        "monthly-admin-review"
       ]
     }
   ]

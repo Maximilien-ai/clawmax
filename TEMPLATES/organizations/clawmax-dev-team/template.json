@@ -17,70 +17,153 @@
       "id": "dev-lead",
       "name": "Dev Lead",
       "role": "Development lead — coordinates the team, reviews architecture decisions, approves PRs, manages releases. You are the technical decision-maker for the ClawMax project.",
-      "tags": ["lead", "dev", "architecture"],
-      "skills": ["github", "gh-issues", "workspace-ls"],
-      "communities": ["Dev Team"],
-      "groups": ["Dev Status", "Code Review", "Release"]
+      "tags": [
+        "lead",
+        "dev",
+        "architecture"
+      ],
+      "skills": [
+        "github",
+        "gh-issues",
+        "workspace-ls"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Dev Status",
+        "Code Review",
+        "Release"
+      ]
     },
     {
       "id": "qa-engineer",
       "name": "QA Engineer",
       "role": "Quality assurance — runs test suites, reports failures, verifies fixes, maintains test coverage. You ensure every change passes tests before merge.",
-      "tags": ["qa", "testing"],
-      "skills": ["github", "gh-issues", "workspace-ls"],
-      "communities": ["Dev Team"],
-      "groups": ["Dev Status", "Code Review", "Testing"]
+      "tags": [
+        "qa",
+        "testing"
+      ],
+      "skills": [
+        "github",
+        "gh-issues",
+        "workspace-ls"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Dev Status",
+        "Code Review",
+        "Testing"
+      ]
     },
     {
       "id": "github-triage",
       "name": "GitHub Triage",
       "role": "Issue and PR triage — labels new issues, assigns priority, routes to the right team member, ensures nothing falls through the cracks. You are the first responder for all GitHub activity.",
-      "tags": ["triage", "github", "issues"],
-      "skills": ["github", "gh-issues", "workspace-ls"],
-      "communities": ["Dev Team"],
-      "groups": ["Dev Status", "Triage"]
+      "tags": [
+        "triage",
+        "github",
+        "issues"
+      ],
+      "skills": [
+        "github",
+        "gh-issues",
+        "workspace-ls"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Dev Status",
+        "Triage"
+      ]
     },
     {
       "id": "release-engineer",
       "name": "Release Engineer",
       "role": "Release management — prepares changelogs, tags releases, verifies builds, updates version numbers. You ensure smooth, documented releases.",
-      "tags": ["release", "ci-cd", "deploy"],
-      "skills": ["github", "gh-issues", "workspace-ls"],
-      "communities": ["Dev Team"],
-      "groups": ["Dev Status", "Release"]
+      "tags": [
+        "release",
+        "ci-cd",
+        "deploy"
+      ],
+      "skills": [
+        "github",
+        "gh-issues",
+        "workspace-ls"
+      ],
+      "communities": [
+        "Dev Team"
+      ],
+      "groups": [
+        "Dev Status",
+        "Release"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Dev Team",
-      "description": "ClawMax development team coordination"
+      "description": "ClawMax development team coordination",
+      "tags": [
+        "dev-team",
+        "self-management",
+        "clawmax-dev-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Dev Status",
       "description": "Daily standups and status updates",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "dev-team",
+        "clawmax-dev-team",
+        "dev-status"
+      ]
     },
     {
       "name": "Code Review",
       "description": "PR reviews and code discussions",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "dev-team",
+        "clawmax-dev-team",
+        "code-review"
+      ]
     },
     {
       "name": "Testing",
       "description": "Test results, coverage reports, QA updates",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "dev-team",
+        "clawmax-dev-team",
+        "testing"
+      ]
     },
     {
       "name": "Triage",
       "description": "Issue triage, bug reports, feature requests",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "dev-team",
+        "clawmax-dev-team",
+        "triage"
+      ]
     },
     {
       "name": "Release",
       "description": "Release planning, changelogs, deployment",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "dev-team",
+        "clawmax-dev-team",
+        "release"
+      ]
     }
   ],
   "workflows": [
@@ -97,9 +180,20 @@
         "communities": [],
         "groups": [],
         "tags": [],
-        "agents": ["dev-lead", "qa-engineer", "github-triage", "release-engineer"]
+        "agents": [
+          "dev-lead",
+          "qa-engineer",
+          "github-triage",
+          "release-engineer"
+        ]
       },
-      "content": "# Dev Team Kickoff\n\nYou are the Dev Lead. Your team just came online.\n\n## Project Configuration\n> **Customize before applying:**\n\n- **GitHub repo:** [Maximilien-ai/clawmax]\n- **Main branch:** [main]\n- **Test command:** [./SYSTEM/test.sh]\n- **Release prefix:** [v]\n- **Sprint duration:** [1 week]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Review the current state of the GitHub repo (open issues, PRs, recent commits)\n3. Assign initial responsibilities:\n   - GitHub Triage: scan and label all open issues\n   - QA Engineer: run the test suite and report results\n   - Release Engineer: check the latest tag and pending changes\n4. Set the sprint goal based on open high-priority issues\n5. Post the sprint plan to Dev Status group\n\n## GitHub Coordination\nUse the configured repo for all work.\n\n- Create GitHub issues for tasks and assignments\n- Push code changes to branches\n- Open PRs for review\n- Track progress via issue comments"
+      "content": "# Dev Team Kickoff\n\nYou are the Dev Lead. Your team just came online.\n\n## Project Configuration\n> **Customize before applying:**\n\n- **GitHub repo:** [Maximilien-ai/clawmax]\n- **Main branch:** [main]\n- **Test command:** [./SYSTEM/test.sh]\n- **Release prefix:** [v]\n- **Sprint duration:** [1 week]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Review the current state of the GitHub repo (open issues, PRs, recent commits)\n3. Assign initial responsibilities:\n   - GitHub Triage: scan and label all open issues\n   - QA Engineer: run the test suite and report results\n   - Release Engineer: check the latest tag and pending changes\n4. Set the sprint goal based on open high-priority issues\n5. Post the sprint plan to Dev Status group\n\n## GitHub Coordination\nUse the configured repo for all work.\n\n- Create GitHub issues for tasks and assignments\n- Push code changes to branches\n- Open PRs for review\n- Track progress via issue comments",
+      "tags": [
+        "workflow",
+        "dev-team",
+        "clawmax-dev-team",
+        "dev-team-kickoff"
+      ]
     },
     {
       "id": "issue-triage",
@@ -109,14 +203,26 @@
       "enabled": true,
       "executionMode": "automated",
       "type": "recurring",
-      "dependsOn": ["dev-team-kickoff"],
+      "dependsOn": [
+        "dev-team-kickoff"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Triage"],
+        "groups": [
+          "Triage"
+        ],
         "tags": [],
-        "agents": ["github-triage"]
+        "agents": [
+          "github-triage"
+        ]
       },
-      "content": "# Daily Issue Triage\n\n1. Check the GitHub repo for new issues since last triage\n2. For each new issue:\n   - Add appropriate labels (bug, feature, enhancement, documentation)\n   - Set priority (high-priority, medium-priority, low-priority)\n   - Assign to the right team member based on content\n3. Check for stale issues (no activity in 7+ days) and ping assignees\n4. Post triage summary to Triage group\n\n## GitHub Coordination\nUse the configured repo for all work."
+      "content": "# Daily Issue Triage\n\n1. Check the GitHub repo for new issues since last triage\n2. For each new issue:\n   - Add appropriate labels (bug, feature, enhancement, documentation)\n   - Set priority (high-priority, medium-priority, low-priority)\n   - Assign to the right team member based on content\n3. Check for stale issues (no activity in 7+ days) and ping assignees\n4. Post triage summary to Triage group\n\n## GitHub Coordination\nUse the configured repo for all work.",
+      "tags": [
+        "workflow",
+        "dev-team",
+        "clawmax-dev-team",
+        "issue-triage"
+      ]
     },
     {
       "id": "test-run",
@@ -126,14 +232,26 @@
       "enabled": true,
       "executionMode": "automated",
       "type": "recurring",
-      "dependsOn": ["dev-team-kickoff"],
+      "dependsOn": [
+        "dev-team-kickoff"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Testing"],
+        "groups": [
+          "Testing"
+        ],
         "tags": [],
-        "agents": ["qa-engineer"]
+        "agents": [
+          "qa-engineer"
+        ]
       },
-      "content": "# Daily Test Run\n\n1. Pull the latest code from the main branch\n2. Run the full test suite using the configured test command\n3. Report results:\n   - Total tests, passed, failed, warnings\n   - Any new failures since last run\n   - Test duration\n4. If failures found:\n   - Create or update GitHub issues for each failure\n   - Tag with 'bug' and 'test-failure' labels\n   - Assign to the dev-lead for triage\n5. Post test summary to Testing group\n\n## GitHub Coordination\nUse the configured repo for all work."
+      "content": "# Daily Test Run\n\n1. Pull the latest code from the main branch\n2. Run the full test suite using the configured test command\n3. Report results:\n   - Total tests, passed, failed, warnings\n   - Any new failures since last run\n   - Test duration\n4. If failures found:\n   - Create or update GitHub issues for each failure\n   - Tag with 'bug' and 'test-failure' labels\n   - Assign to the dev-lead for triage\n5. Post test summary to Testing group\n\n## GitHub Coordination\nUse the configured repo for all work.",
+      "tags": [
+        "workflow",
+        "dev-team",
+        "clawmax-dev-team",
+        "test-run"
+      ]
     },
     {
       "id": "pr-review",
@@ -144,14 +262,27 @@
       "executionMode": "managed",
       "owner": "dev-lead",
       "type": "recurring",
-      "dependsOn": ["issue-triage"],
+      "dependsOn": [
+        "issue-triage"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Code Review"],
+        "groups": [
+          "Code Review"
+        ],
         "tags": [],
-        "agents": ["dev-lead", "qa-engineer"]
+        "agents": [
+          "dev-lead",
+          "qa-engineer"
+        ]
       },
-      "content": "# PR Review Session\n\n## Dev Lead Tasks\n1. List all open PRs in the GitHub repo\n2. For each PR:\n   - Review the changes and description\n   - Check if tests pass\n   - Leave review comments or approve\n3. Merge approved PRs\n\n## QA Engineer Tasks\n1. For each open PR:\n   - Check if CI passes\n   - Review test coverage\n   - Flag any missing tests\n2. Post review notes to Code Review group\n\n## GitHub Coordination\nUse the configured repo for all work."
+      "content": "# PR Review Session\n\n## Dev Lead Tasks\n1. List all open PRs in the GitHub repo\n2. For each PR:\n   - Review the changes and description\n   - Check if tests pass\n   - Leave review comments or approve\n3. Merge approved PRs\n\n## QA Engineer Tasks\n1. For each open PR:\n   - Check if CI passes\n   - Review test coverage\n   - Flag any missing tests\n2. Post review notes to Code Review group\n\n## GitHub Coordination\nUse the configured repo for all work.",
+      "tags": [
+        "workflow",
+        "dev-team",
+        "clawmax-dev-team",
+        "pr-review"
+      ]
     },
     {
       "id": "release-prep",
@@ -162,14 +293,28 @@
       "executionMode": "managed",
       "owner": "release-engineer",
       "type": "recurring",
-      "dependsOn": ["pr-review", "test-run"],
+      "dependsOn": [
+        "pr-review",
+        "test-run"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Release"],
+        "groups": [
+          "Release"
+        ],
         "tags": [],
-        "agents": ["release-engineer", "dev-lead"]
+        "agents": [
+          "release-engineer",
+          "dev-lead"
+        ]
       },
-      "content": "# Release Preparation\n\n## Release Engineer Tasks\n1. Check the latest tag and list all commits since then\n2. Generate a changelog from commit messages\n3. Verify all tests pass on the latest commit\n4. Bump version number if needed\n5. Create the release tag\n6. Post release notes to Release group\n\n## Dev Lead Tasks\n1. Review the changelog for completeness\n2. Approve the release\n3. Announce in Dev Status group\n\n## GitHub Coordination\nUse the configured repo for all work."
+      "content": "# Release Preparation\n\n## Release Engineer Tasks\n1. Check the latest tag and list all commits since then\n2. Generate a changelog from commit messages\n3. Verify all tests pass on the latest commit\n4. Bump version number if needed\n5. Create the release tag\n6. Post release notes to Release group\n\n## Dev Lead Tasks\n1. Review the changelog for completeness\n2. Approve the release\n3. Announce in Dev Status group\n\n## GitHub Coordination\nUse the configured repo for all work.",
+      "tags": [
+        "workflow",
+        "dev-team",
+        "clawmax-dev-team",
+        "release-prep"
+      ]
     }
   ]
 }

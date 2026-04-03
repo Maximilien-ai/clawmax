@@ -98,29 +98,55 @@
   "communities": [
     {
       "name": "Research Group",
-      "description": "All research group coordination and updates"
+      "description": "All research group coordination and updates",
+      "tags": [
+        "personal",
+        "research",
+        "student-research",
+        "research-group"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Literature",
       "description": "Paper searches, reading notes, and citation management",
-      "community": "Research Group"
+      "community": "Research Group",
+      "tags": [
+        "personal",
+        "student-research",
+        "literature"
+      ]
     },
     {
       "name": "Analysis",
       "description": "Data analysis, methodology, and findings discussion",
-      "community": "Research Group"
+      "community": "Research Group",
+      "tags": [
+        "personal",
+        "student-research",
+        "analysis"
+      ]
     },
     {
       "name": "Writing",
       "description": "Paper drafts, revisions, and submission prep",
-      "community": "Research Group"
+      "community": "Research Group",
+      "tags": [
+        "personal",
+        "student-research",
+        "writing"
+      ]
     },
     {
       "name": "Status",
       "description": "Research progress and team coordination",
-      "community": "Research Group"
+      "community": "Research Group",
+      "tags": [
+        "personal",
+        "student-research",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -146,7 +172,13 @@
       },
       "content": "# Research Group Kickoff\n\nYou are the Research Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research topic:** [e.g., Impact of LLMs on software engineering productivity]\n- **Research question:** [e.g., How do AI coding assistants affect code quality?]\n- **Scope:** [literature review, empirical study, meta-analysis, systematic review, custom]\n- **Key databases:** [Google Scholar + arXiv, Google Scholar + IEEE + ACM, PubMed + Google Scholar, custom]\n- **Deadline:** [e.g., April 15, 2026]\n- **GitHub repo:** [e.g., owner/repo — for paper drafts and data]\n\n## Your Tasks\n1. Introduce yourself in the Research Group community\n2. Define the research question, scope, and methodology\n3. Assign initial literature search topics to the lit reviewer\n4. Brief the data analyst on expected data sources\n5. Set milestones: lit review, analysis, first draft, submission",
       "type": "once",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "student-research",
+        "research-kickoff"
+      ]
     },
     {
       "id": "literature-search",
@@ -169,7 +201,13 @@
       "dependsOn": [
         "research-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "personal",
+        "student-research",
+        "literature-search"
+      ]
     },
     {
       "id": "source-evaluation",
@@ -192,7 +230,13 @@
         "literature-search"
       ],
       "type": "recurring",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "student-research",
+        "source-evaluation"
+      ]
     },
     {
       "id": "draft-review",
@@ -214,7 +258,13 @@
         "source-evaluation"
       ],
       "type": "conditional",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "student-research",
+        "draft-review"
+      ]
     }
   ],
   "category": "personal"

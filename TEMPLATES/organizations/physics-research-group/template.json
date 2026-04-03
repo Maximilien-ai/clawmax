@@ -28,62 +28,128 @@
       "id": "physics-lead",
       "name": "Physics Lead",
       "role": "Research lead — frames the core question, coordinates theory and experiment, and decides the next line of attack.",
-      "tags": ["lead", "physics", "research"],
-      "skills": ["github", "gh-issues"],
-      "communities": ["Physics Group"],
-      "groups": ["Theory", "Simulation", "Experiments", "Status"]
+      "tags": [
+        "lead",
+        "physics",
+        "research"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "Physics Group"
+      ],
+      "groups": [
+        "Theory",
+        "Simulation",
+        "Experiments",
+        "Status"
+      ]
     },
     {
       "id": "theory-analyst",
       "name": "Theory Analyst",
       "role": "Theory specialist — derives approximations, collects governing equations, and sharpens the hypothesis space.",
-      "tags": ["physics", "theory", "analysis"],
-      "communities": ["Physics Group"],
-      "groups": ["Theory"]
+      "tags": [
+        "physics",
+        "theory",
+        "analysis"
+      ],
+      "communities": [
+        "Physics Group"
+      ],
+      "groups": [
+        "Theory"
+      ]
     },
     {
       "id": "simulation-analyst",
       "name": "Simulation Analyst",
       "role": "Modeling specialist — proposes simulations, parameter sweeps, and sanity checks for the main hypothesis.",
-      "tags": ["physics", "simulation", "models"],
-      "communities": ["Physics Group"],
-      "groups": ["Simulation", "Status"]
+      "tags": [
+        "physics",
+        "simulation",
+        "models"
+      ],
+      "communities": [
+        "Physics Group"
+      ],
+      "groups": [
+        "Simulation",
+        "Status"
+      ]
     },
     {
       "id": "experiment-coordinator",
       "name": "Experiment Coordinator",
       "role": "Experimental planning specialist — translates theory targets into measurable signals, setups, and validation steps.",
-      "tags": ["physics", "experiments", "measurement"],
-      "communities": ["Physics Group"],
-      "groups": ["Experiments", "Status"]
+      "tags": [
+        "physics",
+        "experiments",
+        "measurement"
+      ],
+      "communities": [
+        "Physics Group"
+      ],
+      "groups": [
+        "Experiments",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Physics Group",
-      "description": "Shared coordination space for physics theory, simulation, and experiment planning."
+      "description": "Shared coordination space for physics theory, simulation, and experiment planning.",
+      "tags": [
+        "science",
+        "physics",
+        "physics-research-group",
+        "physics-group"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Theory",
       "description": "Hypotheses, derivations, approximations, and open theoretical questions.",
-      "community": "Physics Group"
+      "community": "Physics Group",
+      "tags": [
+        "science",
+        "physics-research-group",
+        "theory"
+      ]
     },
     {
       "name": "Simulation",
       "description": "Model choices, parameter sweeps, numerical checks, and uncertainty notes.",
-      "community": "Physics Group"
+      "community": "Physics Group",
+      "tags": [
+        "science",
+        "physics-research-group",
+        "simulation"
+      ]
     },
     {
       "name": "Experiments",
       "description": "Measurement plans, observable definitions, setup assumptions, and feasibility checks.",
-      "community": "Physics Group"
+      "community": "Physics Group",
+      "tags": [
+        "science",
+        "physics-research-group",
+        "experiments"
+      ]
     },
     {
       "name": "Status",
       "description": "Milestones, open risks, confidence updates, and recommended next steps.",
-      "community": "Physics Group"
+      "community": "Physics Group",
+      "tags": [
+        "science",
+        "physics-research-group",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -97,12 +163,25 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["lead"],
-        "agents": ["physics-lead", "theory-analyst", "simulation-analyst", "experiment-coordinator"]
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "physics-lead",
+          "theory-analyst",
+          "simulation-analyst",
+          "experiment-coordinator"
+        ]
       },
       "content": "# Physics Kickoff\n\nYou are the Physics Lead. The research group just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research question:** [e.g., what mechanism best explains the observed effect?]\n- **Field:** [condensed matter, high-energy, optics, fluids, astro, custom]\n- **Core observables:** [signals or quantities that matter most]\n- **Model inputs:** [notes, equations, prior runs, papers, lab data]\n- **Output artifact:** [research memo, experiment plan, model comparison]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Define the main question and minimal success criteria\n2. Ask Theory Analyst for the first framing and governing assumptions\n3. Ask Simulation Analyst for the most useful computational check\n4. Ask Experiment Coordinator for the nearest measurable validation path\n5. Post the initial risk and milestone summary in Status",
       "type": "once",
-      "owner": "physics-lead"
+      "owner": "physics-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "physics-research-group",
+        "physics-kickoff"
+      ]
     },
     {
       "id": "theory-and-prior-work-sweep",
@@ -113,14 +192,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Theory"],
+        "groups": [
+          "Theory"
+        ],
         "tags": [],
-        "agents": ["theory-analyst"]
+        "agents": [
+          "theory-analyst"
+        ]
       },
       "content": "# Theory And Prior Work Sweep\n\n1. Summarize the key assumptions, approximations, and competing explanations\n2. Collect the strongest prior analytical or empirical results\n3. Note which observables separate the leading hypotheses\n4. Update Theory with a concise summary of useful model ingredients\n5. Flag any assumption that makes the current approach weak or brittle",
-      "dependsOn": ["physics-kickoff"],
+      "dependsOn": [
+        "physics-kickoff"
+      ],
       "type": "recurring",
-      "owner": "physics-lead"
+      "owner": "physics-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "physics-research-group",
+        "theory-and-prior-work-sweep"
+      ]
     },
     {
       "id": "simulation-and-measurement-cycle",
@@ -131,14 +222,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Simulation", "Experiments"],
+        "groups": [
+          "Simulation",
+          "Experiments"
+        ],
         "tags": [],
-        "agents": ["simulation-analyst", "experiment-coordinator"]
+        "agents": [
+          "simulation-analyst",
+          "experiment-coordinator"
+        ]
       },
       "content": "# Simulation And Measurement Cycle\n\n1. Propose the next simulation or parameter sweep to separate candidate explanations\n2. State the uncertainty and limits of the model\n3. Translate the most useful output into measurable signals or thresholds\n4. Identify the simplest validation path and the highest-risk failure mode\n5. Post a recommended next cycle to Simulation and Experiments",
-      "dependsOn": ["theory-and-prior-work-sweep"],
+      "dependsOn": [
+        "theory-and-prior-work-sweep"
+      ],
       "type": "recurring",
-      "owner": "physics-lead"
+      "owner": "physics-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "physics-research-group",
+        "simulation-and-measurement-cycle"
+      ]
     },
     {
       "id": "physics-review",
@@ -149,14 +254,29 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Status"],
+        "groups": [
+          "Status"
+        ],
         "tags": [],
-        "agents": ["physics-lead", "theory-analyst", "simulation-analyst", "experiment-coordinator"]
+        "agents": [
+          "physics-lead",
+          "theory-analyst",
+          "simulation-analyst",
+          "experiment-coordinator"
+        ]
       },
       "content": "# Physics Review\n\n1. Review the current theoretical framing, simulation output, and measurement readiness\n2. Summarize the strongest current explanation and the biggest open gap\n3. Decide whether to deepen theory, run another simulation, or move toward measurement\n4. Produce a short review memo with confidence and next step\n5. Post the decision to Status",
-      "dependsOn": ["simulation-and-measurement-cycle"],
+      "dependsOn": [
+        "simulation-and-measurement-cycle"
+      ],
       "type": "conditional",
-      "owner": "physics-lead"
+      "owner": "physics-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "physics-research-group",
+        "physics-review"
+      ]
     }
   ]
 }

@@ -26,29 +26,55 @@
   "communities": [
     {
       "name": "Product Research",
-      "description": "Shared coordination space for customer and product research."
+      "description": "Shared coordination space for customer and product research.",
+      "tags": [
+        "business",
+        "product",
+        "product-research-team",
+        "product-research"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Users",
       "community": "Product Research",
-      "description": "Customer segments, needs, pains, and unmet jobs."
+      "description": "Customer segments, needs, pains, and unmet jobs.",
+      "tags": [
+        "business",
+        "product-research-team",
+        "users"
+      ]
     },
     {
       "name": "Product",
       "community": "Product Research",
-      "description": "Product framing, use cases, and opportunity areas."
+      "description": "Product framing, use cases, and opportunity areas.",
+      "tags": [
+        "business",
+        "product-research-team",
+        "product"
+      ]
     },
     {
       "name": "Findings",
       "community": "Product Research",
-      "description": "Synthesized insights, tensions, and recommendations."
+      "description": "Synthesized insights, tensions, and recommendations.",
+      "tags": [
+        "business",
+        "product-research-team",
+        "findings"
+      ]
     },
     {
       "name": "Status",
       "community": "Product Research",
-      "description": "Current scope, high-signal findings, and next decisions."
+      "description": "Current scope, high-signal findings, and next decisions.",
+      "tags": [
+        "business",
+        "product-research-team",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -137,7 +163,13 @@
       },
       "content": "# Product Research Kickoff\n\nYou are the Research Director.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product idea or area:** [idea]\n- **Target user or segment:** [segment]\n- **Research lens:** [problems, workflows, willingness to pay, adoption, custom]\n- **Decision needed:** [go/no-go, scope, roadmap, positioning, custom]\n- **Output artifact:** [research memo, PRD input, product brief]\n\n## Your Tasks\n1. Restate the product area, user, and decision needed\n2. Ask Customer Researchers for the main user pains and jobs\n3. Ask Product Strategist for the strongest opportunity framing\n4. Ask Insight Editor for the final synthesis format\n5. Post the research plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "business",
+        "product-research-team",
+        "product-research-kickoff"
+      ]
     },
     {
       "id": "product-findings-synthesis",
@@ -161,6 +193,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "product-research-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "product-research-team",
+        "product-findings-synthesis"
       ]
     }
   ]

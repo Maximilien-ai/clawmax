@@ -69,24 +69,45 @@
   "communities": [
     {
       "name": "Test Team",
-      "description": "System test community — all test agents coordinate here"
+      "description": "System test community — all test agents coordinate here",
+      "tags": [
+        "test",
+        "system-test",
+        "clawmax-system-test",
+        "test-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Test Status",
       "description": "Test results and pass/fail reports",
-      "community": "Test Team"
+      "community": "Test Team",
+      "tags": [
+        "test",
+        "clawmax-system-test",
+        "test-status"
+      ]
     },
     {
       "name": "Test Chat",
       "description": "Group chat testing — all agents participate in conversations",
-      "community": "Test Team"
+      "community": "Test Team",
+      "tags": [
+        "test",
+        "clawmax-system-test",
+        "test-chat"
+      ]
     },
     {
       "name": "Test Work",
       "description": "Workflow execution and coordination testing",
-      "community": "Test Team"
+      "community": "Test Team",
+      "tags": [
+        "test",
+        "clawmax-system-test",
+        "test-work"
+      ]
     }
   ],
   "workflows": [
@@ -109,7 +130,13 @@
           "test-agent2"
         ]
       },
-      "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team.\n\n## Platform Health Check\n1. Confirm your agent ID and role\n2. List the groups and communities you belong to\n3. List your installed skills\n4. Say 'READY' to confirm you are operational\n\n## Test Configuration\n> **Customize before running:**\n\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n- **Test mode:** [basic, full]\n\nKeep response under 100 words."
+      "content": "# System Test Kickoff\n\nYou are part of the ClawMax system test team.\n\n## Platform Health Check\n1. Confirm your agent ID and role\n2. List the groups and communities you belong to\n3. List your installed skills\n4. Say 'READY' to confirm you are operational\n\n## Test Configuration\n> **Customize before running:**\n\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n- **Test mode:** [basic, full]\n\nKeep response under 100 words.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-kickoff"
+      ]
     },
     {
       "id": "test-filesystem",
@@ -133,7 +160,13 @@
           "test-agent2"
         ]
       },
-      "content": "# Filesystem Test\n\nTest that agents can read and write files in the workspace.\n\n## Test Steps\n1. Write a file called `test-output-{your-agent-id}.md` in your workspace directory\n2. Include your agent ID, current timestamp, and the text 'FILESYSTEM TEST'\n3. Read the workspace directory listing using workspace-ls skill\n4. Report what files you can see\n5. Say 'FILESYSTEM PASS' if you could write and read, or 'FILESYSTEM FAIL' with error details\n\nKeep response under 100 words."
+      "content": "# Filesystem Test\n\nTest that agents can read and write files in the workspace.\n\n## Test Steps\n1. Write a file called `test-output-{your-agent-id}.md` in your workspace directory\n2. Include your agent ID, current timestamp, and the text 'FILESYSTEM TEST'\n3. Read the workspace directory listing using workspace-ls skill\n4. Report what files you can see\n5. Say 'FILESYSTEM PASS' if you could write and read, or 'FILESYSTEM FAIL' with error details\n\nKeep response under 100 words.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-filesystem"
+      ]
     },
     {
       "id": "test-communications",
@@ -159,7 +192,13 @@
         ]
       },
       "content": "# Communications Test\n\nTest that agents can communicate through the workflow's assigned group channel.\n\n## Test Steps\n1. Reply in this workflow run's current group channel to confirm you received this workflow\n2. Include your agent ID and the text 'COMMS TEST MESSAGE'\n3. Check whether you can see messages from the other test agents in the same group channel\n4. Report how many distinct test agents have posted in this channel during this run\n5. Say 'COMMS PASS' or 'COMMS FAIL'\n\nDo not create or look up a separate session label. Use the current workflow group channel only.\n\nKeep response under 80 words.",
-      "owner": "test-lead"
+      "owner": "test-lead",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-communications"
+      ]
     },
     {
       "id": "test-github",
@@ -182,7 +221,13 @@
           "test-agent1"
         ]
       },
-      "content": "# GitHub Coordination Test\n\nTest that agents can interact with GitHub.\n\n## Test Configuration\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n\n## Test Steps (test-lead)\n1. Create a GitHub issue titled 'System Test - {timestamp}' in the configured repo\n2. Assign the issue to test-agent1 via comment\n3. Report the issue number\n\n## Test Steps (test-agent1)\n1. Find the latest issue created by test-lead\n2. Add a comment: 'Test agent acknowledging assignment'\n3. Report 'GITHUB PASS' or 'GITHUB FAIL'\n\nKeep response under 100 words."
+      "content": "# GitHub Coordination Test\n\nTest that agents can interact with GitHub.\n\n## Test Configuration\n- **GitHub repo:** [e.g., Maximilien-ai/clawmax-test]\n\n## Test Steps (test-lead)\n1. Create a GitHub issue titled 'System Test - {timestamp}' in the configured repo\n2. Assign the issue to test-agent1 via comment\n3. Report the issue number\n\n## Test Steps (test-agent1)\n1. Find the latest issue created by test-lead\n2. Add a comment: 'Test agent acknowledging assignment'\n3. Report 'GITHUB PASS' or 'GITHUB FAIL'\n\nKeep response under 100 words.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-github"
+      ]
     },
     {
       "id": "test-dag-parallel-a",
@@ -203,7 +248,13 @@
           "test-agent1"
         ]
       },
-      "content": "# Parallel Test A\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL A RUNNING'\n2. Write 'parallel-a-complete' to a file called `test-parallel-a.txt`\n3. Say 'PARALLEL A COMPLETE'\n\nKeep response under 30 words."
+      "content": "# Parallel Test A\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL A RUNNING'\n2. Write 'parallel-a-complete' to a file called `test-parallel-a.txt`\n3. Say 'PARALLEL A COMPLETE'\n\nKeep response under 30 words.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-dag-parallel-a"
+      ]
     },
     {
       "id": "test-dag-parallel-b",
@@ -224,7 +275,13 @@
           "test-agent2"
         ]
       },
-      "content": "# Parallel Test B\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL B RUNNING'\n2. Write 'parallel-b-complete' to a file called `test-parallel-b.txt`\n3. Say 'PARALLEL B COMPLETE'\n\nKeep response under 30 words."
+      "content": "# Parallel Test B\n\nThis tests DAG parallel execution.\n1. Say 'PARALLEL B RUNNING'\n2. Write 'parallel-b-complete' to a file called `test-parallel-b.txt`\n3. Say 'PARALLEL B COMPLETE'\n\nKeep response under 30 words.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-dag-parallel-b"
+      ]
     },
     {
       "id": "test-report",
@@ -250,7 +307,13 @@
           "test-lead"
         ]
       },
-      "content": "# Test Report\n\nAll test workflows have executed. Compile the final report.\n\n## Report Template\nPublish the following report in this workflow run's current group channel:\n\n```\nCLAWMAX SYSTEM TEST REPORT\n========================\nTimestamp: {current time}\n\nTier 1 — Core:\n- Kickoff: {PASS/FAIL}\n- Filesystem: {PASS/FAIL}\n- Communications: {PASS/FAIL}\n- DAG Parallel: {PASS/FAIL}\n\nTier 2 — Coordination:\n- GitHub: {PASS/FAIL}\n\nOverall: {ALL PASS / X FAILURES}\n========================\n```\n\nDo not create or look up a separate session label. Use the current workflow group channel only.\n\nBe honest about failures. Include error details for any FAIL results."
+      "content": "# Test Report\n\nAll test workflows have executed. Compile the final report.\n\n## Report Template\nPublish the following report in this workflow run's current group channel:\n\n```\nCLAWMAX SYSTEM TEST REPORT\n========================\nTimestamp: {current time}\n\nTier 1 — Core:\n- Kickoff: {PASS/FAIL}\n- Filesystem: {PASS/FAIL}\n- Communications: {PASS/FAIL}\n- DAG Parallel: {PASS/FAIL}\n\nTier 2 — Coordination:\n- GitHub: {PASS/FAIL}\n\nOverall: {ALL PASS / X FAILURES}\n========================\n```\n\nDo not create or look up a separate session label. Use the current workflow group channel only.\n\nBe honest about failures. Include error details for any FAIL results.",
+      "tags": [
+        "workflow",
+        "test",
+        "clawmax-system-test",
+        "test-report"
+      ]
     }
   ]
 }

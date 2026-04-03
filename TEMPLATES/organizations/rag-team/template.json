@@ -138,7 +138,12 @@
     {
       "name": "RAG Team",
       "description": "Multiagent team building RAG solutions with weave-cli",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag",
+        "rag-team"
+      ]
     }
   ],
   "groups": [
@@ -146,37 +151,67 @@
       "name": "Planning",
       "community": "RAG Team",
       "description": "Requirements gathering, architecture design, lifecycle coordination",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "planning"
+      ]
     },
     {
       "name": "Data Pipeline",
       "community": "RAG Team",
       "description": "Collection creation, schema design, data ingestion, backup",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "data-pipeline"
+      ]
     },
     {
       "name": "Search & QA",
       "community": "RAG Team",
       "description": "Query tuning, agent configuration, embedding comparison",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "search-qa"
+      ]
     },
     {
       "name": "Quality",
       "community": "RAG Team",
       "description": "Eval datasets, benchmarks, quality gates, iteration recommendations",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "quality"
+      ]
     },
     {
       "name": "Ops",
       "community": "RAG Team",
       "description": "Stack deployment, monitoring, day-2 operations",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "ops"
+      ]
     },
     {
       "name": "Status",
       "community": "RAG Team",
       "description": "Cross-team status updates and coordination",
-      "channels": []
+      "channels": [],
+      "tags": [
+        "technical",
+        "rag-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -202,7 +237,13 @@
       "executionMode": "automated",
       "description": "Gather requirements, configure weave-cli, verify VDB health",
       "content": "## RAG Setup\n\n1. Gather user requirements: What data sources? What query patterns? What quality bar?\n2. Recommend VDB based on requirements (run `weave vdb list` to show options)\n3. Run `weave config create --env` to initialize config.yaml and .env\n4. Run `weave doctor --fix` to verify all components healthy\n5. Run `weave health check` to confirm VDB connectivity\n6. Report setup status and recommended next steps to the Planning group",
-      "type": "once"
+      "type": "once",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "rag-setup"
+      ]
     },
     {
       "id": "data-pipeline",
@@ -223,7 +264,13 @@
       "dependsOn": [
         "rag-setup"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "data-pipeline"
+      ]
     },
     {
       "id": "search-tuning",
@@ -244,7 +291,13 @@
       "dependsOn": [
         "rag-setup"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "search-tuning"
+      ]
     },
     {
       "id": "eval-cycle",
@@ -266,7 +319,13 @@
         "data-pipeline",
         "search-tuning"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "eval-cycle"
+      ]
     },
     {
       "id": "deploy",
@@ -287,7 +346,13 @@
       "dependsOn": [
         "eval-cycle"
       ],
-      "type": "conditional"
+      "type": "conditional",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "deploy"
+      ]
     },
     {
       "id": "daily-status",
@@ -303,12 +368,18 @@
         "agents": []
       },
       "executionMode": "automated",
-      "description": "Daily status check \u2014 each agent reports progress in their area",
-      "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief \u2014 2-3 sentences per item.",
+      "description": "Daily status check — each agent reports progress in their area",
+      "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief — 2-3 sentences per item.",
       "dependsOn": [
         "rag-setup"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-team",
+        "daily-status"
+      ]
     }
   ],
   "category": "technical"

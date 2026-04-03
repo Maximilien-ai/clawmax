@@ -111,29 +111,55 @@
   "communities": [
     {
       "name": "Writing Team",
-      "description": "All writing team coordination and announcements"
+      "description": "All writing team coordination and announcements",
+      "tags": [
+        "personal",
+        "writing",
+        "technical-writing",
+        "writing-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Drafts",
       "description": "Work-in-progress drafts and writing assignments",
-      "community": "Writing Team"
+      "community": "Writing Team",
+      "tags": [
+        "personal",
+        "technical-writing",
+        "drafts"
+      ]
     },
     {
       "name": "Review",
       "description": "Content review, fact-checking, and revision tracking",
-      "community": "Writing Team"
+      "community": "Writing Team",
+      "tags": [
+        "personal",
+        "technical-writing",
+        "review"
+      ]
     },
     {
       "name": "Publishing",
       "description": "Publication scheduling, formatting, and distribution",
-      "community": "Writing Team"
+      "community": "Writing Team",
+      "tags": [
+        "personal",
+        "technical-writing",
+        "publishing"
+      ]
     },
     {
       "name": "Status",
       "description": "Content pipeline status and team coordination",
-      "community": "Writing Team"
+      "community": "Writing Team",
+      "tags": [
+        "personal",
+        "technical-writing",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -159,7 +185,13 @@
       },
       "content": "# Writing Team Kickoff\n\nYou are the Editor. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topics to cover:** [e.g., API docs, getting started guide, architecture overview]\n- **Target audience:** [e.g., developers, end users, internal team]\n- **Style guide:** [Microsoft Style Guide, Google Developer Docs, Diátaxis, custom]\n- **GitHub repo:** [e.g., owner/repo — leave blank if not using GitHub]\n- **Output format:** [Markdown, MDX, reStructuredText, HTML, custom]\n\n## Your Tasks\n1. Introduce yourself in the Writing Team community\n2. Review the workspace for existing documentation or content plans\n3. Create a content plan based on the topics above and assign to writers\n4. Brief the reviewer on quality standards and fact-checking expectations\n5. Set up the publishing calendar and post initial schedule to Status group\n6. If a GitHub repo is configured, create issues for each writing assignment",
       "type": "once",
-      "owner": "editor"
+      "owner": "editor",
+      "tags": [
+        "workflow",
+        "personal",
+        "technical-writing",
+        "team-kickoff"
+      ]
     },
     {
       "id": "outline-review",
@@ -183,7 +215,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "editor"
+      "owner": "editor",
+      "tags": [
+        "workflow",
+        "personal",
+        "technical-writing",
+        "outline-review"
+      ]
     },
     {
       "id": "draft-writing",
@@ -204,7 +242,13 @@
       "dependsOn": [
         "outline-review"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "personal",
+        "technical-writing",
+        "draft-writing"
+      ]
     },
     {
       "id": "fact-check",
@@ -228,7 +272,13 @@
         "draft-writing"
       ],
       "type": "recurring",
-      "owner": "reviewer"
+      "owner": "reviewer",
+      "tags": [
+        "workflow",
+        "personal",
+        "technical-writing",
+        "fact-check"
+      ]
     },
     {
       "id": "publish",
@@ -252,7 +302,13 @@
         "fact-check"
       ],
       "type": "conditional",
-      "owner": "publisher"
+      "owner": "publisher",
+      "tags": [
+        "workflow",
+        "personal",
+        "technical-writing",
+        "publish"
+      ]
     }
   ],
   "category": "personal"

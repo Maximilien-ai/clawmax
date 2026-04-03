@@ -16,29 +16,55 @@
   "communities": [
     {
       "name": "Cooking Studio",
-      "description": "Shared coordination space for home cooking studio."
+      "description": "Shared coordination space for home cooking studio.",
+      "tags": [
+        "hobbies",
+        "cooking",
+        "home-cooking-studio",
+        "cooking-studio"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Recipes",
       "community": "Cooking Studio",
-      "description": "Recipe ideas, substitutions, and technique notes."
+      "description": "Recipe ideas, substitutions, and technique notes.",
+      "tags": [
+        "hobbies",
+        "home-cooking-studio",
+        "recipes"
+      ]
     },
     {
       "name": "Kitchen Prep",
       "community": "Cooking Studio",
-      "description": "Shopping, prep plans, and equipment notes."
+      "description": "Shopping, prep plans, and equipment notes.",
+      "tags": [
+        "hobbies",
+        "home-cooking-studio",
+        "kitchen-prep"
+      ]
     },
     {
       "name": "Review",
       "community": "Cooking Studio",
-      "description": "Taste notes, repeatability, and future improvements."
+      "description": "Taste notes, repeatability, and future improvements.",
+      "tags": [
+        "hobbies",
+        "home-cooking-studio",
+        "review"
+      ]
     },
     {
       "name": "Status",
       "community": "Cooking Studio",
-      "description": "Current cooking goals and next experiments."
+      "description": "Current cooking goals and next experiments.",
+      "tags": [
+        "hobbies",
+        "home-cooking-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -124,7 +150,13 @@
       },
       "content": "# Cooking Kickoff\n\nYou are the Kitchen Lead. The home cooking studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meal or project:** [weeknight dinner, baking, meal prep, special occasion, custom]\n- **Constraints:** [budget, time, dietary needs, equipment, custom]\n- **Skill goal:** [learn a technique, repeat a favorite, experiment, custom]\n- **Output artifact:** [meal plan, shopping list, recipe note]\n\n## Your Tasks\n1. Define the cooking goal and constraints\n2. Ask Menu Planner for the first proposal\n3. Ask Prep Coordinator for the ingredient and timing plan\n4. Ask Taste Reviewer to define the review rubric\n5. Post the current kitchen plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "hobbies",
+        "home-cooking-studio",
+        "cooking-kickoff"
+      ]
     },
     {
       "id": "recipe-retro",
@@ -148,6 +180,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "cooking-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "home-cooking-studio",
+        "recipe-retro"
       ]
     }
   ]

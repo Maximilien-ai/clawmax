@@ -26,34 +26,65 @@
   "communities": [
     {
       "name": "Speaker Event",
-      "description": "Shared coordination space for a speaker-driven event team."
+      "description": "Shared coordination space for a speaker-driven event team.",
+      "tags": [
+        "personal",
+        "events",
+        "speaker-event-studio",
+        "speaker-event"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Program",
       "community": "Speaker Event",
-      "description": "Agenda design, session flow, and attendee experience."
+      "description": "Agenda design, session flow, and attendee experience.",
+      "tags": [
+        "personal",
+        "speaker-event-studio",
+        "program"
+      ]
     },
     {
       "name": "Speakers",
       "community": "Speaker Event",
-      "description": "Speaker outreach, prep, bios, assets, and communication."
+      "description": "Speaker outreach, prep, bios, assets, and communication.",
+      "tags": [
+        "personal",
+        "speaker-event-studio",
+        "speakers"
+      ]
     },
     {
       "name": "Logistics",
       "community": "Speaker Event",
-      "description": "Venue, AV, seating, check-in, timing, and operational readiness."
+      "description": "Venue, AV, seating, check-in, timing, and operational readiness.",
+      "tags": [
+        "personal",
+        "speaker-event-studio",
+        "logistics"
+      ]
     },
     {
       "name": "Follow-Up",
       "community": "Speaker Event",
-      "description": "Post-event notes, thank-yous, recap, and next steps."
+      "description": "Post-event notes, thank-yous, recap, and next steps.",
+      "tags": [
+        "personal",
+        "speaker-event-studio",
+        "follow-up"
+      ]
     },
     {
       "name": "Status",
       "community": "Speaker Event",
-      "description": "Current priorities, dependencies, and launch readiness."
+      "description": "Current priorities, dependencies, and launch readiness.",
+      "tags": [
+        "personal",
+        "speaker-event-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -160,7 +191,13 @@
       },
       "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event name and goal:** [launch, salon, meetup, community talk, customer event, custom]\n- **Date, venue, and format:** [date, location, in-person, hybrid, custom]\n- **Expected attendees:** [count or range]\n- **Speaker count:** [planned speakers or panelists]\n- **Key audience outcome:** [leads, learning, community, recruiting, custom]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "personal",
+        "speaker-event-studio",
+        "speaker-event-kickoff"
+      ]
     },
     {
       "id": "speaker-readiness-review",
@@ -184,6 +221,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "speaker-event-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "speaker-event-studio",
+        "speaker-readiness-review"
       ]
     },
     {
@@ -208,6 +251,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "speaker-readiness-review"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "speaker-event-studio",
+        "run-of-show-build"
       ]
     },
     {
@@ -232,6 +281,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "run-of-show-build"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "speaker-event-studio",
+        "event-day-ops-check"
       ]
     },
     {
@@ -256,6 +311,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "event-day-ops-check"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "speaker-event-studio",
+        "speaker-event-follow-up"
       ]
     }
   ]

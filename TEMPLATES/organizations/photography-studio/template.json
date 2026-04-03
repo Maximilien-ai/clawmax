@@ -25,29 +25,55 @@
   "communities": [
     {
       "name": "Photo Studio",
-      "description": "Shared coordination space for photography studio."
+      "description": "Shared coordination space for photography studio.",
+      "tags": [
+        "hobbies",
+        "photography",
+        "photography-studio",
+        "photo-studio"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Shoots",
       "community": "Photo Studio",
-      "description": "Shoot ideas, shot lists, and prep notes."
+      "description": "Shoot ideas, shot lists, and prep notes.",
+      "tags": [
+        "hobbies",
+        "photography-studio",
+        "shoots"
+      ]
     },
     {
       "name": "Edits",
       "community": "Photo Studio",
-      "description": "Selections, edit directions, and post-processing notes."
+      "description": "Selections, edit directions, and post-processing notes.",
+      "tags": [
+        "hobbies",
+        "photography-studio",
+        "edits"
+      ]
     },
     {
       "name": "Portfolio",
       "community": "Photo Studio",
-      "description": "Portfolio picks, project themes, and publishing ideas."
+      "description": "Portfolio picks, project themes, and publishing ideas.",
+      "tags": [
+        "hobbies",
+        "photography-studio",
+        "portfolio"
+      ]
     },
     {
       "name": "Status",
       "community": "Photo Studio",
-      "description": "Current projects, goals, and next sessions."
+      "description": "Current projects, goals, and next sessions.",
+      "tags": [
+        "hobbies",
+        "photography-studio",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -133,7 +159,13 @@
       },
       "content": "# Photo Project Kickoff\n\nYou are the Photo Lead. The photography studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Project theme:** [street, portraits, travel, product, nature, custom]\n- **Shoot goal:** [practice, portfolio, client-style, social post, custom]\n- **Constraints:** [time, gear, weather, budget, custom]\n- **Output artifact:** [shot list, edit shortlist, portfolio board]\n\n## Your Tasks\n1. Define the creative goal and output standard\n2. Ask Shoot Planner for the first session plan\n3. Ask Edit Critic for evaluation criteria\n4. Ask Portfolio Curator for the output path\n5. Post the current project plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "hobbies",
+        "photography-studio",
+        "photo-project-kickoff"
+      ]
     },
     {
       "id": "shoot-review",
@@ -159,6 +191,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "photo-project-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "photography-studio",
+        "shoot-review"
       ]
     }
   ]

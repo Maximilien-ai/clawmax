@@ -139,7 +139,11 @@
       "name": "Leadership",
       "description": "Executive leadership and strategy",
       "tags": [
-        "executive"
+        "executive",
+        "business",
+        "startup",
+        "small-startup-team",
+        "leadership"
       ],
       "channels": [
         "whatsapp"
@@ -149,7 +153,11 @@
       "name": "Engineering Team",
       "description": "Software development, QA, and release management",
       "tags": [
-        "engineering"
+        "engineering",
+        "business",
+        "startup",
+        "small-startup-team",
+        "engineering-team"
       ],
       "channels": [
         "whatsapp"
@@ -159,7 +167,11 @@
       "name": "Product & Design",
       "description": "Product management and design",
       "tags": [
-        "product"
+        "product",
+        "business",
+        "startup",
+        "small-startup-team",
+        "product-design"
       ],
       "channels": [
         "whatsapp"
@@ -171,7 +183,10 @@
       "name": "All Hands",
       "description": "Company-wide group for announcements and coordination",
       "tags": [
-        "company-wide"
+        "company-wide",
+        "business",
+        "small-startup-team",
+        "all-hands"
       ],
       "channels": [
         "whatsapp"
@@ -182,7 +197,9 @@
       "description": "Status updates and progress tracking",
       "tags": [
         "status",
-        "updates"
+        "updates",
+        "business",
+        "small-startup-team"
       ],
       "channels": [
         "whatsapp"
@@ -212,7 +229,13 @@
       "content": "# Startup Team Kickoff\n\nYour team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Company:** [e.g., Acme Corp — early stage startup]\n- **Product:** [e.g., SaaS platform for X]\n- **Priorities:** [e.g., MVP launch, fundraising, hiring]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review workspace and existing work\n3. Assign roles and priorities\n4. Set up communication channels\n5. Kick off first sprint",
       "type": "once",
       "dependsOn": [],
-      "owner": "ceo"
+      "owner": "ceo",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "daily-standup",
@@ -233,7 +256,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "daily-standup"
+      ]
     },
     {
       "id": "status-check",
@@ -254,7 +283,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "status-check"
+      ]
     },
     {
       "id": "issue-triage",
@@ -275,7 +310,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "issue-triage"
+      ]
     },
     {
       "id": "pr-review",
@@ -296,7 +337,13 @@
       "dependsOn": [
         "coding-sprint"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "pr-review"
+      ]
     },
     {
       "id": "coding-sprint",
@@ -317,7 +364,13 @@
       "dependsOn": [
         "issue-triage"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "coding-sprint"
+      ]
     },
     {
       "id": "pr-merge",
@@ -338,7 +391,13 @@
       "dependsOn": [
         "pr-review"
       ],
-      "type": "conditional"
+      "type": "conditional",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "pr-merge"
+      ]
     },
     {
       "id": "release",
@@ -360,7 +419,13 @@
       "dependsOn": [
         "pr-merge"
       ],
-      "type": "conditional"
+      "type": "conditional",
+      "tags": [
+        "workflow",
+        "business",
+        "small-startup-team",
+        "release"
+      ]
     }
   ],
   "category": "business"

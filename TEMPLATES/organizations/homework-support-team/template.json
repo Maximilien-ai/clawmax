@@ -25,29 +25,55 @@
   "communities": [
     {
       "name": "Homework Desk",
-      "description": "Shared coordination space for homework support team."
+      "description": "Shared coordination space for homework support team.",
+      "tags": [
+        "family",
+        "homework",
+        "homework-support-team",
+        "homework-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Assignments",
       "community": "Homework Desk",
-      "description": "Current homework, due dates, and study tasks."
+      "description": "Current homework, due dates, and study tasks.",
+      "tags": [
+        "family",
+        "homework-support-team",
+        "assignments"
+      ]
     },
     {
       "name": "Projects",
       "community": "Homework Desk",
-      "description": "Longer projects, milestones, and research needs."
+      "description": "Longer projects, milestones, and research needs.",
+      "tags": [
+        "family",
+        "homework-support-team",
+        "projects"
+      ]
     },
     {
       "name": "Study Support",
       "community": "Homework Desk",
-      "description": "Practice plans, explanations, and review help."
+      "description": "Practice plans, explanations, and review help.",
+      "tags": [
+        "family",
+        "homework-support-team",
+        "study-support"
+      ]
     },
     {
       "name": "Status",
       "community": "Homework Desk",
-      "description": "Current workload and what needs help first."
+      "description": "Current workload and what needs help first.",
+      "tags": [
+        "family",
+        "homework-support-team",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -135,7 +161,13 @@
       },
       "content": "# Homework Kickoff\n\nYou are the Study Lead. The homework support team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Student or learners:** [names, grades, roles]\n- **Current subjects:** [math, reading, science, writing, custom]\n- **Known deadlines:** [today, this week, projects, tests]\n- **Pain points:** [motivation, confusion, time management, custom]\n- **Output artifact:** [study plan, homework board, project checklist]\n\n## Your Tasks\n1. Define the current homework priorities\n2. Ask Assignment Planner for the first work breakdown\n3. Ask Project Coach for any larger-project milestone plan\n4. Ask Review Tutor for the best study support approach\n5. Post the study plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "family",
+        "homework-support-team",
+        "homework-kickoff"
+      ]
     },
     {
       "id": "assignment-breakdown",
@@ -159,6 +191,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "homework-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "homework-support-team",
+        "assignment-breakdown"
       ]
     }
   ]

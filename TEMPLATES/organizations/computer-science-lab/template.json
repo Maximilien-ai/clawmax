@@ -28,63 +28,132 @@
       "id": "cs-lead",
       "name": "CS Lead",
       "role": "Research lead — selects the problem framing, coordinates prototyping and evaluation, and sets the evidence bar for claims.",
-      "tags": ["lead", "computer-science", "research"],
-      "skills": ["github", "gh-issues"],
-      "communities": ["CS Lab"],
-      "groups": ["Prior Work", "Prototype", "Evaluation", "Status"]
+      "tags": [
+        "lead",
+        "computer-science",
+        "research"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "CS Lab"
+      ],
+      "groups": [
+        "Prior Work",
+        "Prototype",
+        "Evaluation",
+        "Status"
+      ]
     },
     {
       "id": "benchmark-scout",
       "name": "Benchmark Scout",
       "role": "Prior-art and benchmark specialist — collects related methods, datasets, baselines, and evaluation gaps.",
-      "tags": ["computer-science", "benchmarks", "prior-work"],
-      "communities": ["CS Lab"],
-      "groups": ["Prior Work"]
+      "tags": [
+        "computer-science",
+        "benchmarks",
+        "prior-work"
+      ],
+      "communities": [
+        "CS Lab"
+      ],
+      "groups": [
+        "Prior Work"
+      ]
     },
     {
       "id": "prototype-engineer",
       "name": "Prototype Engineer",
       "role": "Prototype specialist — drafts algorithmic designs, implementation plans, and likely tradeoffs.",
-      "tags": ["computer-science", "prototype", "implementation"],
-      "skills": ["github", "gh-issues"],
-      "communities": ["CS Lab"],
-      "groups": ["Prototype", "Status"]
+      "tags": [
+        "computer-science",
+        "prototype",
+        "implementation"
+      ],
+      "skills": [
+        "github",
+        "gh-issues"
+      ],
+      "communities": [
+        "CS Lab"
+      ],
+      "groups": [
+        "Prototype",
+        "Status"
+      ]
     },
     {
       "id": "eval-analyst",
       "name": "Evaluation Analyst",
       "role": "Evaluation specialist — defines metrics, benchmark comparisons, and risk-adjusted interpretation of results.",
-      "tags": ["computer-science", "evaluation", "metrics"],
-      "communities": ["CS Lab"],
-      "groups": ["Evaluation", "Status"]
+      "tags": [
+        "computer-science",
+        "evaluation",
+        "metrics"
+      ],
+      "communities": [
+        "CS Lab"
+      ],
+      "groups": [
+        "Evaluation",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "CS Lab",
-      "description": "Shared space for computer science research planning, prototyping, and evaluation."
+      "description": "Shared space for computer science research planning, prototyping, and evaluation.",
+      "tags": [
+        "science",
+        "computer-science",
+        "computer-science-lab",
+        "cs-lab"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Prior Work",
       "description": "Related systems, baselines, datasets, and benchmark assumptions.",
-      "community": "CS Lab"
+      "community": "CS Lab",
+      "tags": [
+        "science",
+        "computer-science-lab",
+        "prior-work"
+      ]
     },
     {
       "name": "Prototype",
       "description": "System design, algorithm structure, implementation tradeoffs, and open engineering risks.",
-      "community": "CS Lab"
+      "community": "CS Lab",
+      "tags": [
+        "science",
+        "computer-science-lab",
+        "prototype"
+      ]
     },
     {
       "name": "Evaluation",
       "description": "Metrics, benchmark design, comparison logic, and result interpretation.",
-      "community": "CS Lab"
+      "community": "CS Lab",
+      "tags": [
+        "science",
+        "computer-science-lab",
+        "evaluation"
+      ]
     },
     {
       "name": "Status",
       "description": "Milestones, blockers, evidence quality, and next-step recommendations.",
-      "community": "CS Lab"
+      "community": "CS Lab",
+      "tags": [
+        "science",
+        "computer-science-lab",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -98,12 +167,25 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["lead"],
-        "agents": ["cs-lead", "benchmark-scout", "prototype-engineer", "eval-analyst"]
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "cs-lead",
+          "benchmark-scout",
+          "prototype-engineer",
+          "eval-analyst"
+        ]
       },
       "content": "# CS Kickoff\n\nYou are the CS Lead. The lab just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research problem:** [e.g., improve retrieval latency without harming answer quality]\n- **Subfield:** [systems, programming languages, HCI, security, ML systems, custom]\n- **Core baselines:** [papers, repos, public benchmarks, custom]\n- **Evaluation targets:** [latency, accuracy, memory, robustness, cost, custom]\n- **Output artifact:** [design memo, prototype plan, benchmark brief, paper outline]\n- **GitHub repo:** [e.g., owner/repo — optional]\n\n## Your Tasks\n1. Define the problem statement and success criteria\n2. Ask Benchmark Scout for the closest prior methods and datasets\n3. Ask Prototype Engineer for the first implementation strategy\n4. Ask Evaluation Analyst for the first benchmark design and metrics\n5. Post the milestone summary and risk notes to Status",
       "type": "once",
-      "owner": "cs-lead"
+      "owner": "cs-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "computer-science-lab",
+        "cs-kickoff"
+      ]
     },
     {
       "id": "benchmark-sweep",
@@ -114,14 +196,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Prior Work"],
+        "groups": [
+          "Prior Work"
+        ],
         "tags": [],
-        "agents": ["benchmark-scout"]
+        "agents": [
+          "benchmark-scout"
+        ]
       },
       "content": "# Benchmark Sweep\n\n1. Gather the strongest prior systems, repos, datasets, and baselines for the configured problem\n2. Note which metrics and evaluation regimes dominate the literature\n3. Highlight where comparisons are weak, missing, or potentially misleading\n4. Post the benchmark summary to Prior Work\n5. Flag anything that should change the prototype plan or metric choice",
-      "dependsOn": ["cs-kickoff"],
+      "dependsOn": [
+        "cs-kickoff"
+      ],
       "type": "recurring",
-      "owner": "cs-lead"
+      "owner": "cs-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "computer-science-lab",
+        "benchmark-sweep"
+      ]
     },
     {
       "id": "prototype-and-eval-cycle",
@@ -132,14 +226,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Prototype", "Evaluation"],
+        "groups": [
+          "Prototype",
+          "Evaluation"
+        ],
         "tags": [],
-        "agents": ["prototype-engineer", "eval-analyst"]
+        "agents": [
+          "prototype-engineer",
+          "eval-analyst"
+        ]
       },
       "content": "# Prototype And Eval Cycle\n\n1. Draft the next prototype slice or algorithmic variant worth testing\n2. Define the benchmark setup, metrics, and failure conditions\n3. State the expected tradeoffs versus the strongest baseline\n4. Produce a concise recommendation memo with confidence and open risks\n5. Post the cycle plan to Prototype, Evaluation, and Status",
-      "dependsOn": ["benchmark-sweep"],
+      "dependsOn": [
+        "benchmark-sweep"
+      ],
       "type": "recurring",
-      "owner": "cs-lead"
+      "owner": "cs-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "computer-science-lab",
+        "prototype-and-eval-cycle"
+      ]
     },
     {
       "id": "results-and-paper-review",
@@ -150,14 +258,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Status"],
+        "groups": [
+          "Status"
+        ],
         "tags": [],
-        "agents": ["cs-lead", "prototype-engineer", "eval-analyst"]
+        "agents": [
+          "cs-lead",
+          "prototype-engineer",
+          "eval-analyst"
+        ]
       },
       "content": "# Results And Paper Review\n\n1. Review the current prototype status and benchmark story\n2. Summarize the strongest claim, main caveat, and missing evidence\n3. Decide whether to iterate, pivot, or move toward a write-up\n4. Produce a short CS research memo with next step\n5. Post the outcome to Status",
-      "dependsOn": ["prototype-and-eval-cycle"],
+      "dependsOn": [
+        "prototype-and-eval-cycle"
+      ],
       "type": "conditional",
-      "owner": "cs-lead"
+      "owner": "cs-lead",
+      "tags": [
+        "workflow",
+        "science",
+        "computer-science-lab",
+        "results-and-paper-review"
+      ]
     }
   ]
 }

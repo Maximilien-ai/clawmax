@@ -26,39 +26,75 @@
   "communities": [
     {
       "name": "Conference Ops",
-      "description": "Shared coordination space for large event and conference operations."
+      "description": "Shared coordination space for large event and conference operations.",
+      "tags": [
+        "personal",
+        "events",
+        "conference-ops-hub",
+        "conference-ops"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Program",
       "community": "Conference Ops",
-      "description": "Tracks, agenda, content flow, and audience programming."
+      "description": "Tracks, agenda, content flow, and audience programming.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "program"
+      ]
     },
     {
       "name": "Speakers",
       "community": "Conference Ops",
-      "description": "Speaker pipeline, prep, assets, travel, and green-room readiness."
+      "description": "Speaker pipeline, prep, assets, travel, and green-room readiness.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "speakers"
+      ]
     },
     {
       "name": "Capacity",
       "community": "Conference Ops",
-      "description": "Venue capacity, registration volume, seating, staffing, and contingency planning."
+      "description": "Venue capacity, registration volume, seating, staffing, and contingency planning.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "capacity"
+      ]
     },
     {
       "name": "Sponsors",
       "community": "Conference Ops",
-      "description": "Partner deliverables, sponsor logistics, booths, and follow-through."
+      "description": "Partner deliverables, sponsor logistics, booths, and follow-through.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "sponsors"
+      ]
     },
     {
       "name": "Follow-Up",
       "community": "Conference Ops",
-      "description": "Post-event recap, leads, survey review, and next-event actions."
+      "description": "Post-event recap, leads, survey review, and next-event actions.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "follow-up"
+      ]
     },
     {
       "name": "Status",
       "community": "Conference Ops",
-      "description": "Current launch readiness, blockers, executive updates, and decisions."
+      "description": "Current launch readiness, blockers, executive updates, and decisions.",
+      "tags": [
+        "personal",
+        "conference-ops-hub",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -181,7 +217,13 @@
       },
       "content": "# Conference Kickoff\n\nYou are the Conference Director. The conference ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Conference name and goal:** [summit, customer event, hack day, community conference, custom]\n- **Date, venue, and format:** [date, venue, in-person, hybrid, multi-day, custom]\n- **Expected attendees:** [count or range]\n- **Speaker and track count:** [speakers, sessions, tracks]\n- **Sponsor or partner commitments:** [none, basic, active, custom]\n- **Output artifact:** [master runbook, conference plan, executive brief]\n\n## Your Tasks\n1. Restate the conference goal, scale, and critical constraints\n2. Ask Track Coordinators for the first track and session map\n3. Ask Speaker Operations Lead for the speaker readiness plan\n4. Ask Capacity Planner for attendee, room, and staffing assumptions\n5. Ask Sponsor Manager for partner readiness if applicable\n6. Post the first conference operating plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "conference-kickoff"
+      ]
     },
     {
       "id": "track-planning-review",
@@ -205,6 +247,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "conference-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "track-planning-review"
       ]
     },
     {
@@ -229,6 +277,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "track-planning-review"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "speaker-ops-review"
       ]
     },
     {
@@ -253,6 +307,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "speaker-ops-review"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "capacity-and-venue-plan"
       ]
     },
     {
@@ -277,6 +337,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "capacity-and-venue-plan"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "sponsor-readiness-check"
       ]
     },
     {
@@ -301,6 +367,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "sponsor-readiness-check"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "conference-ops-hub",
+        "conference-follow-up"
       ]
     }
   ]

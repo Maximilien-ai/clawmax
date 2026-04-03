@@ -114,29 +114,55 @@
   "communities": [
     {
       "name": "Research Desk",
-      "description": "Team-wide coordination and briefing updates"
+      "description": "Team-wide coordination and briefing updates",
+      "tags": [
+        "technical",
+        "research",
+        "real-time-research-desk",
+        "research-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Intake",
       "description": "New evidence, source notes, uploads, and normalized input summaries",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "technical",
+        "real-time-research-desk",
+        "intake"
+      ]
     },
     {
       "name": "Analysis",
       "description": "Retrieved context, comparisons, grounded findings, and confidence calls",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "technical",
+        "real-time-research-desk",
+        "analysis"
+      ]
     },
     {
       "name": "Actions",
       "description": "Final briefs, recommendations, and handoff artifacts",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "technical",
+        "real-time-research-desk",
+        "actions"
+      ]
     },
     {
       "name": "Status",
       "description": "Kickoff updates, blockers, and end-to-end workflow state",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "technical",
+        "real-time-research-desk",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -159,7 +185,13 @@
       },
       "content": "# Research Desk Kickoff\n\nYou are the Research Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research question:** [e.g., What changed in multimodal agent tooling this week that matters for our product roadmap?]\n- **Primary evidence to ingest:** [e.g., screenshots, product docs, notes, transcripts, links]\n- **Evidence path for agents:** [e.g., /absolute/path/to/screenshots-or-evidence]\n- **Output artifact:** [e.g., one-page brief, bug summary, decision memo]\n- **Senso context label:** [e.g., Hackathon / Research Desk / multimodal-frontier]\n- **Action target:** [e.g., founder review, engineering follow-up, product decision]\n- **GitHub repo:** [e.g., owner/repo — optional, leave blank if not using GitHub]\n\n## Your Tasks\n1. Introduce yourself in the Research Desk community\n2. Confirm the research question, artifact type, action target, and evidence path\n3. Direct Evidence Ingest to organize the source material in Senso\n4. Tell all agents to read evidence from the configured path before making claims\n5. Direct Signal Analyst to retrieve related prior context from Senso before making claims\n6. Ask Action Editor to prepare a concise final brief with recommendation, confidence, top evidence, and immediate next step\n7. Tell the team not to block on channel details; use the configured evidence path, workflow groups, and Senso context label directly\n8. Post kickoff status and expected timeline in the Status group",
       "type": "once",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "technical",
+        "real-time-research-desk",
+        "research-desk-kickoff"
+      ]
     },
     {
       "id": "evidence-intake",
@@ -182,7 +214,13 @@
       "dependsOn": [
         "research-desk-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "real-time-research-desk",
+        "evidence-intake"
+      ]
     },
     {
       "id": "context-retrieval",
@@ -205,7 +243,13 @@
       "dependsOn": [
         "evidence-intake"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "real-time-research-desk",
+        "context-retrieval"
+      ]
     },
     {
       "id": "brief-action",
@@ -230,7 +274,13 @@
         "context-retrieval"
       ],
       "type": "recurring",
-      "owner": "action-editor"
+      "owner": "action-editor",
+      "tags": [
+        "workflow",
+        "technical",
+        "real-time-research-desk",
+        "brief-action"
+      ]
     }
   ]
 }

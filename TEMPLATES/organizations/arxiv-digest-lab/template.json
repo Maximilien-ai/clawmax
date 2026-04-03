@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "ArXiv Digest",
-      "description": "Shared coordination space for paper scouting, summaries, and digest writing."
+      "description": "Shared coordination space for paper scouting, summaries, and digest writing.",
+      "tags": [
+        "science",
+        "research",
+        "arxiv-digest-lab",
+        "arxiv-digest"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Scouting",
       "community": "ArXiv Digest",
-      "description": "Recent paper candidates, filtering, and relevance checks."
+      "description": "Recent paper candidates, filtering, and relevance checks.",
+      "tags": [
+        "science",
+        "arxiv-digest-lab",
+        "scouting"
+      ]
     },
     {
       "name": "Summaries",
       "community": "ArXiv Digest",
-      "description": "Readable paper summaries, methods, and caveats."
+      "description": "Readable paper summaries, methods, and caveats.",
+      "tags": [
+        "science",
+        "arxiv-digest-lab",
+        "summaries"
+      ]
     },
     {
       "name": "Digest",
       "community": "ArXiv Digest",
-      "description": "Final digest, trends, and recommendations."
+      "description": "Final digest, trends, and recommendations.",
+      "tags": [
+        "science",
+        "arxiv-digest-lab",
+        "digest"
+      ]
     },
     {
       "name": "Status",
       "community": "ArXiv Digest",
-      "description": "Current topic scope, volume, and open questions."
+      "description": "Current topic scope, volume, and open questions.",
+      "tags": [
+        "science",
+        "arxiv-digest-lab",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -138,7 +164,13 @@
       },
       "content": "# ArXiv Topic Kickoff\n\nYou are the Digest Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topic:** [agent systems, multimodal, robotics, biology, custom]\n- **Time window:** [last 7 days, last 30 days, this month, custom]\n- **Desired depth:** [quick digest, balanced review, deep summary]\n- **Audience:** [founder, engineer, researcher, student]\n- **Output artifact:** [weekly digest, reading list, decision memo]\n\n## Your Tasks\n1. Restate the topic, audience, and time window\n2. Ask Paper Scouts for the strongest recent candidates\n3. Ask Summary Analyst for clear paper briefs\n4. Ask Trend Editor for cross-paper patterns and hype checks\n5. Post the digest plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "science",
+        "arxiv-digest-lab",
+        "arxiv-topic-kickoff"
+      ]
     },
     {
       "id": "paper-digest-build",
@@ -162,6 +194,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "arxiv-topic-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "arxiv-digest-lab",
+        "paper-digest-build"
       ]
     }
   ]

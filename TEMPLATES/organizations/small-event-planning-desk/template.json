@@ -25,24 +25,45 @@
   "communities": [
     {
       "name": "Event Desk",
-      "description": "Shared coordination space for a small event planning team."
+      "description": "Shared coordination space for a small event planning team.",
+      "tags": [
+        "personal",
+        "events",
+        "small-event-planning-desk",
+        "event-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Guests",
       "community": "Event Desk",
-      "description": "Guest list, invitations, confirmations, and host communication."
+      "description": "Guest list, invitations, confirmations, and host communication.",
+      "tags": [
+        "personal",
+        "small-event-planning-desk",
+        "guests"
+      ]
     },
     {
       "name": "Logistics",
       "community": "Event Desk",
-      "description": "Venue setup, food, supplies, timing, and day-of needs."
+      "description": "Venue setup, food, supplies, timing, and day-of needs.",
+      "tags": [
+        "personal",
+        "small-event-planning-desk",
+        "logistics"
+      ]
     },
     {
       "name": "Status",
       "community": "Event Desk",
-      "description": "Current priorities, blockers, and event timeline updates."
+      "description": "Current priorities, blockers, and event timeline updates.",
+      "tags": [
+        "personal",
+        "small-event-planning-desk",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -116,7 +137,13 @@
       },
       "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [date, time, timezone]\n- **Expected guests:** [count, names, roles]\n- **Venue or format:** [home, restaurant, backyard, rented room, hybrid, custom]\n- **Food and drink plan:** [meal, snacks, potluck, drinks, custom]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Summarize the event plan in Status\n5. Flag the few decisions that the host must make next",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "personal",
+        "small-event-planning-desk",
+        "small-event-kickoff"
+      ]
     },
     {
       "id": "guest-list-check",
@@ -140,6 +167,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "small-event-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "small-event-planning-desk",
+        "guest-list-check"
       ]
     },
     {
@@ -164,6 +197,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "guest-list-check"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "small-event-planning-desk",
+        "event-day-readiness"
       ]
     }
   ]

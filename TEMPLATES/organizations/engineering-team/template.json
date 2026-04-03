@@ -87,7 +87,9 @@
       "description": "Software development, QA, and release management",
       "tags": [
         "engineering",
-        "development"
+        "development",
+        "technical",
+        "engineering-team"
       ],
       "channels": [
         "whatsapp"
@@ -99,7 +101,9 @@
       "name": "Code Review",
       "description": "Engineers reviewing code and PRs",
       "tags": [
-        "code-review"
+        "code-review",
+        "technical",
+        "engineering-team"
       ],
       "community": "Engineering Team",
       "channels": [
@@ -111,7 +115,10 @@
       "description": "Production release coordination",
       "tags": [
         "release",
-        "production"
+        "production",
+        "technical",
+        "engineering-team",
+        "release-team"
       ],
       "community": "Engineering Team",
       "channels": [
@@ -123,7 +130,9 @@
       "description": "Status updates and progress tracking",
       "tags": [
         "status",
-        "updates"
+        "updates",
+        "technical",
+        "engineering-team"
       ],
       "community": "Engineering Team",
       "channels": [
@@ -151,7 +160,13 @@
       },
       "content": "# Engineering Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo]\n- **Focus areas:** [e.g., bug fixes, features, refactoring]\n- **Tech stack:** [e.g., TypeScript, Python, Go]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the team community\n2. Review the codebase\n3. Assign focus areas to engineers\n4. Set up standards and kick off first sprint",
       "type": "once",
-      "owner": "engineer"
+      "owner": "engineer",
+      "tags": [
+        "workflow",
+        "technical",
+        "engineering-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "daily-standup",
@@ -172,7 +187,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "engineering-team",
+        "daily-standup"
+      ]
     },
     {
       "id": "code-review-reminder",
@@ -193,7 +214,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "engineering-team",
+        "code-review-reminder"
+      ]
     },
     {
       "id": "pr-review",
@@ -214,7 +241,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "engineering-team",
+        "pr-review"
+      ]
     },
     {
       "id": "release-preparation",
@@ -236,7 +269,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "engineer"
+      "owner": "engineer",
+      "tags": [
+        "workflow",
+        "technical",
+        "engineering-team",
+        "release-preparation"
+      ]
     }
   ],
   "category": "technical"

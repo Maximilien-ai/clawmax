@@ -24,29 +24,55 @@
   "communities": [
     {
       "name": "Family Ops",
-      "description": "Shared coordination space for family ops hub."
+      "description": "Shared coordination space for family ops hub.",
+      "tags": [
+        "family",
+        "proposal",
+        "family-ops-hub",
+        "family-ops"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Schedules",
       "community": "Family Ops",
-      "description": "Family calendar, pickups, appointments, and conflicts."
+      "description": "Family calendar, pickups, appointments, and conflicts.",
+      "tags": [
+        "family",
+        "family-ops-hub",
+        "schedules"
+      ]
     },
     {
       "name": "Home",
       "community": "Family Ops",
-      "description": "Cleaning, chores, errands, and household tasks."
+      "description": "Cleaning, chores, errands, and household tasks.",
+      "tags": [
+        "family",
+        "family-ops-hub",
+        "home"
+      ]
     },
     {
       "name": "Kids",
       "community": "Family Ops",
-      "description": "School, activities, homework, and family logistics."
+      "description": "School, activities, homework, and family logistics.",
+      "tags": [
+        "family",
+        "family-ops-hub",
+        "kids"
+      ]
     },
     {
       "name": "Status",
       "community": "Family Ops",
-      "description": "Current priorities and what needs attention this week."
+      "description": "Current priorities and what needs attention this week.",
+      "tags": [
+        "family",
+        "family-ops-hub",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -132,7 +158,13 @@
       },
       "content": "# Family Week Kickoff\n\nYou are the Family Lead. The family ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **This week’s priorities:** [school, appointments, travel, chores, bills, custom]\n- **Key family members or roles:** [names or roles]\n- **Known stress points:** [time crunches, missing supplies, overloaded days, custom]\n- **Output artifact:** [weekly plan, chore board, family brief]\n\n## Your Tasks\n1. Define the top family priorities for the week\n2. Ask Schedule Coordinator for the first schedule risk review\n3. Ask Home Ops Coordinator for the top household tasks\n4. Ask Kids Support Coordinator for school/activity needs\n5. Post the current family ops plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "family",
+        "family-ops-hub",
+        "family-week-kickoff"
+      ]
     },
     {
       "id": "household-reset",
@@ -156,6 +188,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "family-week-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "family-ops-hub",
+        "household-reset"
       ]
     }
   ]

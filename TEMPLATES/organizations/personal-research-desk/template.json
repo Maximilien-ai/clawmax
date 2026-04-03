@@ -29,61 +29,124 @@
       "id": "research-lead",
       "name": "Research Lead",
       "role": "Lead researcher — defines the question, evidence standard, and final briefing format for the user.",
-      "tags": ["lead", "research", "personal"],
-      "communities": ["Research Desk"],
-      "groups": ["People", "Companies", "Topics", "Status"]
+      "tags": [
+        "lead",
+        "research",
+        "personal"
+      ],
+      "communities": [
+        "Research Desk"
+      ],
+      "groups": [
+        "People",
+        "Companies",
+        "Topics",
+        "Status"
+      ]
     },
     {
       "id": "people-researcher",
       "name": "People Researcher",
       "role": "People specialist — gathers role context, prior work, and relationship-relevant signals on individuals.",
-      "tags": ["people", "research", "profiles"],
-      "communities": ["Research Desk"],
-      "groups": ["People"]
+      "tags": [
+        "people",
+        "research",
+        "profiles"
+      ],
+      "communities": [
+        "Research Desk"
+      ],
+      "groups": [
+        "People"
+      ]
     },
     {
       "id": "company-researcher",
       "name": "Company Researcher",
       "role": "Company specialist — summarizes market position, product context, recent news, and decision-relevant signals.",
-      "tags": ["companies", "research", "analysis"],
-      "communities": ["Research Desk"],
-      "groups": ["Companies", "Status"]
+      "tags": [
+        "companies",
+        "research",
+        "analysis"
+      ],
+      "communities": [
+        "Research Desk"
+      ],
+      "groups": [
+        "Companies",
+        "Status"
+      ]
     },
     {
       "id": "brief-writer",
       "name": "Brief Writer",
       "role": "Briefing specialist — turns raw research into concise briefing notes and recommended questions or next steps.",
-      "tags": ["briefing", "writing", "research"],
-      "communities": ["Research Desk"],
-      "groups": ["Topics", "Status"]
+      "tags": [
+        "briefing",
+        "writing",
+        "research"
+      ],
+      "communities": [
+        "Research Desk"
+      ],
+      "groups": [
+        "Topics",
+        "Status"
+      ]
     }
   ],
   "communities": [
     {
       "name": "Research Desk",
-      "description": "Shared space for personal research, people briefs, and company or topic summaries."
+      "description": "Shared space for personal research, people briefs, and company or topic summaries.",
+      "tags": [
+        "personal",
+        "assistant",
+        "personal-research-desk",
+        "research-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "People",
       "description": "Profiles, prior work, relationship context, and likely interests.",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "personal",
+        "personal-research-desk",
+        "people"
+      ]
     },
     {
       "name": "Companies",
       "description": "Company background, product context, recent movement, and decision signals.",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "personal",
+        "personal-research-desk",
+        "companies"
+      ]
     },
     {
       "name": "Topics",
       "description": "Topic summaries, briefing drafts, question lists, and next-step notes.",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "personal",
+        "personal-research-desk",
+        "topics"
+      ]
     },
     {
       "name": "Status",
       "description": "Open research requests, confidence updates, and recommended next actions.",
-      "community": "Research Desk"
+      "community": "Research Desk",
+      "tags": [
+        "personal",
+        "personal-research-desk",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -97,12 +160,25 @@
       "targeting": {
         "communities": [],
         "groups": [],
-        "tags": ["lead"],
-        "agents": ["research-lead", "people-researcher", "company-researcher", "brief-writer"]
+        "tags": [
+          "lead"
+        ],
+        "agents": [
+          "research-lead",
+          "people-researcher",
+          "company-researcher",
+          "brief-writer"
+        ]
       },
       "content": "# Research Request Kickoff\n\nYou are the Research Lead. The personal research desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Research target:** [person, company, topic, custom]\n- **Question to answer:** [e.g., what matters most before the conversation?]\n- **Context:** [meeting, outreach, diligence, personal decision, custom]\n- **Time horizon:** [today, this week, background only, custom]\n- **Output artifact:** [one-page brief, question list, company memo]\n\n## Your Tasks\n1. Define the exact research question and useful output format\n2. Ask People Researcher and Company Researcher for the first evidence sweep as needed\n3. Ask Brief Writer to assemble the final briefing structure\n4. Post the research plan and expected confidence level to Status",
       "type": "once",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "personal-research-desk",
+        "research-request-kickoff"
+      ]
     },
     {
       "id": "subject-research-sweep",
@@ -113,14 +189,28 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["People", "Companies"],
+        "groups": [
+          "People",
+          "Companies"
+        ],
         "tags": [],
-        "agents": ["people-researcher", "company-researcher"]
+        "agents": [
+          "people-researcher",
+          "company-researcher"
+        ]
       },
       "content": "# Subject Research Sweep\n\n1. Gather the strongest current evidence relevant to the research target\n2. Separate likely useful signals from nice-to-know background\n3. Highlight what would matter most in a conversation or decision\n4. Post a concise research sweep to People, Companies, and Status\n5. Flag any area where confidence remains low",
-      "dependsOn": ["research-request-kickoff"],
+      "dependsOn": [
+        "research-request-kickoff"
+      ],
       "type": "recurring",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "personal-research-desk",
+        "subject-research-sweep"
+      ]
     },
     {
       "id": "briefing-build",
@@ -131,14 +221,26 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Topics"],
+        "groups": [
+          "Topics"
+        ],
         "tags": [],
-        "agents": ["brief-writer"]
+        "agents": [
+          "brief-writer"
+        ]
       },
       "content": "# Briefing Build\n\n1. Turn the current research sweep into a concise briefing note\n2. Include the most decision-relevant facts and recommended questions\n3. Make confidence and remaining unknowns explicit\n4. Keep the output skimmable and useful under time pressure\n5. Post the final briefing to Topics and Status",
-      "dependsOn": ["subject-research-sweep"],
+      "dependsOn": [
+        "subject-research-sweep"
+      ],
       "type": "recurring",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "personal-research-desk",
+        "briefing-build"
+      ]
     },
     {
       "id": "recommendation-review",
@@ -149,14 +251,27 @@
       "executionMode": "managed",
       "targeting": {
         "communities": [],
-        "groups": ["Status"],
+        "groups": [
+          "Status"
+        ],
         "tags": [],
-        "agents": ["research-lead", "brief-writer"]
+        "agents": [
+          "research-lead",
+          "brief-writer"
+        ]
       },
       "content": "# Recommendation Review\n\n1. Review the final briefing for usefulness and clarity\n2. Summarize the strongest insight, the main unknown, and the best next action\n3. Label where the user should probe deeper versus move fast\n4. Produce a short recommendation memo\n5. Post the review to Status",
-      "dependsOn": ["briefing-build"],
+      "dependsOn": [
+        "briefing-build"
+      ],
       "type": "conditional",
-      "owner": "research-lead"
+      "owner": "research-lead",
+      "tags": [
+        "workflow",
+        "personal",
+        "personal-research-desk",
+        "recommendation-review"
+      ]
     }
   ]
 }

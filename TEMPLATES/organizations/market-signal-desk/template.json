@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "Market Signals",
-      "description": "Shared coordination space for market trends, stock watchlists, and investor sentiment."
+      "description": "Shared coordination space for market trends, stock watchlists, and investor sentiment.",
+      "tags": [
+        "business",
+        "finance",
+        "market-signal-desk",
+        "market-signals"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Markets",
       "community": "Market Signals",
-      "description": "Macro trends, sectors, and cross-market moves."
+      "description": "Macro trends, sectors, and cross-market moves.",
+      "tags": [
+        "business",
+        "market-signal-desk",
+        "markets"
+      ]
     },
     {
       "name": "Companies",
       "community": "Market Signals",
-      "description": "Company-specific news, earnings, and stock catalysts."
+      "description": "Company-specific news, earnings, and stock catalysts.",
+      "tags": [
+        "business",
+        "market-signal-desk",
+        "companies"
+      ]
     },
     {
       "name": "Sentiment",
       "community": "Market Signals",
-      "description": "Retail vibe, community chatter, and noisy signals to interpret carefully."
+      "description": "Retail vibe, community chatter, and noisy signals to interpret carefully.",
+      "tags": [
+        "business",
+        "market-signal-desk",
+        "sentiment"
+      ]
     },
     {
       "name": "Status",
       "community": "Market Signals",
-      "description": "Current attention list, risks, and watch priorities."
+      "description": "Current attention list, risks, and watch priorities.",
+      "tags": [
+        "business",
+        "market-signal-desk",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -136,7 +162,13 @@
       },
       "content": "# Market Attention Kickoff\n\nYou are the Desk Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Watchlist or sector:** [tickers, themes, sector, custom]\n- **Time horizon:** [today, this week, this month]\n- **Risk style:** [conservative, balanced, aggressive]\n- **Priority lens:** [news, catalysts, sentiment, macro, all]\n- **Output artifact:** [watch note, daily digest, investor memo]\n\n## Your Tasks\n1. Restate the watchlist and time horizon\n2. Ask Market Analysts for the biggest trend shifts\n3. Ask Company Tracker for the highest-signal company developments\n4. Ask Sentiment Watcher for retail narrative worth noticing or ignoring\n5. Post the current attention list to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "business",
+        "market-signal-desk",
+        "market-attention-kickoff"
+      ]
     },
     {
       "id": "market-signal-digest",
@@ -160,6 +192,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "market-attention-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "market-signal-desk",
+        "market-signal-digest"
       ]
     }
   ]

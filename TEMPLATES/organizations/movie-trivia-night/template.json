@@ -27,29 +27,55 @@
   "communities": [
     {
       "name": "Movie Trivia",
-      "description": "Shared coordination space for movie trivia game setup and hosting."
+      "description": "Shared coordination space for movie trivia game setup and hosting.",
+      "tags": [
+        "hobbies",
+        "movies",
+        "movie-trivia-night",
+        "movie-trivia"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Questions",
       "community": "Movie Trivia",
-      "description": "Question ideas, categories, and difficulty tuning."
+      "description": "Question ideas, categories, and difficulty tuning.",
+      "tags": [
+        "hobbies",
+        "movie-trivia-night",
+        "questions"
+      ]
     },
     {
       "name": "Host Notes",
       "community": "Movie Trivia",
-      "description": "Run-of-show, pacing, and hosting guidance."
+      "description": "Run-of-show, pacing, and hosting guidance.",
+      "tags": [
+        "hobbies",
+        "movie-trivia-night",
+        "host-notes"
+      ]
     },
     {
       "name": "Scoring",
       "community": "Movie Trivia",
-      "description": "Round structure, points, tie-breakers, and answer key."
+      "description": "Round structure, points, tie-breakers, and answer key.",
+      "tags": [
+        "hobbies",
+        "movie-trivia-night",
+        "scoring"
+      ]
     },
     {
       "name": "Status",
       "community": "Movie Trivia",
-      "description": "Current game plan, rounds ready, and open gaps."
+      "description": "Current game plan, rounds ready, and open gaps.",
+      "tags": [
+        "hobbies",
+        "movie-trivia-night",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -138,7 +164,13 @@
       },
       "content": "# Trivia Night Kickoff\n\nYou are the Trivia Host.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme:** [general movies, one franchise, decade, director, genre, custom]\n- **Audience size:** [small, medium, party, custom]\n- **Difficulty:** [easy, mixed, hard]\n- **Rounds planned:** [3, 4, 5, custom]\n- **Output artifact:** [ready-to-host trivia pack, host script, answer key]\n\n## Your Tasks\n1. Restate the game-night goal and constraints\n2. Ask Question Writers for the first batch of questions\n3. Ask Round Designer for the round structure\n4. Ask Score Keeper for scoring rules and tie-breakers\n5. Post the trivia plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-trivia-night",
+        "trivia-night-kickoff"
+      ]
     },
     {
       "id": "trivia-pack-build",
@@ -162,6 +194,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "trivia-night-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-trivia-night",
+        "trivia-pack-build"
       ]
     }
   ]

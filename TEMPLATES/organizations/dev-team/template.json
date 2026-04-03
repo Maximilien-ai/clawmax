@@ -109,29 +109,54 @@
   "communities": [
     {
       "name": "Dev Team",
-      "description": "All engineering team coordination and announcements"
+      "description": "All engineering team coordination and announcements",
+      "tags": [
+        "technical",
+        "engineering",
+        "dev-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Engineering",
       "description": "Feature development, code review, and technical discussions",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "technical",
+        "dev-team",
+        "engineering"
+      ]
     },
     {
       "name": "QA",
       "description": "Test plans, bug reports, and regression tracking",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "technical",
+        "dev-team",
+        "qa"
+      ]
     },
     {
       "name": "DevOps",
       "description": "CI/CD pipeline, deployments, and infrastructure",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "technical",
+        "dev-team",
+        "devops"
+      ]
     },
     {
       "name": "Status",
       "description": "Daily standups and sprint progress",
-      "community": "Dev Team"
+      "community": "Dev Team",
+      "tags": [
+        "technical",
+        "dev-team",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -157,7 +182,13 @@
       },
       "content": "# Dev Team Kickoff\n\nYou are the Tech Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Repository:** [e.g., owner/repo — the codebase to work on]\n- **Focus areas:** [e.g., bug fixes, new features, refactoring, test coverage]\n- **Tech stack:** [e.g., TypeScript/React, Python/FastAPI, Go]\n- **Priority issues:** [e.g., #42, #56 — specific issues to start with]\n- **Branch strategy:** [feature branches off main, GitFlow, trunk-based, custom]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Dev Team community\n2. Clone the repo and review the codebase architecture\n3. Assign initial focus areas to each engineer\n4. Set up coding standards and review expectations\n5. Kick off the first PR review cycle and daily standup",
       "type": "once",
-      "owner": "tech-lead"
+      "owner": "tech-lead",
+      "tags": [
+        "workflow",
+        "technical",
+        "dev-team",
+        "team-kickoff"
+      ]
     },
     {
       "id": "pr-review",
@@ -178,7 +209,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "dev-team",
+        "pr-review"
+      ]
     },
     {
       "id": "ci-triage",
@@ -201,7 +238,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "dev-team",
+        "ci-triage"
+      ]
     },
     {
       "id": "release-prep",
@@ -225,7 +268,13 @@
         "ci-triage"
       ],
       "type": "conditional",
-      "owner": "tech-lead"
+      "owner": "tech-lead",
+      "tags": [
+        "workflow",
+        "technical",
+        "dev-team",
+        "release-prep"
+      ]
     },
     {
       "id": "daily-standup",
@@ -246,7 +295,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "technical",
+        "dev-team",
+        "daily-standup"
+      ]
     }
   ],
   "category": "technical"

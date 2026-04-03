@@ -102,29 +102,55 @@
   "communities": [
     {
       "name": "Store Team",
-      "description": "All store team coordination and announcements"
+      "description": "All store team coordination and announcements",
+      "tags": [
+        "business",
+        "retail",
+        "specialty-retailer",
+        "store-team"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Buying",
       "description": "Product sourcing, supplier management, and purchase orders",
-      "community": "Store Team"
+      "community": "Store Team",
+      "tags": [
+        "business",
+        "specialty-retailer",
+        "buying"
+      ]
     },
     {
       "name": "Merchandising",
       "description": "Store layout, displays, and product placement",
-      "community": "Store Team"
+      "community": "Store Team",
+      "tags": [
+        "business",
+        "specialty-retailer",
+        "merchandising"
+      ]
     },
     {
       "name": "Customer Care",
       "description": "Customer inquiries, returns, and feedback",
-      "community": "Store Team"
+      "community": "Store Team",
+      "tags": [
+        "business",
+        "specialty-retailer",
+        "customer-care"
+      ]
     },
     {
       "name": "Status",
       "description": "Daily briefings and store performance",
-      "community": "Store Team"
+      "community": "Store Team",
+      "tags": [
+        "business",
+        "specialty-retailer",
+        "status"
+      ]
     }
   ],
   "workflows": [
@@ -150,7 +176,13 @@
       },
       "content": "# Specialty Retailer Kickoff\n\nYou are the Store Owner. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Store type:** [e.g., boutique clothing, artisan coffee, craft supplies]\n- **Product categories:** [e.g., women's apparel, accessories, home goods]\n- **Key suppliers:** [e.g., local artisans, wholesale distributors]\n- **Target customers:** [e.g., young professionals, gift shoppers]\n- **GitHub repo:** [e.g., owner/repo — for catalog and inventory tracking]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing product data or supplier contacts\n3. Brief the buyer on sourcing priorities and budget\n4. Set merchandising goals with the merchandiser\n5. Establish customer service standards and response times",
       "type": "once",
-      "owner": "owner"
+      "owner": "owner",
+      "tags": [
+        "workflow",
+        "business",
+        "specialty-retailer",
+        "team-kickoff"
+      ]
     },
     {
       "id": "product-curation",
@@ -172,7 +204,13 @@
         "team-kickoff"
       ],
       "type": "recurring",
-      "owner": "owner"
+      "owner": "owner",
+      "tags": [
+        "workflow",
+        "business",
+        "specialty-retailer",
+        "product-curation"
+      ]
     },
     {
       "id": "pricing-review",
@@ -193,7 +231,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "specialty-retailer",
+        "pricing-review"
+      ]
     },
     {
       "id": "customer-follow-up",
@@ -216,7 +260,13 @@
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring"
+      "type": "recurring",
+      "tags": [
+        "workflow",
+        "business",
+        "specialty-retailer",
+        "customer-follow-up"
+      ]
     }
   ]
 }

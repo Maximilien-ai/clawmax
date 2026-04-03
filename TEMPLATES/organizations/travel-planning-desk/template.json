@@ -24,29 +24,55 @@
   "communities": [
     {
       "name": "Travel Desk",
-      "description": "Shared coordination space for travel planning desk."
+      "description": "Shared coordination space for travel planning desk.",
+      "tags": [
+        "travel",
+        "proposal",
+        "travel-planning-desk",
+        "travel-desk"
+      ]
     }
   ],
   "groups": [
     {
       "name": "Planning",
       "community": "Travel Desk",
-      "description": "Trip planning, destination ideas, and itinerary drafts."
+      "description": "Trip planning, destination ideas, and itinerary drafts.",
+      "tags": [
+        "travel",
+        "travel-planning-desk",
+        "planning"
+      ]
     },
     {
       "name": "Logistics",
       "community": "Travel Desk",
-      "description": "Bookings, packing, transport, and travel-day coordination."
+      "description": "Bookings, packing, transport, and travel-day coordination.",
+      "tags": [
+        "travel",
+        "travel-planning-desk",
+        "logistics"
+      ]
     },
     {
       "name": "Memories",
       "community": "Travel Desk",
-      "description": "Trip notes, highlights, photos, and post-trip recap ideas."
+      "description": "Trip notes, highlights, photos, and post-trip recap ideas.",
+      "tags": [
+        "travel",
+        "travel-planning-desk",
+        "memories"
+      ]
     },
     {
       "name": "Status",
       "community": "Travel Desk",
-      "description": "Current priorities, blockers, and travel timeline updates."
+      "description": "Current priorities, blockers, and travel timeline updates.",
+      "tags": [
+        "travel",
+        "travel-planning-desk",
+        "status"
+      ]
     }
   ],
   "agents": [
@@ -134,7 +160,13 @@
       },
       "content": "# Trip Kickoff\n\nYou are the Travel Lead. The travel planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Destination or route:** [city, region, country, road trip, custom]\n- **Travel dates or window:** [exact dates, month, flexible range]\n- **Trip style:** [vacation, family visit, work trip, adventure, mixed]\n- **Budget range:** [lean, moderate, premium, custom]\n- **Travel party:** [solo, couple, family, friends, custom]\n- **Output artifact:** [itinerary, booking checklist, memory plan]\n\n## Your Tasks\n1. Restate the trip goal, budget, and pacing\n2. Direct Itinerary Designer to propose the first route or day plan\n3. Direct Logistics Coordinator to list the main booking and prep needs\n4. Ask Memory Curator to suggest how to capture highlights along the way\n5. Post the initial travel plan to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "travel",
+        "travel-planning-desk",
+        "trip-kickoff"
+      ]
     },
     {
       "id": "itinerary-build",
@@ -158,6 +190,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "trip-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "travel-planning-desk",
+        "itinerary-build"
       ]
     },
     {
@@ -182,6 +220,12 @@
       "executionMode": "managed",
       "dependsOn": [
         "itinerary-build"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "travel-planning-desk",
+        "logistics-check"
       ]
     }
   ]
