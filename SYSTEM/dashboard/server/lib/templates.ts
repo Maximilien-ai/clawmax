@@ -1177,16 +1177,26 @@ export function createOrganizationTemplate(
 
     // Get all workflows
     const workflows = listWorkflows()
-    const workflowsData: Workflow[] = workflows.map(wf => ({
-      id: wf.id,
-      name: wf.name,
-      description: wf.description,
-      schedule: wf.schedule,
-      enabled: wf.enabled,
-      executionMode: wf.executionMode,
-      targeting: wf.targeting,
-      content: wf.content
-    }))
+    const workflowsData: Workflow[] = workflows.map(wf => {
+      const executionMode = wf.executionMode
+      const inferredOwner = executionMode === 'managed'
+        ? (wf.owner || wf.targeting?.agents?.[0])
+        : undefined
+
+      return {
+        id: wf.id,
+        name: wf.name,
+        description: wf.description,
+        schedule: wf.schedule,
+        enabled: wf.enabled,
+        executionMode,
+        owner: inferredOwner,
+        type: wf.type,
+        dependsOn: wf.dependsOn,
+        targeting: wf.targeting,
+        content: wf.content
+      }
+    })
 
     const template: OrganizationTemplate = {
       name: templateName,

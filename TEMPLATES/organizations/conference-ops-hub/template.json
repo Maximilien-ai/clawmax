@@ -1,0 +1,292 @@
+{
+  "name": "Conference Ops Hub",
+  "emoji": "🏟️",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for larger events with hundreds of attendees, multiple speakers, and heavier planning across program, capacity, sponsors, and follow-through. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "events",
+    "conference",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "track-coordinator",
+      "label": "Number of Track Coordinators",
+      "default": 3,
+      "min": 1,
+      "max": 12
+    }
+  ],
+  "communities": [
+    {
+      "name": "Conference Ops",
+      "description": "Shared coordination space for large event and conference operations."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Program",
+      "community": "Conference Ops",
+      "description": "Tracks, agenda, content flow, and audience programming."
+    },
+    {
+      "name": "Speakers",
+      "community": "Conference Ops",
+      "description": "Speaker pipeline, prep, assets, travel, and green-room readiness."
+    },
+    {
+      "name": "Capacity",
+      "community": "Conference Ops",
+      "description": "Venue capacity, registration volume, seating, staffing, and contingency planning."
+    },
+    {
+      "name": "Sponsors",
+      "community": "Conference Ops",
+      "description": "Partner deliverables, sponsor logistics, booths, and follow-through."
+    },
+    {
+      "name": "Follow-Up",
+      "community": "Conference Ops",
+      "description": "Post-event recap, leads, survey review, and next-event actions."
+    },
+    {
+      "name": "Status",
+      "community": "Conference Ops",
+      "description": "Current launch readiness, blockers, executive updates, and decisions."
+    }
+  ],
+  "agents": [
+    {
+      "id": "conference-director",
+      "name": "Conference Director",
+      "role": "Conference lead — sets the event strategy, decision cadence, and overall operating plan.",
+      "tags": [
+        "lead",
+        "conference",
+        "event"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Program",
+        "Status"
+      ]
+    },
+    {
+      "id": "track-coordinator",
+      "name": "Track Coordinator",
+      "role": "Track specialist — owns agenda blocks, session sequencing, and the detail flow for one part of the event.",
+      "tags": [
+        "conference",
+        "program",
+        "tracks"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Program",
+        "Status"
+      ]
+    },
+    {
+      "id": "speaker-operations-lead",
+      "name": "Speaker Operations Lead",
+      "role": "Speaker ops specialist — manages confirmations, prep packets, travel, timing, and on-site readiness.",
+      "tags": [
+        "conference",
+        "speakers",
+        "operations"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Speakers",
+        "Status"
+      ]
+    },
+    {
+      "id": "capacity-planner",
+      "name": "Capacity Planner",
+      "role": "Capacity specialist — models attendance, room fit, staffing, registration flow, and contingency scenarios.",
+      "tags": [
+        "conference",
+        "capacity",
+        "operations"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Capacity",
+        "Status"
+      ]
+    },
+    {
+      "id": "sponsor-manager",
+      "name": "Sponsor Manager",
+      "role": "Sponsor specialist — manages partner deliverables, timelines, and event-day sponsor coordination.",
+      "tags": [
+        "conference",
+        "sponsors"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Sponsors"
+      ]
+    },
+    {
+      "id": "event-follow-up-lead",
+      "name": "Event Follow Up Lead",
+      "role": "Follow-up specialist — turns the event into recap, pipeline, survey review, and next-event planning.",
+      "tags": [
+        "conference",
+        "follow-up"
+      ],
+      "communities": [
+        "Conference Ops"
+      ],
+      "groups": [
+        "Follow-Up"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "conference-kickoff",
+      "name": "Conference Kickoff",
+      "description": "Initialize the conference operations team and define the first operating plan.",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "conference-director",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "conference-director"
+        ]
+      },
+      "content": "# Conference Kickoff\n\nYou are the Conference Director. The conference ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Conference name and goal:** [summit, customer event, hack day, community conference, custom]\n- **Date, venue, and format:** [date, venue, in-person, hybrid, multi-day, custom]\n- **Expected attendees:** [count or range]\n- **Speaker and track count:** [speakers, sessions, tracks]\n- **Sponsor or partner commitments:** [none, basic, active, custom]\n- **Output artifact:** [master runbook, conference plan, executive brief]\n\n## Your Tasks\n1. Restate the conference goal, scale, and critical constraints\n2. Ask Track Coordinators for the first track and session map\n3. Ask Speaker Operations Lead for the speaker readiness plan\n4. Ask Capacity Planner for attendee, room, and staffing assumptions\n5. Ask Sponsor Manager for partner readiness if applicable\n6. Post the first conference operating plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "track-planning-review",
+      "name": "Track Planning Review",
+      "description": "Review track design, agenda sequencing, and session dependencies.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "track-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Program"
+        ],
+        "tags": [],
+        "agents": [
+          "track-coordinator"
+        ]
+      },
+      "content": "# Track Planning Review\n\n1. Build or review the track map, session timing, and room flow\n2. Identify gaps, overlaps, and risky transitions\n3. Flag any missing owners, assets, or moderation needs\n4. Post the track planning review to Program and the biggest risks to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "speaker-ops-review",
+      "name": "Speaker Ops Review",
+      "description": "Check speaker readiness across confirmations, assets, travel, and live support needs.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "speaker-operations-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Speakers"
+        ],
+        "tags": [],
+        "agents": [
+          "speaker-operations-lead"
+        ]
+      },
+      "content": "# Speaker Ops Review\n\n1. Review each speaker's confirmation, talk readiness, and asset status\n2. Track travel, green-room, timing, and moderator dependencies\n3. Escalate missing materials, scheduling risk, or owner gaps\n4. Post the speaker ops review to Speakers and the top blockers to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "capacity-and-venue-plan",
+      "name": "Capacity And Venue Plan",
+      "description": "Model attendee volume, room fit, staffing, and fallback scenarios.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "capacity-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Capacity"
+        ],
+        "tags": [],
+        "agents": [
+          "capacity-planner"
+        ]
+      },
+      "content": "# Capacity And Venue Plan\n\n1. Review attendance assumptions, room fit, staffing, registration, and line management\n2. Identify where capacity or flow could break down at peak volume\n3. Recommend contingency plans for overflow, delays, and staffing gaps\n4. Post the capacity plan to Capacity and the executive summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "sponsor-readiness-check",
+      "name": "Sponsor Readiness Check",
+      "description": "Review sponsor deliverables, deadlines, and event-day partner coordination.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "sponsor-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Sponsors"
+        ],
+        "tags": [],
+        "agents": [
+          "sponsor-manager"
+        ]
+      },
+      "content": "# Sponsor Readiness Check\n\n1. Review sponsor commitments, deadlines, placements, and deliverables\n2. Identify missing assets, approvals, or event-day needs\n3. Clarify what the core event team still owes sponsors or partners\n4. Post the sponsor readiness check to Sponsors and any escalations to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "conference-follow-up",
+      "name": "Conference Follow Up",
+      "description": "Turn the conference into recap, pipeline, survey, and next-event actions.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "event-follow-up-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Follow-Up"
+        ],
+        "tags": [],
+        "agents": [
+          "event-follow-up-lead"
+        ]
+      },
+      "content": "# Conference Follow Up\n\n1. Summarize the event outcomes, feedback themes, and unresolved issues\n2. Draft sponsor, speaker, and attendee follow-up streams\n3. Capture leads, commitments, and the next conference improvements\n4. Post the follow-up plan to Follow-Up and the final summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

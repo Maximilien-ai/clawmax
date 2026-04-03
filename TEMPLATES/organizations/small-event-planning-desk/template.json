@@ -1,0 +1,164 @@
+{
+  "name": "Small Event Planning Desk",
+  "emoji": "🎉",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for planning small personal events like dinners, birthdays, meetups, and celebrations with around ten guests. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "events",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "guest-coordinator",
+      "label": "Number of Guest Coordinators",
+      "default": 1,
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "communities": [
+    {
+      "name": "Event Desk",
+      "description": "Shared coordination space for a small event planning team."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Guests",
+      "community": "Event Desk",
+      "description": "Guest list, invitations, confirmations, and host communication."
+    },
+    {
+      "name": "Logistics",
+      "community": "Event Desk",
+      "description": "Venue setup, food, supplies, timing, and day-of needs."
+    },
+    {
+      "name": "Status",
+      "community": "Event Desk",
+      "description": "Current priorities, blockers, and event timeline updates."
+    }
+  ],
+  "agents": [
+    {
+      "id": "event-lead",
+      "name": "Event Lead",
+      "role": "Event planning lead — sets the event goals, guest experience, and final plan for the host.",
+      "tags": [
+        "lead",
+        "event",
+        "planning"
+      ],
+      "communities": [
+        "Event Desk"
+      ],
+      "groups": [
+        "Guests",
+        "Status"
+      ]
+    },
+    {
+      "id": "guest-coordinator",
+      "name": "Guest Coordinator",
+      "role": "Guest specialist — manages invites, responses, seating ideas, and guest-specific follow-up.",
+      "tags": [
+        "event",
+        "guests",
+        "coordination"
+      ],
+      "communities": [
+        "Event Desk"
+      ],
+      "groups": [
+        "Guests"
+      ]
+    },
+    {
+      "id": "logistics-coordinator",
+      "name": "Logistics Coordinator",
+      "role": "Logistics specialist — tracks food, supplies, setup, and the event-day checklist.",
+      "tags": [
+        "event",
+        "logistics"
+      ],
+      "communities": [
+        "Event Desk"
+      ],
+      "groups": [
+        "Logistics",
+        "Status"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "small-event-kickoff",
+      "name": "Small Event Kickoff",
+      "description": "Initialize the small event planning team and set the host plan.",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "event-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "event-lead"
+        ]
+      },
+      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [date, time, timezone]\n- **Expected guests:** [count, names, roles]\n- **Venue or format:** [home, restaurant, backyard, rented room, hybrid, custom]\n- **Food and drink plan:** [meal, snacks, potluck, drinks, custom]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Summarize the event plan in Status\n5. Flag the few decisions that the host must make next",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "guest-list-check",
+      "name": "Guest List Check",
+      "description": "Review RSVPs, guest needs, and host communication for the event.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "guest-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Guests"
+        ],
+        "tags": [],
+        "agents": [
+          "guest-coordinator"
+        ]
+      },
+      "content": "# Guest List Check\n\n1. Draft or review the invite list and RSVP status\n2. Note any dietary, accessibility, timing, or seating needs\n3. Identify which guests still need follow-up\n4. Post the guest update to Guests and any risks to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "event-day-readiness",
+      "name": "Event Day Readiness",
+      "description": "Prepare the final checklist for setup, supplies, and host execution.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "logistics-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Logistics"
+        ],
+        "tags": [],
+        "agents": [
+          "logistics-coordinator"
+        ]
+      },
+      "content": "# Event Day Readiness\n\n1. Review the venue, supplies, food, timing, and cleanup needs\n2. Build a short event-day checklist with sequence and owners\n3. Flag any missing items, reservations, or timing risks\n4. Post the readiness checklist to Logistics and a short summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

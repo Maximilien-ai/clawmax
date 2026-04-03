@@ -1,0 +1,250 @@
+{
+  "name": "Speaker Event Studio",
+  "emoji": "🎤",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for planning medium-sized events with dozens of attendees, a few speakers, and a tighter run-of-show. Early idea only and meant to be customized.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "events",
+    "speakers",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "speaker-coordinator",
+      "label": "Number of Speaker Coordinators",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Speaker Event",
+      "description": "Shared coordination space for a speaker-driven event team."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Program",
+      "community": "Speaker Event",
+      "description": "Agenda design, session flow, and attendee experience."
+    },
+    {
+      "name": "Speakers",
+      "community": "Speaker Event",
+      "description": "Speaker outreach, prep, bios, assets, and communication."
+    },
+    {
+      "name": "Logistics",
+      "community": "Speaker Event",
+      "description": "Venue, AV, seating, check-in, timing, and operational readiness."
+    },
+    {
+      "name": "Follow-Up",
+      "community": "Speaker Event",
+      "description": "Post-event notes, thank-yous, recap, and next steps."
+    },
+    {
+      "name": "Status",
+      "community": "Speaker Event",
+      "description": "Current priorities, dependencies, and launch readiness."
+    }
+  ],
+  "agents": [
+    {
+      "id": "event-director",
+      "name": "Event Director",
+      "role": "Event lead — defines the event goal, final agenda shape, and owner decisions needed to ship the event cleanly.",
+      "tags": [
+        "lead",
+        "event",
+        "program"
+      ],
+      "communities": [
+        "Speaker Event"
+      ],
+      "groups": [
+        "Program",
+        "Status"
+      ]
+    },
+    {
+      "id": "speaker-coordinator",
+      "name": "Speaker Coordinator",
+      "role": "Speaker specialist — manages outreach, confirmations, briefing, assets, and speaker logistics.",
+      "tags": [
+        "event",
+        "speakers",
+        "coordination"
+      ],
+      "communities": [
+        "Speaker Event"
+      ],
+      "groups": [
+        "Speakers",
+        "Status"
+      ]
+    },
+    {
+      "id": "program-manager",
+      "name": "Program Manager",
+      "role": "Program specialist — builds the agenda, pacing, and audience flow across sessions and transitions.",
+      "tags": [
+        "event",
+        "agenda",
+        "program"
+      ],
+      "communities": [
+        "Speaker Event"
+      ],
+      "groups": [
+        "Program"
+      ]
+    },
+    {
+      "id": "operations-manager",
+      "name": "Operations Manager",
+      "role": "Operations specialist — handles venue setup, AV, check-in, seating, and event-day execution.",
+      "tags": [
+        "event",
+        "operations",
+        "logistics"
+      ],
+      "communities": [
+        "Speaker Event"
+      ],
+      "groups": [
+        "Logistics",
+        "Status"
+      ]
+    },
+    {
+      "id": "follow-up-manager",
+      "name": "Follow Up Manager",
+      "role": "Follow-up specialist — captures outcomes, sends thanks, and turns the event into next-step actions.",
+      "tags": [
+        "event",
+        "follow-up"
+      ],
+      "communities": [
+        "Speaker Event"
+      ],
+      "groups": [
+        "Follow-Up"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "speaker-event-kickoff",
+      "name": "Speaker Event Kickoff",
+      "description": "Initialize the speaker event team and align on goals, format, and decision points.",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "event-director",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "event-director"
+        ]
+      },
+      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event name and goal:** [launch, salon, meetup, community talk, customer event, custom]\n- **Date, venue, and format:** [date, location, in-person, hybrid, custom]\n- **Expected attendees:** [count or range]\n- **Speaker count:** [planned speakers or panelists]\n- **Key audience outcome:** [leads, learning, community, recruiting, custom]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "speaker-readiness-review",
+      "name": "Speaker Readiness Review",
+      "description": "Check speaker confirmations, briefs, assets, and presentation readiness.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "speaker-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Speakers"
+        ],
+        "tags": [],
+        "agents": [
+          "speaker-coordinator"
+        ]
+      },
+      "content": "# Speaker Readiness Review\n\n1. Review speaker confirmations, bios, assets, and talk status\n2. Identify who still needs briefing, timing guidance, or reminders\n3. Flag missing slides, headshots, approvals, or travel details\n4. Post the speaker readiness update to Speakers and any risks to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "run-of-show-build",
+      "name": "Run Of Show Build",
+      "description": "Build the agenda and transitions needed for a smooth audience experience.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "program-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Program"
+        ],
+        "tags": [],
+        "agents": [
+          "program-manager"
+        ]
+      },
+      "content": "# Run Of Show Build\n\n1. Build the agenda with session timing, transitions, and owner handoffs\n2. Balance speaker time, attendee energy, and buffer windows\n3. Call out the top pacing, sequencing, or content risks\n4. Post the run-of-show draft to Program and the key dependencies to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "event-day-ops-check",
+      "name": "Event Day Ops Check",
+      "description": "Finalize venue, AV, staffing, and check-in readiness before launch.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "operations-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Logistics"
+        ],
+        "tags": [],
+        "agents": [
+          "operations-manager"
+        ]
+      },
+      "content": "# Event Day Ops Check\n\n1. Review venue readiness, AV, seating, signage, and check-in flow\n2. Confirm staffing, volunteer, or host responsibilities\n3. Identify the last operational blockers and contingency plans\n4. Post the event-day ops plan to Logistics and a go/no-go summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "speaker-event-follow-up",
+      "name": "Speaker Event Follow Up",
+      "description": "Summarize the event, capture next steps, and send the follow-up plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "follow-up-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Follow-Up"
+        ],
+        "tags": [],
+        "agents": [
+          "follow-up-manager"
+        ]
+      },
+      "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Post the follow-up plan to Follow-Up and the executive summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}
