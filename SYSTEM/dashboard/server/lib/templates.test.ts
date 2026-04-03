@@ -191,6 +191,25 @@ test('ClawMax System Test workflows use current workflow groups instead of separ
   assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
 })
 
+test('Shared SOUL guidance tells agents to respond in group chats when addressed', () => {
+  const agentTemplates = listTemplates('agent') as AgentTemplate[]
+  const checkedTemplates = [
+    'research-lead-template',
+    'data-analyst-template',
+    'literature-reviewer-template',
+    'experiment-planner-template',
+  ]
+
+  for (const slug of checkedTemplates) {
+    const template = agentTemplates.find(t => t.slug === slug)
+    assert(template !== undefined, `${slug} should exist`)
+    const soulPath = path.join(REPO_ROOT, 'TEMPLATES', 'agents', slug, 'SOUL.md')
+    const soul = fs.readFileSync(soulPath, 'utf-8')
+    assert(!soul.includes("You're not the user's voice — be careful in group chats."), `${slug} should not use the old ambiguous group chat warning`)
+    assert(soul.includes('respond when addressed or when @all is used'), `${slug} should explicitly tell agents to respond in group chats when addressed`)
+  }
+})
+
 // Test 7: slugify function works correctly
 test('slugify() converts names to filesystem-safe slugs', () => {
   assertEqual(slugify('Small Startup Team'), 'small-startup-team')

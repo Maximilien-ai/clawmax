@@ -556,7 +556,7 @@ router.post('/communities/:name/messages', async (req, res) => {
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
-      const communityContext = `[Community chat: "${decodedName}" — from: ${from || 'User'}]\n\n${content}`
+      const communityContext = `[You are participating in a ClawMax community named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
@@ -637,7 +637,7 @@ router.post('/groups/:name/messages', async (req, res) => {
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
       // Build context-aware message so agents know they're in a group
-      const groupContext = `[Group chat: "${decodedName}" — from: ${from || 'User'}]\n\n${content}`
+      const groupContext = `[You are participating in a ClawMax group named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
       for (let i = 0; i < mentions.length; i++) {
         const agentId = mentions[i]
