@@ -20,6 +20,11 @@ Proposal template for analyzing Lu.ma events, attendees, invites, and engagement
 Put the Lu.ma event URL or slug in the kickoff workflow customization.
 Keep the API key in secure runtime config or the `luma-event-insights` custom skill environment, not in workflow text.
 
+This template also declares browser-local apply secrets for:
+- Lu.ma event URL or slug
+- Lu.ma API key
+- optional export directory
+
 ## Agents
 
 | id | name | role | tags | skills |

@@ -24,6 +24,36 @@
       "max": 8
     }
   ],
+  "secretRequirements": [
+    {
+      "key": "LUMA_EVENT_SCOPE",
+      "label": "Lu.ma Event URL or Slug",
+      "kind": "url",
+      "required": true,
+      "placeholder": "https://lu.ma/your-event or your-event-slug",
+      "help": "Use a single event URL, event slug, organizer page, or a short event list for the analysis scope.",
+      "sensitive": false,
+      "workflowFieldLabel": "Lu.ma event URL, slug, or event list"
+    },
+    {
+      "key": "LUMA_API_KEY",
+      "label": "Lu.ma API Key",
+      "kind": "api_key",
+      "required": false,
+      "placeholder": "luma_...",
+      "help": "Optional for the demo if you already have export files. Keep this browser-local or move it into secure runtime config for live ingestion.",
+      "sensitive": true
+    },
+    {
+      "key": "LUMA_EXPORT_DIR",
+      "label": "Lu.ma Export Directory",
+      "kind": "text",
+      "required": false,
+      "placeholder": "/path/to/luma-exports",
+      "help": "Optional fallback if you plan to analyze organizer-exported CSV or JSON files instead of using the API.",
+      "sensitive": false
+    }
+  ],
   "communities": [
     {
       "name": "Lu.ma Analysis",

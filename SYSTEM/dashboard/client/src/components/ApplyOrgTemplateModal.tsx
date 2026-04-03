@@ -10,12 +10,24 @@ interface TemplateParameter {
   max: number
 }
 
+interface TemplateSecretRequirement {
+  key: string
+  label: string
+  kind?: 'api_key' | 'token' | 'text' | 'id' | 'url'
+  required?: boolean
+  help?: string
+  placeholder?: string
+  sensitive?: boolean
+  workflowFieldLabel?: string
+}
+
 interface OrganizationTemplate {
   name: string
   type: 'organization'
   version: string
   description?: string
   parameters?: TemplateParameter[]
+  secretRequirements?: TemplateSecretRequirement[]
   agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[]; skills?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
@@ -40,14 +52,35 @@ const FALLBACK_MODELS = [
 ]
 
 type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
-type CustomizeStep = 'team' | 'context' | 'workflows' | 'agents'
+type CustomizeStep = 'team' | 'context' | 'secrets' | 'workflows' | 'agents'
 
-const CUSTOMIZE_STEPS: Array<{ id: CustomizeStep; label: string }> = [
-  { id: 'team', label: 'Team' },
-  { id: 'context', label: 'Context' },
-  { id: 'workflows', label: 'Workflows' },
-  { id: 'agents', label: 'Agents' },
-]
+function getTemplateSecretsStorageKey(templateSlug: string) {
+  return `clawmax-template-secrets:${templateSlug}`
+}
+
+function readStoredTemplateSecrets(templateSlug: string): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(getTemplateSecretsStorageKey(templateSlug)) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function writeStoredTemplateSecrets(templateSlug: string, secrets: Record<string, string>) {
+  try {
+    const cleaned = Object.fromEntries(
+      Object.entries(secrets).filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+    )
+    localStorage.setItem(getTemplateSecretsStorageKey(templateSlug), JSON.stringify(cleaned))
+  } catch {}
+}
+
+function replaceWorkflowFieldValue(content: string, fieldLabel: string, value: string) {
+  if (!value.trim()) return content
+  const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'gim')
+  return content.replace(pattern, `$1 ${value.trim()}`)
+}
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
@@ -75,6 +108,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
   const [customizeStep, setCustomizeStep] = useState<CustomizeStep>('team')
+  const [templateSecrets, setTemplateSecrets] = useState<Record<string, string>>({})
   const [prefilledGithubDefault, setPrefilledGithubDefault] = useState(false)
   const [prefilledSensoDefault, setPrefilledSensoDefault] = useState(false)
   const { showSuccess, showError: showToastError } = useToast()
@@ -82,10 +116,22 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [validatingRepo, setValidatingRepo] = useState<string | null>(null)
 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const secretRequirements = template.secretRequirements || []
+  const customizeSteps: Array<{ id: CustomizeStep; label: string }> = [
+    { id: 'team', label: 'Team' },
+    { id: 'context', label: 'Context' },
+    ...(secretRequirements.length > 0 ? [{ id: 'secrets' as CustomizeStep, label: 'Secrets' }] : []),
+    { id: 'workflows', label: 'Workflows' },
+    { id: 'agents', label: 'Agents' },
+  ]
 
   // Prerequisites check
   const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; expectations?: Array<{ id: string; label: string; status: string; message: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
   const [prereqsLoading, setPrereqsLoading] = useState(true)
+
+  React.useEffect(() => {
+    setTemplateSecrets(readStoredTemplateSecrets(templateSlug))
+  }, [templateSlug])
 
   React.useEffect(() => {
     const stored = readStoredByokKeys()
@@ -246,6 +292,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
       // Build final workflow overrides — inject GitHub context if enabled
       const finalOverrides = { ...workflowOverrides }
+      if (secretRequirements.length > 0) {
+        for (const requirement of secretRequirements) {
+          const value = templateSecrets[requirement.key] || ''
+          if (requirement.required && !value.trim()) {
+            const message = `Missing required secret/input: ${requirement.label}`
+            setApplyProgress(null)
+            setError(message)
+            showToastError(message)
+            setApplying(false)
+            return
+          }
+        }
+        writeStoredTemplateSecrets(templateSlug, templateSecrets)
+      }
       if (useGithub && githubRepo.trim() && template.workflows) {
         const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`
         for (const wf of template.workflows) {
@@ -276,6 +336,19 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           if (!existing.includes('Workspace File System')) {
             finalOverrides[wf.id] = existing + fsBlock
           }
+        }
+      }
+      if (template.workflows && secretRequirements.length > 0) {
+        for (const wf of template.workflows as any[]) {
+          let existing = finalOverrides[wf.id] ?? wf.content ?? ''
+          for (const requirement of secretRequirements) {
+            if (requirement.sensitive) continue
+            if (!requirement.workflowFieldLabel) continue
+            const value = templateSecrets[requirement.key] || ''
+            if (!value.trim()) continue
+            existing = replaceWorkflowFieldValue(existing, requirement.workflowFieldLabel, value)
+          }
+          finalOverrides[wf.id] = existing
         }
       }
 
@@ -516,7 +589,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         {wizardStep === 'customize' && (
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {CUSTOMIZE_STEPS.map((step, index) => (
+              {customizeSteps.map((step, index) => (
                 <React.Fragment key={step.id}>
                   {index > 0 && <span className="text-gray-300 dark:text-gray-600">&rarr;</span>}
                   <button
@@ -1057,6 +1130,49 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             </div>
           )}
 
+          {customizeStep === 'secrets' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+              <div className="mb-1 text-sm font-semibold text-amber-900 dark:text-amber-200">Template Secrets</div>
+              <p className="mb-4 text-xs text-amber-700 dark:text-amber-300">
+                Values entered here are stored in this browser only. Sensitive values are not written into workflow markdown by default.
+              </p>
+              {secretRequirements.length === 0 ? (
+                <div className="text-sm text-amber-800 dark:text-amber-200">This template does not declare any extra secrets or runtime inputs.</div>
+              ) : (
+                <div className="space-y-4">
+                  {secretRequirements.map((requirement) => {
+                    const kind = requirement.kind || (requirement.sensitive ? 'api_key' : 'text')
+                    const inputType = requirement.sensitive || kind === 'api_key' || kind === 'token' ? 'password' : kind === 'url' ? 'url' : 'text'
+                    const value = templateSecrets[requirement.key] || ''
+                    return (
+                      <div key={requirement.key} className="space-y-1.5">
+                        <label className="block text-sm font-medium text-amber-900 dark:text-amber-200">
+                          {requirement.label}
+                          {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                        </label>
+                        <input
+                          type={inputType}
+                          value={value}
+                          onChange={(e) => setTemplateSecrets((prev) => ({ ...prev, [requirement.key]: e.target.value }))}
+                          placeholder={requirement.placeholder || requirement.key}
+                          className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                        />
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-amber-700 dark:text-amber-300">
+                          <span>{requirement.sensitive ? 'Stored locally only' : 'Stored locally and may prefill workflow fields'}</span>
+                          <span>•</span>
+                          <span>{requirement.required !== false ? 'Required' : 'Optional'}</span>
+                        </div>
+                        {requirement.help && (
+                          <div className="text-xs text-amber-800 dark:text-amber-200">{requirement.help}</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Agent List with Models (collapsible) */}
           {customizeStep === 'agents' && (
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700">
@@ -1178,26 +1294,26 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             <>
               <button
                 onClick={() => {
-                  const currentIndex = CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep)
+                  const currentIndex = customizeSteps.findIndex((step) => step.id === customizeStep)
                   if (currentIndex <= 0) {
                     setWizardStep('prereqs')
                   } else {
-                    setCustomizeStep(CUSTOMIZE_STEPS[currentIndex - 1].id)
+                    setCustomizeStep(customizeSteps[currentIndex - 1].id)
                   }
                 }}
                 className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                ← {CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep) === 0 ? 'Prereqs' : 'Previous'}
+                ← {customizeSteps.findIndex((step) => step.id === customizeStep) === 0 ? 'Prereqs' : 'Previous'}
               </button>
-              {customizeStep !== CUSTOMIZE_STEPS[CUSTOMIZE_STEPS.length - 1].id ? (
+              {customizeStep !== customizeSteps[customizeSteps.length - 1].id ? (
                 <button
                   onClick={() => {
-                    const currentIndex = CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep)
-                    setCustomizeStep(CUSTOMIZE_STEPS[Math.min(CUSTOMIZE_STEPS.length - 1, currentIndex + 1)].id)
+                    const currentIndex = customizeSteps.findIndex((step) => step.id === customizeStep)
+                    setCustomizeStep(customizeSteps[Math.min(customizeSteps.length - 1, currentIndex + 1)].id)
                   }}
                   className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors font-medium"
                 >
-                  Next: Customize {CUSTOMIZE_STEPS[CUSTOMIZE_STEPS.findIndex((step) => step.id === customizeStep) + 1].label} →
+                  Next: Customize {customizeSteps[customizeSteps.findIndex((step) => step.id === customizeStep) + 1].label} →
                 </button>
               ) : (
                 <button
