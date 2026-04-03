@@ -1,0 +1,158 @@
+{
+  "name": "Friday Night Movie Picker",
+  "emoji": "🍿",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for fast Friday-night movie picks, tradeoffs, and backup options when the goal is to decide quickly and enjoy the night.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "movies",
+    "recommendations",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "movie-scout",
+      "label": "Number of Movie Scouts",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Friday Night Movies",
+      "description": "Shared coordination space for quick movie-night decisions."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Picks",
+      "community": "Friday Night Movies",
+      "description": "Candidate films, ranked options, and tie-breakers."
+    },
+    {
+      "name": "Mood",
+      "community": "Friday Night Movies",
+      "description": "Current mood, constraints, and audience fit."
+    },
+    {
+      "name": "Status",
+      "community": "Friday Night Movies",
+      "description": "Tonight decision, backup plan, and final recommendation."
+    }
+  ],
+  "agents": [
+    {
+      "id": "movie-lead",
+      "name": "Movie Lead",
+      "role": "Movie-night lead — defines the vibe, decision speed, and final pick criteria.",
+      "tags": [
+        "lead",
+        "movies"
+      ],
+      "communities": [
+        "Friday Night Movies"
+      ],
+      "groups": [
+        "Mood",
+        "Status"
+      ]
+    },
+    {
+      "id": "movie-scout",
+      "name": "Movie Scout",
+      "role": "Discovery specialist — finds strong picks that fit the audience, runtime, and mood.",
+      "tags": [
+        "movies",
+        "scouting"
+      ],
+      "communities": [
+        "Friday Night Movies"
+      ],
+      "groups": [
+        "Picks",
+        "Status"
+      ]
+    },
+    {
+      "id": "tie-breaker",
+      "name": "Tie Breaker",
+      "role": "Decision specialist — compares finalists, clarifies tradeoffs, and resolves indecision cleanly.",
+      "tags": [
+        "movies",
+        "decision"
+      ],
+      "communities": [
+        "Friday Night Movies"
+      ],
+      "groups": [
+        "Picks",
+        "Status"
+      ]
+    },
+    {
+      "id": "snack-planner",
+      "name": "Snack Planner",
+      "role": "Atmosphere specialist — suggests snacks, setup, and simple extras that fit the night.",
+      "tags": [
+        "movies",
+        "setup"
+      ],
+      "communities": [
+        "Friday Night Movies"
+      ],
+      "groups": [
+        "Mood"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "friday-movie-kickoff",
+      "name": "Friday Movie Kickoff",
+      "description": "Friday Movie Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "movie-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "movie-lead"
+        ]
+      },
+      "content": "# Friday Movie Kickoff\n\nYou are the Movie Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Mood:** [comfort, funny, thrilling, family, sci-fi, custom]\n- **Audience:** [solo, couple, friends, family]\n- **Time available:** [under 90 min, under 2 hours, any]\n- **Streaming services or constraints:** [services, ratings, language, custom]\n- **Output artifact:** [ranked shortlist, one final pick, backup plan]\n\n## Your Tasks\n1. Restate the mood, audience, and time limit\n2. Ask Movie Scouts for the best options\n3. Ask Tie Breaker for the clean final comparison\n4. Ask Snack Planner for the simplest setup suggestions\n5. Post the final pick plus one backup in Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "final-pick-review",
+      "name": "Final Pick Review",
+      "description": "Final Pick Review",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "tie-breaker",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Picks"
+        ],
+        "tags": [],
+        "agents": [
+          "tie-breaker"
+        ]
+      },
+      "content": "# Final Pick Review\n\n1. Compare the top candidates on tone, runtime, and crowd fit\n2. Explain the top choice in plain language\n3. Name one backup if the first pick falls through\n4. Post the final ranking to Picks and the winner to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

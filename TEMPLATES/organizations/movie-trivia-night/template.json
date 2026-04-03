@@ -1,0 +1,165 @@
+{
+  "name": "Movie Trivia Night",
+  "emoji": "🎲",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "hobbies",
+  "description": "Proposal template for planning a movie trivia game night with rounds, scoring, hosting notes, and themed questions.",
+  "author": "ClawMax Team",
+  "tags": [
+    "hobbies",
+    "movies",
+    "games",
+    "trivia",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "question-writer",
+      "label": "Number of Question Writers",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Movie Trivia",
+      "description": "Shared coordination space for movie trivia game setup and hosting."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Questions",
+      "community": "Movie Trivia",
+      "description": "Question ideas, categories, and difficulty tuning."
+    },
+    {
+      "name": "Host Notes",
+      "community": "Movie Trivia",
+      "description": "Run-of-show, pacing, and hosting guidance."
+    },
+    {
+      "name": "Scoring",
+      "community": "Movie Trivia",
+      "description": "Round structure, points, tie-breakers, and answer key."
+    },
+    {
+      "name": "Status",
+      "community": "Movie Trivia",
+      "description": "Current game plan, rounds ready, and open gaps."
+    }
+  ],
+  "agents": [
+    {
+      "id": "trivia-host",
+      "name": "Trivia Host",
+      "role": "Game lead — defines the theme, pacing, and final structure of the trivia night.",
+      "tags": [
+        "lead",
+        "games",
+        "movies"
+      ],
+      "communities": [
+        "Movie Trivia"
+      ],
+      "groups": [
+        "Host Notes",
+        "Status"
+      ]
+    },
+    {
+      "id": "question-writer",
+      "name": "Question Writer",
+      "role": "Question specialist — drafts themed questions, clues, and answer variants.",
+      "tags": [
+        "games",
+        "questions"
+      ],
+      "communities": [
+        "Movie Trivia"
+      ],
+      "groups": [
+        "Questions",
+        "Status"
+      ]
+    },
+    {
+      "id": "round-designer",
+      "name": "Round Designer",
+      "role": "Round specialist — shapes categories, difficulty curve, and game variety.",
+      "tags": [
+        "games",
+        "design"
+      ],
+      "communities": [
+        "Movie Trivia"
+      ],
+      "groups": [
+        "Questions",
+        "Scoring"
+      ]
+    },
+    {
+      "id": "score-keeper",
+      "name": "Score Keeper",
+      "role": "Scoring specialist — defines points, tie-breakers, and answer validation rules.",
+      "tags": [
+        "games",
+        "scoring"
+      ],
+      "communities": [
+        "Movie Trivia"
+      ],
+      "groups": [
+        "Scoring"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "trivia-night-kickoff",
+      "name": "Trivia Night Kickoff",
+      "description": "Trivia Night Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "trivia-host",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "trivia-host"
+        ]
+      },
+      "content": "# Trivia Night Kickoff\n\nYou are the Trivia Host.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme:** [general movies, one franchise, decade, director, genre, custom]\n- **Audience size:** [small, medium, party, custom]\n- **Difficulty:** [easy, mixed, hard]\n- **Rounds planned:** [3, 4, 5, custom]\n- **Output artifact:** [ready-to-host trivia pack, host script, answer key]\n\n## Your Tasks\n1. Restate the game-night goal and constraints\n2. Ask Question Writers for the first batch of questions\n3. Ask Round Designer for the round structure\n4. Ask Score Keeper for scoring rules and tie-breakers\n5. Post the trivia plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "trivia-pack-build",
+      "name": "Trivia Pack Build",
+      "description": "Trivia Pack Build",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "round-designer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Questions"
+        ],
+        "tags": [],
+        "agents": [
+          "round-designer"
+        ]
+      },
+      "content": "# Trivia Pack Build\n\n1. Organize questions into rounds with a clear difficulty curve\n2. Make sure the set is fun, fair, and varied\n3. Pair each round with a clean answer key\n4. Post the draft pack to Questions and the host summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

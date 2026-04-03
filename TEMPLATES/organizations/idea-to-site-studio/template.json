@@ -1,0 +1,166 @@
+{
+  "name": "Idea To Site Studio",
+  "emoji": "🌐",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "technical",
+  "description": "Proposal template for turning an idea into a simple website quickly, with copy, implementation, and GitHub handoff.",
+  "author": "ClawMax Team",
+  "tags": [
+    "technical",
+    "website",
+    "prototype",
+    "github",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "prototype-builder",
+      "label": "Number of Prototype Builders",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Site Studio",
+      "description": "Shared coordination space for taking an idea to a simple live-ready site."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Product",
+      "community": "Site Studio",
+      "description": "Idea framing, target audience, and offer definition."
+    },
+    {
+      "name": "Build",
+      "community": "Site Studio",
+      "description": "Implementation, page structure, and technical decisions."
+    },
+    {
+      "name": "Copy",
+      "community": "Site Studio",
+      "description": "Headline, CTA, sections, and tone."
+    },
+    {
+      "name": "Status",
+      "community": "Site Studio",
+      "description": "Current build progress, repo status, and blockers."
+    }
+  ],
+  "agents": [
+    {
+      "id": "site-director",
+      "name": "Site Director",
+      "role": "Website lead — defines the idea, site shape, and release bar for the first version.",
+      "tags": [
+        "lead",
+        "website",
+        "product"
+      ],
+      "communities": [
+        "Site Studio"
+      ],
+      "groups": [
+        "Product",
+        "Status"
+      ]
+    },
+    {
+      "id": "prototype-builder",
+      "name": "Prototype Builder",
+      "role": "Builder specialist — implements the site quickly and keeps the scope tight and shippable.",
+      "tags": [
+        "website",
+        "build"
+      ],
+      "communities": [
+        "Site Studio"
+      ],
+      "groups": [
+        "Build",
+        "Status"
+      ]
+    },
+    {
+      "id": "copy-writer",
+      "name": "Copy Writer",
+      "role": "Copy specialist — writes the page messaging, CTA, and section flow for the idea.",
+      "tags": [
+        "website",
+        "copy"
+      ],
+      "communities": [
+        "Site Studio"
+      ],
+      "groups": [
+        "Copy"
+      ]
+    },
+    {
+      "id": "ship-manager",
+      "name": "Ship Manager",
+      "role": "Shipping specialist — keeps GitHub, deploy readiness, and final handoff organized.",
+      "tags": [
+        "website",
+        "shipping",
+        "github"
+      ],
+      "communities": [
+        "Site Studio"
+      ],
+      "groups": [
+        "Build",
+        "Status"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "site-idea-kickoff",
+      "name": "Site Idea Kickoff",
+      "description": "Site Idea Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "site-director",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "site-director"
+        ]
+      },
+      "content": "# Site Idea Kickoff\n\nYou are the Site Director.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Idea or product:** [idea]\n- **Audience:** [audience]\n- **Site goal:** [landing page, waitlist, product teaser, portfolio, custom]\n- **Visual vibe:** [clean, bold, playful, premium, custom]\n- **GitHub repo:** [owner/repo]\n- **Output artifact:** [working site, GitHub push, launch-ready page]\n\n## Your Tasks\n1. Restate the site goal, audience, and vibe\n2. Ask Copy Writer for the first page messaging\n3. Ask Prototype Builders for the implementation plan\n4. Ask Ship Manager for the repo and handoff path\n5. Post the shipping plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "site-build-review",
+      "name": "Site Build Review",
+      "description": "Site Build Review",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "ship-manager",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Build"
+        ],
+        "tags": [],
+        "agents": [
+          "ship-manager"
+        ]
+      },
+      "content": "# Site Build Review\n\n1. Review the current page structure, repo status, and remaining gaps\n2. Confirm what still blocks a first public push\n3. Name the fastest path to a good-enough shipped version\n4. Post the build review to Build and the ship recommendation to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

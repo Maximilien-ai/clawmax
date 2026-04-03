@@ -1,0 +1,162 @@
+{
+  "name": "Astronomy Club",
+  "emoji": "🔭",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for skywatching, telescope-worthy nights, major alignments, and practical monthly astronomy briefings.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "astronomy",
+    "skywatching",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "skywatch-scout",
+      "label": "Number of Skywatch Scouts",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Astronomy Club",
+      "description": "Shared coordination space for astronomy watching and monthly sky briefs."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Observing",
+      "community": "Astronomy Club",
+      "description": "Telescope-worthy windows, visibility, and practical watch plans."
+    },
+    {
+      "name": "Alignments",
+      "community": "Astronomy Club",
+      "description": "Planetary alignments, meteor showers, conjunctions, and key sky events."
+    },
+    {
+      "name": "Learning",
+      "community": "Astronomy Club",
+      "description": "Background explanations, maps, and how-to notes."
+    },
+    {
+      "name": "Status",
+      "community": "Astronomy Club",
+      "description": "Current month priorities, best nights, and alerts."
+    }
+  ],
+  "agents": [
+    {
+      "id": "club-observer",
+      "name": "Club Observer",
+      "role": "Observation lead — defines the month focus and final viewing recommendations.",
+      "tags": [
+        "lead",
+        "astronomy"
+      ],
+      "communities": [
+        "Astronomy Club"
+      ],
+      "groups": [
+        "Status",
+        "Observing"
+      ]
+    },
+    {
+      "id": "skywatch-scout",
+      "name": "Skywatch Scout",
+      "role": "Visibility specialist — tracks notable nights, weather-sensitive windows, and what is actually worth watching.",
+      "tags": [
+        "astronomy",
+        "observing"
+      ],
+      "communities": [
+        "Astronomy Club"
+      ],
+      "groups": [
+        "Observing",
+        "Status"
+      ]
+    },
+    {
+      "id": "alignment-analyst",
+      "name": "Alignment Analyst",
+      "role": "Event specialist — summarizes alignments, conjunctions, showers, and timing.",
+      "tags": [
+        "astronomy",
+        "events"
+      ],
+      "communities": [
+        "Astronomy Club"
+      ],
+      "groups": [
+        "Alignments"
+      ]
+    },
+    {
+      "id": "astro-guide",
+      "name": "Astro Guide",
+      "role": "Teaching specialist — explains what to look for and how to interpret the sky without overcomplicating it.",
+      "tags": [
+        "astronomy",
+        "education"
+      ],
+      "communities": [
+        "Astronomy Club"
+      ],
+      "groups": [
+        "Learning"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "astronomy-monthly-kickoff",
+      "name": "Astronomy Monthly Kickoff",
+      "description": "Astronomy Monthly Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "club-observer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "club-observer"
+        ]
+      },
+      "content": "# Astronomy Monthly Kickoff\n\nYou are the Club Observer.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Location or sky conditions:** [city, suburb, dark sky, custom]\n- **Month or time horizon:** [this month, next 30 days, custom]\n- **Gear:** [naked eye, binoculars, small telescope, advanced telescope]\n- **Priority:** [planets, moon, deep sky, meteor showers, custom]\n- **Output artifact:** [monthly sky brief, telescope nights list, beginner guide]\n\n## Your Tasks\n1. Restate the observing context and gear limits\n2. Ask Skywatch Scouts for the best nights to go outside\n3. Ask Alignment Analyst for the key sky events this month\n4. Ask Astro Guide for a simple observer brief\n5. Post the best telescope-worthy nights to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "sky-event-digest",
+      "name": "Sky Event Digest",
+      "description": "Sky Event Digest",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "alignment-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Alignments"
+        ],
+        "tags": [],
+        "agents": [
+          "alignment-analyst"
+        ]
+      },
+      "content": "# Sky Event Digest\n\n1. Summarize the most important upcoming alignments and sky events\n2. Note timing, visibility, and what gear is needed\n3. Call out any events that are likely overrated or hard to see\n4. Post the digest to Alignments and the top highlights to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

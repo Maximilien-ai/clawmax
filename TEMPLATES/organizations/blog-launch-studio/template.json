@@ -1,0 +1,165 @@
+{
+  "name": "Blog Launch Studio",
+  "emoji": "✍️",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for getting a blog or Substack off the ground with topic positioning, editorial calendar, and ready-to-publish draft posts.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "blog",
+    "substack",
+    "writing",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "post-writer",
+      "label": "Number of Post Writers",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "Blog Launch",
+      "description": "Shared coordination space for launching a blog or Substack with a real publishing plan."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Positioning",
+      "community": "Blog Launch",
+      "description": "Topic focus, audience, and voice decisions."
+    },
+    {
+      "name": "Calendar",
+      "community": "Blog Launch",
+      "description": "Editorial calendar, themes, and publishing cadence."
+    },
+    {
+      "name": "Drafts",
+      "community": "Blog Launch",
+      "description": "Draft posts, outlines, and revisions."
+    },
+    {
+      "name": "Status",
+      "community": "Blog Launch",
+      "description": "Current launch readiness, draft count, and next publish steps."
+    }
+  ],
+  "agents": [
+    {
+      "id": "editor-in-chief",
+      "name": "Editor In Chief",
+      "role": "Publishing lead — defines the topic edge, audience promise, and final editorial direction.",
+      "tags": [
+        "lead",
+        "writing",
+        "editorial"
+      ],
+      "communities": [
+        "Blog Launch"
+      ],
+      "groups": [
+        "Positioning",
+        "Status"
+      ]
+    },
+    {
+      "id": "post-writer",
+      "name": "Post Writer",
+      "role": "Writing specialist — drafts posts that fit the topic, cadence, and audience promise.",
+      "tags": [
+        "writing",
+        "blog"
+      ],
+      "communities": [
+        "Blog Launch"
+      ],
+      "groups": [
+        "Drafts",
+        "Status"
+      ]
+    },
+    {
+      "id": "calendar-editor",
+      "name": "Calendar Editor",
+      "role": "Planning specialist — builds the 1, 3, or 6 month editorial calendar.",
+      "tags": [
+        "writing",
+        "planning"
+      ],
+      "communities": [
+        "Blog Launch"
+      ],
+      "groups": [
+        "Calendar"
+      ]
+    },
+    {
+      "id": "growth-notes-editor",
+      "name": "Growth Notes Editor",
+      "role": "Growth specialist — suggests hooks, distribution angles, and subscriber-friendly framing.",
+      "tags": [
+        "writing",
+        "growth"
+      ],
+      "communities": [
+        "Blog Launch"
+      ],
+      "groups": [
+        "Positioning",
+        "Calendar"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "blog-launch-kickoff",
+      "name": "Blog Launch Kickoff",
+      "description": "Blog Launch Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "editor-in-chief",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "editor-in-chief"
+        ]
+      },
+      "content": "# Blog Launch Kickoff\n\nYou are the Editor In Chief.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topic:** [topic]\n- **Audience:** [audience]\n- **Cadence:** [weekly, biweekly, monthly, custom]\n- **Planning horizon:** [1 month, 3 months, 6 months]\n- **Platform:** [blog, Substack, newsletter, custom]\n- **Output artifact:** [editorial calendar, ready drafts, launch plan]\n\n## Your Tasks\n1. Restate the topic, audience, and cadence\n2. Ask Calendar Editor for the full publishing plan\n3. Ask Post Writers for the first draft set\n4. Ask Growth Notes Editor for hooks and distribution suggestions\n5. Post the launch plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "draft-pack-build",
+      "name": "Draft Pack Build",
+      "description": "Draft Pack Build",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "post-writer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Drafts"
+        ],
+        "tags": [],
+        "agents": [
+          "post-writer"
+        ]
+      },
+      "content": "# Draft Pack Build\n\n1. Draft the highest-priority posts in the calendar\n2. Make each draft concrete, publishable, and clearly aimed at the audience\n3. Note what still needs voice polish, examples, or references\n4. Post the draft pack summary to Drafts and the publish recommendation to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

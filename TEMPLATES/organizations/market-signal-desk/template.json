@@ -1,0 +1,163 @@
+{
+  "name": "Market Signal Desk",
+  "emoji": "📈",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "business",
+  "description": "Proposal template for tracking stocks, macro signals, company news, and investor vibe so users know what deserves attention right now.",
+  "author": "ClawMax Team",
+  "tags": [
+    "business",
+    "finance",
+    "stocks",
+    "markets",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "market-analyst",
+      "label": "Number of Market Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "Market Signals",
+      "description": "Shared coordination space for market trends, stock watchlists, and investor sentiment."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Markets",
+      "community": "Market Signals",
+      "description": "Macro trends, sectors, and cross-market moves."
+    },
+    {
+      "name": "Companies",
+      "community": "Market Signals",
+      "description": "Company-specific news, earnings, and stock catalysts."
+    },
+    {
+      "name": "Sentiment",
+      "community": "Market Signals",
+      "description": "Retail vibe, community chatter, and noisy signals to interpret carefully."
+    },
+    {
+      "name": "Status",
+      "community": "Market Signals",
+      "description": "Current attention list, risks, and watch priorities."
+    }
+  ],
+  "agents": [
+    {
+      "id": "desk-lead",
+      "name": "Desk Lead",
+      "role": "Market lead — defines the watchlist, risk lens, and final attention memo.",
+      "tags": [
+        "lead",
+        "markets"
+      ],
+      "communities": [
+        "Market Signals"
+      ],
+      "groups": [
+        "Status",
+        "Markets"
+      ]
+    },
+    {
+      "id": "market-analyst",
+      "name": "Market Analyst",
+      "role": "Trend specialist — tracks sectors, indices, macro changes, and what actually matters.",
+      "tags": [
+        "markets",
+        "analysis"
+      ],
+      "communities": [
+        "Market Signals"
+      ],
+      "groups": [
+        "Markets",
+        "Status"
+      ]
+    },
+    {
+      "id": "company-tracker",
+      "name": "Company Tracker",
+      "role": "Company specialist — follows earnings, product moves, leadership changes, and stock-specific catalysts.",
+      "tags": [
+        "stocks",
+        "companies"
+      ],
+      "communities": [
+        "Market Signals"
+      ],
+      "groups": [
+        "Companies"
+      ]
+    },
+    {
+      "id": "sentiment-watcher",
+      "name": "Sentiment Watcher",
+      "role": "Sentiment specialist — reviews retail discussion, community vibe, and market narrative without treating it as truth.",
+      "tags": [
+        "sentiment",
+        "markets"
+      ],
+      "communities": [
+        "Market Signals"
+      ],
+      "groups": [
+        "Sentiment"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "market-attention-kickoff",
+      "name": "Market Attention Kickoff",
+      "description": "Market Attention Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "desk-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "desk-lead"
+        ]
+      },
+      "content": "# Market Attention Kickoff\n\nYou are the Desk Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Watchlist or sector:** [tickers, themes, sector, custom]\n- **Time horizon:** [today, this week, this month]\n- **Risk style:** [conservative, balanced, aggressive]\n- **Priority lens:** [news, catalysts, sentiment, macro, all]\n- **Output artifact:** [watch note, daily digest, investor memo]\n\n## Your Tasks\n1. Restate the watchlist and time horizon\n2. Ask Market Analysts for the biggest trend shifts\n3. Ask Company Tracker for the highest-signal company developments\n4. Ask Sentiment Watcher for retail narrative worth noticing or ignoring\n5. Post the current attention list to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "market-signal-digest",
+      "name": "Market Signal Digest",
+      "description": "Market Signal Digest",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "company-tracker",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Companies"
+        ],
+        "tags": [],
+        "agents": [
+          "company-tracker"
+        ]
+      },
+      "content": "# Market Signal Digest\n\n1. Summarize the strongest company or stock-specific developments\n2. Note which moves are signal versus noise\n3. Connect news to likely investor attention over the chosen time horizon\n4. Post the company digest to Companies and the top actions to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

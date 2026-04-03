@@ -1,0 +1,164 @@
+{
+  "name": "Competitive Analysis Desk",
+  "emoji": "🥊",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "business",
+  "description": "Proposal template for analyzing competitors, TAM, positioning, and the strongest current products around a product idea.",
+  "author": "ClawMax Team",
+  "tags": [
+    "business",
+    "competitive-analysis",
+    "tam",
+    "product",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "competitor-analyst",
+      "label": "Number of Competitor Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "Competitive Analysis",
+      "description": "Shared coordination space for competitor mapping and market analysis."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Competitors",
+      "community": "Competitive Analysis",
+      "description": "Current players, product comparisons, and positioning."
+    },
+    {
+      "name": "Market",
+      "community": "Competitive Analysis",
+      "description": "TAM, segments, and market shape."
+    },
+    {
+      "name": "Strategy",
+      "community": "Competitive Analysis",
+      "description": "Opportunities, threats, and strategic recommendation."
+    },
+    {
+      "name": "Status",
+      "community": "Competitive Analysis",
+      "description": "Current market thesis, open questions, and final stance."
+    }
+  ],
+  "agents": [
+    {
+      "id": "analysis-lead",
+      "name": "Analysis Lead",
+      "role": "Competitive lead — sets the market question and final strategic recommendation.",
+      "tags": [
+        "lead",
+        "strategy",
+        "market"
+      ],
+      "communities": [
+        "Competitive Analysis"
+      ],
+      "groups": [
+        "Status",
+        "Strategy"
+      ]
+    },
+    {
+      "id": "competitor-analyst",
+      "name": "Competitor Analyst",
+      "role": "Competitor specialist — maps current products, strengths, weaknesses, and positioning.",
+      "tags": [
+        "competition",
+        "analysis"
+      ],
+      "communities": [
+        "Competitive Analysis"
+      ],
+      "groups": [
+        "Competitors",
+        "Status"
+      ]
+    },
+    {
+      "id": "tam-estimator",
+      "name": "TAM Estimator",
+      "role": "Market specialist — outlines market size, segments, and what is realistically reachable.",
+      "tags": [
+        "market",
+        "tam"
+      ],
+      "communities": [
+        "Competitive Analysis"
+      ],
+      "groups": [
+        "Market"
+      ]
+    },
+    {
+      "id": "positioning-editor",
+      "name": "Positioning Editor",
+      "role": "Positioning specialist — turns market facts into a differentiated strategy memo.",
+      "tags": [
+        "positioning",
+        "strategy"
+      ],
+      "communities": [
+        "Competitive Analysis"
+      ],
+      "groups": [
+        "Strategy"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "competitive-kickoff",
+      "name": "Competitive Kickoff",
+      "description": "Competitive Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "analysis-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "analysis-lead"
+        ]
+      },
+      "content": "# Competitive Kickoff\n\nYou are the Analysis Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product idea:** [idea]\n- **Target market or user:** [market]\n- **Region or scope:** [global, US, enterprise, SMB, custom]\n- **Decision needed:** [invest, build, position, niche, custom]\n- **Output artifact:** [competitive memo, TAM brief, strategy note]\n\n## Your Tasks\n1. Restate the product idea and target market\n2. Ask Competitor Analysts for the strongest current players and products\n3. Ask TAM Estimator for the market shape and reachable slices\n4. Ask Positioning Editor for the likely differentiation paths\n5. Post the plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "competitive-strategy-brief",
+      "name": "Competitive Strategy Brief",
+      "description": "Competitive Strategy Brief",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "positioning-editor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Strategy"
+        ],
+        "tags": [],
+        "agents": [
+          "positioning-editor"
+        ]
+      },
+      "content": "# Competitive Strategy Brief\n\n1. Combine competitor findings and TAM notes into a strategy memo\n2. Name the strongest incumbents and the most realistic wedge\n3. Call out where the idea is crowded, weak, or unexpectedly open\n4. Post the final brief to Strategy and the short recommendation to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

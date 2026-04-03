@@ -1,0 +1,165 @@
+{
+  "name": "ArXiv Digest Lab",
+  "emoji": "📚",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "science",
+  "description": "Proposal template for reviewing recent arXiv papers on a topic, filtering noise, and producing a practical digest with summaries and next actions.",
+  "author": "ClawMax Team",
+  "tags": [
+    "science",
+    "research",
+    "papers",
+    "arxiv",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "paper-scout",
+      "label": "Number of Paper Scouts",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "ArXiv Digest",
+      "description": "Shared coordination space for paper scouting, summaries, and digest writing."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Scouting",
+      "community": "ArXiv Digest",
+      "description": "Recent paper candidates, filtering, and relevance checks."
+    },
+    {
+      "name": "Summaries",
+      "community": "ArXiv Digest",
+      "description": "Readable paper summaries, methods, and caveats."
+    },
+    {
+      "name": "Digest",
+      "community": "ArXiv Digest",
+      "description": "Final digest, trends, and recommendations."
+    },
+    {
+      "name": "Status",
+      "community": "ArXiv Digest",
+      "description": "Current topic scope, volume, and open questions."
+    }
+  ],
+  "agents": [
+    {
+      "id": "digest-lead",
+      "name": "Digest Lead",
+      "role": "Research digest lead — defines topic scope, reading bar, and final summary shape.",
+      "tags": [
+        "lead",
+        "research",
+        "papers"
+      ],
+      "communities": [
+        "ArXiv Digest"
+      ],
+      "groups": [
+        "Status",
+        "Digest"
+      ]
+    },
+    {
+      "id": "paper-scout",
+      "name": "Paper Scout",
+      "role": "Paper scouting specialist — finds recent arXiv papers and filters them by relevance and novelty.",
+      "tags": [
+        "research",
+        "papers",
+        "scouting"
+      ],
+      "communities": [
+        "ArXiv Digest"
+      ],
+      "groups": [
+        "Scouting",
+        "Status"
+      ]
+    },
+    {
+      "id": "summary-analyst",
+      "name": "Summary Analyst",
+      "role": "Summary specialist — turns technical papers into plain-language takeaways with caveats.",
+      "tags": [
+        "research",
+        "summary"
+      ],
+      "communities": [
+        "ArXiv Digest"
+      ],
+      "groups": [
+        "Summaries"
+      ]
+    },
+    {
+      "id": "trend-editor",
+      "name": "Trend Editor",
+      "role": "Trend specialist — looks across papers for patterns, hype, gaps, and likely next moves.",
+      "tags": [
+        "research",
+        "trends"
+      ],
+      "communities": [
+        "ArXiv Digest"
+      ],
+      "groups": [
+        "Digest"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "arxiv-topic-kickoff",
+      "name": "ArXiv Topic Kickoff",
+      "description": "ArXiv Topic Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "digest-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "digest-lead"
+        ]
+      },
+      "content": "# ArXiv Topic Kickoff\n\nYou are the Digest Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Topic:** [agent systems, multimodal, robotics, biology, custom]\n- **Time window:** [last 7 days, last 30 days, this month, custom]\n- **Desired depth:** [quick digest, balanced review, deep summary]\n- **Audience:** [founder, engineer, researcher, student]\n- **Output artifact:** [weekly digest, reading list, decision memo]\n\n## Your Tasks\n1. Restate the topic, audience, and time window\n2. Ask Paper Scouts for the strongest recent candidates\n3. Ask Summary Analyst for clear paper briefs\n4. Ask Trend Editor for cross-paper patterns and hype checks\n5. Post the digest plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "paper-digest-build",
+      "name": "Paper Digest Build",
+      "description": "Paper Digest Build",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "trend-editor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Digest"
+        ],
+        "tags": [],
+        "agents": [
+          "trend-editor"
+        ]
+      },
+      "content": "# Paper Digest Build\n\n1. Gather the strongest summaries and papers selected for the digest\n2. Identify the major themes, disagreements, and likely overclaims\n3. Recommend which papers deserve deeper reading now\n4. Post the final digest draft to Digest and the short summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

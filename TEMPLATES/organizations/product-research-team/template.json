@@ -1,0 +1,164 @@
+{
+  "name": "Product Research Team",
+  "emoji": "🧭",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "business",
+  "description": "Proposal template for in-depth product research, customer needs, solution framing, and practical product direction.",
+  "author": "ClawMax Team",
+  "tags": [
+    "business",
+    "product",
+    "research",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "customer-researcher",
+      "label": "Number of Customer Researchers",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "Product Research",
+      "description": "Shared coordination space for customer and product research."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Users",
+      "community": "Product Research",
+      "description": "Customer segments, needs, pains, and unmet jobs."
+    },
+    {
+      "name": "Product",
+      "community": "Product Research",
+      "description": "Product framing, use cases, and opportunity areas."
+    },
+    {
+      "name": "Findings",
+      "community": "Product Research",
+      "description": "Synthesized insights, tensions, and recommendations."
+    },
+    {
+      "name": "Status",
+      "community": "Product Research",
+      "description": "Current scope, high-signal findings, and next decisions."
+    }
+  ],
+  "agents": [
+    {
+      "id": "research-director",
+      "name": "Research Director",
+      "role": "Research lead — sets the question, decision lens, and final product recommendation.",
+      "tags": [
+        "lead",
+        "product",
+        "research"
+      ],
+      "communities": [
+        "Product Research"
+      ],
+      "groups": [
+        "Status",
+        "Findings"
+      ]
+    },
+    {
+      "id": "customer-researcher",
+      "name": "Customer Researcher",
+      "role": "Customer specialist — maps pains, motivations, and usage patterns for target users.",
+      "tags": [
+        "product",
+        "customers"
+      ],
+      "communities": [
+        "Product Research"
+      ],
+      "groups": [
+        "Users",
+        "Status"
+      ]
+    },
+    {
+      "id": "product-strategist",
+      "name": "Product Strategist",
+      "role": "Strategy specialist — turns user needs into product directions, bets, and framing.",
+      "tags": [
+        "product",
+        "strategy"
+      ],
+      "communities": [
+        "Product Research"
+      ],
+      "groups": [
+        "Product",
+        "Findings"
+      ]
+    },
+    {
+      "id": "insight-editor",
+      "name": "Insight Editor",
+      "role": "Insight specialist — distills raw notes into crisp findings and decision-ready output.",
+      "tags": [
+        "product",
+        "insights"
+      ],
+      "communities": [
+        "Product Research"
+      ],
+      "groups": [
+        "Findings"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "product-research-kickoff",
+      "name": "Product Research Kickoff",
+      "description": "Product Research Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "research-director",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "research-director"
+        ]
+      },
+      "content": "# Product Research Kickoff\n\nYou are the Research Director.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product idea or area:** [idea]\n- **Target user or segment:** [segment]\n- **Research lens:** [problems, workflows, willingness to pay, adoption, custom]\n- **Decision needed:** [go/no-go, scope, roadmap, positioning, custom]\n- **Output artifact:** [research memo, PRD input, product brief]\n\n## Your Tasks\n1. Restate the product area, user, and decision needed\n2. Ask Customer Researchers for the main user pains and jobs\n3. Ask Product Strategist for the strongest opportunity framing\n4. Ask Insight Editor for the final synthesis format\n5. Post the research plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "product-findings-synthesis",
+      "name": "Product Findings Synthesis",
+      "description": "Product Findings Synthesis",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "insight-editor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Findings"
+        ],
+        "tags": [],
+        "agents": [
+          "insight-editor"
+        ]
+      },
+      "content": "# Product Findings Synthesis\n\n1. Collect the strongest customer and product observations\n2. Turn them into a concise findings memo with tensions and recommendations\n3. Call out what still needs validation\n4. Post the final findings to Findings and the summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}

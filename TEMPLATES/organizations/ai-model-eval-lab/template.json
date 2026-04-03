@@ -1,0 +1,165 @@
+{
+  "name": "AI Model Eval Lab",
+  "emoji": "🤖",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "technical",
+  "description": "Proposal template for reviewing AI models and agent systems, comparing strengths and weaknesses, and producing grounded recommendations.",
+  "author": "ClawMax Team",
+  "tags": [
+    "technical",
+    "ai",
+    "evaluation",
+    "agents",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "eval-runner",
+      "label": "Number of Eval Runners",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "AI Model Eval",
+      "description": "Shared coordination space for model comparisons, benchmarks, and evaluation notes."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Benchmarks",
+      "community": "AI Model Eval",
+      "description": "Evaluation criteria, tests, and result notes."
+    },
+    {
+      "name": "Comparisons",
+      "community": "AI Model Eval",
+      "description": "Direct tradeoffs across models, agents, and providers."
+    },
+    {
+      "name": "Recommendations",
+      "community": "AI Model Eval",
+      "description": "Decision notes, fit by use case, and next experiments."
+    },
+    {
+      "name": "Status",
+      "community": "AI Model Eval",
+      "description": "Current scope, blockers, and final recommendation state."
+    }
+  ],
+  "agents": [
+    {
+      "id": "eval-lead",
+      "name": "Eval Lead",
+      "role": "Evaluation lead — defines the test bar, comparison frame, and final recommendation.",
+      "tags": [
+        "lead",
+        "ai",
+        "evaluation"
+      ],
+      "communities": [
+        "AI Model Eval"
+      ],
+      "groups": [
+        "Status",
+        "Recommendations"
+      ]
+    },
+    {
+      "id": "eval-runner",
+      "name": "Eval Runner",
+      "role": "Testing specialist — runs comparisons, captures outputs, and documents failure modes.",
+      "tags": [
+        "ai",
+        "testing"
+      ],
+      "communities": [
+        "AI Model Eval"
+      ],
+      "groups": [
+        "Benchmarks",
+        "Status"
+      ]
+    },
+    {
+      "id": "benchmark-designer",
+      "name": "Benchmark Designer",
+      "role": "Benchmark specialist — defines the scenarios, rubrics, and success criteria.",
+      "tags": [
+        "ai",
+        "benchmarks"
+      ],
+      "communities": [
+        "AI Model Eval"
+      ],
+      "groups": [
+        "Benchmarks"
+      ]
+    },
+    {
+      "id": "recommendation-editor",
+      "name": "Recommendation Editor",
+      "role": "Recommendation specialist — turns raw comparison notes into a decision-ready summary.",
+      "tags": [
+        "ai",
+        "recommendations"
+      ],
+      "communities": [
+        "AI Model Eval"
+      ],
+      "groups": [
+        "Comparisons",
+        "Recommendations"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "model-eval-kickoff",
+      "name": "Model Eval Kickoff",
+      "description": "Model Eval Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "eval-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "eval-lead"
+        ]
+      },
+      "content": "# Model Eval Kickoff\n\nYou are the Eval Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Models or agents to compare:** [list]\n- **Primary use case:** [coding, research, support, automation, custom]\n- **Evaluation focus:** [quality, speed, cost, safety, reliability, custom]\n- **Test scenarios:** [few-shot tasks, benchmark set, workflow trial, custom]\n- **Output artifact:** [comparison memo, eval report, recommendation]\n\n## Your Tasks\n1. Restate the comparison set and use case\n2. Ask Benchmark Designer for the rubric and scenarios\n3. Ask Eval Runners for structured results\n4. Ask Recommendation Editor for the decision memo\n5. Post the eval plan to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    },
+    {
+      "id": "comparison-memo",
+      "name": "Comparison Memo",
+      "description": "Comparison Memo",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "recommendation-editor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Recommendations"
+        ],
+        "tags": [],
+        "agents": [
+          "recommendation-editor"
+        ]
+      },
+      "content": "# Comparison Memo\n\n1. Compare the models across the agreed dimensions\n2. Name the clear winner, best budget option, and biggest caution\n3. Tie the recommendation back to the target use case\n4. Post the final memo to Recommendations and the short summary to Status",
+      "enabled": true,
+      "executionMode": "managed"
+    }
+  ]
+}
