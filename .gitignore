@@ -57,3 +57,6 @@ WORKSPACES/default/SKILLS/custom/*
 
 # Generated scripts
 SYSTEM/scripts/
+
+# Local scratch files
+tmp/
