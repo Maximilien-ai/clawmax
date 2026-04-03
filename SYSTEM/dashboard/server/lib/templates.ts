@@ -1979,6 +1979,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               author: template.author || 'imported',
               dependsOn: mappedDependsOn,
               type: wf.type,
+              secretRequirements: (wf as any).secretRequirements,
             })
 
             if (!result.success) {

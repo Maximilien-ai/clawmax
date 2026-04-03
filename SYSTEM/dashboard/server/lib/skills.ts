@@ -40,6 +40,15 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string
   tags?: string[]
+  secretRequirements?: Array<{
+    key: string
+    label: string
+    kind?: 'api_key' | 'token' | 'text' | 'id' | 'url'
+    required?: boolean
+    help?: string
+    placeholder?: string
+    sensitive?: boolean
+  }>
 }
 
 // Paths to skill directories
@@ -223,7 +232,8 @@ function parseSkillFile(
       requires: openclawMeta.requires,
       install: openclawMeta.install,
       homepage: openclawMeta.homepage,
-      tags: openclawMeta.tags || data.tags || []
+      tags: openclawMeta.tags || data.tags || [],
+      secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || []
     }
   } catch (err) {
     console.error(`Failed to parse skill ${filePath}:`, err)
@@ -260,7 +270,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       requires: data.requires || openclawMeta.requires,
       install: data.install || openclawMeta.install,
       homepage: data.homepage || openclawMeta.homepage,
-      tags: data.tags || openclawMeta.tags || []
+      tags: data.tags || openclawMeta.tags || [],
+      secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || []
     }
   } catch (err) {
     console.error(`Failed to parse workspace skill ${filePath}:`, err)

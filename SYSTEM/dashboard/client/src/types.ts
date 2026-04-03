@@ -15,6 +15,16 @@ export interface SkillRequirements {
   env?: string[]        // Required env vars
 }
 
+export interface SecretRequirement {
+  key: string
+  label: string
+  kind?: 'api_key' | 'token' | 'text' | 'id' | 'url'
+  required?: boolean
+  help?: string
+  placeholder?: string
+  sensitive?: boolean
+}
+
 export interface OpenClawSkill {
   name: string          // Unique ID (e.g., "github")
   description: string   // Short description
@@ -27,6 +37,7 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL
   tags?: string[]       // Searchable tags
+  secretRequirements?: SecretRequirement[]
 }
 
 // API Response Types

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
+import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, writeLocalSecrets } from '../lib/localSecrets'
 
 interface TemplateParameter {
   agentId: string
@@ -10,24 +11,13 @@ interface TemplateParameter {
   max: number
 }
 
-interface TemplateSecretRequirement {
-  key: string
-  label: string
-  kind?: 'api_key' | 'token' | 'text' | 'id' | 'url'
-  required?: boolean
-  help?: string
-  placeholder?: string
-  sensitive?: boolean
-  workflowFieldLabel?: string
-}
-
 interface OrganizationTemplate {
   name: string
   type: 'organization'
   version: string
   description?: string
   parameters?: TemplateParameter[]
-  secretRequirements?: TemplateSecretRequirement[]
+  secretRequirements?: SecretRequirement[]
   agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[]; skills?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
@@ -53,34 +43,6 @@ const FALLBACK_MODELS = [
 
 type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
 type CustomizeStep = 'team' | 'context' | 'secrets' | 'workflows' | 'agents'
-
-function getTemplateSecretsStorageKey(templateSlug: string) {
-  return `clawmax-template-secrets:${templateSlug}`
-}
-
-function readStoredTemplateSecrets(templateSlug: string): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(getTemplateSecretsStorageKey(templateSlug)) || '{}')
-  } catch {
-    return {}
-  }
-}
-
-function writeStoredTemplateSecrets(templateSlug: string, secrets: Record<string, string>) {
-  try {
-    const cleaned = Object.fromEntries(
-      Object.entries(secrets).filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
-    )
-    localStorage.setItem(getTemplateSecretsStorageKey(templateSlug), JSON.stringify(cleaned))
-  } catch {}
-}
-
-function replaceWorkflowFieldValue(content: string, fieldLabel: string, value: string) {
-  if (!value.trim()) return content
-  const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'gim')
-  return content.replace(pattern, `$1 ${value.trim()}`)
-}
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
@@ -130,7 +92,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [prereqsLoading, setPrereqsLoading] = useState(true)
 
   React.useEffect(() => {
-    setTemplateSecrets(readStoredTemplateSecrets(templateSlug))
+    setTemplateSecrets(readLocalSecrets('template', templateSlug))
   }, [templateSlug])
 
   React.useEffect(() => {
@@ -304,7 +266,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             return
           }
         }
-        writeStoredTemplateSecrets(templateSlug, templateSecrets)
+        writeLocalSecrets('template', templateSlug, templateSecrets)
       }
       if (useGithub && githubRepo.trim() && template.workflows) {
         const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`

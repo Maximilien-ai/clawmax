@@ -2,13 +2,14 @@
 
 **Current Version**: v1.2.5
 **Last Updated**: April 3, 2026
-**Status**: Point release ready — test harness stability, template DAG/tag audit, and shared dashboard readability fixes are on main
+**Status**: Point release ready — test harness stability, secure browser-local runtime inputs, template DAG/tag audit, and shared dashboard readability fixes are on main
 
 ---
 
 ## Current State
 
 - `v1.2.5` ready on main — system-test harness fixes, template dependency/tag audit, and shared dashboard spend/markdown improvements are on main
+- browser-local secrets now work across template apply, workflow runs, and skill detail views for secure runtime inputs like API keys, event URLs, and export paths
 - 53 organization templates + 25 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, Family, Markets, and launch/research use cases
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
@@ -17,6 +18,12 @@
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
 
 ## v1.2.5 — Test Harness and Dashboard Reliability
+
+### Secure Runtime Inputs
+- template apply now supports a browser-local `Secrets` step when a template declares required runtime inputs
+- workflow runs can prompt for required browser-local secrets instead of forcing users to edit markdown or server config
+- skill detail views can now surface browser-local secret requirements, starting with the Lu.ma analysis skill
+- added `Lu.ma Event Analysis Desk` plus the `luma-event-insights` starter skill for organizer event analysis demos
 
 ### Test Harness and Template Apply
 - `SYSTEM/test.sh` now recreates `ClawMax System Test` before apply so stale workflow files do not leak into the integration run

@@ -16,6 +16,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Template DAG and tag audit** — multi-workflow templates now preserve correct dependencies, and every community, group, and workflow now has tags
 - **Shared dashboard readability** — notifications, workflows, and group chats now render markdown cleanly, scroll internally, and attribute workflow spend from agent traces
 - **Astronomy and similar templates behave correctly** — kickoff-first workflows no longer run in parallel by mistake after apply
+- **Browser-local secrets** — template apply, workflow runs, and skill detail views can now surface browser-local secret/input prompts so users can provide API keys, event URLs, slugs, and similar inputs without writing them into workflow markdown or server config
+- **Lu.ma Event Analysis Desk** — new Lu.ma analysis template plus starter `luma-event-insights` skill with secure browser-local prompt support for event scope and API key inputs
 
 ## 🔥 Previously in v1.2.4
 
@@ -81,8 +83,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 ### Authentication & Keys
 - **GitHub OAuth Login** - GitHub remains the primary general-purpose dashboard login path
 - **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
-- **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
+- **Browser-Local Runtime Secrets** - Templates, workflows, and skills can request browser-local secrets like API keys, event slugs, or export paths without persisting them to the server by default
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
 
 ### Workflows & DAG
@@ -101,6 +103,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **50+ Organization Templates** - Business, technical, personal, science, travel, hobbies, family, events, markets, product research, and launch proposal templates
 - **25 Reusable Agent Templates** - Leadership, engineering, research, events, testing, market, product, competitive, astronomy, and prototype roles that can be reused independently
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
+- **Secrets Step for Secure Inputs** - Templates with secret or runtime-input requirements now get a browser-local `Secrets` step during apply
 - **AI Generate** - Describe a team, AI fills all wizard steps
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
 - **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows

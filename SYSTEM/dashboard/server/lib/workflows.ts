@@ -56,6 +56,15 @@ export interface Workflow {
   type?: 'once' | 'recurring' | 'conditional'  // Workflow lifecycle type
   progress?: number      // Current progress 0-100 (aggregated from agents)
   status?: 'idle' | 'running' | 'completed' | 'blocked'  // Current workflow status
+  secretRequirements?: Array<{
+    key: string
+    label: string
+    kind?: 'api_key' | 'token' | 'text' | 'id' | 'url'
+    required?: boolean
+    help?: string
+    placeholder?: string
+    sensitive?: boolean
+  }>
 }
 
 export interface WorkflowParticipant {
@@ -198,6 +207,7 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
       type: data.type,
       progress: data.progress,
       status: data.status,
+      secretRequirements: data.secretRequirements,
     }
   } catch {
     return null
@@ -223,6 +233,7 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.owner) fm.owner = workflow.owner
   if (workflow.maxRuns) fm.maxRuns = workflow.maxRuns
   if (workflow.runCount) fm.runCount = workflow.runCount
+  if (workflow.secretRequirements?.length) fm.secretRequirements = workflow.secretRequirements
 
   return matter.stringify(workflow.content || '', fm)
 }
@@ -516,6 +527,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       content,
       dependsOn: data.dependsOn,
       type: data.type,
+      secretRequirements: (data as any).secretRequirements,
     }
 
     // Create file with YAML frontmatter
@@ -535,6 +547,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       ...(workflow.runCount && workflow.runCount > 0 && { runCount: workflow.runCount }),
       ...(workflow.dependsOn?.length && { dependsOn: workflow.dependsOn }),
       ...(workflow.type && { type: workflow.type }),
+      ...(workflow.secretRequirements?.length && { secretRequirements: workflow.secretRequirements }),
     }
     const fileContent = matter.stringify(workflow.content, frontmatter)
 
@@ -602,6 +615,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       ...(updated.type && { type: updated.type }),
       ...(updated.progress !== undefined && updated.progress > 0 && { progress: updated.progress }),
       ...(updated.status && updated.status !== 'idle' && { status: updated.status }),
+      ...(updated.secretRequirements?.length && { secretRequirements: updated.secretRequirements }),
     }
     const fileContent = matter.stringify(updated.content, updateFrontmatter)
 
@@ -745,6 +759,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
   byok?: { openai?: string; anthropic?: string }
+  secrets?: Record<string, string>
 }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
@@ -845,6 +860,13 @@ export function triggerWorkflow(workflowId: string, options?: {
     if (integrationDefaults.sensoContextLabel && !Object.keys(inputs).some((key) => /senso context|senso folder|context label/i.test(key))) {
       inputs['Senso context'] = integrationDefaults.sensoContextLabel
     }
+    if (options?.secrets) {
+      for (const [key, value] of Object.entries(options.secrets)) {
+        if (typeof value === 'string' && value.trim()) {
+          inputs[key] = value.trim()
+        }
+      }
+    }
 
     const runtimeContextLines: string[] = []
     if (integrationDefaults.githubDefaultRepo && !content.includes(integrationDefaults.githubDefaultRepo)) {
@@ -852,6 +874,17 @@ export function triggerWorkflow(workflowId: string, options?: {
     }
     if (integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
       runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
+    }
+    if (workflow.secretRequirements?.length && options?.secrets) {
+      for (const requirement of workflow.secretRequirements) {
+        const value = options.secrets[requirement.key]
+        if (!value?.trim()) continue
+        if (requirement.sensitive) {
+          runtimeContextLines.push(`- ${requirement.label}: provided securely for this run`)
+        } else {
+          runtimeContextLines.push(`- ${requirement.label}: \`${value.trim()}\``)
+        }
+      }
     }
     if ((workflow.targeting.groups || []).length > 0) {
       runtimeContextLines.push(`- Current workflow group channel(s): ${(workflow.targeting.groups || []).join(', ')}`)

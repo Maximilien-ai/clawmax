@@ -11,6 +11,28 @@ tags:
   - analytics
   - luma
   - research
+secretRequirements:
+  - key: LUMA_API_KEY
+    label: Lu.ma API Key
+    kind: api_key
+    required: false
+    placeholder: luma_...
+    sensitive: true
+    help: Optional if you are using exported files instead of direct API access.
+  - key: LUMA_EVENT_SCOPE
+    label: Lu.ma Event URL or Slug
+    kind: url
+    required: true
+    placeholder: https://lu.ma/your-event or your-event-slug
+    sensitive: false
+    help: Use a single event URL, event slug, organizer page, or short event list.
+  - key: LUMA_EXPORT_DIR
+    label: Lu.ma Export Directory
+    kind: text
+    required: false
+    placeholder: /path/to/luma-exports
+    sensitive: false
+    help: Optional path to organizer-exported CSV or JSON files when API access is unavailable.
 ---
 
 # Lu.ma Event Insights

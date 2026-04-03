@@ -6,6 +6,7 @@ import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
+import { readLocalSecrets, SecretRequirement, writeLocalSecrets } from '../lib/localSecrets'
 
 interface AgentTargeting {
   communities: string[]
@@ -34,6 +35,7 @@ interface Workflow {
   progress?: number
   status?: 'idle' | 'running' | 'completed' | 'blocked'
   dependsOn?: string[]
+  secretRequirements?: SecretRequirement[]
 }
 
 interface WorkflowDetails extends Workflow {
@@ -278,6 +280,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [aiInitialData, setAiInitialData] = useState<any>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<Set<string>>(new Set())
+  const [triggeringWorkflow, setTriggeringWorkflow] = useState<Workflow | null>(null)
+  const [workflowSecrets, setWorkflowSecrets] = useState<Record<string, string>>({})
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
@@ -353,6 +357,38 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     selectedWorkflowRef.current = selectedWorkflow
   }, [selectedWorkflow])
+
+  async function triggerWorkflowWithSecrets(workflow: Workflow) {
+    const secrets = readLocalSecrets('workflow', workflow.id)
+    const resp = await fetch(`/api/workflows/${workflow.id}/trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manual: true, byok: readStoredByokKeys(), secrets }),
+    })
+    const data = await resp.json()
+    if (!resp.ok || !data.executionId) {
+      throw new Error(data.error || `Failed to trigger ${workflow.id}`)
+    }
+    setRunningWorkflows(prev => new Set(prev).add(workflow.id))
+    return data
+  }
+
+  function startWorkflowTrigger(workflow: Workflow) {
+    if (workflow.secretRequirements && workflow.secretRequirements.length > 0) {
+      setTriggeringWorkflow(workflow)
+      setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
+      return
+    }
+    triggerWorkflowWithSecrets(workflow)
+      .then(() => {
+        showSuccess(`Triggered ${workflow.id}`)
+        fetchWorkflows(true)
+      })
+      .catch((err) => {
+        console.error('[Workflow Toast] Failed to trigger workflow:', err)
+        showError(err.message || `Failed to trigger ${workflow.id}`)
+      })
+  }
 
   useEffect(() => {
     showSuccessRef.current = showSuccess
@@ -1378,18 +1414,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 fetchWorkflows()
               }}
               onTrigger={async (id) => {
-                const resp = await fetch(`/api/workflows/${id}/trigger`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ manual: true, byok: readStoredByokKeys() }),
-                })
-                const data = await resp.json()
-                if (data.executionId) {
-                  showSuccess(`Triggered ${id}`)
-                } else {
-                  showError(data.error || `Failed to trigger ${id}`)
-                }
-                fetchWorkflows(true)
+                const workflow = sortedWorkflows.find((w) => w.id === id)
+                if (workflow) startWorkflowTrigger(workflow)
               }}
             />
           </div>
@@ -1507,17 +1533,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     // Run immediately without confirmation
                     try {
                       console.log('[Workflow Toast] Triggering workflow:', selectedWorkflow.id, selectedWorkflow.name)
-                      const resp = await fetch(`/api/workflows/${selectedWorkflow.id}/trigger`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ byok: readStoredByokKeys() }),
-                      })
-                      if (!resp.ok) throw new Error('Failed to trigger workflow')
-                      const data = await resp.json()
+                      if (selectedWorkflow.secretRequirements && selectedWorkflow.secretRequirements.length > 0) {
+                        setTriggeringWorkflow(selectedWorkflow)
+                        setWorkflowSecrets(readLocalSecrets('workflow', selectedWorkflow.id))
+                        return
+                      }
+                      const data = await triggerWorkflowWithSecrets(selectedWorkflow)
                       console.log('[Workflow Toast] Trigger response:', data)
                       showSuccess('Workflow triggered successfully')
-                      // Add to running workflows immediately
-                      setRunningWorkflows(prev => new Set(prev).add(selectedWorkflow.id))
                       // Track the execution for completion toast
                       if (data.executionId) {
                         const key = `${selectedWorkflow.id}:${data.executionId}`
@@ -2031,6 +2054,95 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             </div>
           </div>
         </>
+      )}
+
+      {triggeringWorkflow && (
+        <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center p-4">
+          <div className="w-full max-w-xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workflow Secrets</h3>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{triggeringWorkflow.name}</div>
+              </div>
+              <button onClick={() => setTriggeringWorkflow(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Stored in this browser only. Values are passed to this workflow run without being written into the workflow markdown file.
+              </div>
+              {(triggeringWorkflow.secretRequirements || []).map((requirement) => {
+                const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
+                  ? 'password'
+                  : requirement.kind === 'url'
+                    ? 'url'
+                    : 'text'
+                return (
+                  <div key={requirement.key} className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {requirement.label}
+                      {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                    </label>
+                    <input
+                      type={inputType}
+                      value={workflowSecrets[requirement.key] || ''}
+                      onChange={(e) => setWorkflowSecrets((prev) => ({ ...prev, [requirement.key]: e.target.value }))}
+                      placeholder={requirement.placeholder || requirement.key}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    {requirement.help && <div className="text-xs text-gray-500 dark:text-gray-400">{requirement.help}</div>}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+              <button
+                onClick={() => setTriggeringWorkflow(null)}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!triggeringWorkflow) return
+                  for (const requirement of triggeringWorkflow.secretRequirements || []) {
+                    if (requirement.required !== false && !(workflowSecrets[requirement.key] || '').trim()) {
+                      showError(`Missing required secret/input: ${requirement.label}`)
+                      return
+                    }
+                  }
+                  writeLocalSecrets('workflow', triggeringWorkflow.id, workflowSecrets)
+                  const workflow = triggeringWorkflow
+                  setTriggeringWorkflow(null)
+                  try {
+                    const data = await triggerWorkflowWithSecrets(workflow)
+                    showSuccess('Workflow triggered successfully')
+                    if (data.executionId) {
+                      const key = `${workflow.id}:${data.executionId}`
+                      setTrackedExecutions(prev => {
+                        const next = new Map(prev)
+                        next.set(key, {
+                          status: 'pending',
+                          executionId: data.executionId,
+                          workflowName: workflow.name
+                        })
+                        return next
+                      })
+                    }
+                    fetchWorkflows(true)
+                    if (selectedWorkflow?.id === workflow.id) {
+                      setTimeout(() => fetchWorkflowDetails(workflow.id), 2000)
+                    }
+                  } catch (err: any) {
+                    showError(err.message || `Failed to trigger ${workflow.id}`)
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700"
+              >
+                Run Workflow
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create Dialog */}

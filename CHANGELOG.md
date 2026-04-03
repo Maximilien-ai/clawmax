@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [v1.2.5] - 2026-04-03
 
+### Features — Secure Runtime Inputs
+- **Browser-Local Secrets** — template apply, workflow runs, and skill detail views now support browser-local secret/input prompts so users can provide API keys, slugs, event URLs, and similar runtime values without writing them into workflow markdown or server config by default
+- **Lu.ma Event Analysis Desk** — added a Lu.ma analysis template plus starter `luma-event-insights` custom skill with secure browser-local prompts for event scope and API access
+
 ### Fixes — Test Harness and Template Apply
 - **Fresh System-Test Workspace Setup** — `SYSTEM/test.sh` now recreates `ClawMax System Test` before apply so stale hidden files do not leak into integration runs
 - **Imported Workflow Visibility Wait** — the integration harness now waits for template-imported workflows to appear before asserting or triggering them

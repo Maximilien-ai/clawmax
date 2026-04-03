@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
+import { readLocalSecrets, writeLocalSecrets } from '../lib/localSecrets'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -48,6 +49,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [editingDraft, setEditingDraft] = useState('')
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
+  const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
 
   // Load agents list on mount
   useEffect(() => {
@@ -239,6 +241,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
   async function openSkillViewer(skill: OpenClawSkill) {
     setViewingSkill(skill)
+    setSkillSecrets(readLocalSecrets('skill', skill.name))
     setEditingSkill(false)
     setLoadingSkillContent(true)
     setError(null)
@@ -659,6 +662,47 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   )}
                 </div>
               </div>
+
+              {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
+                <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                  <div className="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
+                  <div className="mb-3 text-xs text-amber-700 dark:text-amber-300">
+                    Stored in this browser only. Use these values when this skill needs runtime access to provider-specific inputs.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {viewingSkill.secretRequirements.map((requirement) => {
+                      const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
+                        ? 'password'
+                        : requirement.kind === 'url'
+                          ? 'url'
+                          : 'text'
+                      const value = skillSecrets[requirement.key] || ''
+                      return (
+                        <div key={requirement.key} className="space-y-1.5">
+                          <label className="block text-sm font-medium text-amber-900 dark:text-amber-200">
+                            {requirement.label}
+                            {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                          </label>
+                          <input
+                            type={inputType}
+                            value={value}
+                            onChange={(e) => {
+                              const next = { ...skillSecrets, [requirement.key]: e.target.value }
+                              setSkillSecrets(next)
+                              writeLocalSecrets('skill', viewingSkill.name, next)
+                            }}
+                            placeholder={requirement.placeholder || requirement.key}
+                            className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                          />
+                          {requirement.help && (
+                            <div className="text-xs text-amber-800 dark:text-amber-200">{requirement.help}</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {editingSkill && (
                 <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
