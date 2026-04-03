@@ -1,6 +1,6 @@
 {
   "name": "Home Cooking Studio",
-  "emoji": "\ud83c\udf73",
+  "emoji": "🍳",
   "type": "organization",
   "version": "1.0.0",
   "category": "hobbies",
@@ -45,7 +45,7 @@
     {
       "id": "kitchen-lead",
       "name": "Kitchen Lead",
-      "role": "Cooking lead \u2014 sets the meal goal, dietary constraints, and quality bar for the session.",
+      "role": "Cooking lead — sets the meal goal, dietary constraints, and quality bar for the session.",
       "tags": [
         "lead",
         "cooking"
@@ -61,7 +61,7 @@
     {
       "id": "menu-planner",
       "name": "Menu Planner",
-      "role": "Planning specialist \u2014 proposes recipes, sequencing, and serving ideas.",
+      "role": "Planning specialist — proposes recipes, sequencing, and serving ideas.",
       "tags": [
         "cooking",
         "planning"
@@ -76,7 +76,7 @@
     {
       "id": "prep-coordinator",
       "name": "Prep Coordinator",
-      "role": "Prep specialist \u2014 organizes ingredients, shopping, and kitchen workflow.",
+      "role": "Prep specialist — organizes ingredients, shopping, and kitchen workflow.",
       "tags": [
         "cooking",
         "prep"
@@ -91,7 +91,7 @@
     {
       "id": "taste-reviewer",
       "name": "Taste Reviewer",
-      "role": "Review specialist \u2014 captures what worked, what failed, and what to adjust next time.",
+      "role": "Review specialist — captures what worked, what failed, and what to adjust next time.",
       "tags": [
         "cooking",
         "review"
@@ -145,7 +145,10 @@
       },
       "content": "# Recipe Retro\n\n1. Review how the recipe or cooking session went\n2. Capture what worked, what failed, and what to change\n3. Suggest whether to repeat, revise, or retire the recipe\n4. Post the retro to Review",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "cooking-kickoff"
+      ]
     }
   ]
 }

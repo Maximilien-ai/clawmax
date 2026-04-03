@@ -1,6 +1,6 @@
 {
   "name": "Trip Memory Studio",
-  "emoji": "\ud83d\uddfa\ufe0f",
+  "emoji": "🗺️",
   "type": "organization",
   "version": "1.0.0",
   "category": "travel",
@@ -54,7 +54,7 @@
     {
       "id": "memory-lead",
       "name": "Memory Lead",
-      "role": "Memory lead \u2014 decides what story the trip should tell and how polished the outputs need to be.",
+      "role": "Memory lead — decides what story the trip should tell and how polished the outputs need to be.",
       "tags": [
         "lead",
         "travel",
@@ -71,7 +71,7 @@
     {
       "id": "highlight-collector",
       "name": "Highlight Collector",
-      "role": "Capture specialist \u2014 gathers daily moments, notes, and standout images or clips.",
+      "role": "Capture specialist — gathers daily moments, notes, and standout images or clips.",
       "tags": [
         "travel",
         "capture"
@@ -86,7 +86,7 @@
     {
       "id": "story-editor",
       "name": "Story Editor",
-      "role": "Story specialist \u2014 turns raw moments into a coherent recap or album structure.",
+      "role": "Story specialist — turns raw moments into a coherent recap or album structure.",
       "tags": [
         "travel",
         "story"
@@ -101,7 +101,7 @@
     {
       "id": "sharing-coordinator",
       "name": "Sharing Coordinator",
-      "role": "Sharing specialist \u2014 prepares albums, recap messages, or print-ready selections.",
+      "role": "Sharing specialist — prepares albums, recap messages, or print-ready selections.",
       "tags": [
         "travel",
         "sharing"
@@ -157,7 +157,10 @@
       },
       "content": "# Highlight Curation\n\n1. Identify the strongest moments from the trip inputs\n2. Group them into themes or days\n3. Suggest what should make the final cut\n4. Post the shortlist and rationale to Curate",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "memory-kickoff"
+      ]
     }
   ]
 }

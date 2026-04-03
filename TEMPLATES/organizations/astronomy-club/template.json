@@ -143,6 +143,9 @@
       "description": "Sky Event Digest",
       "schedule": "manual",
       "type": "conditional",
+      "dependsOn": [
+        "astronomy-monthly-kickoff"
+      ],
       "owner": "alignment-analyst",
       "targeting": {
         "communities": [],

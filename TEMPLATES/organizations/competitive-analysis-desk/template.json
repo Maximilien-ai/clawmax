@@ -158,7 +158,10 @@
       },
       "content": "# Competitive Strategy Brief\n\n1. Combine competitor findings and TAM notes into a strategy memo\n2. Name the strongest incumbents and the most realistic wedge\n3. Call out where the idea is crowded, weak, or unexpectedly open\n4. Post the final brief to Strategy and the short recommendation to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "competitive-kickoff"
+      ]
     }
   ]
 }

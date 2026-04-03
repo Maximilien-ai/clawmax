@@ -181,7 +181,10 @@
       },
       "content": "# Speaker Readiness Review\n\n1. Review speaker confirmations, bios, assets, and talk status\n2. Identify who still needs briefing, timing guidance, or reminders\n3. Flag missing slides, headshots, approvals, or travel details\n4. Post the speaker readiness update to Speakers and any risks to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "speaker-event-kickoff"
+      ]
     },
     {
       "id": "run-of-show-build",
@@ -202,7 +205,10 @@
       },
       "content": "# Run Of Show Build\n\n1. Build the agenda with session timing, transitions, and owner handoffs\n2. Balance speaker time, attendee energy, and buffer windows\n3. Call out the top pacing, sequencing, or content risks\n4. Post the run-of-show draft to Program and the key dependencies to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "speaker-readiness-review"
+      ]
     },
     {
       "id": "event-day-ops-check",
@@ -223,7 +229,10 @@
       },
       "content": "# Event Day Ops Check\n\n1. Review venue readiness, AV, seating, signage, and check-in flow\n2. Confirm staffing, volunteer, or host responsibilities\n3. Identify the last operational blockers and contingency plans\n4. Post the event-day ops plan to Logistics and a go/no-go summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "run-of-show-build"
+      ]
     },
     {
       "id": "speaker-event-follow-up",
@@ -244,7 +253,10 @@
       },
       "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Post the follow-up plan to Follow-Up and the executive summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "event-day-ops-check"
+      ]
     }
   ]
 }

@@ -159,7 +159,10 @@
       },
       "content": "# Paper Digest Build\n\n1. Gather the strongest summaries and papers selected for the digest\n2. Identify the major themes, disagreements, and likely overclaims\n3. Recommend which papers deserve deeper reading now\n4. Post the final digest draft to Digest and the short summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "arxiv-topic-kickoff"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "Movie Club",
-  "emoji": "\ud83c\udfac",
+  "emoji": "🎬",
   "type": "organization",
   "version": "1.0.0",
   "category": "hobbies",
@@ -45,7 +45,7 @@
     {
       "id": "club-lead",
       "name": "Club Lead",
-      "role": "Viewing lead \u2014 defines the movie-night theme and what kind of discussion or output is wanted.",
+      "role": "Viewing lead — defines the movie-night theme and what kind of discussion or output is wanted.",
       "tags": [
         "lead",
         "movies"
@@ -61,7 +61,7 @@
     {
       "id": "programmer",
       "name": "Programmer",
-      "role": "Programming specialist \u2014 chooses films, sequencing, and themed watchlists.",
+      "role": "Programming specialist — chooses films, sequencing, and themed watchlists.",
       "tags": [
         "movies",
         "programming"
@@ -76,7 +76,7 @@
     {
       "id": "discussion-host",
       "name": "Discussion Host",
-      "role": "Discussion specialist \u2014 frames questions, reactions, and takeaways after each viewing.",
+      "role": "Discussion specialist — frames questions, reactions, and takeaways after each viewing.",
       "tags": [
         "movies",
         "discussion"
@@ -91,7 +91,7 @@
     {
       "id": "recommendation-editor",
       "name": "Recommendation Editor",
-      "role": "Recommendation specialist \u2014 turns reactions into future picks and ranked lists.",
+      "role": "Recommendation specialist — turns reactions into future picks and ranked lists.",
       "tags": [
         "movies",
         "recommendations"
@@ -147,7 +147,10 @@
       },
       "content": "# Watchlist Refresh\n\n1. Refresh the best current movie options for the chosen theme\n2. Rank the top picks with quick reasoning\n3. Suggest one wild card and one safe choice\n4. Post the refreshed list to Watchlist",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "movie-night-kickoff"
+      ]
     }
   ]
 }

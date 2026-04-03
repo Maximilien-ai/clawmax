@@ -160,7 +160,10 @@
       },
       "content": "# Site Build Review\n\n1. Review the current page structure, repo status, and remaining gaps\n2. Confirm what still blocks a first public push\n3. Name the fastest path to a good-enough shipped version\n4. Post the build review to Build and the ship recommendation to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "site-idea-kickoff"
+      ]
     }
   ]
 }

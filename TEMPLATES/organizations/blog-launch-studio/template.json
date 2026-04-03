@@ -159,7 +159,10 @@
       },
       "content": "# Draft Pack Build\n\n1. Draft the highest-priority posts in the calendar\n2. Make each draft concrete, publishable, and clearly aimed at the audience\n3. Note what still needs voice polish, examples, or references\n4. Post the draft pack summary to Drafts and the publish recommendation to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "blog-launch-kickoff"
+      ]
     }
   ]
 }

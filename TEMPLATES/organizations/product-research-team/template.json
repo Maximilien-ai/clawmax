@@ -158,7 +158,10 @@
       },
       "content": "# Product Findings Synthesis\n\n1. Collect the strongest customer and product observations\n2. Turn them into a concise findings memo with tensions and recommendations\n3. Call out what still needs validation\n4. Post the final findings to Findings and the summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "product-research-kickoff"
+      ]
     }
   ]
 }

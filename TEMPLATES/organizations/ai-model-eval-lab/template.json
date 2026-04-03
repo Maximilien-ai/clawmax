@@ -159,7 +159,10 @@
       },
       "content": "# Comparison Memo\n\n1. Compare the models across the agreed dimensions\n2. Name the clear winner, best budget option, and biggest caution\n3. Tie the recommendation back to the target use case\n4. Post the final memo to Recommendations and the short summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "model-eval-kickoff"
+      ]
     }
   ]
 }

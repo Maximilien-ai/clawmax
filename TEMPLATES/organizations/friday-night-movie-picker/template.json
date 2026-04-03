@@ -152,7 +152,10 @@
       },
       "content": "# Final Pick Review\n\n1. Compare the top candidates on tone, runtime, and crowd fit\n2. Explain the top choice in plain language\n3. Name one backup if the first pick falls through\n4. Post the final ranking to Picks and the winner to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "friday-movie-kickoff"
+      ]
     }
   ]
 }

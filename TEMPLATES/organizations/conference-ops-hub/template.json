@@ -202,7 +202,10 @@
       },
       "content": "# Track Planning Review\n\n1. Build or review the track map, session timing, and room flow\n2. Identify gaps, overlaps, and risky transitions\n3. Flag any missing owners, assets, or moderation needs\n4. Post the track planning review to Program and the biggest risks to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "conference-kickoff"
+      ]
     },
     {
       "id": "speaker-ops-review",
@@ -223,7 +226,10 @@
       },
       "content": "# Speaker Ops Review\n\n1. Review each speaker's confirmation, talk readiness, and asset status\n2. Track travel, green-room, timing, and moderator dependencies\n3. Escalate missing materials, scheduling risk, or owner gaps\n4. Post the speaker ops review to Speakers and the top blockers to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "track-planning-review"
+      ]
     },
     {
       "id": "capacity-and-venue-plan",
@@ -244,7 +250,10 @@
       },
       "content": "# Capacity And Venue Plan\n\n1. Review attendance assumptions, room fit, staffing, registration, and line management\n2. Identify where capacity or flow could break down at peak volume\n3. Recommend contingency plans for overflow, delays, and staffing gaps\n4. Post the capacity plan to Capacity and the executive summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "speaker-ops-review"
+      ]
     },
     {
       "id": "sponsor-readiness-check",
@@ -265,7 +274,10 @@
       },
       "content": "# Sponsor Readiness Check\n\n1. Review sponsor commitments, deadlines, placements, and deliverables\n2. Identify missing assets, approvals, or event-day needs\n3. Clarify what the core event team still owes sponsors or partners\n4. Post the sponsor readiness check to Sponsors and any escalations to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "capacity-and-venue-plan"
+      ]
     },
     {
       "id": "conference-follow-up",
@@ -286,7 +298,10 @@
       },
       "content": "# Conference Follow Up\n\n1. Summarize the event outcomes, feedback themes, and unresolved issues\n2. Draft sponsor, speaker, and attendee follow-up streams\n3. Capture leads, commitments, and the next conference improvements\n4. Post the follow-up plan to Follow-Up and the final summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "sponsor-readiness-check"
+      ]
     }
   ]
 }

@@ -157,7 +157,10 @@
       },
       "content": "# Market Signal Digest\n\n1. Summarize the strongest company or stock-specific developments\n2. Note which moves are signal versus noise\n3. Connect news to likely investor attention over the chosen time horizon\n4. Post the company digest to Companies and the top actions to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "market-attention-kickoff"
+      ]
     }
   ]
 }

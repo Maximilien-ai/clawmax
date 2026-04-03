@@ -137,7 +137,10 @@
       },
       "content": "# Guest List Check\n\n1. Draft or review the invite list and RSVP status\n2. Note any dietary, accessibility, timing, or seating needs\n3. Identify which guests still need follow-up\n4. Post the guest update to Guests and any risks to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "small-event-kickoff"
+      ]
     },
     {
       "id": "event-day-readiness",
@@ -158,7 +161,10 @@
       },
       "content": "# Event Day Readiness\n\n1. Review the venue, supplies, food, timing, and cleanup needs\n2. Build a short event-day checklist with sequence and owners\n3. Flag any missing items, reservations, or timing risks\n4. Post the readiness checklist to Logistics and a short summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "guest-list-check"
+      ]
     }
   ]
 }

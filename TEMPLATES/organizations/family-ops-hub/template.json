@@ -1,6 +1,6 @@
 {
   "name": "Family Ops Hub",
-  "emoji": "\ud83c\udfe1",
+  "emoji": "🏡",
   "type": "organization",
   "version": "1.0.0",
   "category": "family",
@@ -53,7 +53,7 @@
     {
       "id": "family-lead",
       "name": "Family Lead",
-      "role": "Operations lead \u2014 defines what matters most for the household this week and keeps the whole system coordinated.",
+      "role": "Operations lead — defines what matters most for the household this week and keeps the whole system coordinated.",
       "tags": [
         "lead",
         "family"
@@ -69,7 +69,7 @@
     {
       "id": "schedule-coordinator",
       "name": "Schedule Coordinator",
-      "role": "Scheduling specialist \u2014 tracks family events, conflicts, and transport windows.",
+      "role": "Scheduling specialist — tracks family events, conflicts, and transport windows.",
       "tags": [
         "family",
         "calendar"
@@ -84,7 +84,7 @@
     {
       "id": "home-ops-coordinator",
       "name": "Home Ops Coordinator",
-      "role": "Household specialist \u2014 organizes chores, supplies, and recurring home tasks.",
+      "role": "Household specialist — organizes chores, supplies, and recurring home tasks.",
       "tags": [
         "family",
         "household"
@@ -99,7 +99,7 @@
     {
       "id": "kids-support-coordinator",
       "name": "Kids Support Coordinator",
-      "role": "Kids support specialist \u2014 tracks school, activities, and support needs.",
+      "role": "Kids support specialist — tracks school, activities, and support needs.",
       "tags": [
         "family",
         "kids"
@@ -130,7 +130,7 @@
           "family-lead"
         ]
       },
-      "content": "# Family Week Kickoff\n\nYou are the Family Lead. The family ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **This week\u2019s priorities:** [school, appointments, travel, chores, bills, custom]\n- **Key family members or roles:** [names or roles]\n- **Known stress points:** [time crunches, missing supplies, overloaded days, custom]\n- **Output artifact:** [weekly plan, chore board, family brief]\n\n## Your Tasks\n1. Define the top family priorities for the week\n2. Ask Schedule Coordinator for the first schedule risk review\n3. Ask Home Ops Coordinator for the top household tasks\n4. Ask Kids Support Coordinator for school/activity needs\n5. Post the current family ops plan to Status",
+      "content": "# Family Week Kickoff\n\nYou are the Family Lead. The family ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **This week’s priorities:** [school, appointments, travel, chores, bills, custom]\n- **Key family members or roles:** [names or roles]\n- **Known stress points:** [time crunches, missing supplies, overloaded days, custom]\n- **Output artifact:** [weekly plan, chore board, family brief]\n\n## Your Tasks\n1. Define the top family priorities for the week\n2. Ask Schedule Coordinator for the first schedule risk review\n3. Ask Home Ops Coordinator for the top household tasks\n4. Ask Kids Support Coordinator for school/activity needs\n5. Post the current family ops plan to Status",
       "enabled": true,
       "executionMode": "managed"
     },
@@ -153,7 +153,10 @@
       },
       "content": "# Household Reset\n\n1. Review the current state of chores, supplies, and household tasks\n2. Group tasks into must-do, nice-to-have, and delegate\n3. Suggest a practical sequence for the next reset\n4. Post the reset plan to Home",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "family-week-kickoff"
+      ]
     }
   ]
 }

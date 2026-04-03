@@ -1,6 +1,6 @@
 {
   "name": "Homework Support Team",
-  "emoji": "\ud83d\udcda",
+  "emoji": "📚",
   "type": "organization",
   "version": "1.0.0",
   "category": "family",
@@ -54,7 +54,7 @@
     {
       "id": "study-lead",
       "name": "Study Lead",
-      "role": "Study lead \u2014 prioritizes assignments and decides where support is most needed.",
+      "role": "Study lead — prioritizes assignments and decides where support is most needed.",
       "tags": [
         "lead",
         "family",
@@ -71,7 +71,7 @@
     {
       "id": "assignment-planner",
       "name": "Assignment Planner",
-      "role": "Planning specialist \u2014 breaks homework into smaller tasks and sequencing.",
+      "role": "Planning specialist — breaks homework into smaller tasks and sequencing.",
       "tags": [
         "family",
         "homework",
@@ -87,7 +87,7 @@
     {
       "id": "project-coach",
       "name": "Project Coach",
-      "role": "Project specialist \u2014 organizes larger school projects into milestones.",
+      "role": "Project specialist — organizes larger school projects into milestones.",
       "tags": [
         "family",
         "projects"
@@ -102,7 +102,7 @@
     {
       "id": "review-tutor",
       "name": "Review Tutor",
-      "role": "Review specialist \u2014 suggests practice, revision, and confidence-building study steps.",
+      "role": "Review specialist — suggests practice, revision, and confidence-building study steps.",
       "tags": [
         "family",
         "study-support"
@@ -156,7 +156,10 @@
       },
       "content": "# Assignment Breakdown\n\n1. Break the current homework load into clear steps\n2. Sort by deadline and difficulty\n3. Identify where adult help or extra review is needed\n4. Post the breakdown to Assignments",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "homework-kickoff"
+      ]
     }
   ]
 }

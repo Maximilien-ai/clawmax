@@ -159,7 +159,10 @@
       },
       "content": "# Trivia Pack Build\n\n1. Organize questions into rounds with a clear difficulty curve\n2. Make sure the set is fun, fair, and varied\n3. Pair each round with a clean answer key\n4. Post the draft pack to Questions and the host summary to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "trivia-night-kickoff"
+      ]
     }
   ]
 }

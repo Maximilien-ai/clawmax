@@ -1,6 +1,6 @@
 {
   "name": "Travel Planning Desk",
-  "emoji": "\u2708\ufe0f",
+  "emoji": "✈️",
   "type": "organization",
   "version": "1.0.0",
   "category": "travel",
@@ -53,7 +53,7 @@
     {
       "id": "travel-lead",
       "name": "Travel Lead",
-      "role": "Travel planning lead \u2014 defines the trip goals, constraints, and final itinerary shape.",
+      "role": "Travel planning lead — defines the trip goals, constraints, and final itinerary shape.",
       "tags": [
         "lead",
         "travel",
@@ -70,7 +70,7 @@
     {
       "id": "itinerary-designer",
       "name": "Itinerary Designer",
-      "role": "Experience planner \u2014 builds day-by-day plans, route ideas, and pacing recommendations.",
+      "role": "Experience planner — builds day-by-day plans, route ideas, and pacing recommendations.",
       "tags": [
         "travel",
         "itinerary",
@@ -86,7 +86,7 @@
     {
       "id": "logistics-coordinator",
       "name": "Logistics Coordinator",
-      "role": "Logistics specialist \u2014 tracks flights, trains, hotels, packing, and transport details.",
+      "role": "Logistics specialist — tracks flights, trains, hotels, packing, and transport details.",
       "tags": [
         "travel",
         "logistics"
@@ -101,7 +101,7 @@
     {
       "id": "memory-curator",
       "name": "Memory Curator",
-      "role": "Memory specialist \u2014 organizes highlights, trip notes, and keepsake ideas during and after the trip.",
+      "role": "Memory specialist — organizes highlights, trip notes, and keepsake ideas during and after the trip.",
       "tags": [
         "travel",
         "memories"
@@ -155,7 +155,10 @@
       },
       "content": "# Itinerary Build\n\n1. Draft the first itinerary structure based on the trip goals\n2. Balance travel time, activities, and rest\n3. Call out must-do moments versus optional items\n4. Post the itinerary draft and open questions to Planning",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "trip-kickoff"
+      ]
     },
     {
       "id": "logistics-check",
@@ -176,7 +179,10 @@
       },
       "content": "# Logistics Check\n\n1. List the main bookings, transfers, and packing needs\n2. Flag any risky gaps or deadline-sensitive tasks\n3. Provide a short travel-day checklist\n4. Post the logistics summary to Logistics and any blockers to Status",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "itinerary-build"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "Household Bills Desk",
-  "emoji": "\ud83d\udcb8",
+  "emoji": "💸",
   "type": "organization",
   "version": "1.0.0",
   "category": "family",
@@ -45,7 +45,7 @@
     {
       "id": "admin-lead",
       "name": "Admin Lead",
-      "role": "Household admin lead \u2014 defines which bills and admin tasks matter most right now.",
+      "role": "Household admin lead — defines which bills and admin tasks matter most right now.",
       "tags": [
         "lead",
         "family",
@@ -62,7 +62,7 @@
     {
       "id": "bill-tracker",
       "name": "Bill Tracker",
-      "role": "Tracking specialist \u2014 keeps due dates, categories, and payment status visible.",
+      "role": "Tracking specialist — keeps due dates, categories, and payment status visible.",
       "tags": [
         "family",
         "bills"
@@ -77,7 +77,7 @@
     {
       "id": "paperwork-coordinator",
       "name": "Paperwork Coordinator",
-      "role": "Admin specialist \u2014 tracks forms, account updates, and household paperwork.",
+      "role": "Admin specialist — tracks forms, account updates, and household paperwork.",
       "tags": [
         "family",
         "paperwork"
@@ -92,7 +92,7 @@
     {
       "id": "review-analyst",
       "name": "Review Analyst",
-      "role": "Review specialist \u2014 checks for missed items, duplicates, and follow-up needs.",
+      "role": "Review specialist — checks for missed items, duplicates, and follow-up needs.",
       "tags": [
         "family",
         "review"
@@ -148,7 +148,10 @@
       },
       "content": "# Monthly Admin Review\n\n1. Review the current bill list and status\n2. Identify anything overdue, unclear, or duplicated\n3. Suggest the next cleanup or reminder actions\n4. Post the review summary to Review",
       "enabled": true,
-      "executionMode": "managed"
+      "executionMode": "managed",
+      "dependsOn": [
+        "bills-kickoff"
+      ]
     }
   ]
 }

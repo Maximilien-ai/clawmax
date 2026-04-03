@@ -66,6 +66,7 @@ You are the Club Observer.
 ### Sky Event Digest
 - **Schedule:** manual
 - **Mode:** managed (owner: alignment-analyst)
+- **Depends on:** astronomy-monthly-kickoff
 - **Targets:** agents: alignment-analyst; groups: Alignments
 
 # Sky Event Digest
