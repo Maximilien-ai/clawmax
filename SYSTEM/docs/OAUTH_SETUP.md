@@ -97,6 +97,23 @@ Behavior in local dev:
 
 This is the recommended developer path instead of bypass when testing real login behavior.
 
+### 4. Recommended CLI / local-dev defaults
+
+If another local tool such as `clawmax-cli` needs to bootstrap dashboard auth for a developer, use:
+
+```bash
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=developer@example.com
+OTP_DEV_MODE=log
+OTP_EXPIRY_MINUTES=15
+```
+
+Notes:
+
+- do not hardcode a personal email in shipped defaults
+- set `OTP_ALLOWED_EMAILS` from the operator/developer environment
+- use `DASHBOARD_AUTH_MODE=hybrid` only if you explicitly want GitHub OAuth and Email OTP enabled together
+
 ## GitHub Setup
 
 ### 1. Create a GitHub OAuth App
@@ -121,7 +138,6 @@ Minimum required values:
 
 ```bash
 NODE_ENV=development
-DASHBOARD_AUTH_DISABLED=false
 
 GITHUB_CLIENT_ID=your_client_id_here
 GITHUB_CLIENT_SECRET=your_client_secret_here

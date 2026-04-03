@@ -1,20 +1,38 @@
 # ClawMax Status
 
-**Current Version**: v1.2.3
+**Current Version**: v1.2.4
 **Last Updated**: April 3, 2026
-**Status**: Point release ready — Email OTP auth, expanded template counts, and OTP auth tests are on main
+**Status**: Point release ready — setup/auth clarification, Doctor/sidebar hardening, and workspace dashboard polish are on main
 
 ---
 
 ## Current State
 
-- `v1.2.3` ready on main — Email OTP auth, developer OTP flow, and the expanded template catalog are on main
+- `v1.2.4` ready on main — Email OTP setup flow, CLI-friendly auth docs, Doctor/sidebar hardening, and workspace dashboard polish are on main
 - 53 organization templates + 25 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, Family, Markets, and launch/research use cases
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
 - Shareable workspace dashboards with compact/standard/detail display modes
 - Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+
+## v1.2.4 — Setup, Doctor, and Dashboard Polish
+
+### Setup and Auth
+- `setup.sh` now offers local dev Email OTP, bypass, GitHub OAuth, and production Email OTP
+- local dev setup now asks for the login email and points developers to `.clawmax-otp-dev.json`
+- auth docs now show the recommended local-tool/bootstrap defaults for Email OTP and remove stale GitHub auth guidance
+
+### Doctor and Navigation
+- Doctor UI now survives partial or error payloads without crashing
+- doctor backend returns a consistent empty-state response when no agents directory exists
+- sidebar now groups `Templates/Skills` separately from `Activity/System & Logs`
+- template prereq warnings now point users to the in-product Doctor flow instead of the old shell script
+
+### Workspace Dashboards
+- shared workspace dashboards now render correctly in both light and dark mode
+- compact dashboard defaults are tighter and closer to a true one-page summary
+- standard/detail dashboards now give workflows full-width room when result sections are long
 
 ## v1.2.3 — Auth and Template Expansion
 

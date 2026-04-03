@@ -2,6 +2,24 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.4] - 2026-04-03
+
+### Features — Setup and Auth
+- **Email OTP in `setup.sh`** — local setup now offers Email OTP, bypass, GitHub OAuth, or production Email OTP instead of forcing the old bypass-vs-GitHub split
+- **Developer OTP Setup Prompt** — `setup.sh` now asks for the developer login email and explains that local dev codes are written to `.clawmax-otp-dev.json`
+- **Auth Docs Clarified** — auth docs now recommend concrete Email OTP defaults for local tooling/bootstrap flows and remove stale GitHub auth guidance
+
+### Fixes — Doctor and Navigation
+- **Doctor Error Hardening** — Doctor UI no longer crashes when `/api/agents/doctor` returns a partial or error payload
+- **Doctor Empty-State Shape** — backend doctor route now returns a consistent empty-state response when no agents directory exists
+- **Sidebar Regrouping** — sidebar now cleanly groups `Templates/Skills` separately from `Activity/System & Logs`
+- **Template Prereq Guidance** — template apply now points users to `System & Logs → Doctor → Auto-Fix`
+
+### Fixes — Workspace Dashboards
+- **Light/Dark Theme Consistency** — shared workspace dashboards now render correctly in both theme modes
+- **Compact Dashboard Density** — compact mode defaults are tighter and more informative while staying closer to a one-page summary
+- **Standard/Detail Workflow Layout** — workflow-heavy dashboard views now give workflows full-width room instead of leaving dead space beside them
+
 ## [v1.2.3] - 2026-04-03
 
 ### Features — Authentication

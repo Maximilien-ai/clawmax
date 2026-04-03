@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.3)
+[![Version](https://img.shields.io/badge/version-1.2.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.4)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.3
+## 🔥 What's New in v1.2.4
+
+- **Setup now offers Email OTP by default for local dev** — `./setup.sh` now prompts for local-dev Email OTP, bypass, GitHub OAuth, or production Email OTP
+- **CLI/local auth defaults clarified** — auth docs now show the exact env vars tools should use for developer OTP login without hardcoding personal emails
+- **Doctor and sidebar reliability** — Doctor no longer crashes on partial error payloads, and the navigation now groups `Templates/Skills` separately from `Activity/System & Logs`
+- **Workspace dashboard polish** — shared workspace dashboards now behave correctly in light/dark mode, compact mode fits better by default, and standard/detail views give workflows full-width room
+
+## 🔥 Previously in v1.2.3
 
 - **Email OTP auth** — dashboard now supports a secure email-code login mode for single-user cloud/on-prem installs, in addition to GitHub OAuth and bypass
 - **Developer OTP flow** — local dev can use `OTP_DEV_MODE=log` and read the latest code from `.clawmax-otp-dev.json` instead of scraping logs or disabling auth
@@ -374,6 +381,17 @@ In local dev with `OTP_DEV_MODE=log`:
 - no live email is sent
 - the latest code is written to `.clawmax-otp-dev.json`
 - the login UI shows the path after requesting a code
+
+Recommended local-tool/bootstrap defaults:
+
+```env
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=developer@example.com
+OTP_DEV_MODE=log
+OTP_EXPIRY_MINUTES=15
+```
+
+Use `DASHBOARD_AUTH_MODE=hybrid` only if you intentionally want Email OTP and GitHub OAuth enabled together.
 
 ### Bypass Auth
 
