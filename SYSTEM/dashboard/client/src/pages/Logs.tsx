@@ -8,6 +8,29 @@ interface LogEntry {
   raw: string
 }
 
+type DoctorResults = {
+  healthy: boolean
+  summary: { pass: number; fail: number; warn: number; fixed: number }
+  results: Array<{ id: string; checks: Array<{ check: string; status: string; message: string }> }>
+  platform: { cli?: boolean; gateway?: boolean; gatewayPort?: number | string | null }
+  message?: string
+}
+
+function normalizeDoctorResults(data: any): DoctorResults {
+  return {
+    healthy: Boolean(data?.healthy),
+    summary: {
+      pass: Number(data?.summary?.pass || 0),
+      fail: Number(data?.summary?.fail || 0),
+      warn: Number(data?.summary?.warn || 0),
+      fixed: Number(data?.summary?.fixed || 0),
+    },
+    results: Array.isArray(data?.results) ? data.results : [],
+    platform: data?.platform || {},
+    message: typeof data?.message === 'string' ? data.message : undefined,
+  }
+}
+
 export default function Logs() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [paused, setPaused] = useState(false)
@@ -18,7 +41,7 @@ export default function Logs() {
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDoctor, setShowDoctor] = useState(false)
-  const [doctorResults, setDoctorResults] = useState<any>(null)
+  const [doctorResults, setDoctorResults] = useState<DoctorResults | null>(null)
   const [doctorFixing, setDoctorFixing] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
@@ -175,8 +198,15 @@ export default function Logs() {
                 setShowDoctor(true)
                 try {
                   const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: false }) })
-                  setDoctorResults(await resp.json())
-                } catch {}
+                  const data = await resp.json().catch(() => ({}))
+                  setDoctorResults(normalizeDoctorResults(resp.ok ? data : {
+                    ...data,
+                    healthy: false,
+                    message: data?.error || data?.message || `Doctor failed (${resp.status})`,
+                  }))
+                } catch {
+                  setDoctorResults(normalizeDoctorResults(null))
+                }
               }}
               className="px-3 py-1.5 text-sm bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded transition-colors dark:bg-cyan-900/20 dark:text-cyan-300 dark:hover:bg-cyan-900/40 border border-cyan-200 dark:border-cyan-800"
             >
@@ -227,12 +257,17 @@ export default function Logs() {
                 onClick={async () => {
                   setDoctorFixing(true)
                   setDoctorResults(null)
-                  try {
-                    const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
-                    setDoctorResults(await resp.json())
-                  } catch (err) {
-                    setDoctorResults({ healthy: false, summary: { pass: 0, fail: 1, warn: 0, fixed: 0 }, results: [], platform: {} })
-                  }
+                try {
+                  const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+                  const data = await resp.json().catch(() => ({}))
+                  setDoctorResults(normalizeDoctorResults(resp.ok ? data : {
+                    ...data,
+                    healthy: false,
+                    message: data?.error || data?.message || `Doctor failed (${resp.status})`,
+                  }))
+                } catch (err) {
+                  setDoctorResults(normalizeDoctorResults(null))
+                }
                   setDoctorFixing(false)
                 }}
                 disabled={doctorFixing}
@@ -252,10 +287,13 @@ export default function Logs() {
               </div>
               {(doctorResults.results || []).filter((r: any) => (r.checks || []).some((c: any) => c.status !== 'pass')).map((r: any) => (
                 <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
-                  <span className="font-mono font-medium">{r.id}:</span> {r.checks.filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
+                  <span className="font-mono font-medium">{r.id}:</span> {(r.checks || []).filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
                 </div>
               ))}
               {doctorResults.healthy && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
+              {doctorResults.message && doctorResults.results.length === 0 && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">{doctorResults.message}</div>
+              )}
             </div>
           )}
         </div>

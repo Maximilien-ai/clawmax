@@ -46,12 +46,37 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   // System tabs below - separated by divider
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
+  { id: 'logs', label: 'System & Logs', icon: 'logs' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
-  { id: 'logs', label: 'System', icon: 'logs' },
 ]
 
 // User tabs that can be rearranged (first 5)
 const USER_TABS_COUNT = 5
+const SYSTEM_TABS_ORDER: Page[] = ['templates', 'skills', 'activity', 'logs']
+
+function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
+  if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_NAV_ORDER
+
+  const byId = new Map(DEFAULT_NAV_ORDER.map(item => [item.id, item]))
+  const userTabs = saved.filter((item): item is NavItem => Boolean(item?.id && byId.has(item.id) && !SYSTEM_TABS_ORDER.includes(item.id)))
+  const uniqueUserTabs: NavItem[] = []
+  const seen = new Set<Page>()
+
+  for (const item of userTabs) {
+    if (seen.has(item.id)) continue
+    seen.add(item.id)
+    uniqueUserTabs.push(byId.get(item.id)!)
+  }
+
+  for (const item of DEFAULT_NAV_ORDER.slice(0, USER_TABS_COUNT)) {
+    if (!seen.has(item.id)) uniqueUserTabs.push(item)
+  }
+
+  return [
+    ...uniqueUserTabs.slice(0, USER_TABS_COUNT),
+    ...SYSTEM_TABS_ORDER.map(id => byId.get(id)!).filter(Boolean),
+  ]
+}
 
 /** Sidebar user badge with avatar and logout */
 function UserBadge({ collapsed }: { collapsed: boolean }) {
@@ -132,7 +157,7 @@ export default function App() {
     const saved = localStorage.getItem('nav-order')
     if (saved) {
       try {
-        return JSON.parse(saved)
+        return normalizeNavOrder(JSON.parse(saved))
       } catch {
         return DEFAULT_NAV_ORDER
       }
@@ -256,6 +281,14 @@ export default function App() {
     localStorage.setItem('nav-order', JSON.stringify(navOrder))
   }
 
+  useEffect(() => {
+    const normalized = normalizeNavOrder(navOrder)
+    if (JSON.stringify(normalized) !== JSON.stringify(navOrder)) {
+      setNavOrder(normalized)
+      localStorage.setItem('nav-order', JSON.stringify(normalized))
+    }
+  }, [navOrder])
+
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -314,8 +347,8 @@ export default function App() {
                     onDragOver={index < USER_TABS_COUNT ? (e) => handleNavDragOver(e, index) : undefined}
                     onDragEnd={index < USER_TABS_COUNT ? handleNavDragEnd : undefined}
                   />
-                  {/* Separator between user tabs and system tabs */}
-                  {index === USER_TABS_COUNT - 1 && (
+                  {/* Dividers between major sidebar sections */}
+                  {(index === USER_TABS_COUNT - 1 || item.id === 'skills') && (
                     <div className="my-2 mx-3 border-t border-gray-700"></div>
                   )}
                 </React.Fragment>

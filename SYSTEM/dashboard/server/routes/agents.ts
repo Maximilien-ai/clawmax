@@ -654,7 +654,13 @@ router.post('/doctor', async (req, res) => {
   try {
     entries = fs.readdirSync(agentsDir, { withFileTypes: true })
   } catch {
-    res.json({ results, platform: { cli: hasOpenclawCli, gateway: gatewayRunning }, message: 'No agents directory found' })
+    res.json({
+      results,
+      platform: { cli: hasOpenclawCli, gateway: gatewayRunning, gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort() },
+      summary: { total: 0, pass: 0, fail: 0, warn: 0, fixed: 0 },
+      healthy: true,
+      message: 'No agents directory found'
+    })
     return
   }
 

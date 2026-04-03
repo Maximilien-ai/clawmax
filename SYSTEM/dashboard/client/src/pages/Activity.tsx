@@ -845,11 +845,34 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [results, setResults] = useState<any>(null)
   const [fixing, setFixing] = useState(false)
+  const normalizeDoctorResults = (data: any) => ({
+    healthy: Boolean(data?.healthy),
+    summary: {
+      pass: Number(data?.summary?.pass || 0),
+      fail: Number(data?.summary?.fail || 0),
+      warn: Number(data?.summary?.warn || 0),
+      fixed: Number(data?.summary?.fixed || 0),
+    },
+    results: Array.isArray(data?.results) ? data.results : [],
+    platform: data?.platform || {},
+    message: typeof data?.message === 'string' ? data.message : undefined,
+  })
   const runDoctor = useCallback((fix = false) => {
     setLoading(true); if (fix) setFixing(true)
     fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix }) })
-      .then(r => r.json()).then(data => { setResults(data); setLoading(false); setFixing(false) })
-      .catch(() => { setLoading(false); setFixing(false) })
+      .then(async r => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          return normalizeDoctorResults({
+            ...data,
+            healthy: false,
+            message: data?.error || data?.message || `Doctor failed (${r.status})`,
+          })
+        }
+        return normalizeDoctorResults(data)
+      })
+      .then(data => { setResults(data); setLoading(false); setFixing(false) })
+      .catch(() => { setResults(normalizeDoctorResults(null)); setLoading(false); setFixing(false) })
   }, [])
   useEffect(() => { runDoctor() }, [runDoctor])
   return (
@@ -873,7 +896,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
               {results.results?.map((agent: any) => (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2 font-mono">{agent.id}</div>
-                  <div className="space-y-1">{agent.checks.map((c: any, i: number) => (
+                  <div className="space-y-1">{(agent.checks || []).map((c: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className={c.status === 'pass' ? 'text-green-500' : c.status === 'fixed' ? 'text-cyan-500' : c.status === 'fail' ? 'text-red-500' : 'text-amber-500'}>{c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'}</span>
                       <span className="text-gray-600 dark:text-gray-400">{c.check}:</span>
@@ -883,6 +906,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
               {results.results?.length === 0 && <div className="text-center text-gray-400 py-4">No agents in workspace</div>}
+              {results.message && results.results?.length === 0 && <div className="text-center text-gray-500 dark:text-gray-400 py-2 text-sm">{results.message}</div>}
             </div>
           ) : <div className="text-center text-red-500 py-8">Failed to run doctor</div>}
         </div>

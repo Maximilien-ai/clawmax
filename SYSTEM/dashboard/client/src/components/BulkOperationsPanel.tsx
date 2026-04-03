@@ -25,6 +25,21 @@ interface BulkOperationsPanelProps {
   onBulkSkills?: (agentIds: string[], addSkills: string[], removeSkills: string[]) => Promise<void>
 }
 
+function normalizeDoctorResults(data: any) {
+  return {
+    healthy: Boolean(data?.healthy),
+    summary: {
+      pass: Number(data?.summary?.pass || 0),
+      fail: Number(data?.summary?.fail || 0),
+      warn: Number(data?.summary?.warn || 0),
+      fixed: Number(data?.summary?.fixed || 0),
+    },
+    results: Array.isArray(data?.results) ? data.results : [],
+    platform: data?.platform || {},
+    message: typeof data?.message === 'string' ? data.message : undefined,
+  }
+}
+
 export default function BulkOperationsPanel({
   selectedAgents,
   allCommunities,
@@ -126,8 +141,12 @@ export default function BulkOperationsPanel({
         await onBulkSkills(agentIds, Array.from(selectedSkillsToAdd), [])
       } else if (operation === 'doctor') {
         const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
-        const data = await resp.json()
-        setDoctorResults(data)
+        const data = await resp.json().catch(() => ({}))
+        setDoctorResults(normalizeDoctorResults(resp.ok ? data : {
+          ...data,
+          healthy: false,
+          message: data?.error || data?.message || `Doctor failed (${resp.status})`,
+        }))
         // Restart all selected agents after doctor
         for (const a of selectedAgents) {
           try { await fetch(`/api/agents/${a.id}/restart`, { method: 'POST' }) } catch {}
