@@ -1,0 +1,248 @@
+{
+  "name": "Lu.ma Event Analysis Desk",
+  "emoji": "📅",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "business",
+  "description": "Proposal template for analyzing Lu.ma events, attendees, invites, and engagement signals so organizers can understand what is working and what to change next.",
+  "author": "ClawMax Team",
+  "tags": [
+    "business",
+    "events",
+    "analytics",
+    "luma",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "event-analyst",
+      "label": "Number of Event Analysts",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Lu.ma Analysis",
+      "description": "Shared coordination space for Lu.ma event analysis, attendee patterns, invite funnel review, and engagement signals.",
+      "tags": [
+        "business",
+        "events",
+        "luma-event-analysis-desk",
+        "luma-analysis"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Events",
+      "community": "Lu.ma Analysis",
+      "description": "Event-level performance, schedule patterns, themes, and comparisons across events.",
+      "tags": [
+        "business",
+        "luma-event-analysis-desk",
+        "events"
+      ]
+    },
+    {
+      "name": "Attendees",
+      "community": "Lu.ma Analysis",
+      "description": "Attendee makeup, repeat attendance, VIP presence, no-show patterns, and cohort behavior.",
+      "tags": [
+        "business",
+        "luma-event-analysis-desk",
+        "attendees"
+      ]
+    },
+    {
+      "name": "Invites",
+      "community": "Lu.ma Analysis",
+      "description": "Invite funnel, RSVP conversion, declines, waitlist behavior, and distribution patterns.",
+      "tags": [
+        "business",
+        "luma-event-analysis-desk",
+        "invites"
+      ]
+    },
+    {
+      "name": "Signals",
+      "community": "Lu.ma Analysis",
+      "description": "Chat, comments, social echoes, and high-signal attendee or organizer feedback.",
+      "tags": [
+        "business",
+        "luma-event-analysis-desk",
+        "signals"
+      ]
+    },
+    {
+      "name": "Status",
+      "community": "Lu.ma Analysis",
+      "description": "Current analysis scope, data gaps, risks, and final recommendations.",
+      "tags": [
+        "business",
+        "luma-event-analysis-desk",
+        "status"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "analysis-lead",
+      "name": "Analysis Lead",
+      "role": "Event analytics lead — defines the question, decision lens, and final recommendations for organizers.",
+      "skills": [
+        "luma-event-insights"
+      ],
+      "tags": [
+        "lead",
+        "events",
+        "analytics"
+      ],
+      "communities": [
+        "Lu.ma Analysis"
+      ],
+      "groups": [
+        "Status",
+        "Events"
+      ]
+    },
+    {
+      "id": "event-analyst",
+      "name": "Event Analyst",
+      "role": "Event specialist — compares event performance, timing, topics, format, and operational patterns across one or more Lu.ma events.",
+      "skills": [
+        "luma-event-insights"
+      ],
+      "tags": [
+        "events",
+        "analysis"
+      ],
+      "communities": [
+        "Lu.ma Analysis"
+      ],
+      "groups": [
+        "Events",
+        "Status"
+      ]
+    },
+    {
+      "id": "audience-analyst",
+      "name": "Audience Analyst",
+      "role": "Audience specialist — studies attendees, repeat guests, VIPs, no-shows, and who actually shows up versus who registers.",
+      "skills": [
+        "luma-event-insights"
+      ],
+      "tags": [
+        "attendees",
+        "audience"
+      ],
+      "communities": [
+        "Lu.ma Analysis"
+      ],
+      "groups": [
+        "Attendees",
+        "Status"
+      ]
+    },
+    {
+      "id": "invite-analyst",
+      "name": "Invite Analyst",
+      "role": "Invite specialist — reviews invite flow, RSVP conversion, waitlists, declines, and distribution channel quality.",
+      "skills": [
+        "luma-event-insights"
+      ],
+      "tags": [
+        "invites",
+        "conversion"
+      ],
+      "communities": [
+        "Lu.ma Analysis"
+      ],
+      "groups": [
+        "Invites",
+        "Status"
+      ]
+    },
+    {
+      "id": "signal-analyst",
+      "name": "Signal Analyst",
+      "role": "Signal specialist — turns chats, comments, and external signals into themes, sentiment, and organizer takeaways.",
+      "skills": [
+        "luma-event-insights"
+      ],
+      "tags": [
+        "signals",
+        "sentiment"
+      ],
+      "communities": [
+        "Lu.ma Analysis"
+      ],
+      "groups": [
+        "Signals",
+        "Status"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "lu-ma-analysis-kickoff",
+      "name": "Lu.ma Analysis Kickoff",
+      "description": "Initialize the Lu.ma event analysis desk with the right events, data access, and organizer questions.",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "analysis-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "analysis-lead"
+        ]
+      },
+      "content": "# Lu.ma Analysis Kickoff\n\nYou are the Analysis Lead. The Lu.ma event analysis desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Lu.ma event URL, slug, or event list:** [single event, series, organizer page, custom]\n- **Organizer question:** [attendance, invites, no-shows, VIP mix, trend shifts, engagement, custom]\n- **Time window:** [last event, last 3 events, last 90 days, custom]\n- **Audience focus:** [all attendees, VIPs, new attendees, repeat attendees, invitees, custom]\n- **Output artifact:** [analysis memo, dashboard brief, organizer recap, investor-style summary]\n- **Data access path:** [Lu.ma API key, exported CSV, manual event links, custom skill, custom]\n\n## Required Inputs Before Running\n1. Confirm the exact Lu.ma event or event set to analyze\n2. Confirm where the organizer can get the data\n3. Confirm whether this workspace already has a Lu.ma-fetching skill or API integration\n\n## Data Access Notes\n- If the organizer has Lu.ma API access, provide the API key or the event export path through your secure runtime setup\n- If Lu.ma data is not already wired into this workspace, create or import a custom skill that can fetch event, attendee, invite, and engagement data first\n- If direct API access is unavailable, use exported attendee/invite/event CSVs and organizer notes as the input source\n\n## Your Tasks\n1. Restate the event scope, organizer question, time window, and output artifact\n2. Ask Event Analysts for the event-level performance and comparison plan\n3. Ask Audience Analyst for the attendee and repeat-guest lens\n4. Ask Invite Analyst for the invite funnel and RSVP conversion lens\n5. Ask Signal Analyst for the comment/chat/external-signal lens\n6. Post the final analysis plan plus missing inputs to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-analysis-kickoff"
+      ]
+    },
+    {
+      "id": "lu-ma-insight-brief",
+      "name": "Lu.ma Insight Brief",
+      "description": "Turn the event, attendee, invite, and signal work into a concise organizer-ready brief.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "analysis-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "analysis-lead"
+        ]
+      },
+      "content": "# Lu.ma Insight Brief\n\n1. Collect the strongest event, attendee, invite, and signal findings\n2. Separate reliable facts from soft interpretation or missing data\n3. Summarize the top patterns, anomalies, and organizer takeaways\n4. Recommend what to repeat, change, test, or monitor in the next event cycle\n5. Post the final brief to Status and link the supporting evidence from Events, Attendees, Invites, and Signals",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "lu-ma-analysis-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-insight-brief"
+      ]
+    }
+  ]
+}
