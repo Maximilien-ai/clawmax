@@ -59,6 +59,8 @@
 - [x] **Channel comms default fan-out** — group/community posts now go to all members by default unless narrowed with explicit mentions
 - [x] **Agent chat streaming** — live chat now streams deltas instead of waiting for the full response
 - [x] **Event planning template set** — added scalable small/medium/large event templates plus Events discovery filter
+- [x] **Email OTP auth mode** — shipped dashboard Email OTP login with local dev flow, docs, and focused auth tests
+- [x] **Template catalog expansion** — added 10 more org templates and expanded reusable agent templates to 25 roles
 
 ### Team Issues (2 hrs)
 - [ ] Address CLI team issues (gateway process management, etc.)
@@ -75,6 +77,7 @@
 
 ### Release (2 hrs)
 - [x] Update CHANGELOG, README, STATUS
+- [x] Prep v1.2.3 release surfaces
 - [ ] Archive completed sprint plan
 - [x] Tag v1.1.22 (or higher based on changes)
 - [x] Update external repos (templates, workflows) if specs changed
@@ -96,7 +99,7 @@
 | Integration tests | 153 | 170+ |
 | Test coverage (critical modules) | ~50% | 60-70% |
 | Open backlog items | ~25 | <20 |
-| Templates | 15 | 15+ |
+| Templates | 15 | 50+ public / 53 app |
 | Workflows passing DAG | yes | yes + cron cascade |
 
 ## Backlog Reference

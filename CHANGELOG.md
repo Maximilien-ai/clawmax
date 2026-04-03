@@ -2,6 +2,24 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.3] - 2026-04-03
+
+### Features — Authentication
+- **Email OTP Dashboard Auth** — added a new dashboard auth mode between GitHub OAuth and bypass for single-user cloud/on-prem installs
+- **Resend-backed OTP Delivery** — OTP codes now send through the dashboard backend with short-lived, hashed, single-use verification
+- **Developer OTP Flow** — local developer mode now writes the latest code to `.clawmax-otp-dev.json` and the login UI points to it directly
+- **ClawMax-styled OTP Email** — OTP delivery now uses both HTML and text bodies aligned with the ClawMax web/backend email style
+
+### Features — Templates
+- **50+ Organization Templates in App** — added ten new proposal templates across movies, astronomy, arXiv digests, market signals, AI model evaluation, product research, competitive analysis, rapid website building, and blog launch
+- **25 Reusable Agent Templates** — pulled repeated roles into reusable agent templates for events, testing, customer research, competition, prototype building, market analysis, astronomy guidance, and GitHub triage
+- **Public Templates Repo at 50** — synced the new org templates to the public `Maximilien-ai/templates` repo and validated the full 50-template directory set
+
+### Quality — Auth and Template Validation
+- **Focused OTP Auth Tests** — added request/verify/reuse/expiry coverage for the new OTP auth flow
+- **Main Test Harness Coverage** — wired the OTP auth suite into `SYSTEM/test.sh` so it runs in the normal release gate
+- **Template Validation Pass** — app template tests and public templates validation both pass with the expanded catalog
+
 ## [v1.2.2] - 2026-04-02
 
 ### Features — Templates and Discovery

@@ -5,12 +5,20 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.2)
+[![Version](https://img.shields.io/badge/version-1.2.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.3)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.2
+## 🔥 What's New in v1.2.3
+
+- **Email OTP auth** — dashboard now supports a secure email-code login mode for single-user cloud/on-prem installs, in addition to GitHub OAuth and bypass
+- **Developer OTP flow** — local dev can use `OTP_DEV_MODE=log` and read the latest code from `.clawmax-otp-dev.json` instead of scraping logs or disabling auth
+- **50+ organization templates** — added ten new proposal templates across entertainment, astronomy, paper digests, markets, evaluation, product research, competitive analysis, rapid website creation, and blog launch
+- **25 reusable agent templates** — expanded the agent-template library with repeatable roles from events, testing, product research, markets, astronomy, and shipping flows
+- **Auth test coverage** — OTP request/verify/reuse/expiry tests now run in the normal `SYSTEM/test.sh` path
+
+## 🔥 Previously in v1.2.2
 
 - **Event planning templates** — new small, medium, and large event-planning proposal templates are live in both ClawMax and the public templates repo
 - **Events discovery** — Templates page now has a dedicated `Events` filter chip
@@ -57,7 +65,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Budget Controls** - Workspace-level budget visibility and enforcement to pause costly execution before spend drifts
 
 ### Authentication & Keys
-- **GitHub OAuth Login** - GitHub is the primary dashboard login path
+- **GitHub OAuth Login** - GitHub remains the primary general-purpose dashboard login path
+- **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
@@ -75,8 +84,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **WORKFLOW.md Format** - Define workflows as YAML frontmatter + markdown
 
 ### Templates
-- **40+ Organization Templates** - Business, technical, personal, science, travel, hobbies, family, and event-planning proposal templates
-- **12 Reusable Agent Templates** - Leadership, engineering, research, briefing, data, and experiment roles that can be reused independently
+- **50+ Organization Templates** - Business, technical, personal, science, travel, hobbies, family, events, markets, product research, and launch proposal templates
+- **25 Reusable Agent Templates** - Leadership, engineering, research, events, testing, market, product, competitive, astronomy, and prototype roles that can be reused independently
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **AI Generate** - Describe a team, AI fills all wizard steps
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders

@@ -1,20 +1,33 @@
 # ClawMax Status
 
-**Current Version**: v1.2.2
-**Last Updated**: April 2, 2026
-**Status**: Point release ready — event templates, events discovery, default channel fan-out, and first-pass live agent chat streaming are on main
+**Current Version**: v1.2.3
+**Last Updated**: April 3, 2026
+**Status**: Point release ready — Email OTP auth, expanded template counts, and OTP auth tests are on main
 
 ---
 
 ## Current State
 
-- `v1.2.2` ready on main — event-planning templates, events discovery, default channel fan-out, and first-pass live agent chat streaming are on main
-- 42 organization templates + 12 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, and Family
+- `v1.2.3` ready on main — Email OTP auth, developer OTP flow, and the expanded template catalog are on main
+- 53 organization templates + 25 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, Family, Markets, and launch/research use cases
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
 - Shareable workspace dashboards with compact/standard/detail display modes
 - Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+
+## v1.2.3 — Auth and Template Expansion
+
+### Authentication
+- added Email OTP dashboard auth mode for single-user cloud/on-prem installs
+- local developer OTP mode now writes the latest code to `.clawmax-otp-dev.json` and the login UI points developers to it
+- OTP delivery now uses ClawMax-styled HTML + text emails aligned with the web/backend email pattern
+- added focused OTP auth tests and wired them into `SYSTEM/test.sh`
+
+### Templates
+- added 10 new proposal templates across movies, astronomy, paper digests, market signals, AI model evaluation, product research, competitive analysis, rapid websites, and blog launch
+- expanded the reusable agent template library to 25 roles
+- synced the public `Maximilien-ai/templates` repo to 50 validated template directories
 
 ## v1.2.2 — Events and Chat Point Release
 
@@ -86,6 +99,7 @@
 
 ### Auth, BYOK, and Release Readiness
 - GitHub OAuth login/logout flow
+- Email OTP login for single-user cloud/on-prem and local developer flows
 - dashboard login hero refresh and post-auth redirect fixes
 - visible user info + logout in the top bar
 - BYOK preview wizard for OpenAI/Anthropic keys
