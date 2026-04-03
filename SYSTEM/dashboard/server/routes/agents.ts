@@ -62,7 +62,8 @@ function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean
   const profileConfigPath = path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
   const configPath = fs.existsSync(profileConfigPath) ? profileConfigPath : defaultConfigPath
-  return updateAgentModelInConfigFile(configPath, agentId, model)
+  const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  return updateAgentModelInConfigFile(configPath, agentId, model, { workspacePath })
 }
 
 function updateAgentIdentityModel(identityPath: string, model: string) {

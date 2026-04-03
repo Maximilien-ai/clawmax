@@ -56,6 +56,29 @@ test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   assert(typeof updated.meta?.lastTouchedAt === 'string', 'Expected metadata stamp to be written')
 })
 
+test('updateAgentModelInConfigFile updates the matching workspace record when ids collide', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const staleWorkspace = path.join(tmpDir, 'workspace-a', 'AGENTS', 'ceo')
+  const activeWorkspace = path.join(tmpDir, 'workspace-b', 'AGENTS', 'ceo')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'ceo', workspace: staleWorkspace, model: 'anthropic/claude-opus-4-6' },
+        { id: 'ceo', workspace: activeWorkspace, model: 'anthropic/claude-opus-4-6' }
+      ]
+    }
+  }, null, 2))
+
+  const result = updateAgentModelInConfigFile(configPath, 'ceo', 'ollama/qwen2.5:latest', { workspacePath: activeWorkspace })
+  assert(result.ok, result.error || 'Expected workspace-targeted update to succeed')
+
+  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(updated.agents.list[0].model === 'anthropic/claude-opus-4-6', 'Expected stale duplicate record to remain unchanged')
+  assert(updated.agents.list[1].model === 'ollama/qwen2.5:latest', 'Expected active workspace record to be updated')
+})
+
 test('updateAgentModelInConfigFile rejects missing agent', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')

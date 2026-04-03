@@ -1,7 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 
-export function updateAgentModelInConfigFile(configPath: string, agentId: string, model: string): { ok: boolean; error?: string } {
+export function updateAgentModelInConfigFile(
+  configPath: string,
+  agentId: string,
+  model: string,
+  options?: { workspacePath?: string }
+): { ok: boolean; error?: string } {
   try {
     if (!fs.existsSync(configPath)) {
       return { ok: false, error: `Config not found: ${configPath}` }
@@ -13,9 +18,11 @@ export function updateAgentModelInConfigFile(configPath: string, agentId: string
       return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
     }
 
-    const agentIndex = agentList.findIndex((agent: any) => agent.id === agentId)
+    const agentIndex = typeof options?.workspacePath === 'string'
+      ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
+      : agentList.findIndex((agent: any) => agent.id === agentId)
     if (agentIndex === -1) {
-      return { ok: false, error: `Agent ${agentId} not found in openclaw.json` }
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
     agentList[agentIndex] = {
