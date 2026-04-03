@@ -207,7 +207,7 @@ export default function Templates() {
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'science' | 'travel' | 'hobbies' | 'family'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'events' | 'science' | 'travel' | 'hobbies' | 'family'>('all')
   const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
     const saved = localStorage.getItem('templates-view-mode')
     return saved === 'list' ? 'list' : 'grid'
@@ -232,6 +232,15 @@ export default function Templates() {
     organizations: false,
     workflows: false,
   })
+
+  const matchesOrgCategory = React.useCallback((template: OrganizationTemplate, filter: string) => {
+    if (filter === 'all') return true
+    if ((template as any).category === filter) return true
+    const tags = template.tags || []
+    if (tags.includes(filter)) return true
+    if (filter === 'events' && (tags.includes('event') || tags.includes('events'))) return true
+    return false
+  }, [])
 
   const fetchTemplates = () => {
     setLoading(true)
@@ -390,7 +399,7 @@ export default function Templates() {
     let filtered = orgTemplates
     // Category filter
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter(t => (t as any).category === categoryFilter || t.tags?.includes(categoryFilter))
+      filtered = filtered.filter(t => matchesOrgCategory(t, categoryFilter))
     }
     if (!searchQuery.trim()) return filtered
     const query = searchQuery.trim().toLowerCase()
@@ -403,7 +412,7 @@ export default function Templates() {
       t.communities?.some(c => c.name.toLowerCase().includes(query)) ||
       t.groups?.some(g => g.name.toLowerCase().includes(query))
     )
-  }, [orgTemplates, searchQuery, categoryFilter])
+  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory])
 
   const filteredWorkflowTemplates = React.useMemo(() => {
     if (!searchQuery.trim()) return workflowTemplates
@@ -462,7 +471,7 @@ export default function Templates() {
     if (!searchQuery.trim()) return []
     const visibleOrgTemplates = categoryFilter === 'all'
       ? orgTemplates
-      : orgTemplates.filter(t => (t as any).category === categoryFilter || t.tags?.includes(categoryFilter))
+      : orgTemplates.filter(t => matchesOrgCategory(t, categoryFilter))
     const candidateRows = [
       ...agentTemplates.map(getTemplateRow),
       ...visibleOrgTemplates.map(getTemplateRow),
@@ -495,7 +504,7 @@ export default function Templates() {
         reasons: suggestion.reasons,
       }))
       .filter((entry): entry is { row: TemplateRow; reasons: string[] } => !!entry.row)
-  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter])
+  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesOrgCategory])
   const shouldShowTemplateSuggestions = !!searchQuery.trim() && templateSuggestionRows.length > 0 && totalFiltered < 4
 
   if (loading) {
@@ -747,6 +756,7 @@ export default function Templates() {
           { key: 'business', label: 'Business', icon: '💼' },
           { key: 'technical', label: 'Technical', icon: '⚙️' },
           { key: 'personal', label: 'Personal', icon: '📚' },
+          { key: 'events', label: 'Events', icon: '🎤' },
           { key: 'travel', label: 'Travel', icon: '✈️' },
           { key: 'hobbies', label: 'Hobbies', icon: '🎨' },
           { key: 'family', label: 'Family', icon: '🏡' },
