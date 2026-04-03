@@ -142,6 +142,44 @@ test('resolveAgentExecutionConfig prefers the active workspace agent when ids co
   assert(resolved.provider === 'ollama', 'Expected provider derived from active workspace model')
 })
 
+test('resolveAgentExecutionConfig prefers active workspace identity model over stale global model', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'clawmax-system-test')
+  const defaultAgentWorkspace = path.join(defaultWorkspace, 'AGENTS', 'test1')
+  const activeAgentWorkspace = path.join(activeWorkspace, 'AGENTS', 'test1')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+
+  fs.mkdirSync(defaultAgentWorkspace, { recursive: true })
+  fs.mkdirSync(activeAgentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(defaultAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** anthropic/claude-opus-4-6\n', 'utf-8')
+  fs.writeFileSync(path.join(activeAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** ollama/qwen2.5:latest\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: defaultAgentWorkspace, agentDir, model: 'anthropic/claude-opus-4-6' }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'system-test',
+    workspaces: [
+      { id: 'default', name: 'Default', path: defaultWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'system-test', name: 'ClawMax System Test', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('test1')
+  assert(resolved.model === 'ollama/qwen2.5:latest', 'Expected active workspace identity model to override stale global model')
+  assert(resolved.provider === 'ollama', 'Expected provider derived from active workspace identity model')
+})
+
 test('scopeSessionIdToModel isolates chats across model changes', () => {
   const scoped = scopeSessionIdToModel('group:temp:test-agent1', 'ollama/qwen2.5:latest')
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')

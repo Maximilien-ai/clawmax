@@ -65,7 +65,11 @@ export function resolveAgentExecutionConfig(agentId: string): {
     identityModel = parseIdentity(identity).model || undefined
   } catch {}
 
-  const model = record?.model || identityModel
+  // If the active workspace contains this agent, trust its local identity first.
+  // A stale global openclaw.json entry may point at a different workspace with the same agent id.
+  const model = hasActiveWorkspaceAgent
+    ? (identityModel || record?.model)
+    : (record?.model || identityModel)
   return {
     model,
     workspace: resolvedWorkspace,
