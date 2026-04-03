@@ -26,7 +26,7 @@ import { initOpikTracing, shutdownOpik } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
-import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured } from './lib/github-auth'
+import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
@@ -154,7 +154,9 @@ app.get('/api/auth/config', (_req, res) => {
   const userKeys = getUserDefaultProviderKeys()
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
-    authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true',
+    otpEnabled: isOtpAuthConfigured(),
+    authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
+    authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,

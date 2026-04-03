@@ -61,14 +61,26 @@ function UserBadge({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
       <div className="border-t border-gray-700 px-2 py-2 flex justify-center">
-        <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" title={`${user.login} — click to logout`} onClick={logout} style={{ cursor: 'pointer' }} />
+        {user.avatar ? (
+          <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" title={`${user.login} — click to logout`} onClick={logout} style={{ cursor: 'pointer' }} />
+        ) : (
+          <button onClick={logout} className="w-6 h-6 rounded-full bg-sky-500/20 text-[10px] font-semibold text-sky-200" title={`${user.login} — click to logout`}>
+            {user.login.slice(0, 2).toUpperCase()}
+          </button>
+        )}
       </div>
     )
   }
 
   return (
     <div className="border-t border-gray-700 px-4 py-2 flex items-center gap-2">
-      <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" />
+      {user.avatar ? (
+        <img src={user.avatar} alt={user.login} className="w-6 h-6 rounded-full" />
+      ) : (
+        <div className="w-6 h-6 rounded-full bg-sky-500/20 text-[10px] font-semibold text-sky-200 flex items-center justify-center">
+          {user.login.slice(0, 2).toUpperCase()}
+        </div>
+      )}
       <span className="text-xs text-gray-300 truncate flex-1">{user.name || user.login}</span>
       <button onClick={logout} className="text-xs text-gray-500 hover:text-gray-300" title="Sign out">
         Logout
@@ -496,7 +508,13 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <ByokWizard />
         {user && !config?.authDisabled && (
           <div className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
-            <img src={user.avatar} alt={user.login} className="w-5 h-5 rounded-full shrink-0" />
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.login} className="w-5 h-5 rounded-full shrink-0" />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-sky-500/20 text-[9px] font-semibold text-sky-300 flex items-center justify-center shrink-0">
+                {user.login.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <span className="hidden sm:inline text-xs text-gray-600 dark:text-gray-300 max-w-[140px] truncate">
               {user.name || user.login}
             </span>

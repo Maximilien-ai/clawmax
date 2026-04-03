@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
 export interface AuthUser {
-  id: number
+  id: string
   login: string
   name: string | null
   avatar: string
+  email?: string | null
+  authType?: 'github' | 'otp'
 }
 
 interface AuthConfig {
   githubEnabled: boolean
+  otpEnabled?: boolean
+  authMode?: string
   authDisabled: boolean
   allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
@@ -26,6 +30,8 @@ interface AuthContextValue {
   loading: boolean
   config: AuthConfig | null
   login: () => void
+  requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; message?: string }>
+  verifyOtp: (email: string, code: string, rememberDevice: boolean) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
 }
 
@@ -61,6 +67,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
 
+  const requestOtp = useCallback(async (email: string) => {
+    const resp = await fetch('/api/auth/otp/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    return { ok: resp.ok, error: data.error, message: data.message }
+  }, [])
+
+  const verifyOtp = useCallback(async (email: string, code: string, rememberDevice: boolean) => {
+    const resp = await fetch('/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, code, rememberDevice }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (resp.ok && data.user) {
+      setUser(data.user)
+    }
+    return { ok: resp.ok, error: data.error }
+  }, [])
+
   const logout = useCallback(() => {
     setLoading(true)
     setUser(null)
@@ -80,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, config, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, config, login, requestOtp, verifyOtp, logout }}>
       {children}
     </AuthContext.Provider>
   )

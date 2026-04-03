@@ -1,15 +1,35 @@
 # OAuth Authentication Setup
 
-ClawMax Dashboard currently supports GitHub OAuth for the dashboard UI and API. Google and Apple are not implemented.
+ClawMax Dashboard supports:
+
+- GitHub OAuth
+- Email OTP login
+- bypass mode for local-only development
+
+Google and Apple are not implemented yet.
 
 ## Current Auth Behavior
 
-- When `DASHBOARD_AUTH_DISABLED=false`, the UI checks `/api/auth/config` and shows the login page if GitHub OAuth is configured.
+- The UI checks `/api/auth/config` and shows the login screen when auth is required.
 - Successful login creates a 7-day JWT session in the `clawmax_session` httpOnly cookie.
 - Protected API routes accept either:
-  - a valid GitHub session cookie or session bearer token
+  - a valid session cookie or session bearer token
   - the legacy dashboard bearer token from `.dashboard-token`
-- Access can optionally be restricted with `GITHUB_ALLOWED_USERS`.
+- GitHub access can optionally be restricted with `GITHUB_ALLOWED_USERS`.
+- Email OTP access is restricted with `OTP_ALLOWED_EMAILS`.
+
+## Auth Modes
+
+```bash
+# GitHub OAuth only
+DASHBOARD_AUTH_MODE=github_oauth
+
+# Email OTP only
+DASHBOARD_AUTH_MODE=email_otp
+
+# No auth, local only
+DASHBOARD_AUTH_MODE=bypass
+```
 
 ## GitHub Setup
 

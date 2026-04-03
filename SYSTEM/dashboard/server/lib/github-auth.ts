@@ -8,6 +8,8 @@ import https from 'https'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import type { CookieOptions } from 'express'
+import fs from 'fs'
+import path from 'path'
 
 // ============================================================================
 // Configuration
@@ -51,10 +53,12 @@ export interface GitHubUser {
 }
 
 interface SessionPayload {
-  userId: number
+  userId: string
   login: string
   name: string | null
   avatar: string
+  email?: string | null
+  authType?: 'github' | 'otp'
 }
 
 // ============================================================================
@@ -143,12 +147,148 @@ async function getGitHubUser(accessToken: string): Promise<GitHubUser> {
 
 function createSessionToken(user: GitHubUser): string {
   const payload: SessionPayload = {
-    userId: user.id,
+    userId: String(user.id),
     login: user.login,
     name: user.name,
     avatar: user.avatar_url,
+    email: user.email,
+    authType: 'github',
   }
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: SESSION_DURATION })
+}
+
+type OtpRecord = {
+  email: string
+  codeHash: string
+  expiresAt: number
+  createdAt: number
+  consumedAt?: number
+  attemptCount: number
+  requestIp?: string
+}
+
+type OtpStore = {
+  version: 1
+  records: OtpRecord[]
+}
+
+const OTP_STORE_PATH = path.join(__dirname, '..', 'data', 'auth', 'otp-store.json')
+const OTP_REQUEST_WINDOW_MS = 60 * 1000
+const OTP_EXPIRY_MS = parseInt(process.env.OTP_EXPIRY_MINUTES || '15', 10) * 60 * 1000
+const OTP_MAX_ATTEMPTS = 5
+
+function getOtpAllowedEmails(): string[] {
+  return (process.env.OTP_ALLOWED_EMAILS || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+function isOtpConfigured(): boolean {
+  return getOtpAllowedEmails().length > 0 && (!!process.env.RESEND_API_KEY || process.env.OTP_DEV_MODE === 'log')
+}
+
+function authMode(): string {
+  return (process.env.DASHBOARD_AUTH_MODE || '').trim().toLowerCase()
+}
+
+function isBypassAuth(): boolean {
+  return process.env.BYPASS_OAUTH === 'true'
+    || process.env.DASHBOARD_AUTH_DISABLED === 'true'
+    || authMode() === 'bypass'
+}
+
+function allowGitHubAuth(): boolean {
+  const mode = authMode()
+  if (mode === 'email_otp') return false
+  return isGitHubAuthConfigured()
+}
+
+function allowOtpAuth(): boolean {
+  const mode = authMode()
+  if (mode === 'github_oauth') return false
+  return isOtpConfigured()
+}
+
+function ensureOtpStore(): void {
+  fs.mkdirSync(path.dirname(OTP_STORE_PATH), { recursive: true })
+  if (!fs.existsSync(OTP_STORE_PATH)) {
+    const initial: OtpStore = { version: 1, records: [] }
+    fs.writeFileSync(OTP_STORE_PATH, JSON.stringify(initial, null, 2), 'utf-8')
+  }
+}
+
+function loadOtpStore(): OtpStore {
+  ensureOtpStore()
+  try {
+    const parsed = JSON.parse(fs.readFileSync(OTP_STORE_PATH, 'utf-8'))
+    if (parsed?.version === 1 && Array.isArray(parsed.records)) {
+      return parsed
+    }
+  } catch {}
+  return { version: 1, records: [] }
+}
+
+function saveOtpStore(store: OtpStore): void {
+  ensureOtpStore()
+  fs.writeFileSync(OTP_STORE_PATH, JSON.stringify(store, null, 2), 'utf-8')
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function hashOtp(email: string, code: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`${JWT_SECRET()}:${normalizeEmail(email)}:${code}`)
+    .digest('hex')
+}
+
+function createOtpCode(): string {
+  const value = crypto.randomInt(0, 1000000)
+  return String(value).padStart(6, '0')
+}
+
+function createOtpSessionToken(email: string, rememberDevice: boolean): string {
+  const payload: SessionPayload = {
+    userId: `otp:${email}`,
+    login: email,
+    name: email,
+    avatar: '',
+    email,
+    authType: 'otp',
+  }
+  return jwt.sign(payload, JWT_SECRET(), { expiresIn: rememberDevice ? '30d' : '1d' })
+}
+
+async function sendOtpEmail(email: string, code: string): Promise<void> {
+  if (process.env.OTP_DEV_MODE === 'log') {
+    console.log(`[Auth][OTP] Code for ${email}: ${code}`)
+    return
+  }
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+
+  const from = process.env.OTP_FROM_EMAIL || 'max@clawmax.ai'
+  const body = JSON.stringify({
+    from,
+    to: [email],
+    subject: process.env.OTP_EMAIL_SUBJECT || 'Your ClawMax login code',
+    text: `Your ClawMax login code is ${code}. It expires in ${Math.round(OTP_EXPIRY_MS / 60000)} minutes.\n\nIf you did not request this code, you can ignore this email.`,
+  })
+
+  const result = await httpsPost('api.resend.com', '/emails', body, {
+    'Authorization': `Bearer ${apiKey}`,
+  })
+
+  const parsed = JSON.parse(result)
+  if (parsed?.error) {
+    throw new Error(parsed.error.message || 'Failed to send OTP email')
+  }
 }
 
 function verifySessionToken(token: string): SessionPayload | null {
@@ -178,10 +318,10 @@ function getStateCookieOptions(req: Request): CookieOptions {
   }
 }
 
-function getSessionCookieOptions(req: Request): CookieOptions {
+function getSessionCookieOptions(req: Request, maxAgeMs = 7 * 24 * 60 * 60 * 1000): CookieOptions {
   return {
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: maxAgeMs,
     sameSite: 'lax',
     secure: isSecureRequest(req),
     path: '/',
@@ -207,6 +347,9 @@ export function createAuthRouter(): Router {
 
   // GET /api/auth/github — redirect to GitHub OAuth
   router.get('/github', (_req, res) => {
+    if (!allowGitHubAuth()) {
+      return res.status(404).json({ error: 'GitHub OAuth is not enabled' })
+    }
     const clientId = GITHUB_CLIENT_ID()
     if (!clientId) {
       return res.status(500).json({ error: 'GitHub OAuth not configured. Set GITHUB_CLIENT_ID in .env' })
@@ -275,6 +418,111 @@ export function createAuthRouter(): Router {
     }
   })
 
+  // POST /api/auth/otp/request — request an email login code
+  router.post('/otp/request', async (req, res) => {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email : ''
+    const email = normalizeEmail(rawEmail)
+    const generic = { ok: true, message: 'If this email is allowed, a code has been sent.' }
+
+    if (!allowOtpAuth() || !email) {
+      return res.json(generic)
+    }
+
+    const allowed = getOtpAllowedEmails()
+    if (!allowed.includes(email)) {
+      return res.json(generic)
+    }
+
+    const now = Date.now()
+    const store = loadOtpStore()
+    const recent = store.records.find((record) => record.email === email && now - record.createdAt < OTP_REQUEST_WINDOW_MS)
+    if (recent) {
+      return res.json(generic)
+    }
+
+    const code = createOtpCode()
+    const nextRecords = store.records
+      .filter((record) => !(record.email === email && !record.consumedAt))
+      .filter((record) => record.expiresAt > now || !!record.consumedAt)
+
+    nextRecords.push({
+      email,
+      codeHash: hashOtp(email, code),
+      expiresAt: now + OTP_EXPIRY_MS,
+      createdAt: now,
+      attemptCount: 0,
+      requestIp: req.ip,
+    })
+    saveOtpStore({ version: 1, records: nextRecords })
+
+    try {
+      await sendOtpEmail(email, code)
+    } catch (err: any) {
+      console.error('[Auth][OTP] Failed to send OTP:', err.message)
+      return res.status(500).json({ error: err.message || 'Failed to send code' })
+    }
+
+    res.json(generic)
+  })
+
+  // POST /api/auth/otp/verify — verify code and create session
+  router.post('/otp/verify', (req, res) => {
+    const email = normalizeEmail(typeof req.body?.email === 'string' ? req.body.email : '')
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim() : ''
+    const rememberDevice = req.body?.rememberDevice === true
+
+    if (!allowOtpAuth()) {
+      return res.status(400).json({ error: 'Email OTP auth is not enabled' })
+    }
+    if (!email || !code) {
+      return res.status(400).json({ error: 'email and code are required' })
+    }
+
+    const now = Date.now()
+    const store = loadOtpStore()
+    const record = [...store.records]
+      .reverse()
+      .find((entry) => entry.email === email && !entry.consumedAt)
+
+    if (!record || record.expiresAt < now) {
+      return res.status(400).json({ error: 'Code expired or invalid' })
+    }
+
+    record.attemptCount += 1
+    if (record.attemptCount > OTP_MAX_ATTEMPTS) {
+      saveOtpStore(store)
+      return res.status(429).json({ error: 'Too many attempts for this code' })
+    }
+
+    const expectedHash = hashOtp(email, code)
+    const actual = Buffer.from(record.codeHash, 'hex')
+    const expected = Buffer.from(expectedHash, 'hex')
+    const valid = actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
+
+    if (!valid) {
+      saveOtpStore(store)
+      return res.status(400).json({ error: 'Code expired or invalid' })
+    }
+
+    record.consumedAt = now
+    saveOtpStore(store)
+
+    const sessionToken = createOtpSessionToken(email, rememberDevice)
+    res.cookie(COOKIE_NAME, sessionToken, getSessionCookieOptions(req, rememberDevice ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000))
+    res.json({
+      ok: true,
+      authenticated: true,
+      user: {
+        id: `otp:${email}`,
+        login: email,
+        name: email,
+        avatar: '',
+        email,
+        authType: 'otp',
+      },
+    })
+  })
+
   // GET /api/auth/me — get current user
   router.get('/me', (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
@@ -289,6 +537,8 @@ export function createAuthRouter(): Router {
         login: session.login,
         name: session.name,
         avatar: session.avatar,
+        email: session.email || null,
+        authType: session.authType || 'github',
       },
     })
   })
@@ -411,7 +661,7 @@ function getSessionFromRequest(req: Request): SessionPayload | null {
  */
 export function requireGitHubAuth(req: Request, res: Response, next: NextFunction) {
   // Dev/solo bypass — set BYPASS_OAUTH=true in .env to skip authentication
-  if (process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true') {
+  if (isBypassAuth()) {
     return next()
   }
 
@@ -433,8 +683,8 @@ export function requireGitHubAuth(req: Request, res: Response, next: NextFunctio
 
   res.status(401).json({
     error: 'Unauthorized',
-    message: 'Please log in via GitHub',
-    loginUrl: '/api/auth/github',
+    message: allowOtpAuth() ? 'Please log in' : 'Please log in via GitHub',
+    loginUrl: allowGitHubAuth() ? '/api/auth/github' : undefined,
   })
 }
 
@@ -443,4 +693,8 @@ export function requireGitHubAuth(req: Request, res: Response, next: NextFunctio
  */
 export function isGitHubAuthConfigured(): boolean {
   return !!(GITHUB_CLIENT_ID() && GITHUB_CLIENT_SECRET())
+}
+
+export function isOtpAuthConfigured(): boolean {
+  return allowOtpAuth()
 }
