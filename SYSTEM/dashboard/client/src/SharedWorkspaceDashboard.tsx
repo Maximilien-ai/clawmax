@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface SharedDashboardPayload {
   refreshedAt: string
@@ -226,9 +228,31 @@ function timeAgo(iso: string | null | undefined): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+function MarkdownBlock({ content, className = '' }: { content: string; className?: string }) {
+  return (
+    <div className={className}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-slate-100">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          ul: ({ children }) => <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>,
+          li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
+          code: ({ children }) => <code className="rounded bg-gray-200 px-1 py-0.5 text-[0.95em] dark:bg-slate-950/60">{children}</code>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
 export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [payload, setPayload] = useState<SharedDashboardPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('dark-mode')
     if (saved !== null) return saved === 'true'
@@ -260,9 +284,12 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       }
     }
     load()
+    if (!autoRefresh) {
+      return () => { cancelled = true }
+    }
     const interval = setInterval(load, 30000)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [token])
+  }, [token, autoRefresh])
 
   const overviewCards = useMemo(() => {
     if (!payload) return []
@@ -378,6 +405,27 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         </svg>
       )}
     </button>
+  )
+
+  const HeaderControls = ({ compactLabel = false }: { compactLabel?: boolean }) => (
+    <div className="flex items-start gap-3">
+      <div className={`${compactLabel ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
+        <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">{payload.dashboard.displayMode} view</div>
+        <div>{payload.workspace.name}</div>
+        <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
+        <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
+        <label className="mt-2 flex items-center gap-2 text-[11px] text-gray-500 dark:text-slate-400">
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 dark:border-gray-600 dark:bg-slate-900"
+          />
+          Auto-refresh
+        </label>
+      </div>
+      <ThemeToggle />
+    </div>
   )
 
   const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats') => {
@@ -505,7 +553,12 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     <div className="font-medium">{notification.title}</div>
                     <span className="text-[11px] text-gray-500 dark:text-slate-400">{notification.severity}</span>
                   </div>
-                  {!compact && <div className="mt-1 text-sm text-gray-500 dark:text-slate-400">{notification.message}</div>}
+                  {!compact && (
+                    <MarkdownBlock
+                      content={notification.message}
+                      className="mt-1 text-sm text-gray-500 dark:text-slate-400"
+                    />
+                  )}
                 </div>
               ))}
               {payload.notifications.length === 0 && <div className="text-sm text-gray-500 dark:text-slate-500">No active notifications.</div>}
@@ -543,10 +596,16 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     <div className="mt-3 grid gap-2 text-sm text-gray-500 dark:text-slate-400">
                       <div>Next run: {workflow.nextRunAt ? new Date(workflow.nextRunAt).toLocaleString() : 'Manual / none scheduled'}</div>
                       {workflow.kickoffSummary && (
-                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Kickoff: {workflow.kickoffSummary}</div>
+                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">
+                          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">Kickoff</div>
+                          <MarkdownBlock content={workflow.kickoffSummary} />
+                        </div>
                       )}
                       {workflow.resultSummary.length > 0 && (
-                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">Result: {workflow.resultSummary.join(' ')}</div>
+                        <div className="rounded-md bg-gray-100 p-2 text-gray-700 dark:bg-slate-900/60 dark:text-slate-300">
+                          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">Result</div>
+                          <MarkdownBlock content={workflow.resultSummary.join('\n\n')} />
+                        </div>
                       )}
                       {(workflow.resultArtifacts?.length || workflow.resultLinks.length) > 0 && (
                         <div className="flex flex-wrap gap-2">
@@ -659,14 +718,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 </div>
                 <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
               </div>
-              <div className="flex items-start gap-3">
-                <div className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
-                  <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">{payload.dashboard.displayMode} view</div>
-                  <div>{payload.workspace.name}</div>
-                  <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
-                </div>
-                <ThemeToggle />
-              </div>
+              <HeaderControls />
             </div>
           </header>
           <div className={compact ? 'space-y-4' : 'space-y-6'}>
@@ -692,15 +744,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight">{payload.dashboard.title}</h1>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="text-xs text-gray-500 dark:text-slate-400">
-                  <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">compact view</div>
-                  <div>{payload.workspace.name}</div>
-                  <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
-                  <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
-                </div>
-                <ThemeToggle />
-              </div>
+              <HeaderControls compactLabel />
             </div>
           </header>
 
@@ -745,15 +789,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
               {!compact && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>}
             </div>
-            <div className="flex items-start gap-3">
-              <div className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
-                <div className="mb-1 uppercase tracking-wide text-gray-500 dark:text-slate-500">{payload.dashboard.displayMode} view</div>
-                <div>{payload.workspace.name}</div>
-                <div>Last refreshed {timeAgo(payload.refreshedAt)}</div>
-                <div>Updated {timeAgo(payload.workspace.lastUpdatedAt)}</div>
-              </div>
-              <ThemeToggle />
-            </div>
+            <HeaderControls />
           </div>
         </header>
 
