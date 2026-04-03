@@ -1918,10 +1918,26 @@ for agent_id in $expected_agents; do
 done
 
 # Step 4: Verify workflows created
-wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[].id' 2>/dev/null | sort)
+# Template apply can return before every imported workflow is visible through
+# the active workspace read path, so wait briefly for the expected ids.
+wf_list=""
+for i in $(seq 1 10); do
+  wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null | sort)
+  ready_count=0
+  for wf_id in test-kickoff test-filesystem test-communications test-github test-dag-parallel-a test-dag-parallel-b test-report; do
+    if echo "$wf_list" | grep -qx "$wf_id"; then
+      ready_count=$((ready_count + 1))
+    fi
+  done
+  if [ "$ready_count" -eq 7 ]; then
+    break
+  fi
+  sleep 2
+done
+
 expected_wfs="test-kickoff test-filesystem test-communications test-github test-dag-parallel-a test-dag-parallel-b test-report"
 for wf_id in $expected_wfs; do
-  if echo "$wf_list" | grep -q "$wf_id"; then
+  if echo "$wf_list" | grep -qx "$wf_id"; then
     pass "Workflow $wf_id exists"
   else
     fail "Workflow $wf_id missing"
