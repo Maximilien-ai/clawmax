@@ -10,6 +10,7 @@ export default function Login() {
   const [otpRequested, setOtpRequested] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const [otpMessage, setOtpMessage] = React.useState<string | null>(null)
+  const [devOtpFile, setDevOtpFile] = React.useState<string | null>(null)
 
   const params = new URLSearchParams(window.location.search)
   const authError = params.get('auth_error')
@@ -18,11 +19,13 @@ export default function Login() {
   async function handleRequestOtp() {
     setSubmitting(true)
     setOtpMessage(null)
+    setDevOtpFile(null)
     const result = await requestOtp(email)
     setSubmitting(false)
     if (result.ok) {
       setOtpRequested(true)
       setOtpMessage(result.message || 'If this email is allowed, a code has been sent.')
+      setDevOtpFile(result.devOtpFile || null)
     } else {
       setOtpMessage(result.error || 'Failed to send code')
     }
@@ -125,7 +128,14 @@ export default function Login() {
                 )}
                 {otpMessage && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
-                    {otpMessage}
+                    <div>{otpMessage}</div>
+                    {devOtpFile && (
+                      <div className="mt-2 text-xs text-slate-400">
+                        Local dev OTP file:
+                        {' '}
+                        <code className="rounded bg-black/20 px-1.5 py-0.5 text-slate-200">{devOtpFile}</code>
+                      </div>
+                    )}
                   </div>
                 )}
                 {!otpRequested ? (

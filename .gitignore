@@ -21,6 +21,8 @@ dist/
 # Dashboard auth token
 SYSTEM/dashboard/.dashboard-token
 SYSTEM/dashboard/server/.dashboard-token
+SYSTEM/dashboard/server/data/auth/otp-store.json
+.clawmax-otp-dev.json
 
 # Logs
 *.log

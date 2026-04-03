@@ -30,7 +30,7 @@ interface AuthContextValue {
   loading: boolean
   config: AuthConfig | null
   login: () => void
-  requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; message?: string }>
+  requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; message?: string; devOtpFile?: string }>
   verifyOtp: (email: string, code: string, rememberDevice: boolean) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
 }
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email }),
     })
     const data = await resp.json().catch(() => ({}))
-    return { ok: resp.ok, error: data.error, message: data.message }
+    return { ok: resp.ok, error: data.error, message: data.message, devOtpFile: data.devOtpFile }
   }, [])
 
   const verifyOtp = useCallback(async (email: string, code: string, rememberDevice: boolean) => {

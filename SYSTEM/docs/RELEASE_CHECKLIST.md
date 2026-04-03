@@ -9,7 +9,16 @@ Use this as the final pass before the next dashboard release.
 - If another local dashboard is already using the defaults, use:
   `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174`
 - Confirm `DASHBOARD_APP_URL=http://localhost:5173` if you want explicit post-login/logout redirects
-- Confirm `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are present
+- Confirm the intended auth mode is configured:
+  - `DASHBOARD_AUTH_MODE=github_oauth`
+  - or `DASHBOARD_AUTH_MODE=email_otp`
+  - or `DASHBOARD_AUTH_MODE=hybrid`
+- If using GitHub OAuth, confirm `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are present
+- If using Email OTP, confirm:
+  - `OTP_ALLOWED_EMAILS`
+  - `RESEND_API_KEY` for production delivery
+  - `OTP_FROM_EMAIL`
+  - or `OTP_DEV_MODE=log` for local developer testing
 - Confirm at least one system model key is set:
   - `SYSTEM_OPENAI_API_KEY`
   - or `SYSTEM_ANTHROPIC_API_KEY`
@@ -40,9 +49,14 @@ Expected:
 ## 3. OAuth / Auth Flow
 
 - Open `http://localhost:5173`
-- Verify login page loads with hero image and GitHub button
-- Login via GitHub
-- Verify redirect returns to `http://localhost:5173/`
+- Verify login page loads with the expected auth mode(s)
+- If using GitHub OAuth:
+  - login via GitHub
+  - verify redirect returns to `http://localhost:5173/`
+- If using Email OTP:
+  - request a code with an allowlisted email
+  - in local dev, confirm the UI points to `.clawmax-otp-dev.json`
+  - verify the code works once and is rejected after reuse/expiry
 - Verify user avatar/name and `Logout` are visible in the dashboard
 - Verify both logout affordances work:
   - top-right
@@ -83,13 +97,14 @@ wait about one minute for the auth rate limiter window to reset.
 ## 5. Release Messaging
 
 - README reflects:
-  - GitHub OAuth setup
+  - GitHub OAuth and Email OTP setup
   - system keys vs user/BYOK keys
   - provider-key precedence and shell-env isolation
   - build command
-- OAuth doc reflects:
-  - callback on `3001`
+- Auth doc reflects:
+  - GitHub callback on `3001`
   - app redirect on `5173`
+  - OTP dev file flow
   - rate-limit troubleshooting
 - Backlog reflects:
   - post-release workflow table view

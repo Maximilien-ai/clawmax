@@ -58,6 +58,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ### Authentication & Keys
 - **GitHub OAuth Login** - GitHub is the primary dashboard login path
+- **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
 
@@ -168,7 +169,7 @@ mkdir -p AGENTS WORKFLOWS GROUPS COMMUNITIES
 
 # Configure dashboard-local env
 cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
-# Then edit SYSTEM/dashboard/.env with your GitHub OAuth values and provider keys
+# Then edit SYSTEM/dashboard/.env with your auth mode and provider keys
 
 # Start the dashboard
 ./SYSTEM/start.sh
@@ -178,6 +179,23 @@ cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
 
 # Alternate local ports when another instance is already running:
 DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh
+```
+
+Auth options:
+
+```bash
+# GitHub OAuth
+DASHBOARD_AUTH_MODE=github_oauth
+
+# Email OTP for single-user cloud/on-prem
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=you@example.com
+RESEND_API_KEY=your_resend_api_key
+OTP_FROM_EMAIL=max@clawmax.ai
+
+# Local developer OTP flow without live email
+OTP_DEV_MODE=log
+# Latest code is written to .clawmax-otp-dev.json
 ```
 
 ### First Steps
@@ -250,16 +268,30 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `USER_ANTHROPIC_API_KEY` | Optional default user Anthropic key | Optional |
 | `USER_OPENAI_API_KEY` | Optional default user OpenAI key | Optional |
 | `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION` | Lets user agents/workflows fall back to system keys | Optional, defaults to `false` |
-| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for login |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for login |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for GitHub auth |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for GitHub auth |
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
 | `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
 
 Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
 
-## 🔐 GitHub OAuth Setup
+## 🔐 Dashboard Auth Setup
 
-GitHub OAuth is now the primary dashboard login path.
+ClawMax supports three dashboard auth modes:
+
+- `github_oauth`
+- `email_otp`
+- `bypass`
+
+Use:
+
+- `github_oauth` for normal multi-user or GitHub-based owner access
+- `email_otp` for single-user cloud or on-prem installs
+- `bypass` only for solo local development when you intentionally do not want auth
+
+### GitHub OAuth
+
+GitHub OAuth is the primary dashboard login path.
 
 Minimum local setup in `SYSTEM/dashboard/.env`:
 
@@ -289,6 +321,58 @@ DASHBOARD_CLIENT_PORT=5174
 DASHBOARD_APP_URL=http://localhost:5174
 CORS_ORIGIN=http://localhost:5174
 ```
+
+### Email OTP
+
+Email OTP is the recommended login mode for single-user cloud and on-prem installs.
+
+Minimum setup in `SYSTEM/dashboard/.env`:
+
+```env
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=you@example.com
+RESEND_API_KEY=your_resend_api_key
+OTP_FROM_EMAIL=max@clawmax.ai
+OTP_EMAIL_SUBJECT=Your ClawMax login code
+```
+
+Recommended:
+
+```env
+OTP_EXPIRY_MINUTES=15
+DASHBOARD_APP_URL=http://localhost:5173
+# DASHBOARD_PUBLIC_URL=http://localhost:3001
+```
+
+Developer mode:
+
+```env
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=dev@example.com
+OTP_DEV_MODE=log
+```
+
+In local dev with `OTP_DEV_MODE=log`:
+
+- no live email is sent
+- the latest code is written to `.clawmax-otp-dev.json`
+- the login UI shows the path after requesting a code
+
+### Bypass Auth
+
+Use bypass only for local-only development when you explicitly want no login wall:
+
+```env
+DASHBOARD_AUTH_MODE=bypass
+```
+
+Legacy compatibility still exists:
+
+```env
+BYPASS_OAUTH=true
+```
+
+But prefer `DASHBOARD_AUTH_MODE=bypass` going forward.
 
 Detailed setup and troubleshooting:
 - [SYSTEM/docs/OAUTH_SETUP.md](SYSTEM/docs/OAUTH_SETUP.md)

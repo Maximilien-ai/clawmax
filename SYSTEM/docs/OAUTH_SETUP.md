@@ -1,4 +1,4 @@
-# OAuth Authentication Setup
+# Dashboard Authentication Setup
 
 ClawMax Dashboard supports:
 
@@ -27,9 +27,75 @@ DASHBOARD_AUTH_MODE=github_oauth
 # Email OTP only
 DASHBOARD_AUTH_MODE=email_otp
 
+# Allow either GitHub OAuth or Email OTP
+DASHBOARD_AUTH_MODE=hybrid
+
 # No auth, local only
 DASHBOARD_AUTH_MODE=bypass
 ```
+
+## Email OTP Setup
+
+Use Email OTP for single-user cloud or on-prem deployments where GitHub OAuth is unnecessary but bypass is too weak.
+
+### 1. Configure `SYSTEM/dashboard/.env`
+
+Minimum production values:
+
+```bash
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=owner@example.com
+RESEND_API_KEY=your_resend_api_key
+OTP_FROM_EMAIL=max@clawmax.ai
+OTP_EMAIL_SUBJECT=Your ClawMax login code
+```
+
+Recommended:
+
+```bash
+# 10-15 minutes is the intended range
+OTP_EXPIRY_MINUTES=15
+
+# Set explicit app/server URLs if needed
+DASHBOARD_APP_URL=http://localhost:5173
+DASHBOARD_PUBLIC_URL=http://localhost:3001
+```
+
+Notes:
+
+- `OTP_ALLOWED_EMAILS` is a comma-separated allowlist.
+- OTP codes are hashed server-side, expire quickly, and are single-use.
+- Session reuse still uses the normal `clawmax_session` cookie after verification.
+
+### 2. Production delivery
+
+- ClawMax sends OTP email through Resend.
+- The current send path now includes both:
+  - ClawMax-styled HTML email
+  - plain-text fallback
+- If email delivery is not working, verify:
+  - `RESEND_API_KEY`
+  - sender/domain configuration for `OTP_FROM_EMAIL`
+
+### 3. Local developer mode
+
+For local development, use the same OTP flow without requiring live email delivery:
+
+```bash
+DASHBOARD_AUTH_MODE=email_otp
+OTP_ALLOWED_EMAILS=dev@example.com
+OTP_DEV_MODE=log
+```
+
+Behavior in local dev:
+
+- the request still goes through the normal OTP flow
+- the latest code is written to:
+  - `.clawmax-otp-dev.json`
+- the login UI tells the developer where that file is
+- the file is gitignored and should never be committed
+
+This is the recommended developer path instead of bypass when testing real login behavior.
 
 ## GitHub Setup
 
@@ -137,6 +203,24 @@ DASHBOARD_PUBLIC_URL=https://dashboard.example.com
 If GitHub redirects to the wrong host, set `DASHBOARD_PUBLIC_URL` explicitly. Only enable `DASHBOARD_TRUST_PROXY=true` when you are behind a trusted reverse proxy that sets forwarded headers correctly.
 
 ## Troubleshooting
+
+### "I requested a code but didn’t get an email"
+
+Check these first:
+
+- In local dev with `OTP_DEV_MODE=log`, no live email is sent by design.
+- Read the latest code from `.clawmax-otp-dev.json`.
+- In production, verify `RESEND_API_KEY` and `OTP_FROM_EMAIL`.
+
+### "Email OTP is not available"
+
+Check:
+
+- `DASHBOARD_AUTH_MODE=email_otp` or `DASHBOARD_AUTH_MODE=hybrid`
+- `OTP_ALLOWED_EMAILS` contains the login email
+- either:
+  - `RESEND_API_KEY` is configured
+  - or `OTP_DEV_MODE=log` is enabled for local development
 
 ### "GitHub OAuth is not configured"
 

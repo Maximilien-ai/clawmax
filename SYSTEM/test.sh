@@ -377,6 +377,15 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Auth / OTP unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/github-auth.test.ts > /tmp/clawmax-github-auth.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-github-auth.out; then
+  pass "Auth / OTP unit tests (6 tests)"
+else
+  fail "Auth / OTP unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent execution runtime unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-execution.test.ts > /tmp/clawmax-agent-execution.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-execution.out; then

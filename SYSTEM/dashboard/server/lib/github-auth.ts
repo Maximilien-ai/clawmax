@@ -173,6 +173,7 @@ type OtpStore = {
 }
 
 const OTP_STORE_PATH = path.join(__dirname, '..', 'data', 'auth', 'otp-store.json')
+const OTP_DEV_FILE_PATH = path.resolve(__dirname, '..', '..', '..', '..', '.clawmax-otp-dev.json')
 const OTP_REQUEST_WINDOW_MS = 60 * 1000
 const OTP_EXPIRY_MS = parseInt(process.env.OTP_EXPIRY_MINUTES || '15', 10) * 60 * 1000
 const OTP_MAX_ATTEMPTS = 5
@@ -208,6 +209,10 @@ function allowOtpAuth(): boolean {
   const mode = authMode()
   if (mode === 'github_oauth') return false
   return isOtpConfigured()
+}
+
+function isOtpDevMode(): boolean {
+  return process.env.OTP_DEV_MODE === 'log' && process.env.NODE_ENV !== 'production'
 }
 
 function ensureOtpStore(): void {
@@ -262,9 +267,88 @@ function createOtpSessionToken(email: string, rememberDevice: boolean): string {
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: rememberDevice ? '30d' : '1d' })
 }
 
+const CLAWMAX_LOGO_URL = 'https://www.clawmax.ai/clawmax-logo.jpg'
+
+function buildOtpEmailHtml(email: string, code: string): string {
+  const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000)
+  return `
+    <div style="margin:0;padding:32px 0;background:#f4f1ea;font-family:Georgia,'Times New Roman',serif;color:#1f2937;">
+      <div style="max-width:680px;margin:0 auto;background:#fffdf8;border:1px solid #e7ded1;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(31,41,55,0.08);">
+        <div style="padding:28px 32px;background:linear-gradient(135deg,#111827 0%,#23484d 100%);color:#f9fafb;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <img src="${CLAWMAX_LOGO_URL}" alt="ClawMax logo" style="width:56px;height:56px;border-radius:14px;display:block;background:#ffffff;" />
+            <div>
+              <div style="font-size:13px;letter-spacing:0.22em;text-transform:uppercase;opacity:0.78;">ClawMax</div>
+              <div style="font-size:28px;font-weight:700;line-height:1.15;margin-top:4px;">Your login code</div>
+            </div>
+          </div>
+          <div style="margin-top:18px;font-size:15px;line-height:1.7;max-width:560px;">
+            Use this one-time code to sign in to your ClawMax dashboard.
+          </div>
+        </div>
+
+        <div style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:18px;line-height:1.7;">Hi,</p>
+          <p style="margin:0 0 16px;font-size:16px;line-height:1.8;">
+            We received a sign-in request for <strong>${email}</strong>.
+          </p>
+
+          <div style="margin:24px 0;padding:22px;border:1px solid #d6c7b5;border-radius:18px;background:linear-gradient(180deg,#fff9ef 0%,#fffdf8 100%);text-align:center;">
+            <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#7c5c2d;margin-bottom:10px;">One-time password</div>
+            <div style="font-size:40px;line-height:1;font-weight:700;letter-spacing:0.3em;color:#111827;">${code}</div>
+            <div style="margin-top:12px;font-size:14px;color:#5b6471;line-height:1.7;">
+              This code expires in ${expiryMinutes} minutes and can only be used once.
+            </div>
+          </div>
+
+          <div style="margin:24px 0 0;padding:0;">
+            <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:10px;">Security notes</div>
+            <ul style="padding-left:22px;margin:0;color:#374151;font-size:15px;line-height:1.8;">
+              <li>Enter the code exactly as shown on the login screen.</li>
+              <li>If you did not request this login code, you can ignore this email.</li>
+              <li>ClawMax will never ask you to share this code with anyone.</li>
+            </ul>
+          </div>
+
+          <div style="margin-top:28px;padding-top:22px;border-top:1px solid #ece6dc;">
+            <div style="font-size:15px;line-height:1.8;color:#1f2937;">
+              Thank you,
+              <br /><br />
+              <strong>ClawMax</strong><br />
+              <a href="mailto:max@clawmax.ai" style="color:#0f766e;text-decoration:none;">max@clawmax.ai</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function buildOtpEmailText(email: string, code: string): string {
+  const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000)
+  return [
+    'Your ClawMax login code',
+    '',
+    `Email: ${email}`,
+    `Code: ${code}`,
+    '',
+    `This code expires in ${expiryMinutes} minutes and can only be used once.`,
+    'If you did not request this code, you can ignore this email.',
+  ].join('\n')
+}
+
 async function sendOtpEmail(email: string, code: string): Promise<void> {
-  if (process.env.OTP_DEV_MODE === 'log') {
+  if (isOtpDevMode()) {
+    const payload = {
+      email,
+      code,
+      expiresAt: new Date(Date.now() + OTP_EXPIRY_MS).toISOString(),
+      updatedAt: new Date().toISOString(),
+      note: 'Local dev OTP only. This file is gitignored.',
+    }
+    fs.writeFileSync(OTP_DEV_FILE_PATH, JSON.stringify(payload, null, 2), 'utf-8')
     console.log(`[Auth][OTP] Code for ${email}: ${code}`)
+    console.log(`[Auth][OTP] Dev file: ${OTP_DEV_FILE_PATH}`)
     return
   }
 
@@ -278,7 +362,8 @@ async function sendOtpEmail(email: string, code: string): Promise<void> {
     from,
     to: [email],
     subject: process.env.OTP_EMAIL_SUBJECT || 'Your ClawMax login code',
-    text: `Your ClawMax login code is ${code}. It expires in ${Math.round(OTP_EXPIRY_MS / 60000)} minutes.\n\nIf you did not request this code, you can ignore this email.`,
+    html: buildOtpEmailHtml(email, code),
+    text: buildOtpEmailText(email, code),
   })
 
   const result = await httpsPost('api.resend.com', '/emails', body, {
@@ -462,7 +547,15 @@ export function createAuthRouter(): Router {
       return res.status(500).json({ error: err.message || 'Failed to send code' })
     }
 
-    res.json(generic)
+    res.json({
+      ...generic,
+      ...(isOtpDevMode()
+        ? {
+            message: `Dev mode is enabled. Read the latest code from ${OTP_DEV_FILE_PATH}.`,
+            devOtpFile: OTP_DEV_FILE_PATH,
+          }
+        : {}),
+    })
   })
 
   // POST /api/auth/otp/verify — verify code and create session

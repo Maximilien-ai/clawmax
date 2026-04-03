@@ -1,11 +1,11 @@
 # Backlog
 
-> Last updated: April 2, 2026
+> Last updated: April 3, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
 
-- [ ] **Email OTP auth mode for single-user cloud/on-prem installs** — add a secure email code login mode between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, and a local dev `log` mode. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
+- [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
 - [ ] **Temp chat/runtime resolves duplicate agent IDs against the wrong workspace** — when the same agent id exists across workspaces, temp group/direct chat can resolve runtime/session state from the wrong global OpenClaw agent record, leading to stale models/providers and misleading activity metadata. High-priority post-`v1.2.1` runtime fix. GitHub: `#94`
 - [ ] **ClawMax Doctor: Restart Gateway action** — add an in-product `openclaw gateway restart` action when gateway is configured but not running, so users can recover skills/chat capability without leaving the UI
 - [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
