@@ -46,7 +46,7 @@ const DEFAULT_COMPACT_COLUMNS: Record<'overview' | 'costs' | 'agents' | 'notific
   workflows: 'left',
   kickoff: 'left',
   results: 'right',
-  groupChats: 'right',
+  groupChats: 'left',
 }
 
 function timeAgo(iso: string): string {

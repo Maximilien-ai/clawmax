@@ -138,7 +138,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
         workflows: input?.dashboard?.compactColumns?.workflows === 'right' ? 'right' : 'left',
         kickoff: input?.dashboard?.compactColumns?.kickoff === 'right' ? 'right' : 'left',
         results: input?.dashboard?.compactColumns?.results === 'left' ? 'left' : 'right',
-        groupChats: input?.dashboard?.compactColumns?.groupChats === 'left' ? 'left' : 'right',
+        groupChats: input?.dashboard?.compactColumns?.groupChats === 'right' ? 'right' : 'left',
       },
       sections: {
         overview: input?.dashboard?.sections?.overview !== false,
@@ -342,7 +342,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             return (
               <div key={entry.date} className={`flex min-w-0 flex-1 flex-col items-center ${compact ? 'gap-1' : 'gap-2'}`}>
                 {!compact && <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>${entry.estimatedCostUsd.toFixed(2)}</div>}
-                <div className={`flex ${compact ? 'h-14' : 'h-20'} w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
+                <div className={`flex ${compact ? 'h-12' : 'h-20'} w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
                   <div
                     className={`w-full rounded-md ${dark ? 'bg-emerald-400/90' : 'bg-emerald-500'}`}
                     style={{ height: `${heightPct}%` }}
@@ -418,14 +418,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.avgDailyCostUsd.toFixed(2)}</div>
               </div>
             </div>
-            {!compact && renderCostTrend(false)}
+            {renderCostTrend(false)}
             <div className="mt-4">
               <div className={`mb-2 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide text-gray-500 dark:text-slate-500`}>
                 <span>Top Workflow Spend</span>
                 {payload.costs.metering.byWorkflow.length > 0 && <span>{workflowSharePct.toFixed(0)}% of total</span>}
               </div>
               <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
-                {payload.costs.metering.byWorkflow.slice(0, compact ? 2 : 5).map((workflow) => (
+                {payload.costs.metering.byWorkflow.slice(0, compact ? 1 : 5).map((workflow) => (
                   <div key={workflow.workflowId} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
                     <div className="min-w-0 pr-3">
                       <div className="truncate font-medium text-gray-900 dark:text-slate-100">{workflow.workflowName || workflow.workflowId}</div>
@@ -629,6 +629,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         </div>
                       )}
                     </>
+                  )}
+                  {compact && (
+                    <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                      {chat.latestMessage ? `${chat.members.length} members · ${chat.messageCount} messages` : 'No messages yet'}
+                    </div>
                   )}
                 </div>
               ))}
