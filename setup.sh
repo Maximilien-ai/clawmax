@@ -2,7 +2,7 @@
 
 # ClawMax Setup Script v2
 # Automated installation and configuration for ClawMax Dashboard
-# Supports: dev mode (bypass OAuth) and production mode (GitHub OAuth)
+# Supports: local dev with Email OTP or bypass, and production with GitHub OAuth or Email OTP
 
 set -e
 
@@ -380,20 +380,55 @@ echo ""
 
 print_header "3. Setup Mode"
 
-DEV_MODE=false
+AUTH_MODE="github_oauth"
+OTP_ALLOWED_EMAILS=""
+OTP_DEV_MODE=""
 if [ "$INTERACTIVE" = true ]; then
-  echo -e "  ${BOLD}Development mode:${NC} Bypass OAuth, faster iteration"
-  echo -e "  ${BOLD}Production mode:${NC}  GitHub OAuth login required"
+  echo -e "  ${BOLD}1) Local dev with Email OTP${NC} — recommended for realistic auth testing"
+  echo -e "  ${BOLD}2) Local dev with bypass${NC}    — fastest, no login"
+  echo -e "  ${BOLD}3) Production with GitHub OAuth${NC}"
+  echo -e "  ${BOLD}4) Production with Email OTP${NC}"
   echo ""
-  if ask_yn "Use development mode? (recommended for local dev)"; then
-    DEV_MODE=true
-    print_success "Development mode selected (OAuth bypassed)"
-  else
-    print_success "Production mode selected (GitHub OAuth required)"
-  fi
+  read -p "  Choose auth mode [1-4, default 1]: " AUTH_CHOICE
+  case "${AUTH_CHOICE:-1}" in
+    1)
+      AUTH_MODE="email_otp"
+      OTP_DEV_MODE="log"
+      read -p "  OTP login email (default: dev@example.com): " OTP_ALLOWED_EMAILS
+      OTP_ALLOWED_EMAILS=${OTP_ALLOWED_EMAILS:-dev@example.com}
+      print_success "Local dev Email OTP selected"
+      print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
+      ;;
+    2)
+      AUTH_MODE="bypass"
+      print_success "Local dev bypass selected"
+      ;;
+    3)
+      AUTH_MODE="github_oauth"
+      print_success "Production mode selected (GitHub OAuth)"
+      ;;
+    4)
+      AUTH_MODE="email_otp"
+      read -p "  OTP login email (required): " OTP_ALLOWED_EMAILS
+      if [ -z "$OTP_ALLOWED_EMAILS" ]; then
+        print_warning "No OTP email entered — defaulting to dev@example.com"
+        OTP_ALLOWED_EMAILS="dev@example.com"
+      fi
+      print_success "Production mode selected (Email OTP)"
+      ;;
+    *)
+      AUTH_MODE="email_otp"
+      OTP_DEV_MODE="log"
+      OTP_ALLOWED_EMAILS="dev@example.com"
+      print_warning "Unknown choice — defaulting to local dev Email OTP"
+      print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
+      ;;
+  esac
 else
-  DEV_MODE=true
-  print_info "Non-interactive: using development mode"
+  AUTH_MODE="email_otp"
+  OTP_DEV_MODE="log"
+  OTP_ALLOWED_EMAILS="dev@example.com"
+  print_info "Non-interactive: using local dev Email OTP"
 fi
 
 echo ""
@@ -471,7 +506,7 @@ echo ""
 GITHUB_CLIENT_ID=""
 GITHUB_CLIENT_SECRET=""
 
-if [ "$DEV_MODE" = false ] && [ "$INTERACTIVE" = true ]; then
+if [ "$AUTH_MODE" = "github_oauth" ] && [ "$INTERACTIVE" = true ]; then
   print_header "5. GitHub OAuth"
 
   echo "  Production mode requires GitHub OAuth for login."
@@ -492,12 +527,16 @@ if [ "$DEV_MODE" = false ] && [ "$INTERACTIVE" = true ]; then
   if [ -n "$GITHUB_CLIENT_ID" ] && [ -n "$GITHUB_CLIENT_SECRET" ]; then
     print_success "GitHub OAuth configured"
   else
-    print_warning "OAuth credentials incomplete — falling back to dev mode"
-    DEV_MODE=true
+    print_warning "OAuth credentials incomplete — falling back to local dev Email OTP"
+    AUTH_MODE="email_otp"
+    OTP_ALLOWED_EMAILS="dev@example.com"
+    OTP_DEV_MODE="log"
   fi
 else
-  if [ "$DEV_MODE" = true ]; then
+  if [ "$AUTH_MODE" = "bypass" ]; then
     print_info "Dev mode: OAuth bypassed (BYPASS_OAUTH=true)"
+  elif [ "$AUTH_MODE" = "email_otp" ] && [ "$OTP_DEV_MODE" = "log" ]; then
+    print_info "Dev mode: Email OTP enabled (codes written to .clawmax-otp-dev.json)"
   fi
 fi
 
@@ -574,14 +613,35 @@ DASHBOARD_APP_URL=http://localhost:5173
 # Auth mode
 ENVEOF
 
-if [ "$DEV_MODE" = true ]; then
+if [ "$AUTH_MODE" = "bypass" ]; then
   cat >> "$ENV_FILE" << 'ENVEOF'
+DASHBOARD_AUTH_MODE=bypass
 BYPASS_OAUTH=true
 DASHBOARD_AUTH_DISABLED=true
 # ⚠ Dev mode: no login required. Do NOT use in production.
 ENVEOF
+elif [ "$AUTH_MODE" = "email_otp" ]; then
+  cat >> "$ENV_FILE" << ENVEOF
+DASHBOARD_AUTH_MODE=email_otp
+BYPASS_OAUTH=false
+OTP_ALLOWED_EMAILS=$OTP_ALLOWED_EMAILS
+OTP_EXPIRY_MINUTES=15
+OTP_FROM_EMAIL=max@clawmax.ai
+OTP_EMAIL_SUBJECT=Your ClawMax login code
+ENVEOF
+  if [ "$OTP_DEV_MODE" = "log" ]; then
+    cat >> "$ENV_FILE" << 'ENVEOF'
+OTP_DEV_MODE=log
+# Local dev: latest code is also written to .clawmax-otp-dev.json
+ENVEOF
+  else
+    cat >> "$ENV_FILE" << 'ENVEOF'
+# RESEND_API_KEY=re_xxx
+ENVEOF
+  fi
 else
   cat >> "$ENV_FILE" << ENVEOF
+DASHBOARD_AUTH_MODE=github_oauth
 BYPASS_OAUTH=false
 GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
 GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
@@ -633,6 +693,14 @@ ENVEOF
 fi
 
 print_success "Created .env file"
+if [ "$AUTH_MODE" = "email_otp" ]; then
+  print_info "OTP login email: $OTP_ALLOWED_EMAILS"
+  if [ "$OTP_DEV_MODE" = "log" ]; then
+    print_info "Dev OTP codes will be written to: $CLAWMAX_DIR/.clawmax-otp-dev.json"
+  else
+    print_info "Add RESEND_API_KEY to SYSTEM/dashboard/.env to send live OTP emails"
+  fi
+fi
 
 # Dashboard token
 TOKEN_FILE="$WORKSPACE/.dashboard-token"
@@ -796,8 +864,14 @@ echo "    Templates → pick a template → Apply"
 echo "    Try 'Small Startup Team' or 'Dev Team' to get started"
 echo ""
 
-MODE_STR="Dev mode (no login)"
-[ "$DEV_MODE" = false ] && MODE_STR="Production mode (GitHub OAuth)"
+MODE_STR="Production mode (GitHub OAuth)"
+if [ "$AUTH_MODE" = "bypass" ]; then
+  MODE_STR="Local dev (bypass auth)"
+elif [ "$AUTH_MODE" = "email_otp" ] && [ "$OTP_DEV_MODE" = "log" ]; then
+  MODE_STR="Local dev (Email OTP)"
+elif [ "$AUTH_MODE" = "email_otp" ]; then
+  MODE_STR="Production mode (Email OTP)"
+fi
 
 echo -e "  ${BOLD}Configuration:${NC}"
 echo "    Mode:      $MODE_STR"
@@ -805,6 +879,12 @@ echo "    Workspace: $WORKSPACE"
 echo "    Backend:   http://localhost:3001"
 echo "    Frontend:  http://localhost:5173"
 echo "    .env:      SYSTEM/dashboard/.env"
+if [ "$AUTH_MODE" = "email_otp" ]; then
+  echo "    OTP email: $OTP_ALLOWED_EMAILS"
+  if [ "$OTP_DEV_MODE" = "log" ]; then
+    echo "    OTP file:  ./.clawmax-otp-dev.json"
+  fi
+fi
 echo ""
 
 if [ "$OPENCLAW_INSTALLED" = false ]; then

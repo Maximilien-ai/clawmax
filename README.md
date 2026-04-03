@@ -158,10 +158,18 @@ The setup script will:
 - ✅ Verify OpenClaw version compatibility
 - ✅ Install dashboard dependencies
 - ✅ Configure workspace structure
+- ✅ Offer auth setup choices for local dev and production
 - ✅ Generate authentication token
 - ✅ Set up environment variables
 - ✅ Verify API keys (with instructions if missing)
 - ✅ Optionally install OpenClaw Gateway for chat
+
+For local development, `./setup.sh` now offers:
+- `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
+- `bypass` mode, if you explicitly do not want auth
+
+When you choose local dev `Email OTP`, the latest login code is written to:
+- `.clawmax-otp-dev.json`
 
 ### Manual Installation (Alternative)
 
