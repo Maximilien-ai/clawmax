@@ -141,6 +141,92 @@ export interface OrganizationTemplate {
 
 export type Template = AgentTemplate | OrganizationTemplate
 
+function runOrganizationPostImportSetup(args: {
+  createdAgents: string[]
+  agentsToCreate: Array<{ id: string; skills?: string[] }>
+  template: OrganizationTemplate
+  prefix: string
+  suffix: string
+  workspacePath: string
+  agentsDir: string
+  workflowOverrides?: Record<string, string>
+}) {
+  const { createdAgents, agentsToCreate, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
+
+  setTimeout(() => {
+    // Registering agents and stamping runtime metadata can be slow.
+    // Keep these non-fatal steps out of the request path.
+    for (const agentId of createdAgents) {
+      try {
+        const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
+        const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+
+        execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+          encoding: 'utf-8',
+          stdio: 'pipe'
+        })
+        console.log(`Registered agent ${agentId} in openclaw.json`)
+
+        fs.mkdirSync(agentDirArg, { recursive: true })
+        const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
+        if (!fs.existsSync(authProfilePath)) {
+          const authProfile: Record<string, any> = { version: 1, profiles: {} }
+          const systemKeys = getSystemProviderKeys()
+          if (systemKeys.openai) {
+            authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
+          }
+          if (systemKeys.anthropic) {
+            authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
+          }
+          fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
+          console.log(`Created auth profile for agent ${agentId}`)
+        }
+      } catch (err) {
+        console.warn(`Failed to register agent ${agentId}: ${err}`)
+      }
+    }
+
+    for (const templateAgent of agentsToCreate) {
+      const skills = templateAgent.skills
+      if (skills && Array.isArray(skills) && skills.length > 0) {
+        const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+        try {
+          setAgentSkills(targetAgentId, skills)
+          console.log(`Assigned skills [${skills.join(', ')}] to agent ${targetAgentId}`)
+        } catch (err) {
+          console.warn(`Failed to assign skills to ${targetAgentId}: ${err}`)
+        }
+      }
+    }
+
+    const kickoffWorkflow = (template.workflows || []).find((w: any) =>
+      w.type === 'once' || w.id?.includes('kickoff') || w.name?.toLowerCase().includes('kickoff')
+    )
+    if (!kickoffWorkflow) return
+
+    const kickoffContent = workflowOverrides?.[kickoffWorkflow.id] || kickoffWorkflow.content || ''
+    const configMatch = kickoffContent.match(/## (?:Project Configuration|Your Tasks|Configuration)[\s\S]*?(?=\n## |\n---|\Z)/i)
+    const projectContext = configMatch ? configMatch[0].trim() : ''
+    if (!projectContext) return
+
+    for (const agentId of createdAgents) {
+      try {
+        const identityPath = path.join(agentsDir, agentId, 'IDENTITY.md')
+        if (fs.existsSync(identityPath)) {
+          let identity = fs.readFileSync(identityPath, 'utf-8')
+          if (!identity.includes('## Project Context')) {
+            identity += `\n\n## Project Context\n\n${projectContext}\n`
+            fs.writeFileSync(identityPath, identity, 'utf-8')
+            console.log(`Wrote project context to ${agentId}/IDENTITY.md`)
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed to write project context to ${agentId}: ${err}`)
+      }
+    }
+  }, 0)
+}
+
 // ============================================================================
 // Template Validation
 // ============================================================================
@@ -1905,85 +1991,16 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
-      // Step 6: Register all created agents in openclaw.json
-      // This is critical - agents must be registered to receive messages via gateway
-      for (const agentId of createdAgents) {
-        try {
-          const workspaceArg = path.join(getWorkspacePath(), 'AGENTS', agentId)
-          const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-
-          // Use openclaw agents add to register the agent
-          execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
-            encoding: 'utf-8',
-            stdio: 'pipe'
-          })
-          console.log(`Registered agent ${agentId} in openclaw.json`)
-
-          // Create auth profile for the agent so cron/gateway can access API keys
-          fs.mkdirSync(agentDirArg, { recursive: true })
-          const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
-          if (!fs.existsSync(authProfilePath)) {
-            const authProfile: Record<string, any> = { version: 1, profiles: {} }
-            const systemKeys = getSystemProviderKeys()
-            if (systemKeys.openai) {
-              authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
-            }
-            if (systemKeys.anthropic) {
-              authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
-            }
-            fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
-            console.log(`Created auth profile for agent ${agentId}`)
-          }
-        } catch (err) {
-          console.warn(`Failed to register agent ${agentId}: ${err}`)
-          // Don't fail the import if registration fails - agent files are still created
-        }
-      }
-
-      // Step 7: Assign skills from template to agents in openclaw.json
-      for (const templateAgent of agentsToCreate) {
-        const skills = templateAgent.skills
-        if (skills && Array.isArray(skills) && skills.length > 0) {
-          const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
-          try {
-            setAgentSkills(targetAgentId, skills)
-            console.log(`Assigned skills [${skills.join(', ')}] to agent ${targetAgentId}`)
-          } catch (err) {
-            console.warn(`Failed to assign skills to ${targetAgentId}: ${err}`)
-            // Non-fatal — agent files and registration still intact
-          }
-        }
-      }
-
-      // Step 8: Write project context to each agent's IDENTITY.md
-      // Extract from kickoff workflow content (with any user overrides)
-      const kickoffWorkflow = (template.workflows || []).find((w: any) =>
-        w.type === 'once' || w.id?.includes('kickoff') || w.name?.toLowerCase().includes('kickoff')
-      )
-      if (kickoffWorkflow) {
-        const kickoffContent = options?.workflowOverrides?.[kickoffWorkflow.id] || kickoffWorkflow.content || ''
-        // Extract the Project Configuration section
-        const configMatch = kickoffContent.match(/## (?:Project Configuration|Your Tasks|Configuration)[\s\S]*?(?=\n## |\n---|\Z)/i)
-        const projectContext = configMatch ? configMatch[0].trim() : ''
-
-        if (projectContext) {
-          for (const agentId of createdAgents) {
-            try {
-              const identityPath = path.join(getAgentsDir(), agentId, 'IDENTITY.md')
-              if (fs.existsSync(identityPath)) {
-                let identity = fs.readFileSync(identityPath, 'utf-8')
-                if (!identity.includes('## Project Context')) {
-                  identity += `\n\n## Project Context\n\n${projectContext}\n`
-                  fs.writeFileSync(identityPath, identity, 'utf-8')
-                  console.log(`Wrote project context to ${agentId}/IDENTITY.md`)
-                }
-              }
-            } catch (err) {
-              console.warn(`Failed to write project context to ${agentId}: ${err}`)
-            }
-          }
-        }
-      }
+      runOrganizationPostImportSetup({
+        createdAgents,
+        agentsToCreate,
+        template,
+        prefix,
+        suffix,
+        workspacePath: getWorkspacePath(),
+        agentsDir: getAgentsDir(),
+        workflowOverrides: options?.workflowOverrides,
+      })
 
       return { ok: true, agentIds: createdAgents }
     } catch (err) {
