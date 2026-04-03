@@ -461,7 +461,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             </div>
             {prereqs.summary.fail > 0 && (
               <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400">
-                You can still apply, but some features may not work. Run <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">./SYSTEM/doctor.sh --fix</code> to resolve.
+                You can still apply, but some features may not work. Open <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">System &amp; Logs</code>, run <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">Doctor</code>, and use <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">Auto-Fix</code> to resolve.
               </div>
             )}
           </div>
