@@ -241,6 +241,7 @@ function MarkdownBlock({ content, className = '' }: { content: string; className
           ol: ({ children }) => <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>,
           li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
           code: ({ children }) => <code className="rounded bg-gray-200 px-1 py-0.5 text-[0.95em] dark:bg-slate-950/60">{children}</code>,
+          pre: ({ children }) => <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-900 px-3 py-2 text-xs text-gray-100 dark:bg-slate-950/80 last:mb-0">{children}</pre>,
         }}
       >
         {content}
@@ -672,7 +673,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         {chat.type}{chat.community ? ` · ${chat.community}` : ''}
                       </div>
                       <div className="mt-3 text-sm text-gray-700 dark:text-slate-300">
-                        {chat.latestMessage ? chat.latestMessage.content : 'No messages yet. This channel is available for workspace coordination.'}
+                        {chat.latestMessage ? (
+                          <MarkdownBlock content={chat.latestMessage.content} />
+                        ) : (
+                          'No messages yet. This channel is available for workspace coordination.'
+                        )}
                       </div>
                       {detail && chat.recentMessages.length > 0 && (
                         <div className="mt-3 rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
@@ -684,7 +689,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                                   <span>{message.from}</span>
                                   <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
                                 </div>
-                                <div>{message.content}</div>
+                                <MarkdownBlock content={message.content} />
                               </div>
                             ))}
                           </div>
