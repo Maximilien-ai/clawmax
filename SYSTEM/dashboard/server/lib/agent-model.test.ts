@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from './agent-model'
+import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from './agent-model'
 import { parseIdentity } from './workspace'
 
 const GREEN = '\x1b[32m'
@@ -115,6 +115,23 @@ _Fill this in during your first conversation. Make it yours._
   assert(updated.includes('- **Model:** ollama/qwen2.5:latest'), 'Expected model line inserted')
   const parsed = parseIdentity(updated)
   assert(parsed.model === 'ollama/qwen2.5:latest', 'Expected inserted model to parse correctly')
+})
+
+test('resetAgentSessionsForModelChange archives runtime session state', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), '{"agent:ceo:main":{"model":"claude-opus-4-6"}}', 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'session-a.jsonl'), '{"type":"message"}\n', 'utf-8')
+
+  const result = resetAgentSessionsForModelChange(home, 'ceo')
+  assert(result.ok, result.error || 'Expected session reset to succeed')
+  assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected sessions.json moved out of live sessions dir')
+  assert(!fs.existsSync(path.join(sessionsDir, 'session-a.jsonl')), 'Expected session jsonl moved out of live sessions dir')
+  const archiveDir = path.join(sessionsDir, 'archive')
+  const archived = fs.readdirSync(archiveDir)
+  assert(archived.some(name => name.endsWith('sessions.json')), 'Expected archived sessions index')
+  assert(archived.some(name => name.endsWith('session-a.jsonl')), 'Expected archived session transcript')
 })
 
 setTimeout(() => {

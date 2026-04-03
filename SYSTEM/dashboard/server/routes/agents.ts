@@ -10,7 +10,7 @@ import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGate
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
-import { updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
+import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
@@ -68,6 +68,14 @@ function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean
 function updateAgentIdentityModel(identityPath: string, model: string) {
   const content = fs.readFileSync(identityPath, 'utf-8')
   fs.writeFileSync(identityPath, upsertAgentModelInIdentityContent(content, model), 'utf-8')
+}
+
+function resetAgentRuntimeForModelChange(agentId: string) {
+  const HOME = process.env.HOME || ''
+  const reset = resetAgentSessionsForModelChange(HOME, agentId)
+  if (!reset.ok) {
+    throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
+  }
 }
 
 /**
@@ -1506,6 +1514,8 @@ router.post('/bulk-model', async (req, res) => {
         updateAgentIdentityModel(identityPath, model)
       }
 
+      resetAgentRuntimeForModelChange(agentId)
+
       results.push({ id: agentId, ok: true })
     } catch (err: any) {
       results.push({ id: agentId, ok: false, error: err.message })
@@ -1678,6 +1688,7 @@ router.patch('/:id/model', (req, res) => {
     }
 
     updateAgentIdentityModel(identityPath, model)
+    resetAgentRuntimeForModelChange(id)
     res.json({ ok: true, model })
   } catch (err) {
     console.error('Failed to update model:', err)

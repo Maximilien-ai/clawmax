@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 
 export function updateAgentModelInConfigFile(configPath: string, agentId: string, model: string): { ok: boolean; error?: string } {
   try {
@@ -65,4 +66,29 @@ export function upsertAgentModelInIdentityContent(content: string, model: string
   }
 
   return `${content.trimEnd()}\n\n- **Model:** ${model}\n`
+}
+
+export function resetAgentSessionsForModelChange(homeDir: string, agentId: string): { ok: boolean; error?: string } {
+  try {
+    const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+    if (!fs.existsSync(sessionsDir)) {
+      return { ok: true }
+    }
+
+    const archiveDir = path.join(sessionsDir, 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    const stamp = Date.now()
+
+    for (const entry of fs.readdirSync(sessionsDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      if (!entry.name.endsWith('.jsonl') && entry.name !== 'sessions.json') continue
+      const src = path.join(sessionsDir, entry.name)
+      const dst = path.join(archiveDir, `${stamp}-${entry.name}`)
+      fs.renameSync(src, dst)
+    }
+
+    return { ok: true }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
 }
