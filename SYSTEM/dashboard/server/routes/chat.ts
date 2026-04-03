@@ -107,6 +107,7 @@ router.post('/:id/chat', (req, res) => {
 
   const executionEnv = userExecutionEnv(byok)
   const resolvedAgent = resolveAgentExecutionConfig(id)
+  const effectiveSessionId = sessionId || `dashboard-${id}-chat`
 
   // Validate API keys exist before starting chat
   if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY) {
@@ -135,9 +136,10 @@ router.post('/:id/chat', (req, res) => {
     try { res.write(': keepalive\n\n') } catch {}
   }, 2000)
 
-  // Use gateway when configured (enables skills/tool-use), fall back to --local
+  // Use plain-text mode so stdout can stream deltas to the UI in real time.
+  // History/persistence is handled by the explicit session id and the CLI itself.
   const useLocal = !isGatewayConfigured()
-  const args = ['agent', '--agent', id, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+  const args = ['agent', '--agent', id, '--session-id', effectiveSessionId, '--message', message, ...(useLocal ? ['--local'] : [])]
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   let procExited = false
@@ -156,11 +158,13 @@ router.post('/:id/chat', (req, res) => {
       })
       proc = spawned
 
-      send('start', { sessionId: sessionId || `cli-${Date.now()}` })
+      send('start', { sessionId: effectiveSessionId })
       invalidateAgentStatusCache(id)
 
       spawned.stdout.on('data', (chunk: Buffer) => {
-        fullOutput += chunk.toString()
+        const text = chunk.toString()
+        fullOutput += text
+        send('delta', { text })
       })
 
       spawned.stderr.on('data', (chunk: Buffer) => {
@@ -177,46 +181,17 @@ router.post('/:id/chat', (req, res) => {
           console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
         }
 
-        // Try to parse --json output (may be in stdout or stderr depending on CLI version)
-        let replied = false
-        const jsonCandidate = fullOutput.trim() || extractJson(stderrOutput)
-        if (jsonCandidate) {
-          try {
-            const result = JSON.parse(jsonCandidate)
-            console.log(`[Chat Route] Parsed JSON for ${id}:`, JSON.stringify(result.result?.payloads || result.payloads || [], null, 2).slice(0, 500))
-            const payloads = result.result?.payloads || result.payloads || []
-            const text = normalizeChatMessage(payloads.map((p: any) => p.text).join('\n') || '')
-            if (text) {
-              send('delta', { text })
-              replied = true
+        const normalizedText = normalizeChatMessage(fullOutput.trim())
 
-              // Trace to Opik
-              const meta = result.result?.meta || result.meta || {}
-              const agentMeta = meta.agentMeta || {}
-              traceAgentChat(id, message, text, {
-                model: agentMeta.model,
-                provider: agentMeta.provider,
-                inputTokens: agentMeta.usage?.input || agentMeta.promptTokens,
-                outputTokens: agentMeta.usage?.output,
-                cacheReadTokens: agentMeta.usage?.cacheRead,
-                durationMs: meta.durationMs,
-                sessionId: sessionId || agentMeta.sessionId,
-              })
-            } else {
-              console.log(`[Chat Route] Empty payloads for ${id}, status: ${result.status}, summary: ${result.summary}`)
-            }
-          } catch (err) {
-            console.log(`[Chat Route] JSON parse error for ${id}:`, err)
-            // Not JSON — send as plain text
-            const text = normalizeChatMessage(fullOutput.trim())
-            if (text) {
-              send('delta', { text })
-              replied = true
-            }
-          }
+        if (normalizedText) {
+          traceAgentChat(id, message, normalizedText, {
+            model: resolvedAgent.model,
+            provider: resolvedAgent.provider || undefined,
+            sessionId: effectiveSessionId,
+          })
         }
 
-        if (!replied && code !== 0) {
+        if (!normalizedText && code !== 0) {
           send('error', stderrOutput.slice(0, 300) || 'Agent failed. Check that API keys are configured.')
         }
         send('complete', {})
