@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.5] - 2026-04-03
+
+### Fixes — Test Harness and Template Apply
+- **Fresh System-Test Workspace Setup** — `SYSTEM/test.sh` now recreates `ClawMax System Test` before apply so stale hidden files do not leak into integration runs
+- **Imported Workflow Visibility Wait** — the integration harness now waits for template-imported workflows to appear before asserting or triggering them
+- **Template Workflow Dependencies Audit** — multi-workflow organization templates now preserve proper kickoff-first DAG sequencing instead of running later stages in parallel by mistake
+- **Template Tag Coverage** — every organization template community, group, and workflow now has at least one tag, improving consistency across apply, search, and downstream tooling
+
+### Fixes — Dashboard Readability and Spend
+- **Markdown Rendering in Shared Dashboards** — notifications, workflow summaries, and group chats now render markdown correctly, including light-mode code blocks
+- **Scrollable Shared Cards** — dashboard notifications, workflows, and group chat panels now scroll internally instead of overgrowing the page
+- **Workflow Spend Attribution** — workflow spend now includes traced agent-call cost from workflow runs instead of showing `$0.0000` for active workflows
+
 ## [v1.2.4] - 2026-04-03
 
 ### Features — Setup and Auth

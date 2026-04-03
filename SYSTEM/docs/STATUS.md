@@ -1,20 +1,33 @@
 # ClawMax Status
 
-**Current Version**: v1.2.4
+**Current Version**: v1.2.5
 **Last Updated**: April 3, 2026
-**Status**: Point release ready — setup/auth clarification, Doctor/sidebar hardening, and workspace dashboard polish are on main
+**Status**: Point release ready — test harness stability, template DAG/tag audit, and shared dashboard readability fixes are on main
 
 ---
 
 ## Current State
 
-- `v1.2.4` ready on main — Email OTP setup flow, CLI-friendly auth docs, Doctor/sidebar hardening, and workspace dashboard polish are on main
+- `v1.2.5` ready on main — system-test harness fixes, template dependency/tag audit, and shared dashboard spend/markdown improvements are on main
 - 53 organization templates + 25 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, Family, Markets, and launch/research use cases
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
 - Shareable workspace dashboards with compact/standard/detail display modes
 - Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+
+## v1.2.5 — Test Harness and Dashboard Reliability
+
+### Test Harness and Template Apply
+- `SYSTEM/test.sh` now recreates `ClawMax System Test` before apply so stale workflow files do not leak into the integration run
+- integration tests now wait for template-imported workflows to become visible before asserting and triggering them
+- audited multi-workflow org templates so kickoff/follow-on dependencies are preserved
+- normalized template tags so every community, group, and workflow has tags
+
+### Shared Dashboard Readability
+- notifications, workflow summaries, and group chats now render markdown properly
+- dashboard activity panels now scroll internally instead of stretching awkwardly
+- workflow spend now includes traced agent-call cost from workflow runs
 
 ## v1.2.4 — Setup, Doctor, and Dashboard Polish
 

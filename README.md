@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.4)
+[![Version](https://img.shields.io/badge/version-1.2.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.5)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.4
+## 🔥 What's New in v1.2.5
+
+- **System test harness reliability** — `SYSTEM/test.sh` now recreates the system-test workspace before apply and waits for imported workflows to appear before verification/trigger
+- **Template DAG and tag audit** — multi-workflow templates now preserve correct dependencies, and every community, group, and workflow now has tags
+- **Shared dashboard readability** — notifications, workflows, and group chats now render markdown cleanly, scroll internally, and attribute workflow spend from agent traces
+- **Astronomy and similar templates behave correctly** — kickoff-first workflows no longer run in parallel by mistake after apply
+
+## 🔥 Previously in v1.2.4
 
 - **Setup now offers Email OTP by default for local dev** — `./setup.sh` now prompts for local-dev Email OTP, bypass, GitHub OAuth, or production Email OTP
 - **CLI/local auth defaults clarified** — auth docs now show the exact env vars tools should use for developer OTP login without hardcoding personal emails
