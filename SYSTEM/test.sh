@@ -1849,18 +1849,23 @@ SYSTEM_TEST_WS=$(echo "$workspaces_json" | jq -r \
   ".workspaces[] | select(.id==\"clawmax-system-test\" or .name==\"$SYSTEM_TEST_WS_NAME\" or .path==\"$SYSTEM_TEST_WS_PATH\") | .id" \
   2>/dev/null | head -1)
 
-# Check if workspace exists, create if not
-if [ -z "$SYSTEM_TEST_WS" ]; then
-  create_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
-    -H 'Content-Type: application/json' \
-    -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
-  SYSTEM_TEST_WS=$(echo "$create_result" | jq -r '.workspace.id // empty' 2>/dev/null)
-  if [ -n "$SYSTEM_TEST_WS" ]; then
-    echo "  Created workspace: $SYSTEM_TEST_WS"
-  else
-    fail "Failed to create system test workspace"
-    SYSTEM_TEST_WS="default"
-  fi
+# Always recreate the system-test workspace so stale hidden files
+# cannot force suffixed workflow ids like test-kickoff-2.
+if [ -n "$SYSTEM_TEST_WS" ]; then
+  apicurl -X PUT "$API_BASE/api/workspaces/default/activate" > /dev/null 2>&1
+  apicurl -X DELETE "$API_BASE/api/workspaces/$SYSTEM_TEST_WS" \
+    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+fi
+
+create_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
+SYSTEM_TEST_WS=$(echo "$create_result" | jq -r '.workspace.id // empty' 2>/dev/null)
+if [ -n "$SYSTEM_TEST_WS" ]; then
+  echo "  Created workspace: $SYSTEM_TEST_WS"
+else
+  fail "Failed to create system test workspace"
+  SYSTEM_TEST_WS="default"
 fi
 
 # Activate system-test workspace
