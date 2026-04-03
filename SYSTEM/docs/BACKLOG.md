@@ -7,6 +7,7 @@
 
 - [ ] **Temp chat/runtime resolves duplicate agent IDs against the wrong workspace** — when the same agent id exists across workspaces, temp group/direct chat can resolve runtime/session state from the wrong global OpenClaw agent record, leading to stale models/providers and misleading activity metadata. High-priority post-`v1.2.1` runtime fix. GitHub: `#94`
 - [ ] **ClawMax Doctor: Restart Gateway action** — add an in-product `openclaw gateway restart` action when gateway is configured but not running, so users can recover skills/chat capability without leaving the UI
+- [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
 
 ## Today Focus — April 2, 2026
 
@@ -62,6 +63,7 @@
 - [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
 - [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
+- [ ] **Event template customer validation** — get real event-planning feedback on the new proposal templates and decide whether they should stay under `personal`, gain a dedicated category, or expand into more specialized event packs. GitHub: `#95`
 - [ ] **Template AI Generate UI** — wire POST `/api/templates/generate` to the Templates page AI flow
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, and groups via a multi-step wizard
 
@@ -69,7 +71,7 @@
 - [ ] **Agent-to-agent direct messaging follow-through** — validate and polish the post-merge user flow for direct messages. GitHub: `#64`
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete, and richer workflow supervision
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
-- [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
+- [x] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
 - [ ] **DAG auto-advance on cron triggers** — cron-triggered completions should also advance DAG
 - [ ] **Community rules and constraints** — define reusable rules/constraints at community level, inherited by all groups
 
@@ -118,12 +120,10 @@
 - [ ] **Workspace restore** — upload zip to restore workspace state
 - [ ] **Auto-backup** — optional scheduled backups
 - [ ] **Issue #32** Consolidate cron with OpenClaw native
-- [ ] **Issue #10** CI .env handling
 - [ ] **Issue #11** Clean-room test of setup flow
 - [ ] **Gateway process management (CLI team)** — supervisor, health check, start/stop isolation, and gateway-down notifications
 
 ### Future / Lower Priority
-- [ ] **Issue #13** Agent creation flow missing from agent registry
 - [ ] **Issue #15** Agent chat streaming improvement
 - [ ] **Group chat jitter on mobile** — improved but not eliminated
 - [ ] **Template tag filtering**
