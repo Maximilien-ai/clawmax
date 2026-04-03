@@ -324,6 +324,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const compactOrderedSections = orderedTopLevelSections.filter((key) => key !== 'overview')
   const compactLeftSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'left')
   const compactRightSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'right')
+  const standardUpperSections = orderedTopLevelSections.filter((key) => key === 'costs' || key === 'notifications')
+  const standardMiddleSections = orderedTopLevelSections.filter((key) => key === 'agents')
+  const standardLowerSections = orderedTopLevelSections.filter((key) => key === 'workflows' || key === 'groupChats')
   const shellClass = 'min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100'
   const headerClass = 'rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-100 shadow-xl dark:border-white/10 dark:from-slate-900 dark:to-slate-800 dark:shadow-2xl'
   const cardClass = `rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${cardPadding}`
@@ -765,18 +768,28 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           </section>
         )}
 
-        <div className={`grid ${compact ? 'gap-4' : 'gap-6'} ${twoColLayout}`}>
-          {payload.dashboard.sections.costs && renderOrderedSection('costs')}
-          {payload.dashboard.sections.notifications && renderOrderedSection('notifications')}
-        </div>
+        {standardUpperSections.length > 0 && (
+          <div className={`grid gap-6 ${twoColLayout}`}>
+            {standardUpperSections.map((key) => (
+              <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+            ))}
+          </div>
+        )}
 
-        <div className={`mt-6 grid ${compact ? 'gap-4' : 'gap-6'} ${lowerGrid}`}>
-          {payload.dashboard.sections.agents && renderOrderedSection('agents')}
-          {payload.dashboard.sections.workflows && renderOrderedSection('workflows')}
-        </div>
+        {standardMiddleSections.length > 0 && (
+          <div className="mt-6 grid gap-6">
+            {standardMiddleSections.map((key) => (
+              <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+            ))}
+          </div>
+        )}
 
-        {payload.dashboard.sections.groupChats && (
-          <div className="mt-6">{renderOrderedSection('groupChats')}</div>
+        {standardLowerSections.length > 0 && (
+          <div className="mt-6 grid gap-6">
+            {standardLowerSections.map((key) => (
+              <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
+            ))}
+          </div>
         )}
       </div>
     </div>
