@@ -300,8 +300,10 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     // Check for @all
     const hasAll = mentionedNames.some(name => name.toLowerCase() === 'all')
 
-    // Find agents that match the mentions (or all if @all is used or bulk chat)
-    const mentionedAgents = (hasAll || isBulkChat)
+    const hasExplicitMentions = mentionedNames.length > 0
+
+    // Default channel posts to all members unless the user narrows with explicit @mentions.
+    const mentionedAgents = (!hasExplicitMentions || hasAll || isBulkChat)
       ? channel.members
       : channel.members.filter(agent =>
           mentionedNames.some(name =>
@@ -343,7 +345,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         // Focus back on input after sending
         setTimeout(() => inputRef.current?.focus(), 0)
         // Notify parent about message sent (for status refresh and toasts)
-        onMessageSent?.(mentionedAgents.map(a => a.id), hasAll)
+        onMessageSent?.(mentionedAgents.map(a => a.id), !hasExplicitMentions || hasAll)
       } else {
         const data = await r.json()
         setError(data.error || 'Failed to send message')
@@ -841,7 +843,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type or speak... use @name or @all"}
+                placeholder={isListening ? "Listening..." : "Type or speak... posts to everyone by default, or use @name"}
                 className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening}
               />
@@ -856,7 +858,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
             </div>
             <div className="mt-2">
               <span className="text-xs text-gray-400 dark:text-gray-500">
-                Use @name to mention agents or @all for everyone
+                Posts to everyone by default. Use @name to narrow or @all to be explicit.
               </span>
             </div>
           </div>

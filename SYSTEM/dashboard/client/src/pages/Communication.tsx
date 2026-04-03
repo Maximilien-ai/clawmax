@@ -1330,8 +1330,10 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
     // Check for @all
     const hasAll = mentionedNames.some(name => name.toLowerCase() === 'all')
 
-    // Find agents that match the mentions (or all if @all is used)
-    const mentionedAgents = hasAll
+    const hasExplicitMentions = mentionedNames.length > 0
+
+    // Default channel posts to all members unless the user narrows with explicit @mentions.
+    const mentionedAgents = (!hasExplicitMentions || hasAll)
       ? channel.members
       : channel.members.filter(agent =>
           mentionedNames.some(name =>
