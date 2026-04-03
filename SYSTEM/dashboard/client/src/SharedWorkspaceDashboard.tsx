@@ -291,7 +291,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const notificationsToShow = compact ? 2 : detail ? 12 : 8
   const agentsToShow = compact ? 3 : detail ? payload.agents.length : payload.agents.length
   const workflowsToShow = compact ? 2 : detail ? payload.workflows.length : payload.workflows.length
-  const chatsToShow = compact ? 2 : detail ? payload.groupChats.length : payload.groupChats.length
+  const chatsToShow = compact ? 1 : detail ? payload.groupChats.length : payload.groupChats.length
   const containerWidth = compact ? 'max-w-7xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
   const twoColLayout = compact ? 'xl:grid-cols-[0.95fr_1.05fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
@@ -331,7 +331,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const renderCostTrend = (dark: boolean) => {
     if (!payload.costs.metering.dailyCost.length) return null
     return (
-        <div className={`mt-4 rounded-xl border ${dark ? 'border-white/10 bg-slate-800/70' : 'border-gray-200 bg-gray-50'} ${compact ? 'p-2.5' : 'p-4'}`}>
+        <div className={`mt-4 rounded-xl border ${dark ? 'border-white/10 bg-slate-800/70' : 'border-gray-200 bg-gray-50'} ${compact ? 'p-2' : 'p-4'}`}>
           <div className={`mb-3 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide ${dark ? 'text-slate-500' : 'text-gray-500'}`}>
             <span>Spend trend</span>
             <span>Last {payload.costs.metering.dailyCost.length}d</span>
@@ -342,14 +342,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             return (
               <div key={entry.date} className={`flex min-w-0 flex-1 flex-col items-center ${compact ? 'gap-1' : 'gap-2'}`}>
                 {!compact && <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>${entry.estimatedCostUsd.toFixed(2)}</div>}
-                <div className={`flex ${compact ? 'h-12' : 'h-20'} w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
+                <div className={`flex ${compact ? 'h-10' : 'h-20'} w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
                   <div
                     className={`w-full rounded-md ${dark ? 'bg-emerald-400/90' : 'bg-emerald-500'}`}
                     style={{ height: `${heightPct}%` }}
                     title={`${entry.date}: $${entry.estimatedCostUsd.toFixed(4)} across ${entry.traceCount} traces`}
                   />
                 </div>
-                <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>{entry.date.slice(5)}</div>
+                <div className={`${compact ? 'text-[9px]' : 'text-[10px]'} ${dark ? 'text-slate-500' : 'text-gray-500'}`}>{entry.date.slice(5)}</div>
               </div>
             )
           })}
@@ -404,7 +404,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
             </div>
             <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{budget.usedPct.toFixed(1)}% of ${budget.config.limitUsd.toFixed(2)} workspace budget used</div>
-            <div className={`mt-4 grid grid-cols-3 gap-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+            <div className={`mt-4 grid ${compact ? 'grid-cols-3 gap-1.5 text-[10px]' : 'grid-cols-3 gap-2 text-xs'}`}>
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
                 <div className="text-gray-500 dark:text-slate-500">Today</div>
                 <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.todayCostUsd.toFixed(2)}</div>
@@ -424,9 +424,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <span>Top Workflow Spend</span>
                 {payload.costs.metering.byWorkflow.length > 0 && <span>{workflowSharePct.toFixed(0)}% of total</span>}
               </div>
-              <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
+              <div className={`${compact ? 'space-y-1' : 'space-y-2'}`}>
                 {payload.costs.metering.byWorkflow.slice(0, compact ? 1 : 5).map((workflow) => (
-                  <div key={workflow.workflowId} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
+                  <div key={workflow.workflowId} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1 text-[11px]' : 'py-2 text-sm'}`}>
                     <div className="min-w-0 pr-3">
                       <div className="truncate font-medium text-gray-900 dark:text-slate-100">{workflow.workflowName || workflow.workflowId}</div>
                       {!compact && <div className="text-gray-500 dark:text-slate-500">{workflow.totalRuns || 0} runs</div>}
@@ -526,9 +526,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <span>Other {idleWorkflows}</span>
               </div>
             </div>
-            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'}`}>
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
-                <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
+                <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-2.5' : 'p-4'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="font-medium">{workflow.name}</div>
@@ -600,9 +600,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Group Chats</h2>
               <span className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{payload.groupChats.length} channels</span>
             </div>
-            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'}`}>
               {payload.groupChats.slice(0, chatsToShow).map((chat) => (
-                <div key={`${chat.type}:${chat.name}`} className={`${nestedClass} ${compact ? 'p-3' : 'p-4'}`}>
+                <div key={`${chat.type}:${chat.name}`} className={`${nestedClass} ${compact ? 'p-2.5' : 'p-4'}`}>
                   <div className="font-medium text-gray-900 dark:text-slate-100">{chat.name}</div>
                   {!compact && (
                     <>
