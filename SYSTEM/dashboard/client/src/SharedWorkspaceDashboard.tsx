@@ -235,13 +235,14 @@ function MarkdownBlock({ content, className = '' }: { content: string; className
         remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-slate-100">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
+          strong: ({ children }) => <strong className="font-semibold text-inherit">{children}</strong>,
+          em: ({ children }) => <em className="italic text-inherit">{children}</em>,
           ul: ({ children }) => <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>,
           ol: ({ children }) => <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>,
           li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
-          code: ({ children }) => <code className="rounded bg-gray-200 px-1 py-0.5 text-[0.95em] dark:bg-slate-950/60">{children}</code>,
-          pre: ({ children }) => <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-900 px-3 py-2 text-xs text-gray-100 dark:bg-slate-950/80 last:mb-0">{children}</pre>,
+          code: ({ children }) => <code className="rounded bg-gray-200 px-1 py-0.5 text-[0.95em] text-inherit dark:bg-slate-950/60">{children}</code>,
+          pre: ({ children }) => <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-slate-950/80 dark:text-gray-100 last:mb-0">{children}</pre>,
+          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline underline-offset-2 dark:text-sky-300">{children}</a>,
         }}
       >
         {content}
