@@ -1,20 +1,37 @@
 # ClawMax Status
 
-**Current Version**: v1.2.1
+**Current Version**: v1.2.2
 **Last Updated**: April 2, 2026
-**Status**: Point release ready — integrations follow-through, export reliability, clean-slate system testing, and rerun truthfulness are on main
+**Status**: Point release ready — event templates, events discovery, default channel fan-out, and first-pass live agent chat streaming are on main
 
 ---
 
 ## Current State
 
-- `v1.2.1` ready on main — integrations polish, runtime follow-through, export reliability, clean-slate system testing, and discovery suggestions
-- 39 organization templates + 12 reusable agent templates across Business, Technical, Personal, Science, Travel, Hobbies, and Family
+- `v1.2.2` ready on main — event-planning templates, events discovery, default channel fan-out, and first-pass live agent chat streaming are on main
+- 42 organization templates + 12 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, and Family
 - Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
 - Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
 - Shareable workspace dashboards with compact/standard/detail display modes
 - Docker deployment support in the public repo
 - Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+
+## v1.2.2 — Events and Chat Point Release
+
+### Templates and Discovery
+- added `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub`
+- Templates explorer now has a first-class `Events` filter chip
+- the new event templates are mirrored into the public templates repo for customer sharing
+
+### Communication and Chat
+- group/community posts now fan out to all members by default unless the user narrows with explicit `@mentions`
+- agent chat now streams live stdout deltas through the SSE path instead of waiting for the full turn to finish
+- the agent chat route now passes the explicit dashboard session id through to OpenClaw for better continuity
+
+### Tracker and Docs
+- closed the default-channel-mentions UX issue
+- refreshed `TESTING_GUIDE.md` for the current system-test flow and custom-port behavior
+- created a focused follow-up issue for event-template customer validation and refinement (`#95`)
 
 ## v1.2.1 — Follow-through Point Release
 
@@ -99,24 +116,21 @@
 ## Active Risks
 
 - duplicate agent IDs across multiple workspaces can still confuse temp chat/runtime resolution and show the wrong model/provider/session history in ad-hoc chats (`#94`)
-- GitHub Actions on `main` is still being stabilized for true clean-room runs
-- live GitHub issue list is stale and includes items already fixed in code
+- Anthropic per-agent auth/runtime behavior still needs explicit cleanup (`#8`)
+- GitHub Actions on `main` is still being stabilized for true clean-room runs (`#11`)
 - secure multi-user BYOK storage is still deferred; current flow is intentionally a preview/dev slice
-- OAuth still needs one clean-room test pass on a fresh machine/config, even though local dev flow is working
+- event planning templates are still proposal/early-idea and need real customer validation (`#95`)
 
 ## Recommended Next Work
 
-1. Finish CI clean-room stabilization and confirm a green `main` run on GitHub
-2. Close or archive stale GitHub issues already fixed in code (`#38`, `#31`, `#30`, `#28`)
-3. Build workflow table view for large-scale workflow management
-4. Decide the next security/product slice:
-   - secure per-user BYOK storage
-   - `#29` Forward to group
-   - workflow cron reliability (`#14`)
+1. Finish `#94` temp chat/runtime wrong-workspace resolution end-to-end
+2. Fix `#8` Anthropic per-agent auth/runtime behavior cleanly
+3. Validate and refine the new event templates with real customer feedback (`#95`)
+4. Keep `#11` open until a true fresh-machine setup run is completed
 
 ## Tomorrow Start Here
 
-1. Check the latest GitHub Actions run on `main`
-2. If green, do issue cleanup and start workflow table view
-3. If red, fix the remaining clean-room failure before any feature work
-4. Keep BYOK secure-storage work deferred until CI and workflow scale UX are in better shape
+1. Start with `#94`
+2. Then fix `#8`
+3. Review customer feedback on the new event templates (`#95`)
+4. If there is time, reassess whether `#11` can be executed on a truly fresh machine

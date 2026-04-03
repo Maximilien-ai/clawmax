@@ -14,6 +14,9 @@
 - [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Agent-to-agent direct messaging follow-through** — validate the post-merge user path on top of the new direct messaging API and close any UX/runtime gaps. GitHub: `#64`
 - [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
+- [x] **Default channel fan-out** — group and community chat now goes to all members by default unless the user narrows with explicit `@mentions`. GitHub: `#92`
+- [x] **Agent chat streaming improvement** — agent chat now streams live stdout deltas through SSE and keeps explicit dashboard session continuity. GitHub: `#15`
+- [x] **Event planning proposal templates** — added small, medium, and large event-planning templates plus an `Events` discovery filter in the Templates page. GitHub: `#95`
 
 ## April Launch Readiness
 
@@ -124,7 +127,6 @@
 - [ ] **Gateway process management (CLI team)** — supervisor, health check, start/stop isolation, and gateway-down notifications
 
 ### Future / Lower Priority
-- [ ] **Issue #15** Agent chat streaming improvement
 - [ ] **Group chat jitter on mobile** — improved but not eliminated
 - [ ] **Template tag filtering**
 - [ ] **Cloud infrastructure setup**

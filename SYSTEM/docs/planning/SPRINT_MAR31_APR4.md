@@ -33,16 +33,16 @@
 - [ ] **Budget notification improvement** — clear messaging when budget blocks execution
 
 ### Integration Test Expansion (2 hrs)
-- [ ] **Test skill: workspace ls** — skill that lists workspace directory, add to system-test agents
-- [ ] **Test: agent memory creation** — verify agents can create and persist memory files
-- [ ] **Test: workflow with group communication** — verify agents post to groups during workflow execution
+- [x] **Test skill: workspace ls** — skill that lists workspace directory, add to system-test agents
+- [x] **Test: agent memory creation** — verify agents can create and persist memory files
+- [x] **Test: workflow with group communication** — verify agents post to groups during workflow execution
 - [ ] Increase coverage toward 60%
 
 ## Wednesday (4 hrs) — Workflow v2 Continued
 
 ### Workflow Improvements (2 hrs)
 - [ ] **DAG auto-advance on cron triggers** — cron-triggered completions should cascade
-- [ ] **Workflow re-run resets downstream** — reset dependents to idle on re-trigger
+- [x] **Workflow re-run resets downstream** — reset dependents to idle on re-trigger
 - [ ] **Rate limit notification** — surface API rate limits as warning with retry suggestion
 
 ### Template Improvements (2 hrs)
@@ -56,6 +56,9 @@
 - [ ] **Chat message normalization** — server-side: strip JSON wrappers, ANSI codes at API layer
 - [ ] **Imported Shipables skills emoji** — skills from registry show emoji in cards
 - [ ] **DAG line routing** — route connector lines around node bounding boxes
+- [x] **Channel comms default fan-out** — group/community posts now go to all members by default unless narrowed with explicit mentions
+- [x] **Agent chat streaming** — live chat now streams deltas instead of waiting for the full response
+- [x] **Event planning template set** — added scalable small/medium/large event templates plus Events discovery filter
 
 ### Team Issues (2 hrs)
 - [ ] Address CLI team issues (gateway process management, etc.)
@@ -65,17 +68,25 @@
 ## Friday (4 hrs) — Testing + Release
 
 ### Testing (2 hrs)
-- [ ] Run full integration test suite
-- [ ] Manual testing of all new features
+- [x] Run full integration test suite
+- [x] Manual testing of all new features
 - [ ] Fix any issues found
 - [ ] Target: 70%+ test coverage on critical modules
 
 ### Release (2 hrs)
-- [ ] Update CHANGELOG, README, STATUS
+- [x] Update CHANGELOG, README, STATUS
 - [ ] Archive completed sprint plan
-- [ ] Tag v1.1.22 (or higher based on changes)
-- [ ] Update external repos (templates, workflows) if specs changed
+- [x] Tag v1.1.22 (or higher based on changes)
+- [x] Update external repos (templates, workflows) if specs changed
 - [ ] Prep next week's sprint
+
+## Carry Forward
+
+- [ ] `#94` temp chat/runtime wrong-workspace resolution
+- [ ] `#8` Anthropic per-agent auth/runtime behavior
+- [ ] `#95` event-template customer validation and refinement
+- [ ] `#11` clean-room setup run on a truly fresh machine
+- [ ] `#32` cron migration to OpenClaw native cron
 
 ## Metrics
 

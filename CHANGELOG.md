@@ -2,6 +2,25 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.2] - 2026-04-02
+
+### Features — Templates and Discovery
+- **Event Planning Proposal Templates** — added `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` in both the app repo and public templates repo
+- **Scalable Event Roles** — small, medium, and large event templates now scale one coordination role each so customers can increase team size naturally
+- **Events Filter in Templates UI** — new `Events` filter chip makes the event templates easier to discover without exact-name search
+
+### Fixes — Communication and Chat
+- **Default Channel Fan-out** — group and community messages now go to all members by default unless the user narrows with explicit `@mentions`
+- **Agent Chat Streaming** — the live agent chat panel now streams stdout deltas through the SSE route instead of waiting for the full turn to finish
+- **Agent Chat Session Continuity** — the dashboard chat route now passes its explicit session id through to OpenClaw so live chat state is more consistent
+
+### Docs and Release Hygiene
+- **Testing Guide Refresh** — updated testing guide for current `ClawMax System Test` paths, clean-state behavior, custom ports, and the remaining clean-room gap
+- **Backlog / Issue Cleanup** — closed the default-`@all` UX issue, created the event-template follow-up issue, and reduced the open tracker to the real remaining work
+
+### Tomorrow
+- **Core remaining issues** — `#94` temp chat/runtime wrong-workspace resolution, `#8` Anthropic per-agent auth/runtime behavior, and `#95` event-template validation/refinement are the main next slices
+
 ## [v1.2.1] - 2026-04-02
 
 ### Fixes — Workspaces Integrations

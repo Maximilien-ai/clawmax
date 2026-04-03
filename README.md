@@ -5,12 +5,20 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.1)
+[![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.2)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.1
+## 🔥 What's New in v1.2.2
+
+- **Event planning templates** — new small, medium, and large event-planning proposal templates are live in both ClawMax and the public templates repo
+- **Events discovery** — Templates page now has a dedicated `Events` filter chip
+- **Default channel replies** — group and community chat now fan out to all members by default unless the user narrows with `@name`
+- **Live agent chat streaming** — agent chat now streams live stdout deltas instead of waiting for the full response
+- **Testing/doc cleanup** — testing guide refreshed for the current system-test flow and remaining clean-room gap
+
+## 🔥 Previously in v1.2.1
 
 - **Workspaces Integrations UX polish** — optional integration checks no longer block save, warnings identify the exact failing providers, and validation toasts stay visible above the modal
 - **Discovered provider model lists** — Gemini and Ollama discovered models now appear directly in the preferred-model selector, and Ollama installed models can be refreshed/selected inline
@@ -66,13 +74,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **WORKFLOW.md Format** - Define workflows as YAML frontmatter + markdown
 
 ### Templates
-- **35+ Organization Templates** - Business, technical, personal, science, travel, hobbies, and family proposal templates
+- **40+ Organization Templates** - Business, technical, personal, science, travel, hobbies, family, and event-planning proposal templates
 - **12 Reusable Agent Templates** - Leadership, engineering, research, briefing, data, and experiment roles that can be reused independently
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **AI Generate** - Describe a team, AI fills all wizard steps
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
 - **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows
-- **Category Filters** - Business, Technical, Personal, Science, Travel, Hobbies, and Family template categories
+- **Category Filters** - Business, Technical, Personal, Events, Science, Travel, Hobbies, and Family template categories
 - **Collapsible Template Sections** - Collapse or expand Agent / Organization / Workflow sections while browsing
 - **TEMPLATE.md Format** - Lean markdown format with structured body sections
 - **Import/Export** - Download and upload templates and workflows as `.md` files
@@ -99,7 +107,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ClawMax templates and workflows are open source and community-driven:
 
-- **[Maximilien-ai/templates](https://github.com/Maximilien-ai/templates)** — 35+ organization templates with [TEMPLATE.md spec](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)
+- **[Maximilien-ai/templates](https://github.com/Maximilien-ai/templates)** — 40+ organization templates with [TEMPLATE.md spec](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md)
 - **[Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows)** — 18+ workflow definitions with [WORKFLOW.md spec](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md)
 
 **Contribute your own!** Submit a PR with your TEMPLATE.md or WORKFLOW.md — help the community build better multiagent teams.
