@@ -137,6 +137,8 @@ export function traceAgentChat(
     cacheReadTokens?: number
     durationMs?: number
     sessionId?: string
+    workflowId?: string
+    workflowName?: string
   }
 ): void {
   if (!enabled) return
@@ -172,6 +174,8 @@ export function traceAgentChat(
       duration_ms: meta.durationMs || 0,
       estimated_cost_usd: Math.round(cost * 10000) / 10000,
       session_id: meta.sessionId || '',
+      workflow_id: meta.workflowId || '',
+      workflow_name: meta.workflowName || '',
     },
   })
 }

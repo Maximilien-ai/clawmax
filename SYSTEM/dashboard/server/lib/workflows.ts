@@ -993,6 +993,8 @@ export function triggerWorkflow(workflowId: string, options?: {
             outputTokens: agentMeta.usage?.output,
             cacheReadTokens: agentMeta.usage?.cacheRead,
             durationMs: agentResult.durationMs,
+            workflowId,
+            workflowName: workflow.name,
           })
 
           // Post response to targeted groups/communities

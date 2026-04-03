@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/metering.test.ts
  */
 
-import { buildDailyCostSeries, summarizeCostWindows } from './metering'
+import { aggregateWorkspaceMeteringFromTraces, buildDailyCostSeries, summarizeCostWindows } from './metering'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -94,6 +94,63 @@ async function run() {
     assert(Math.abs(summary.todayCostUsd - 1.25) < 0.0001, 'Expected today cost to come from today bucket')
     assert(Math.abs(summary.last7dCostUsd - 2.5) < 0.0001, 'Expected last7d cost to sum all buckets')
     assert(Math.abs(summary.avgDailyCostUsd - (2.5 / 3)) < 0.0001, 'Expected avg/day cost to average across buckets')
+  })
+
+  await test('aggregateWorkspaceMeteringFromTraces rolls workflow spend up from agent traces', () => {
+    const metering = aggregateWorkspaceMeteringFromTraces([
+      {
+        id: 'a1',
+        name: 'agent.chat.test-agent1',
+        start_time: '2026-04-03T17:00:00.000Z',
+        end_time: '2026-04-03T17:00:02.000Z',
+        metadata: {
+          agent_id: 'test-agent1',
+          workflow_id: 'test-github',
+          workflow_name: 'Test GitHub',
+          estimated_cost_usd: 0.12,
+          tokens_input: 100,
+          tokens_output: 50,
+          tokens_total: 150,
+          duration_ms: 2000,
+          model: 'gpt-4o-mini',
+        },
+      },
+      {
+        id: 'a2',
+        name: 'agent.chat.test-agent2',
+        start_time: '2026-04-03T17:01:00.000Z',
+        end_time: '2026-04-03T17:01:03.000Z',
+        metadata: {
+          agent_id: 'test-agent2',
+          workflow_id: 'test-github',
+          workflow_name: 'Test GitHub',
+          estimated_cost_usd: 0.08,
+          tokens_input: 80,
+          tokens_output: 40,
+          tokens_total: 120,
+          duration_ms: 3000,
+          model: 'gpt-4o-mini',
+        },
+      },
+      {
+        id: 'w1',
+        name: 'workflow.test-github',
+        start_time: '2026-04-03T17:00:00.000Z',
+        end_time: '2026-04-03T17:01:03.000Z',
+        metadata: {
+          workflow_id: 'test-github',
+          workflow_name: 'Test GitHub',
+          tokens_total: 270,
+          duration_ms: 63000,
+        },
+      },
+    ] as any)
+
+    assert(Math.abs(metering.estimatedCostUsd - 0.2) < 0.0001, 'Expected workspace total cost from agent traces')
+    assert(metering.byWorkflow.length === 1, 'Expected a workflow rollup entry')
+    assert(metering.byWorkflow[0].workflowId === 'test-github', 'Expected workflow id to match')
+    assert(Math.abs(metering.byWorkflow[0].estimatedCostUsd - 0.2) < 0.0001, 'Expected workflow cost from agent traces')
+    assert(metering.byWorkflow[0].totalRuns === 1, 'Expected workflow runs from workflow traces')
   })
 
   console.log('\n========================================')

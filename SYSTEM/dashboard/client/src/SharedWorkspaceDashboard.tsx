@@ -325,6 +325,16 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const twoColLayout = compact ? 'xl:grid-cols-[0.95fr_1.05fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
   const cardPadding = compact ? 'p-3' : detail ? 'p-6' : 'p-5'
+  const sectionScrollClass = compact
+    ? 'max-h-[20rem] overflow-y-auto pr-1'
+    : detail
+      ? 'max-h-[42rem] overflow-y-auto pr-1'
+      : 'max-h-[34rem] overflow-y-auto pr-1'
+  const nestedScrollClass = compact
+    ? 'max-h-36 overflow-y-auto pr-1'
+    : detail
+      ? 'max-h-52 overflow-y-auto pr-1'
+      : 'max-h-44 overflow-y-auto pr-1'
   const totalAgents = Math.max(payload.agents.length, 1)
   const onlineAgents = payload.agents.filter(agent => agent.status === 'online' && !agent.paused).length
   const pausedAgents = payload.agents.filter(agent => agent.paused).length
@@ -548,7 +558,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <span>Info {infoNotifications}</span>
               </div>
             </div>
-            <div className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
+            <div className={`${compact ? 'space-y-2' : 'space-y-3'} ${sectionScrollClass}`}>
               {payload.notifications.slice(0, notificationsToShow).map(notification => (
                 <div key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/80">
                   <div className="flex items-center justify-between gap-3">
@@ -584,7 +594,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <span>Other {idleWorkflows}</span>
               </div>
             </div>
-            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'}`}>
+            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'} ${sectionScrollClass}`}>
               {payload.workflows.slice(0, workflowsToShow).map(workflow => (
                 <div key={workflow.id} className={`${nestedClass} ${compact ? 'p-2.5' : 'p-4'}`}>
                   <div className="flex items-center justify-between gap-3">
@@ -627,7 +637,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       {detail && workflow.latestExecution?.logsPreview?.length > 0 && (
                         <div className="rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
                           <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Trace Preview</div>
-                          <div className="space-y-1 text-xs text-gray-700 dark:text-slate-300">
+                          <div className={`space-y-1 text-xs text-gray-700 dark:text-slate-300 ${nestedScrollClass}`}>
                             {workflow.latestExecution.logsPreview.map((line, index) => (
                               <div key={`${workflow.id}-ordered-trace-${index}`} className="rounded bg-white px-2 py-1 dark:bg-slate-950/60">
                                 {line}
@@ -639,7 +649,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       {detail && workflow.executionHistory.length > 0 && (
                         <div className="rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
                           <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Recent Runs</div>
-                          <div className="space-y-1 text-xs text-gray-700 dark:text-slate-300">
+                          <div className={`space-y-1 text-xs text-gray-700 dark:text-slate-300 ${nestedScrollClass}`}>
                             {workflow.executionHistory.slice(0, 5).map((run) => (
                               <div key={run.id} className="flex items-center justify-between rounded bg-white px-2 py-1 dark:bg-slate-950/60">
                                 <span>{run.status}</span>
@@ -664,7 +674,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Group Chats</h2>
               <span className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>{payload.groupChats.length} channels</span>
             </div>
-            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'}`}>
+            <div className={`${compact ? 'space-y-1.5' : 'space-y-3'} ${sectionScrollClass}`}>
               {payload.groupChats.slice(0, chatsToShow).map((chat) => (
                 <div key={`${chat.type}:${chat.name}`} className={`${nestedClass} ${compact ? 'p-2.5' : 'p-4'}`}>
                   <div className="font-medium text-gray-900 dark:text-slate-100">{chat.name}</div>
@@ -683,7 +693,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       {detail && chat.recentMessages.length > 0 && (
                         <div className="mt-3 rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
                           <div className="mb-2 text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Recent Chat</div>
-                          <div className="space-y-2 text-xs text-gray-700 dark:text-slate-300">
+                          <div className={`space-y-2 text-xs text-gray-700 dark:text-slate-300 ${nestedScrollClass}`}>
                             {chat.recentMessages.map((message, index) => (
                               <div key={`${chat.name}-ordered-msg-${index}`} className="rounded bg-white px-2 py-1.5 dark:bg-slate-950/60">
                                 <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-500">

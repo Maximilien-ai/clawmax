@@ -55,6 +55,106 @@ export interface WorkspaceMetering {
   period: string
 }
 
+export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<WorkspaceMetering, 'period'> {
+  const agentMap = new Map<string, AgentMetering>()
+  const workflowMap = new Map<string, WorkflowMetering>()
+
+  let totalInput = 0
+  let totalOutput = 0
+
+  for (const trace of traces) {
+    const meta = trace.metadata || {}
+
+    if (trace.name.startsWith('agent.chat.')) {
+      const agentId = meta.agent_id || trace.name.replace('agent.chat.', '')
+      const existing = agentMap.get(agentId) || {
+        agentId,
+        totalCalls: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        avgDurationMs: 0,
+        lastActivity: '',
+        models: {},
+      }
+
+      existing.totalCalls++
+      existing.totalInputTokens += meta.tokens_input || 0
+      existing.totalOutputTokens += meta.tokens_output || 0
+      existing.totalTokens += meta.tokens_total || 0
+      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
+      existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalCalls - 1)) + (meta.duration_ms || 0)) / existing.totalCalls
+      if (!existing.lastActivity || trace.start_time > existing.lastActivity) {
+        existing.lastActivity = trace.start_time
+      }
+      const model: string = meta.model || 'unknown'
+      ;(existing.models as Record<string, number>)[model] = ((existing.models as Record<string, number>)[model] || 0) + 1
+
+      totalInput += meta.tokens_input || 0
+      totalOutput += meta.tokens_output || 0
+      agentMap.set(agentId, existing)
+
+      if (meta.workflow_id) {
+        const workflowId = String(meta.workflow_id)
+        const workflowExisting = workflowMap.get(workflowId) || {
+          workflowId,
+          workflowName: meta.workflow_name || workflowId,
+          totalRuns: 0,
+          totalTokens: 0,
+          estimatedCostUsd: 0,
+          avgDurationMs: 0,
+          lastRun: '',
+        }
+        workflowExisting.totalTokens += meta.tokens_total || 0
+        workflowExisting.estimatedCostUsd += meta.estimated_cost_usd || 0
+        if (!workflowExisting.lastRun || trace.start_time > workflowExisting.lastRun) {
+          workflowExisting.lastRun = trace.start_time
+        }
+        workflowMap.set(workflowId, workflowExisting)
+      }
+    } else if (trace.name.startsWith('workflow.')) {
+      const workflowId = meta.workflow_id || trace.name.replace('workflow.', '')
+      const existing = workflowMap.get(workflowId) || {
+        workflowId,
+        workflowName: meta.workflow_name || workflowId,
+        totalRuns: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        avgDurationMs: 0,
+        lastRun: '',
+      }
+
+      existing.totalRuns++
+      existing.totalTokens += meta.tokens_total || 0
+      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
+      existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalRuns - 1)) + (meta.duration_ms || 0)) / existing.totalRuns
+      if (!existing.lastRun || trace.start_time > existing.lastRun) {
+        existing.lastRun = trace.start_time
+      }
+
+      workflowMap.set(workflowId, existing)
+    }
+  }
+
+  const byAgent = Array.from(agentMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
+  const byWorkflow = Array.from(workflowMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
+  const totalCost = byAgent.reduce((s, a) => s + a.estimatedCostUsd, 0)
+  const dailyCost = buildDailyCostSeries(traces)
+
+  return {
+    totalTraces: traces.length,
+    totalInputTokens: totalInput,
+    totalOutputTokens: totalOutput,
+    totalTokens: totalInput + totalOutput,
+    estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
+    dailyCost,
+    costSummary: summarizeCostWindows(dailyCost),
+    byAgent,
+    byWorkflow,
+  }
+}
+
 export function buildDailyCostSeries(traces: TraceData[], days = 7): Array<{ date: string; estimatedCostUsd: number; traceCount: number }> {
   const buckets = new Map<string, { date: string; estimatedCostUsd: number; traceCount: number }>()
   for (let i = days - 1; i >= 0; i -= 1) {
@@ -158,86 +258,10 @@ export async function getWorkspaceMetering(workspaceId?: string): Promise<Worksp
     const workspaceId = trace.metadata?.workspace_id
     return !workspaceId || workspaceIds.has(String(workspaceId))
   })
-
-  const agentMap = new Map<string, AgentMetering>()
-  const workflowMap = new Map<string, WorkflowMetering>()
-
-  let totalInput = 0
-  let totalOutput = 0
-
-  for (const trace of traces) {
-    const meta = trace.metadata || {}
-
-    if (trace.name.startsWith('agent.chat.')) {
-      const agentId = meta.agent_id || trace.name.replace('agent.chat.', '')
-      const existing = agentMap.get(agentId) || {
-        agentId,
-        totalCalls: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        totalTokens: 0,
-        estimatedCostUsd: 0,
-        avgDurationMs: 0,
-        lastActivity: '',
-        models: {},
-      }
-
-      existing.totalCalls++
-      existing.totalInputTokens += meta.tokens_input || 0
-      existing.totalOutputTokens += meta.tokens_output || 0
-      existing.totalTokens += meta.tokens_total || 0
-      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
-      existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalCalls - 1)) + (meta.duration_ms || 0)) / existing.totalCalls
-      if (!existing.lastActivity || trace.start_time > existing.lastActivity) {
-        existing.lastActivity = trace.start_time
-      }
-      const model: string = meta.model || 'unknown'
-      ;(existing.models as Record<string, number>)[model] = ((existing.models as Record<string, number>)[model] || 0) + 1
-
-      totalInput += meta.tokens_input || 0
-      totalOutput += meta.tokens_output || 0
-
-      agentMap.set(agentId, existing)
-    } else if (trace.name.startsWith('workflow.')) {
-      const workflowId = meta.workflow_id || trace.name.replace('workflow.', '')
-      const existing = workflowMap.get(workflowId) || {
-        workflowId,
-        workflowName: meta.workflow_name || workflowId,
-        totalRuns: 0,
-        totalTokens: 0,
-        estimatedCostUsd: 0,
-        avgDurationMs: 0,
-        lastRun: '',
-      }
-
-      existing.totalRuns++
-      existing.totalTokens += meta.tokens_total || 0
-      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
-      existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalRuns - 1)) + (meta.duration_ms || 0)) / existing.totalRuns
-      if (!existing.lastRun || trace.start_time > existing.lastRun) {
-        existing.lastRun = trace.start_time
-      }
-
-      workflowMap.set(workflowId, existing)
-    }
-  }
-
-  const byAgent = Array.from(agentMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
-  const byWorkflow = Array.from(workflowMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
-
-  const totalCost = byAgent.reduce((s, a) => s + a.estimatedCostUsd, 0)
-  const dailyCost = buildDailyCostSeries(traces)
+  const aggregated = aggregateWorkspaceMeteringFromTraces(traces)
 
   return {
-    totalTraces: traces.length,
-    totalInputTokens: totalInput,
-    totalOutputTokens: totalOutput,
-    totalTokens: totalInput + totalOutput,
-    estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
-    dailyCost,
-    costSummary: summarizeCostWindows(dailyCost),
-    byAgent,
-    byWorkflow,
+    ...aggregated,
     period: 'all',
   }
 }
