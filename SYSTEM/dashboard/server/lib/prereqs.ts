@@ -9,6 +9,8 @@ import path from 'path'
 import os from 'os'
 import { getConfiguredGatewayPort, isGatewayConfigured, isGatewayRunning } from './gateway-rpc'
 import { getSystemProviderKeys, getUserDefaultProviderKeys } from './dashboard-env'
+import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { listAvailableSkills } from './skills'
 
 export interface PrereqCheck {
   id: string
@@ -16,13 +18,29 @@ export interface PrereqCheck {
   status: 'pass' | 'fail' | 'warn'
   message: string
   fixHint?: string
-  category: 'infrastructure' | 'auth' | 'skill' | 'keys'
+  category: 'infrastructure' | 'auth' | 'skill' | 'keys' | 'tooling'
+}
+
+export interface PrereqExpectation {
+  id: string
+  label: string
+  status: 'ready' | 'limited'
+  message: string
 }
 
 export interface PrereqResult {
   ready: boolean
   checks: PrereqCheck[]
+  expectations: PrereqExpectation[]
   summary: { pass: number; fail: number; warn: number }
+}
+
+interface TemplatePrereqOptions {
+  useGithub?: boolean
+  githubRepo?: string
+  useSenso?: boolean
+  sensoContextLabel?: string
+  useWorkspaceFs?: boolean
 }
 
 function commandExists(command: string): boolean {
@@ -101,9 +119,12 @@ const SKILL_REQUIREMENTS: Record<string, { label: string; check: () => PrereqChe
 export function checkTemplatePrereqs(template: {
   agents?: Array<{ id: string; skills?: string[] }>
   workflows?: Array<{ id: string }>
-}): PrereqResult {
+}, options: TemplatePrereqOptions = {}): PrereqResult {
   const checks: PrereqCheck[] = []
   const seen = new Set<string>()
+  const expectations: PrereqExpectation[] = []
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const availableSkillNames = new Set(listAvailableSkills().map((skill) => skill.name))
 
   // ── Infrastructure checks ──
   // OpenClaw CLI
@@ -129,20 +150,30 @@ export function checkTemplatePrereqs(template: {
   // ── API Keys ──
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
-  const hasSystemKeys = !!(systemKeys.openai || systemKeys.anthropic)
-  const hasUserKeys = !!(userKeys.openai || userKeys.anthropic)
+  const hasSystemKeys = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini)
+  const hasUserKeys = !!(userKeys.openai || userKeys.anthropic || userKeys.gemini)
+  const hasOllamaPath = !!(integrationConfig.ollamaBaseUrl?.trim() && integrationConfig.ollamaDefaultModel?.trim())
+  const hasExecutionPath = hasSystemKeys || hasUserKeys || hasOllamaPath
 
-  if (hasSystemKeys) {
-    checks.push({ id: 'api-keys', label: 'LLM API Keys', status: 'pass', message: 'System keys configured', category: 'keys' })
+  if (hasOllamaPath) {
+    checks.push({
+      id: 'execution-path',
+      label: 'Execution Model Path',
+      status: 'pass',
+      message: `Ollama default ready (${integrationConfig.ollamaDefaultModel})`,
+      category: 'keys'
+    })
+  } else if (hasSystemKeys) {
+    checks.push({ id: 'execution-path', label: 'Execution Model Path', status: 'pass', message: 'System keys configured', category: 'keys' })
   } else if (hasUserKeys) {
-    checks.push({ id: 'api-keys', label: 'LLM API Keys', status: 'pass', message: 'User default keys configured', category: 'keys' })
+    checks.push({ id: 'execution-path', label: 'Execution Model Path', status: 'pass', message: 'User default keys configured', category: 'keys' })
   } else {
     checks.push({
-      id: 'api-keys',
-      label: 'LLM API Keys',
+      id: 'execution-path',
+      label: 'Execution Model Path',
       status: 'warn',
-      message: 'No server-side LLM keys configured — browser BYOK may still work for template apply and manual runs',
-      fixHint: 'Configure keys via Workspaces Integrations / BYOK, or add server keys to SYSTEM/dashboard/.env',
+      message: 'No server-side or workspace-default execution path configured — browser BYOK may still work for template apply and manual runs',
+      fixHint: 'Configure a preferred model in Workspaces Integrations or add provider keys to SYSTEM/dashboard/.env',
       category: 'keys'
     })
   }
@@ -155,6 +186,77 @@ export function checkTemplatePrereqs(template: {
     }
   }
 
+  if (options.useGithub) {
+    allSkills.add('github')
+    allSkills.add('gh-issues')
+    if (!options.githubRepo?.trim()) {
+      checks.push({
+        id: 'github-repo',
+        label: 'GitHub repository',
+        status: 'warn',
+        message: 'GitHub coordination is enabled, but no repo is configured for this apply',
+        fixHint: 'Set owner/repo in the Context step before applying',
+        category: 'tooling'
+      })
+    } else {
+      checks.push({
+        id: 'github-repo',
+        label: 'GitHub repository',
+        status: 'pass',
+        message: `GitHub repo ready: ${options.githubRepo.trim()}`,
+        category: 'tooling'
+      })
+    }
+  }
+
+  if (options.useSenso) {
+    const contextLabel = options.sensoContextLabel?.trim() || integrationConfig.sensoContextLabel?.trim()
+    checks.push({
+      id: 'senso-context',
+      label: 'Senso shared context',
+      status: contextLabel ? 'pass' : 'warn',
+      message: contextLabel
+        ? `Senso context ready: ${contextLabel}`
+        : 'Senso enabled, but no preferred context label is set',
+      fixHint: contextLabel ? undefined : 'Add a Senso folder/context in the Context step or Workspaces Integrations',
+      category: 'tooling'
+    })
+    checks.push({
+      id: 'senso-auth-preview',
+      label: 'Senso auth',
+      status: 'warn',
+      message: 'Senso auth is browser-local in this preview flow — verify it in Workspaces Integrations before running workflows',
+      fixHint: 'Open Workspaces Integrations and validate Senso before applying',
+      category: 'auth'
+    })
+  }
+
+  if (options.useWorkspaceFs) {
+    checks.push({
+      id: 'workspace-files',
+      label: 'Workspace file coordination',
+      status: commandExists('openclaw') ? 'pass' : 'fail',
+      message: commandExists('openclaw')
+        ? 'Workspace files will be available to agents through the shared workspace'
+        : 'OpenClaw CLI is not installed, so shared workspace file coordination will not work',
+      fixHint: commandExists('openclaw') ? undefined : 'Install openclaw before applying file-heavy templates',
+      category: 'tooling'
+    })
+  }
+
+  for (const skillId of allSkills) {
+    if (!availableSkillNames.has(skillId)) {
+      checks.push({
+        id: `skill-available:${skillId}`,
+        label: `Skill available: ${skillId}`,
+        status: 'warn',
+        message: `Skill "${skillId}" is not currently installed in this workspace catalog`,
+        fixHint: 'Install or sync the skill before applying if the workflow depends on it',
+        category: 'skill'
+      })
+    }
+  }
+
   for (const skillId of allSkills) {
     const req = SKILL_REQUIREMENTS[skillId]
     if (req && !seen.has(req.check().id)) {
@@ -162,6 +264,59 @@ export function checkTemplatePrereqs(template: {
       seen.add(check.id)
       checks.push(check)
     }
+  }
+
+  const usesSkills = allSkills.size > 0
+  expectations.push({
+    id: 'agent-execution',
+    label: 'Agent execution',
+    status: hasExecutionPath ? 'ready' : 'limited',
+    message: hasExecutionPath
+      ? 'Agents should be able to run with the current model/auth configuration'
+      : 'Agents may apply successfully but block when they try to execute'
+  })
+  if (usesSkills) {
+    const gatewayStatus = isGatewayRunning()
+    expectations.push({
+      id: 'tool-using-agents',
+      label: 'Tool-using agents',
+      status: gatewayStatus.running ? 'ready' : 'limited',
+      message: gatewayStatus.running
+        ? 'Skill-enabled agents should be able to use their tools'
+        : 'Agents can still respond, but tool actions are likely to fail until the gateway is running'
+    })
+  }
+  if (options.useGithub) {
+    const githubReady = checks.some((check) => check.id === 'github-auth' && check.status === 'pass')
+    expectations.push({
+      id: 'github-coordination',
+      label: 'GitHub coordination',
+      status: githubReady && !!options.githubRepo?.trim() ? 'ready' : 'limited',
+      message: githubReady && !!options.githubRepo?.trim()
+        ? `Issues/PR coordination should work in ${options.githubRepo?.trim()}`
+        : 'GitHub is enabled, but issue/PR coordination is likely to degrade until gh auth and repo setup are complete'
+    })
+  }
+  if (options.useSenso) {
+    const contextLabel = options.sensoContextLabel?.trim() || integrationConfig.sensoContextLabel?.trim()
+    expectations.push({
+      id: 'senso-memory',
+      label: 'Senso memory & evidence',
+      status: contextLabel ? 'ready' : 'limited',
+      message: contextLabel
+        ? `Senso context will be seeded under ${contextLabel}`
+        : 'Senso is enabled, but users should expect context setup friction until a folder/context is chosen'
+    })
+  }
+  if (options.useWorkspaceFs) {
+    expectations.push({
+      id: 'workspace-files-summary',
+      label: 'Workspace file coordination',
+      status: commandExists('openclaw') ? 'ready' : 'limited',
+      message: commandExists('openclaw')
+        ? 'Agents should be able to write drafts and intermediate artifacts into the shared workspace'
+        : 'Shared workspace file tasks are likely to fail until the local runtime is installed'
+    })
   }
 
   // ── Summary ──
@@ -172,6 +327,7 @@ export function checkTemplatePrereqs(template: {
   return {
     ready: fail === 0,
     checks,
+    expectations,
     summary: { pass, fail, warn },
   }
 }

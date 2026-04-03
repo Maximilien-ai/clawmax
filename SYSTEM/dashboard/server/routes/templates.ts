@@ -309,7 +309,7 @@ router.post('/agents/import', (req, res) => {
 // POST /api/templates/organizations/import - Import organization from template
 // POST /api/templates/organizations/prereqs — check prerequisites before applying
 router.post('/organizations/prereqs', (req, res) => {
-  const { templateSlug } = req.body
+  const { templateSlug, useGithub, githubRepo, useSenso, sensoContextLabel, useWorkspaceFs } = req.body
   if (!templateSlug) {
     return res.status(400).json({ error: 'templateSlug is required' })
   }
@@ -320,7 +320,13 @@ router.post('/organizations/prereqs', (req, res) => {
   }
 
   const { checkTemplatePrereqs } = require('../lib/prereqs')
-  const result = checkTemplatePrereqs(template)
+  const result = checkTemplatePrereqs(template, {
+    useGithub: !!useGithub,
+    githubRepo: typeof githubRepo === 'string' ? githubRepo : undefined,
+    useSenso: !!useSenso,
+    sensoContextLabel: typeof sensoContextLabel === 'string' ? sensoContextLabel : undefined,
+    useWorkspaceFs: !!useWorkspaceFs,
+  })
   res.json(result)
 })
 

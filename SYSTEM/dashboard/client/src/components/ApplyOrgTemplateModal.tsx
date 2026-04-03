@@ -84,7 +84,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
   // Prerequisites check
-  const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
+  const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; expectations?: Array<{ id: string; label: string; status: string; message: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
   const [prereqsLoading, setPrereqsLoading] = useState(true)
 
   React.useEffect(() => {
@@ -129,15 +129,23 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }, [])
 
   React.useEffect(() => {
+    setPrereqsLoading(true)
     fetch('/api/templates/organizations/prereqs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateSlug: template.slug || template.name }),
+      body: JSON.stringify({
+        templateSlug: template.slug || template.name,
+        useGithub,
+        githubRepo,
+        useSenso,
+        sensoContextLabel: sensoFolder,
+        useWorkspaceFs,
+      }),
     })
       .then(r => r.json())
       .then(data => { setPrereqs(data); setPrereqsLoading(false) })
       .catch(() => setPrereqsLoading(false))
-  }, [template.slug, template.name])
+  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useWorkspaceFs])
 
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
@@ -436,12 +444,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         {/* Prerequisites check */}
         {prereqsLoading ? (
           <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
-            Checking prerequisites...
+            Checking readiness...
           </div>
         ) : prereqs && (prereqs.summary.fail > 0 || prereqs.summary.warn > 0) ? (
           <div className={`mb-4 p-3 rounded-lg border text-sm ${prereqs.summary.fail > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
             <div className={`font-medium mb-2 ${prereqs.summary.fail > 0 ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200'}`}>
-              {prereqs.summary.fail > 0 ? `${prereqs.summary.fail} prerequisite(s) not met` : `${prereqs.summary.warn} warning(s)`}
+              {prereqs.summary.fail > 0 ? `${prereqs.summary.fail} readiness check(s) not met` : `${prereqs.summary.warn} readiness warning(s)`}
             </div>
             <div className="space-y-1.5">
               {prereqs.checks.filter(c => c.status !== 'pass').map(c => (
@@ -467,9 +475,27 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           </div>
         ) : prereqs ? (
           <div className="mb-4 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
-            <span>✓</span> All prerequisites met ({prereqs.summary.pass} checks passed)
+            <span>✓</span> Readiness checks passed ({prereqs.summary.pass} checks passed)
           </div>
         ) : null}
+            {prereqs?.expectations && prereqs.expectations.length > 0 && (
+              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">What To Expect</div>
+                <div className="space-y-2">
+                  {prereqs.expectations.map((expectation) => (
+                    <div key={expectation.id} className="flex items-start gap-2 text-sm">
+                      <span className={expectation.status === 'ready' ? 'text-green-500' : 'text-amber-500'}>
+                        {expectation.status === 'ready' ? '✓' : '⚠'}
+                      </span>
+                      <div>
+                        <div className="text-gray-800 dark:text-gray-200 font-medium">{expectation.label}</div>
+                        <div className="text-gray-500 dark:text-gray-400">{expectation.message}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-between mt-4">
               <button onClick={() => setWizardStep('preview')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Preview</button>
               <button onClick={() => { setCustomizeStep('team'); setWizardStep('customize') }} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors font-medium">Next: Customize &rarr;</button>
