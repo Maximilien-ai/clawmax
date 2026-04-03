@@ -40,12 +40,12 @@ const DEFAULT_SECTION_ORDER: Array<'overview' | 'costs' | 'agents' | 'notificati
 ]
 const DEFAULT_COMPACT_COLUMNS: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'> = {
   overview: 'left',
-  costs: 'left',
-  agents: 'right',
+  costs: 'right',
+  agents: 'left',
   notifications: 'right',
   workflows: 'left',
   kickoff: 'left',
-  results: 'left',
+  results: 'right',
   groupChats: 'right',
 }
 

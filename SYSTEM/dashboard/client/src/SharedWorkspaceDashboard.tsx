@@ -132,12 +132,12 @@ function normalizePayload(input: any): SharedDashboardPayload {
       sectionOrder: Array.isArray(input?.dashboard?.sectionOrder) && input.dashboard.sectionOrder.length > 0 ? input.dashboard.sectionOrder : ['overview', 'costs', 'agents', 'notifications', 'workflows', 'kickoff', 'results', 'groupChats'],
       compactColumns: {
         overview: input?.dashboard?.compactColumns?.overview === 'right' ? 'right' : 'left',
-        costs: input?.dashboard?.compactColumns?.costs === 'right' ? 'right' : 'left',
+        costs: input?.dashboard?.compactColumns?.costs === 'left' ? 'left' : 'right',
         agents: input?.dashboard?.compactColumns?.agents === 'left' ? 'left' : 'right',
         notifications: input?.dashboard?.compactColumns?.notifications === 'left' ? 'left' : 'right',
         workflows: input?.dashboard?.compactColumns?.workflows === 'right' ? 'right' : 'left',
         kickoff: input?.dashboard?.compactColumns?.kickoff === 'right' ? 'right' : 'left',
-        results: input?.dashboard?.compactColumns?.results === 'right' ? 'right' : 'left',
+        results: input?.dashboard?.compactColumns?.results === 'left' ? 'left' : 'right',
         groupChats: input?.dashboard?.compactColumns?.groupChats === 'left' ? 'left' : 'right',
       },
       sections: {
@@ -289,11 +289,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const compact = payload.dashboard.displayMode === 'compact'
   const detail = payload.dashboard.displayMode === 'detail'
   const notificationsToShow = compact ? 2 : detail ? 12 : 8
-  const agentsToShow = compact ? 4 : detail ? payload.agents.length : payload.agents.length
-  const workflowsToShow = compact ? 3 : detail ? payload.workflows.length : payload.workflows.length
-  const chatsToShow = compact ? 3 : detail ? payload.groupChats.length : payload.groupChats.length
-  const containerWidth = compact ? 'max-w-6xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
-  const twoColLayout = compact ? 'xl:grid-cols-[1.1fr_0.9fr]' : 'xl:grid-cols-[1.4fr_1fr]'
+  const agentsToShow = compact ? 3 : detail ? payload.agents.length : payload.agents.length
+  const workflowsToShow = compact ? 2 : detail ? payload.workflows.length : payload.workflows.length
+  const chatsToShow = compact ? 2 : detail ? payload.groupChats.length : payload.groupChats.length
+  const containerWidth = compact ? 'max-w-7xl' : detail ? 'max-w-[96rem]' : 'max-w-7xl'
+  const twoColLayout = compact ? 'xl:grid-cols-[0.95fr_1.05fr]' : 'xl:grid-cols-[1.4fr_1fr]'
   const lowerGrid = compact ? 'xl:grid-cols-[1fr_1fr]' : 'xl:grid-cols-[1.1fr_1fr]'
   const cardPadding = compact ? 'p-3' : detail ? 'p-6' : 'p-5'
   const totalAgents = Math.max(payload.agents.length, 1)
@@ -331,18 +331,18 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const renderCostTrend = (dark: boolean) => {
     if (!payload.costs.metering.dailyCost.length) return null
     return (
-      <div className={`mt-4 rounded-xl border ${dark ? 'border-white/10 bg-slate-800/70' : 'border-gray-200 bg-gray-50'} ${compact ? 'p-3' : 'p-4'}`}>
-        <div className={`mb-3 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide ${dark ? 'text-slate-500' : 'text-gray-500'}`}>
-          <span>Spend trend</span>
-          <span>Last {payload.costs.metering.dailyCost.length}d</span>
-        </div>
-        <div className="flex items-end gap-2">
+        <div className={`mt-4 rounded-xl border ${dark ? 'border-white/10 bg-slate-800/70' : 'border-gray-200 bg-gray-50'} ${compact ? 'p-2.5' : 'p-4'}`}>
+          <div className={`mb-3 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide ${dark ? 'text-slate-500' : 'text-gray-500'}`}>
+            <span>Spend trend</span>
+            <span>Last {payload.costs.metering.dailyCost.length}d</span>
+          </div>
+        <div className={`flex items-end ${compact ? 'gap-1.5' : 'gap-2'}`}>
           {payload.costs.metering.dailyCost.map((entry) => {
             const heightPct = dailyCostMax > 0 ? Math.max((entry.estimatedCostUsd / dailyCostMax) * 100, entry.estimatedCostUsd > 0 ? 12 : 6) : 8
             return (
-              <div key={entry.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>${entry.estimatedCostUsd.toFixed(2)}</div>
-                <div className={`flex h-20 w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
+              <div key={entry.date} className={`flex min-w-0 flex-1 flex-col items-center ${compact ? 'gap-1' : 'gap-2'}`}>
+                {!compact && <div className={`text-[10px] ${dark ? 'text-slate-500' : 'text-gray-500'}`}>${entry.estimatedCostUsd.toFixed(2)}</div>}
+                <div className={`flex ${compact ? 'h-14' : 'h-20'} w-full items-end rounded-md ${dark ? 'bg-slate-900/70' : 'bg-white'}`}>
                   <div
                     className={`w-full rounded-md ${dark ? 'bg-emerald-400/90' : 'bg-emerald-500'}`}
                     style={{ height: `${heightPct}%` }}
@@ -418,14 +418,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                 <div className="mt-1 font-semibold text-gray-900 dark:text-slate-100">${payload.costs.metering.costSummary.avgDailyCostUsd.toFixed(2)}</div>
               </div>
             </div>
-            {renderCostTrend(false)}
+            {!compact && renderCostTrend(false)}
             <div className="mt-4">
               <div className={`mb-2 flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} uppercase tracking-wide text-gray-500 dark:text-slate-500`}>
                 <span>Top Workflow Spend</span>
                 {payload.costs.metering.byWorkflow.length > 0 && <span>{workflowSharePct.toFixed(0)}% of total</span>}
               </div>
               <div className={`${compact ? 'space-y-1.5' : 'space-y-2'}`}>
-                {payload.costs.metering.byWorkflow.slice(0, compact ? 3 : 5).map((workflow) => (
+                {payload.costs.metering.byWorkflow.slice(0, compact ? 2 : 5).map((workflow) => (
                   <div key={workflow.workflowId} className={`flex items-center justify-between rounded-lg bg-gray-50 px-3 dark:bg-slate-800/70 ${compact ? 'py-1.5 text-xs' : 'py-2 text-sm'}`}>
                     <div className="min-w-0 pr-3">
                       <div className="truncate font-medium text-gray-900 dark:text-slate-100">{workflow.workflowName || workflow.workflowId}</div>
