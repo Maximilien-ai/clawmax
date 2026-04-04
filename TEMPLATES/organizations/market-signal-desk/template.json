@@ -171,6 +171,96 @@
       ]
     },
     {
+      "id": "macro-and-sector-scan",
+      "name": "Macro And Sector Scan",
+      "description": "Review macro shifts, sector moves, and the broad market context that matters for the watchlist.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "market-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Markets"
+        ],
+        "tags": [],
+        "agents": [
+          "market-analyst"
+        ]
+      },
+      "content": "# Macro And Sector Scan\n\n1. Review the watchlist, sector focus, time horizon, and risk style defined in kickoff\n2. Identify the most important macro shifts, sector moves, and broad market context that affect the watchlist\n3. Separate durable signal from short-lived noise or overreaction\n4. Highlight the few market-level developments that should change attention or risk posture now\n5. Post the macro and sector scan to Markets and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "market-attention-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "market-signal-desk",
+        "macro-and-sector-scan"
+      ]
+    },
+    {
+      "id": "company-catalyst-review",
+      "name": "Company Catalyst Review",
+      "description": "Review company-specific developments, earnings, and catalysts for the names in scope.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "company-tracker",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Companies"
+        ],
+        "tags": [],
+        "agents": [
+          "company-tracker"
+        ]
+      },
+      "content": "# Company Catalyst Review\n\n1. Review the companies or themes in scope for this market pass\n2. Summarize the highest-signal company developments, earnings updates, product moves, or leadership changes\n3. Note which developments seem materially important versus likely narrative noise\n4. Highlight the names that deserve immediate attention, caution, or follow-up\n5. Post the company catalyst review to Companies and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "market-attention-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "market-signal-desk",
+        "company-catalyst-review"
+      ]
+    },
+    {
+      "id": "sentiment-signal-check",
+      "name": "Sentiment Signal Check",
+      "description": "Review retail and community sentiment without confusing it for grounded market truth.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "sentiment-watcher",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Sentiment"
+        ],
+        "tags": [],
+        "agents": [
+          "sentiment-watcher"
+        ]
+      },
+      "content": "# Sentiment Signal Check\n\n1. Review the most relevant retail, community, and narrative sentiment tied to the watchlist or sector\n2. Identify which sentiment patterns are worth noticing and which are likely noise, hype, or lagging reaction\n3. Call out sentiment extremes, unusual divergence, or crowd narratives that could distort decision-making\n4. Summarize how sentiment should influence attention, if at all\n5. Post the sentiment signal check to Sentiment and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "market-attention-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "market-signal-desk",
+        "sentiment-signal-check"
+      ]
+    },
+    {
       "id": "market-signal-digest",
       "name": "Market Signal Digest",
       "description": "Market Signal Digest",
@@ -191,7 +281,9 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "market-attention-kickoff"
+        "macro-and-sector-scan",
+        "company-catalyst-review",
+        "sentiment-signal-check"
       ],
       "tags": [
         "workflow",

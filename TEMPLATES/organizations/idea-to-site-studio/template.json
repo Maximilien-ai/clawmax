@@ -174,6 +174,67 @@
       ]
     },
     {
+      "id": "site-positioning-and-copy",
+      "name": "Site Positioning And Copy",
+      "description": "Turn the idea into clear page messaging, structure, and CTA direction.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "copy-writer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Product",
+          "Copy"
+        ],
+        "tags": [],
+        "agents": [
+          "copy-writer"
+        ]
+      },
+      "content": "# Site Positioning And Copy\n\n1. Review the idea, audience, site goal, and visual vibe defined in kickoff\n2. Turn them into a clear page message, section flow, CTA, and tone direction\n3. Make the copy concrete enough that the builder can implement without guessing the product story\n4. Call out where the messaging is strong versus where the idea still feels vague or generic\n5. Post the positioning and copy draft to Copy and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "site-idea-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "idea-to-site-studio",
+        "site-positioning-and-copy"
+      ]
+    },
+    {
+      "id": "site-build-pass",
+      "name": "Site Build Pass",
+      "description": "Turn the positioning and copy into a concrete implementation pass.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "prototype-builder",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Build"
+        ],
+        "tags": [],
+        "agents": [
+          "prototype-builder"
+        ]
+      },
+      "content": "# Site Build Pass\n\n1. Review the approved positioning, copy, and site goal from the earlier steps\n2. Build the page structure, implementation approach, and technical plan needed for a first shippable version\n3. Keep scope tight and biased toward a convincing v1 rather than an overbuilt draft\n4. Call out what is done, what remains, and what blocks a public push\n5. Post the build pass to Build and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "site-positioning-and-copy"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "idea-to-site-studio",
+        "site-build-pass"
+      ]
+    },
+    {
       "id": "site-build-review",
       "name": "Site Build Review",
       "description": "Site Build Review",
@@ -194,7 +255,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "site-idea-kickoff"
+        "site-positioning-and-copy",
+        "site-build-pass"
       ],
       "tags": [
         "workflow",

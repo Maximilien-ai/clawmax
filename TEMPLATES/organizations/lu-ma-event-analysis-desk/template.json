@@ -265,6 +265,170 @@
       ]
     },
     {
+      "id": "lu-ma-event-patterns",
+      "name": "Lu.ma Event Patterns",
+      "description": "Analyze event-level performance, topics, formats, and timing patterns across the Lu.ma scope.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "event-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Events"
+        ],
+        "tags": [],
+        "agents": [
+          "event-analyst"
+        ]
+      },
+      "content": "# Lu.ma Event Patterns\n\n1. Review the event set defined in kickoff and confirm which events are actually in scope\n2. Compare event formats, themes, timing, cadence, and event-level turnout patterns\n3. Note which comparisons are strongly supported by data versus inferred from partial evidence\n4. Call out the strongest event-level wins, weak spots, and unusual changes over time\n5. Post the event analysis to Events and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "lu-ma-analysis-kickoff"
+      ],
+      "secretRequirements": [
+        {
+          "key": "LUMA_EVENT_SCOPE",
+          "label": "Lu.ma Event URL or Slug",
+          "kind": "url",
+          "required": true,
+          "placeholder": "https://lu.ma/your-event or your-event-slug",
+          "sensitive": false,
+          "help": "Use the same Lu.ma scope confirmed in kickoff."
+        }
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-event-patterns"
+      ]
+    },
+    {
+      "id": "lu-ma-audience-patterns",
+      "name": "Lu.ma Audience Patterns",
+      "description": "Analyze attendee mix, repeat behavior, no-shows, and meaningful cohort differences.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "audience-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Attendees"
+        ],
+        "tags": [],
+        "agents": [
+          "audience-analyst"
+        ]
+      },
+      "content": "# Lu.ma Audience Patterns\n\n1. Review the attendee and registration data in scope for this analysis\n2. Identify the most important audience segments, repeat-attendance patterns, VIP signals, and no-show behavior\n3. Separate reliable attendee patterns from places where the data is too thin to support a strong claim\n4. Highlight what type of audience seems to engage most and where the organizer may have a fit or retention gap\n5. Post the audience analysis to Attendees and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "lu-ma-analysis-kickoff"
+      ],
+      "secretRequirements": [
+        {
+          "key": "LUMA_EVENT_SCOPE",
+          "label": "Lu.ma Event URL or Slug",
+          "kind": "url",
+          "required": true,
+          "placeholder": "https://lu.ma/your-event or your-event-slug",
+          "sensitive": false,
+          "help": "Use the same Lu.ma scope confirmed in kickoff."
+        }
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-audience-patterns"
+      ]
+    },
+    {
+      "id": "lu-ma-invite-funnel-review",
+      "name": "Lu.ma Invite Funnel Review",
+      "description": "Analyze invites, RSVP conversion, waitlist behavior, and distribution quality.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "invite-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Invites"
+        ],
+        "tags": [],
+        "agents": [
+          "invite-analyst"
+        ]
+      },
+      "content": "# Lu.ma Invite Funnel Review\n\n1. Review the invite and RSVP funnel data for the selected event scope\n2. Summarize invite volume, conversion, waitlist behavior, declines, and any noticeable channel differences\n3. Identify where the funnel appears healthy, leaky, or ambiguous because of missing data\n4. Recommend the most promising invite or distribution adjustments for the next event cycle\n5. Post the funnel review to Invites and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "lu-ma-analysis-kickoff"
+      ],
+      "secretRequirements": [
+        {
+          "key": "LUMA_EVENT_SCOPE",
+          "label": "Lu.ma Event URL or Slug",
+          "kind": "url",
+          "required": true,
+          "placeholder": "https://lu.ma/your-event or your-event-slug",
+          "sensitive": false,
+          "help": "Use the same Lu.ma scope confirmed in kickoff."
+        }
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-invite-funnel-review"
+      ]
+    },
+    {
+      "id": "lu-ma-engagement-signals",
+      "name": "Lu.ma Engagement Signals",
+      "description": "Analyze comments, chat, external feedback, and qualitative engagement signals.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "signal-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Signals"
+        ],
+        "tags": [],
+        "agents": [
+          "signal-analyst"
+        ]
+      },
+      "content": "# Lu.ma Engagement Signals\n\n1. Review comments, chat, post-event notes, and other external engagement signals tied to the selected event scope\n2. Extract the strongest recurring themes, sentiment patterns, and organizer-relevant feedback\n3. Distinguish direct evidence from softer interpretation or anecdotal signal\n4. Highlight what seems to drive excitement, confusion, drop-off, or follow-through\n5. Post the engagement signal review to Signals and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "lu-ma-analysis-kickoff"
+      ],
+      "secretRequirements": [
+        {
+          "key": "LUMA_EVENT_SCOPE",
+          "label": "Lu.ma Event URL or Slug",
+          "kind": "url",
+          "required": true,
+          "placeholder": "https://lu.ma/your-event or your-event-slug",
+          "sensitive": false,
+          "help": "Use the same Lu.ma scope confirmed in kickoff."
+        }
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "luma-event-analysis-desk",
+        "lu-ma-engagement-signals"
+      ]
+    },
+    {
       "id": "lu-ma-insight-brief",
       "name": "Lu.ma Insight Brief",
       "description": "Turn the event, attendee, invite, and signal work into a concise organizer-ready brief.",
@@ -285,7 +449,10 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "lu-ma-analysis-kickoff"
+        "lu-ma-event-patterns",
+        "lu-ma-audience-patterns",
+        "lu-ma-invite-funnel-review",
+        "lu-ma-engagement-signals"
       ],
       "secretRequirements": [
         {

@@ -173,6 +173,67 @@
       ]
     },
     {
+      "id": "benchmark-design-review",
+      "name": "Benchmark Design Review",
+      "description": "Define the scenarios, rubric, and success criteria for the evaluation.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "benchmark-designer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Benchmarks"
+        ],
+        "tags": [],
+        "agents": [
+          "benchmark-designer"
+        ]
+      },
+      "content": "# Benchmark Design Review\n\n1. Review the models, use case, and evaluation focus defined in kickoff\n2. Turn them into a concrete rubric, scenario set, and scoring approach\n3. Make sure the benchmark covers the most important tradeoffs without ballooning scope\n4. Call out what the benchmark can measure well versus what will remain subjective\n5. Post the benchmark design review to Benchmarks and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "model-eval-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "ai-model-eval-lab",
+        "benchmark-design-review"
+      ]
+    },
+    {
+      "id": "structured-eval-run",
+      "name": "Structured Eval Run",
+      "description": "Run the agreed scenarios and capture the strongest results and failure modes.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "eval-runner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Benchmarks",
+          "Comparisons"
+        ],
+        "tags": [],
+        "agents": [
+          "eval-runner"
+        ]
+      },
+      "content": "# Structured Eval Run\n\n1. Use the approved benchmark design to compare the models or agents in scope\n2. Capture the strongest wins, losses, quality differences, speed tradeoffs, and notable failure modes\n3. Keep the results structured enough that a recommendation can be justified clearly\n4. Distinguish direct eval evidence from interpretation or guesswork\n5. Post the structured eval run results to Comparisons and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "benchmark-design-review"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "ai-model-eval-lab",
+        "structured-eval-run"
+      ]
+    },
+    {
       "id": "comparison-memo",
       "name": "Comparison Memo",
       "description": "Comparison Memo",
@@ -193,7 +254,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "model-eval-kickoff"
+        "benchmark-design-review",
+        "structured-eval-run"
       ],
       "tags": [
         "workflow",

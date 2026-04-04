@@ -273,10 +273,10 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Installation Activity</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Workspace Activity</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             <span className="flex items-center gap-1.5">
-            All file writes across all agents
+            File writes and metering for the active workspace
             <span className="text-gray-300">·</span>
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
             refreshed {refreshedLabel}

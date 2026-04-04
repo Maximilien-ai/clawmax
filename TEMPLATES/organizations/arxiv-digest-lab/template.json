@@ -173,6 +173,66 @@
       ]
     },
     {
+      "id": "paper-scouting-pass",
+      "name": "Paper Scouting Pass",
+      "description": "Find and filter the strongest recent papers in the chosen topic area.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "paper-scout",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Scouting"
+        ],
+        "tags": [],
+        "agents": [
+          "paper-scout"
+        ]
+      },
+      "content": "# Paper Scouting Pass\n\n1. Review the topic, time window, and desired depth defined in kickoff\n2. Find the strongest recent papers that are genuinely relevant to the topic\n3. Filter out weak matches, low-signal hype, and papers that do not deserve scarce attention\n4. Explain why the shortlisted papers matter for the intended audience\n5. Post the scouting pass to Scouting and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "arxiv-topic-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "arxiv-digest-lab",
+        "paper-scouting-pass"
+      ]
+    },
+    {
+      "id": "paper-summary-pass",
+      "name": "Paper Summary Pass",
+      "description": "Turn the shortlisted papers into clear summaries with caveats and practical takeaways.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "summary-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Summaries"
+        ],
+        "tags": [],
+        "agents": [
+          "summary-analyst"
+        ]
+      },
+      "content": "# Paper Summary Pass\n\n1. Review the shortlisted papers produced by the scouting pass\n2. Summarize each paper in plain language with methods, strongest contribution, and practical caveats\n3. Distinguish strong evidence from speculative claims or likely overstatement\n4. Keep the summaries useful for the audience chosen in kickoff\n5. Post the paper summary pass to Summaries and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "paper-scouting-pass"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "arxiv-digest-lab",
+        "paper-summary-pass"
+      ]
+    },
+    {
       "id": "paper-digest-build",
       "name": "Paper Digest Build",
       "description": "Paper Digest Build",
@@ -193,7 +253,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "arxiv-topic-kickoff"
+        "paper-scouting-pass",
+        "paper-summary-pass"
       ],
       "tags": [
         "workflow",

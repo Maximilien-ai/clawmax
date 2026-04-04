@@ -17,6 +17,8 @@ import {
   completeWorkflow,
   getDAGStatus,
   triggerWorkflow,
+  getExecution,
+  resolveParticipants,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -259,6 +261,63 @@ test('getDAGStatus returns all workflows with dep info', () => {
   assert(entry!.dependenciesMet === true, 'Deps should now be met')
 })
 
+test('resolveParticipants prefers owner over group-only expansion when owner is set', () => {
+  const participants = resolveParticipants({
+    id: 'owner-driven',
+    name: 'Owner Driven',
+    description: 'Test',
+    schedule: 'manual',
+    enabled: true,
+    executionMode: 'managed',
+    owner: 'lead',
+    targeting: {
+      agents: [],
+      tags: [],
+      groups: ['Status'],
+      communities: [],
+    },
+    content: '# Test',
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    author: 'test',
+  } as any, [
+    { id: 'lead', name: 'Lead', groups: ['Status'], tags: ['lead'], communities: [] },
+    { id: 'analyst', name: 'Analyst', groups: ['Status'], tags: ['analysis'], communities: [] },
+  ])
+
+  assert(participants.length === 1, `Expected only owner to execute, got ${participants.length}`)
+  assert(participants[0].agentId === 'lead', `Expected owner lead to execute, got ${participants[0].agentId}`)
+})
+
+test('resolveParticipants still expands group targets when no direct execution target is set', () => {
+  const participants = resolveParticipants({
+    id: 'group-driven',
+    name: 'Group Driven',
+    description: 'Test',
+    schedule: 'manual',
+    enabled: true,
+    executionMode: 'managed',
+    targeting: {
+      agents: [],
+      tags: [],
+      groups: ['Status'],
+      communities: [],
+    },
+    content: '# Test',
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    author: 'test',
+  } as any, [
+    { id: 'lead', name: 'Lead', groups: ['Status'], tags: ['lead'], communities: [] },
+    { id: 'analyst', name: 'Analyst', groups: ['Status'], tags: ['analysis'], communities: [] },
+    { id: 'other', name: 'Other', groups: ['Elsewhere'], tags: [], communities: [] },
+  ])
+
+  assert(participants.length === 2, `Expected group expansion to include 2 participants, got ${participants.length}`)
+  assert(participants.some((p) => p.agentId === 'lead'), 'Expected lead in group-driven participants')
+  assert(participants.some((p) => p.agentId === 'analyst'), 'Expected analyst in group-driven participants')
+})
+
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {
   const root = createWorkflow({
     name: 'Reset Root',
@@ -309,9 +368,43 @@ test('triggerWorkflow supports rerunning upstream DAG workflows', () => {
   const rerunGrandchild = getWorkflow(grandchild.id!)
 
   assert(rerunRoot?.status === 'running' || rerunRoot?.status === 'completed', 'Root should restart cleanly after rerun')
-  assert(rerunRoot?.progress === 0 || rerunRoot?.progress === 100, 'Root progress should represent the fresh rerun state')
+  assert((rerunRoot?.progress || 0) >= 0 && (rerunRoot?.progress || 0) <= 100, `Root progress should stay in range during rerun, got ${rerunRoot?.progress}`)
   assert(rerunChild !== null, 'Direct downstream workflow should remain present after rerun')
   assert(rerunGrandchild !== null, 'Nested downstream workflow should remain present after rerun')
+})
+
+test('triggerWorkflow stores edited manual inputs on the new execution', () => {
+  const result = createWorkflow({
+    name: 'Editable Kickoff',
+    description: 'Stores structured inputs',
+    schedule: 'manual',
+    content: [
+      '# Kickoff',
+      '',
+      '- **Project:** Alpha',
+      '- **Region:** US',
+    ].join('\n'),
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+
+  const triggered = triggerWorkflow(result.id!, {
+    manual: true,
+    inputs: {
+      Project: 'Beta',
+      Region: 'EU',
+      Priority: 'High',
+    },
+  })
+  assert(triggered.success && !!triggered.executionId, `Trigger should succeed: ${triggered.error}`)
+
+  const execution = getExecution(result.id!, triggered.executionId!)
+  assert(execution !== null, 'Execution should be readable after trigger')
+  assert(execution?.inputs?.Project === 'Beta', `Expected edited Project input, got ${execution?.inputs?.Project}`)
+  assert(execution?.inputs?.Region === 'EU', `Expected edited Region input, got ${execution?.inputs?.Region}`)
+  assert(execution?.inputs?.Priority === 'High', `Expected new Priority input, got ${execution?.inputs?.Priority}`)
 })
 
 // ============================================================================

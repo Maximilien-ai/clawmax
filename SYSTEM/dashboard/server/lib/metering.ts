@@ -6,7 +6,9 @@
 
 import https from 'https'
 import path from 'path'
+import fs from 'fs'
 import { getWorkspaceManager } from './workspace-manager'
+import { listAgents } from './workspace'
 
 interface TraceData {
   id: string
@@ -217,6 +219,48 @@ function getWorkspaceTraceIds(workspaceId?: string): string[] {
   }
 }
 
+function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<string>; workflowIds: Set<string> } {
+  try {
+    if (!workspaceId) {
+      const agentIds = new Set(listAgents().map((agent) => agent.id).filter(Boolean))
+      const workflowDir = path.join(getWorkspaceManager().getActiveWorkspace().path, 'WORKFLOWS')
+      const workflowIds = new Set<string>()
+      try {
+        for (const entry of fs.readdirSync(workflowDir, { withFileTypes: true })) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+          workflowIds.add(entry.name.replace(/\.md$/, ''))
+        }
+      } catch {}
+      return { agentIds, workflowIds }
+    }
+
+    const workspacePath = getWorkspaceManager().resolveWorkspacePath(workspaceId)
+    const agentsDir = path.join(workspacePath, 'AGENTS')
+    const workflowDir = path.join(workspacePath, 'WORKFLOWS')
+    const agentIds = new Set<string>()
+    const workflowIds = new Set<string>()
+
+    try {
+      for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
+        agentIds.add(entry.name)
+      }
+    } catch {}
+
+    try {
+      for (const entry of fs.readdirSync(workflowDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+        workflowIds.add(entry.name.replace(/\.md$/, ''))
+      }
+    } catch {}
+
+    return { agentIds, workflowIds }
+  } catch {
+    return { agentIds: new Set<string>(), workflowIds: new Set<string>() }
+  }
+}
+
 function fetchOpikTraces(projectName: string, size: number = 100): Promise<TraceData[]> {
   const config = getOpikConfig()
   if (!config.apiKey) return Promise.resolve([])
@@ -254,9 +298,25 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
 export async function getWorkspaceMetering(workspaceId?: string): Promise<WorkspaceMetering> {
   const config = getOpikConfig()
   const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
+  const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
   const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
-    const workspaceId = trace.metadata?.workspace_id
-    return !workspaceId || workspaceIds.has(String(workspaceId))
+    const traceWorkspaceId = trace.metadata?.workspace_id
+    if (traceWorkspaceId) {
+      return workspaceIds.has(String(traceWorkspaceId))
+    }
+
+    // Older traces may lack workspace_id. Keep them only if they clearly map
+    // to an agent or workflow that exists in the workspace being viewed.
+    const meta = trace.metadata || {}
+    if (trace.name.startsWith('agent.chat.')) {
+      const agentId = String(meta.agent_id || trace.name.replace('agent.chat.', ''))
+      return agentIds.has(agentId)
+    }
+    if (trace.name.startsWith('workflow.')) {
+      const workflowId = String(meta.workflow_id || trace.name.replace('workflow.', ''))
+      return workflowIds.has(workflowId)
+    }
+    return false
   })
   const aggregated = aggregateWorkspaceMeteringFromTraces(traces)
 

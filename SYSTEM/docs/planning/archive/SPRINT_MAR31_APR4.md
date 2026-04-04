@@ -3,6 +3,7 @@
 > **Pace:** 4 hours/day, 5 days = 20 hours total
 > **Branch:** feature branches per item, merge to main daily
 > **Testing:** run `./SYSTEM/test.sh integration` before each merge
+> **Archive status:** completed week; unresolved items carried forward on April 4, 2026
 
 ## Goals
 
@@ -78,10 +79,28 @@
 ### Release (2 hrs)
 - [x] Update CHANGELOG, README, STATUS
 - [x] Prep v1.2.3 release surfaces
-- [ ] Archive completed sprint plan
+- [x] Archive completed sprint plan
 - [x] Tag v1.1.22 (or higher based on changes)
 - [x] Update external repos (templates, workflows) if specs changed
 - [ ] Prep next week's sprint
+
+## Week Outcome
+
+### Completed this week
+- Email OTP auth mode
+- Event planning template set + Events filter
+- Channel comms default fan-out
+- Agent chat streaming
+- Workflow rerun reset
+- Integration harness additions for workspace listing, memory creation, and group communication
+- Release/status/docs updates
+
+### Deferred / carried forward
+- `#94` temp chat/runtime wrong-workspace resolution
+- `#8` Anthropic per-agent auth/runtime behavior
+- `#95` event-template customer validation and refinement
+- `#11` clean-room setup run on a truly fresh machine
+- `#32` cron migration to OpenClaw native cron
 
 ## Carry Forward
 

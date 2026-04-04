@@ -173,6 +173,67 @@
       ]
     },
     {
+      "id": "positioning-and-voice-review",
+      "name": "Positioning And Voice Review",
+      "description": "Clarify topic edge, audience promise, and voice before drafting.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "editor-in-chief",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Positioning"
+        ],
+        "tags": [],
+        "agents": [
+          "editor-in-chief",
+          "growth-notes-editor"
+        ]
+      },
+      "content": "# Positioning And Voice Review\n\n1. Review the topic, audience, cadence, and platform defined in kickoff\n2. Clarify the blog's edge, audience promise, and voice so the writing has a clear point of view\n3. Identify the strongest hooks, framing choices, and subscriber-facing angles\n4. Call out any positioning choices that still feel too broad, weak, or generic\n5. Post the positioning and voice review to Positioning and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "blog-launch-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "blog-launch-studio",
+        "positioning-and-voice-review"
+      ]
+    },
+    {
+      "id": "editorial-calendar-build",
+      "name": "Editorial Calendar Build",
+      "description": "Build the publishing plan and topic sequence for the launch period.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "calendar-editor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Calendar"
+        ],
+        "tags": [],
+        "agents": [
+          "calendar-editor"
+        ]
+      },
+      "content": "# Editorial Calendar Build\n\n1. Review the kickoff context and the positioning decisions already established\n2. Build the initial editorial calendar for the selected planning horizon\n3. Sequence topics in a way that supports both audience value and consistent publishing rhythm\n4. Call out where the calendar is strong versus where more topic development is still needed\n5. Post the editorial calendar to Calendar and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "positioning-and-voice-review"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "blog-launch-studio",
+        "editorial-calendar-build"
+      ]
+    },
+    {
       "id": "draft-pack-build",
       "name": "Draft Pack Build",
       "description": "Draft Pack Build",
@@ -193,7 +254,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "blog-launch-kickoff"
+        "positioning-and-voice-review",
+        "editorial-calendar-build"
       ],
       "tags": [
         "workflow",

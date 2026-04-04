@@ -18,7 +18,7 @@ import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
-import { WORKSPACE, getWorkspacePath, listAgents, getInstallationActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
@@ -203,9 +203,9 @@ app.get('/api/system', protect, (_req, res) => {
   })
 })
 
-// Installation-wide activity feed
+// Active workspace activity feed
 app.get('/api/activity', protect, (_req, res) => {
-  const feed = getInstallationActivity()
+  const feed = getWorkspaceActivity()
   res.json({ feed })
 })
 

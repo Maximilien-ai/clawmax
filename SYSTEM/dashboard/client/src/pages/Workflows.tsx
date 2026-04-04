@@ -75,6 +75,7 @@ interface WorkflowExecutionDetails {
   triggeredBy?: string
   participants: WorkflowExecutionParticipant[]
   logs: string[]
+  inputs?: Record<string, string>
 }
 
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
@@ -98,6 +99,21 @@ function stripFrontmatter(content?: string | null): string {
     return content.slice(match[0].length).trim()
   }
   return content.trim()
+}
+
+function parseStructuredWorkflowInputs(content?: string | null): Record<string, string> {
+  if (typeof content !== 'string' || !content.trim()) return {}
+  const inputs: Record<string, string> = {}
+  const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
+  let match: RegExpExecArray | null
+  while ((match = fieldRegex.exec(content)) !== null) {
+    const label = match[1]?.trim()
+    const value = match[2]?.trim()
+    if (label && value && !value.startsWith('[')) {
+      inputs[label] = value
+    }
+  }
+  return inputs
 }
 
 function formatNextRun(nextRunAt?: string | null): string {
@@ -282,6 +298,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<Set<string>>(new Set())
   const [triggeringWorkflow, setTriggeringWorkflow] = useState<Workflow | null>(null)
   const [workflowSecrets, setWorkflowSecrets] = useState<Record<string, string>>({})
+  const [workflowRunInputs, setWorkflowRunInputs] = useState<Record<string, string>>({})
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
@@ -358,16 +375,30 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     selectedWorkflowRef.current = selectedWorkflow
   }, [selectedWorkflow])
 
-  async function triggerWorkflowWithSecrets(workflow: Workflow) {
-    const secrets = readLocalSecrets('workflow', workflow.id)
+  function initializeWorkflowRunForm(workflow: WorkflowDetails, lastExecutionInputs?: Record<string, string>) {
+    const parsedInputs = parseStructuredWorkflowInputs(workflow.content)
+    setWorkflowRunInputs({ ...parsedInputs, ...(lastExecutionInputs || {}) })
+    setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
+  }
+
+  async function triggerWorkflowWithSecrets(
+    workflow: Workflow,
+    options?: { secrets?: Record<string, string>; inputs?: Record<string, string> }
+  ) {
+    const secrets = options?.secrets || readLocalSecrets('workflow', workflow.id)
     const resp = await fetch(`/api/workflows/${workflow.id}/trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manual: true, byok: readStoredByokKeys(), secrets }),
+      body: JSON.stringify({
+        manual: true,
+        byok: readStoredByokKeys(),
+        secrets,
+        inputs: options?.inputs,
+      }),
     })
     const data = await resp.json()
     if (!resp.ok || !data.executionId) {
-      throw new Error(data.error || `Failed to trigger ${workflow.id}`)
+      throw new Error(data.details || data.error || `Failed to trigger ${workflow.id}`)
     }
     setRunningWorkflows(prev => new Set(prev).add(workflow.id))
     return data
@@ -388,6 +419,36 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         console.error('[Workflow Toast] Failed to trigger workflow:', err)
         showError(err.message || `Failed to trigger ${workflow.id}`)
       })
+  }
+
+  async function triggerWorkflowFromDetail(workflow: WorkflowDetails) {
+    for (const requirement of workflow.secretRequirements || []) {
+      if (requirement.required !== false && !(workflowSecrets[requirement.key] || '').trim()) {
+        showError(`Missing required secret/input: ${requirement.label}`)
+        return
+      }
+    }
+
+    writeLocalSecrets('workflow', workflow.id, workflowSecrets)
+    const data = await triggerWorkflowWithSecrets(workflow, {
+      inputs: workflowRunInputs,
+      secrets: workflowSecrets,
+    })
+    showSuccess('Workflow triggered successfully')
+    if (data.executionId) {
+      const key = `${workflow.id}:${data.executionId}`
+      setTrackedExecutions(prev => {
+        const next = new Map(prev)
+        next.set(key, {
+          status: 'pending',
+          executionId: data.executionId,
+          workflowName: workflow.name
+        })
+        return next
+      })
+    }
+    fetchWorkflows(true)
+    setTimeout(() => fetchWorkflowDetails(workflow.id), 2000)
   }
 
   useEffect(() => {
@@ -614,8 +675,19 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
       })
 
+      let lastExecutionInputs: Record<string, string> | undefined
+      const latestExecutionId = sortedExecutions[0]?.id
+      if (latestExecutionId) {
+        const latestExecutionResp = await fetch(`/api/workflows/${id}/executions/${latestExecutionId}`)
+        if (latestExecutionResp.ok) {
+          const latestExecution = await latestExecutionResp.json() as WorkflowExecutionDetails
+          lastExecutionInputs = latestExecution.inputs
+        }
+      }
+
       setSelectedWorkflow(workflow)
       setExecutions(sortedExecutions)
+      initializeWorkflowRunForm(workflow, lastExecutionInputs)
       setShowDetailPanel(true)
       // Also refresh the card list to keep counts/status in sync
       fetchWorkflows()
@@ -1417,6 +1489,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 const workflow = sortedWorkflows.find((w) => w.id === id)
                 if (workflow) startWorkflowTrigger(workflow)
               }}
+              onEditRun={(id) => {
+                fetchWorkflowDetails(id)
+              }}
             />
           </div>
         ) : viewMode === 'grid' ? (
@@ -1576,6 +1651,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   ▶ Run Now
                 </button>
                 <button
+                  onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
+                  className="px-3 py-1.5 text-sm font-medium text-amber-700 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
+                >
+                  Edit Run Inputs
+                </button>
+                <button
                   onClick={() => {
                     setEditingWorkflow(selectedWorkflow)
                     setShowDetailPanel(false)
@@ -1650,6 +1731,86 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </p>
                 )}
               </div>
+
+              {(Object.keys(workflowRunInputs).length > 0 || (selectedWorkflow.secretRequirements || []).length > 0) && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Run Inputs</h3>
+                      <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                        Edit the values for the next run. Existing fields are seeded from the workflow body and the most recent execution when available.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/20"
+                    >
+                      Reset Values
+                    </button>
+                  </div>
+
+                  {Object.keys(workflowRunInputs).length > 0 && (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {Object.entries(workflowRunInputs).map(([label, value]) => (
+                        <div key={label} className="space-y-1.5">
+                          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {label}
+                          </label>
+                          <input
+                            type="text"
+                            value={value}
+                            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [label]: e.target.value }))}
+                            className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(selectedWorkflow.secretRequirements || []).length > 0 && (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(selectedWorkflow.secretRequirements || []).map((requirement) => {
+                        const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
+                          ? 'password'
+                          : requirement.kind === 'url'
+                            ? 'url'
+                            : 'text'
+                        return (
+                          <div key={requirement.key} className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {requirement.label}
+                              {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                            </label>
+                            <input
+                              type={inputType}
+                              value={workflowSecrets[requirement.key] || ''}
+                              onChange={(e) => setWorkflowSecrets((prev) => ({ ...prev, [requirement.key]: e.target.value }))}
+                              placeholder={requirement.placeholder || requirement.key}
+                              className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                            {requirement.help && <div className="text-xs text-gray-500 dark:text-gray-400">{requirement.help}</div>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await triggerWorkflowFromDetail(selectedWorkflow)
+                        } catch (err: any) {
+                          showError(err.message || `Failed to trigger ${selectedWorkflow.id}`)
+                        }
+                      }}
+                      className="px-3 py-2 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700"
+                    >
+                      Run With Edited Values
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Participants */}
               <div>

@@ -203,7 +203,11 @@ router.get('/:id', (req, res) => {
 router.post('/:id/trigger', (req, res) => {
   try {
     const { id } = req.params
-    const { byok, secrets } = req.body as { byok?: { openai?: string; anthropic?: string }; secrets?: Record<string, string> }
+    const { byok, secrets, inputs } = req.body as {
+      byok?: { openai?: string; anthropic?: string }
+      secrets?: Record<string, string>
+      inputs?: Record<string, string>
+    }
 
     // Validate workflow ID format
     if (!/^[a-z0-9-]+$/.test(id)) {
@@ -217,7 +221,7 @@ router.post('/:id/trigger', (req, res) => {
     }
 
     // Trigger the workflow (manual = true bypasses maxRuns limit)
-    const result = triggerWorkflow(id, { manual: true, byok, secrets })
+    const result = triggerWorkflow(id, { manual: true, byok, secrets, inputs })
 
     if (!result.success) {
       return res.status(500).json({ error: 'Failed to trigger workflow', details: result.error })

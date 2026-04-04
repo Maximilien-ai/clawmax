@@ -171,6 +171,66 @@
       ]
     },
     {
+      "id": "competitor-landscape-scan",
+      "name": "Competitor Landscape Scan",
+      "description": "Map the strongest current competitors, products, strengths, and weaknesses.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "competitor-analyst",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Competitors"
+        ],
+        "tags": [],
+        "agents": [
+          "competitor-analyst"
+        ]
+      },
+      "content": "# Competitor Landscape Scan\n\n1. Review the product idea, target market, and region defined in kickoff\n2. Identify the strongest current competitors and the most relevant products to compare against\n3. Summarize each competitor's strengths, weaknesses, positioning, and likely customer fit\n4. Distinguish direct evidence from assumptions or low-confidence comparisons\n5. Post the competitor landscape scan to Competitors and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "competitive-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "competitive-analysis-desk",
+        "competitor-landscape-scan"
+      ]
+    },
+    {
+      "id": "market-size-and-segments",
+      "name": "Market Size And Segments",
+      "description": "Estimate the market shape, reachable segments, and realistic wedge.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "tam-estimator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Market"
+        ],
+        "tags": [],
+        "agents": [
+          "tam-estimator"
+        ]
+      },
+      "content": "# Market Size And Segments\n\n1. Review the target market, user, and decision needed from kickoff\n2. Outline the market shape, major segments, and what looks realistically reachable for the product idea\n3. Call out where TAM assumptions are strong, weak, or especially sensitive to framing choices\n4. Recommend the most promising segment or wedge to prioritize first\n5. Post the market size and segment review to Market and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "competitive-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "competitive-analysis-desk",
+        "market-size-and-segments"
+      ]
+    },
+    {
       "id": "competitive-strategy-brief",
       "name": "Competitive Strategy Brief",
       "description": "Competitive Strategy Brief",
@@ -191,7 +251,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "competitive-kickoff"
+        "competitor-landscape-scan",
+        "market-size-and-segments"
       ],
       "tags": [
         "workflow",

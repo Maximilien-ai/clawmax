@@ -656,47 +656,57 @@ export function deleteWorkflow(id: string): { success: boolean; error?: string }
 // Resolve participants
 export function resolveParticipants(workflow: Workflow, agents: any[]): WorkflowParticipant[] {
   const participants: WorkflowParticipant[] = []
+  const directAgentIds = new Set(workflow.targeting.agents || [])
+  const directTags = new Set(workflow.targeting.tags || [])
+  const ownerId = workflow.owner?.trim()
+  const hasDirectExecutionTargets = directAgentIds.size > 0 || directTags.size > 0 || !!ownerId
 
   for (const agent of agents) {
     const reasons: string[] = []
 
-    // Check communities
-    if (workflow.targeting.communities.length > 0 && agent.communities) {
-      for (const community of agent.communities) {
-        const communityName = typeof community === 'string' ? community : community.name
-        if (workflow.targeting.communities.includes(communityName)) {
-          reasons.push(`community:${communityName}`)
-        }
-      }
+    // Owner is the most explicit execution target and should not require
+    // duplicating the id into targeting.agents for lead-owned workflows.
+    if (ownerId && agent.id === ownerId) {
+      reasons.push(`owner:${ownerId}`)
     }
 
-    // Check groups
-    if (workflow.targeting.groups.length > 0 && agent.groups) {
-      for (const group of agent.groups) {
-        const groupName = typeof group === 'string' ? group : group.name
-        if (workflow.targeting.groups.includes(groupName)) {
-          reasons.push(`group:${groupName}`)
-        }
-      }
-    }
-
-    // Check tags
-    if (workflow.targeting.tags.length > 0 && agent.tags) {
+    // Explicit tags are treated as execution targets.
+    if (directTags.size > 0 && agent.tags) {
       for (const tag of agent.tags) {
-        if (workflow.targeting.tags.includes(tag)) {
+        if (directTags.has(tag)) {
           reasons.push(`tag:${tag}`)
         }
       }
     }
 
-    // Check specific agent IDs
-    if (workflow.targeting.agents.length > 0) {
-      if (workflow.targeting.agents.includes(agent.id)) {
-        reasons.push(`agent:${agent.id}`)
+    // Explicit agent ids are also execution targets.
+    if (directAgentIds.has(agent.id)) {
+      reasons.push(`agent:${agent.id}`)
+    }
+
+    // Groups/communities are primarily output channels. Preserve them as
+    // execution targeting only when a workflow does not declare clearer
+    // execution targets via owner, agents, or tags.
+    if (!hasDirectExecutionTargets) {
+      if (workflow.targeting.communities.length > 0 && agent.communities) {
+        for (const community of agent.communities) {
+          const communityName = typeof community === 'string' ? community : community.name
+          if (workflow.targeting.communities.includes(communityName)) {
+            reasons.push(`community:${communityName}`)
+          }
+        }
+      }
+
+      if (workflow.targeting.groups.length > 0 && agent.groups) {
+        for (const group of agent.groups) {
+          const groupName = typeof group === 'string' ? group : group.name
+          if (workflow.targeting.groups.includes(groupName)) {
+            reasons.push(`group:${groupName}`)
+          }
+        }
       }
     }
 
-    // If matched for any reason, include
     if (reasons.length > 0) {
       participants.push({
         agentId: agent.id,
@@ -760,6 +770,7 @@ export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
   byok?: { openai?: string; anthropic?: string }
   secrets?: Record<string, string>
+  inputs?: Record<string, string>
 }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
@@ -860,6 +871,13 @@ export function triggerWorkflow(workflowId: string, options?: {
     if (integrationDefaults.sensoContextLabel && !Object.keys(inputs).some((key) => /senso context|senso folder|context label/i.test(key))) {
       inputs['Senso context'] = integrationDefaults.sensoContextLabel
     }
+    if (options?.inputs) {
+      for (const [key, value] of Object.entries(options.inputs)) {
+        if (typeof value === 'string' && value.trim()) {
+          inputs[key] = value.trim()
+        }
+      }
+    }
     if (options?.secrets) {
       for (const [key, value] of Object.entries(options.secrets)) {
         if (typeof value === 'string' && value.trim()) {
@@ -915,11 +933,31 @@ export function triggerWorkflow(workflowId: string, options?: {
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
       const executionEnv = userExecutionEnv(options?.byok)
+      const persistExecution = () => {
+        try {
+          fs.mkdirSync(path.dirname(executionFilePath), { recursive: true })
+          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+        } catch (error: any) {
+          if (error?.code !== 'ENOENT') throw error
+        }
+      }
+      const updateAggregateProgress = () => {
+        const completedOrFailed = execution.participants.filter(p => p.status === 'completed' || p.status === 'failed').length
+        const totalCount = execution.participants.length
+        const inFlight = execution.participants.filter(p => p.status === 'running').length
+        let progress = totalCount > 0 ? Math.round((completedOrFailed / totalCount) * 100) : 0
+        if (inFlight > 0) {
+          progress = Math.max(progress, Math.min(95, 10 + completedOrFailed * 15))
+        }
+        updateWorkflow(workflowId, { progress } as any)
+      }
 
-      for (const participant of executionParticipants) {
+      const runParticipant = async (participant: WorkflowExecutionParticipant) => {
         try {
           participant.status = 'running' as any
-          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+          participant.startedAt = new Date().toISOString()
+          updateAggregateProgress()
+          persistExecution()
 
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
@@ -939,10 +977,11 @@ export function triggerWorkflow(workflowId: string, options?: {
                 let progressTicks = 0
                 proc.stdout.on('data', (d: Buffer) => {
                   stdout += d.toString()
-                  // Estimate progress from output activity (caps at 90%)
+                  // Mark visible forward motion once work is actually streaming.
                   progressTicks++
-                  const estimated = Math.min(10 + progressTicks * 15, 90)
-                  updateWorkflow(workflowId, { progress: estimated } as any)
+                  const estimated = Math.min(20 + progressTicks * 10, 90)
+                  const current = getWorkflow(workflowId)?.progress || 0
+                  updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
                 })
                 proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
                 proc.on('close', (code: number) => {
@@ -1012,11 +1051,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           }
 
           // Update intermediate progress based on % of participants done
-          const completedCount = execution.participants.filter(p => p.status === 'completed' || p.status === 'failed').length
-          const totalCount = execution.participants.length
-          const intermediateProgress = Math.round((completedCount / totalCount) * 100)
-          updateWorkflow(workflowId, { progress: Math.min(intermediateProgress, 99) } as any)
-          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+          updateAggregateProgress()
+          persistExecution()
 
           // Trace individual agent call to Opik
           traceAgentChat(participant.agentId, executionMessage, agentText, {
@@ -1051,6 +1087,7 @@ export function triggerWorkflow(workflowId: string, options?: {
         } catch (err: any) {
           participant.status = 'failed' as any
           ;(participant as any).error = err.message
+          participant.completedAt = new Date().toISOString()
           execution.logs.push(`Agent ${participant.agentId} failed: ${err.message}`)
 
           const completedCount = execution.participants.filter(p => p.status === 'completed').length
@@ -1060,15 +1097,17 @@ export function triggerWorkflow(workflowId: string, options?: {
             status: 'blocked',
             progress,
           } as any)
+          persistExecution()
         }
-        fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
       }
+
+      await Promise.all(executionParticipants.map(runParticipant))
 
       // Mark execution complete
       execution.status = execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'
       execution.completedAt = new Date().toISOString()
       execution.logs.push(`Workflow completed at ${execution.completedAt}`)
-      fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+      persistExecution()
       updateWorkflow(workflowId, {
         status: execution.status === 'completed' ? 'completed' : 'blocked',
         progress: 100,
@@ -1079,7 +1118,7 @@ export function triggerWorkflow(workflowId: string, options?: {
         const { readyToRun } = completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
-          fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
+          persistExecution()
 
           // Auto-trigger enabled workflows with BYOK keys passed through
           for (const nextId of readyToRun) {

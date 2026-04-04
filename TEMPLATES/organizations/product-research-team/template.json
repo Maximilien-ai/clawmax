@@ -172,6 +172,66 @@
       ]
     },
     {
+      "id": "user-needs-sweep",
+      "name": "User Needs Sweep",
+      "description": "Map the strongest user pains, jobs, motivations, and unmet needs for the target segment.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "customer-researcher",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Users"
+        ],
+        "tags": [],
+        "agents": [
+          "customer-researcher"
+        ]
+      },
+      "content": "# User Needs Sweep\n\n1. Review the target user or segment defined in kickoff and restate the core context\n2. Identify the most important pains, jobs-to-be-done, motivations, and adoption blockers for that segment\n3. Distinguish well-supported observations from assumptions that still need validation\n4. Organize findings into clear themes the product team can act on\n5. Post the user-needs sweep to Users and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "product-research-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "product-research-team",
+        "user-needs-sweep"
+      ]
+    },
+    {
+      "id": "opportunity-framing-review",
+      "name": "Opportunity Framing Review",
+      "description": "Turn the user needs into product directions, bets, and framing options.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "product-strategist",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Product"
+        ],
+        "tags": [],
+        "agents": [
+          "product-strategist"
+        ]
+      },
+      "content": "# Opportunity Framing Review\n\n1. Review the product area, decision needed, and user-needs context from kickoff\n2. Translate the strongest user needs into product directions, feature bets, and positioning options\n3. Call out the most promising opportunities, the riskiest assumptions, and the likely tradeoffs\n4. Recommend which directions deserve immediate validation versus deeper research\n5. Post the opportunity framing review to Product and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "user-needs-sweep"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "product-research-team",
+        "opportunity-framing-review"
+      ]
+    },
+    {
       "id": "product-findings-synthesis",
       "name": "Product Findings Synthesis",
       "description": "Product Findings Synthesis",
@@ -192,7 +252,8 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "product-research-kickoff"
+        "user-needs-sweep",
+        "opportunity-framing-review"
       ],
       "tags": [
         "workflow",
