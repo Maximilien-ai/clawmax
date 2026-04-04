@@ -23,6 +23,12 @@
 - **Model/provider precedence likely broken during execution** — Lu.ma agents were configured for `ollama/qwen...`, but observed execution appeared to use Anthropic despite no dashboard `.env` provider keys and no shell provider exports, with only BYOK keys present in the browser
 - **Implication** — need a focused runtime audit across gateway/local fallback, resolved agent model/provider, and BYOK precedence in workflow execution
 
+## Validation Notes
+
+- **Lu.ma decomposed workflow shape validated** — user confirmed the `6`-step Lu.ma DAG shape with `4` parallel middle workflows is the correct v1.0 experience.
+- **Lu.ma runtime retest passed** — rerun produced strong results and behaved correctly end-to-end after the workflow targeting, parallelism, and runtime fallback fixes.
+- **Follow-up UX gap** — final workflow outputs are still too easy to lose inside active group chat. Add a first-class latest-result surface via notifications and workspace dashboard cards/links, starting with synthesis workflows like Lu.ma insight briefs.
+
 ## Backlog Signals
 
 - `#94` is the clearest product risk because it can leak stale runtime/session behavior across workspaces during ad-hoc chat.
