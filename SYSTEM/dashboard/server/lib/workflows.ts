@@ -103,6 +103,23 @@ interface WorkflowRuntimeOverrides {
   ollamaBaseUrl?: string
 }
 
+export function detectParticipantReportedFailure(agentText: string): string | null {
+  const text = agentText.trim()
+  if (!text) return null
+
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
+  for (const line of lines) {
+    if (/^(FAIL|FAILED)\b/i.test(line)) {
+      return line
+    }
+    if (/\b[A-Z0-9_-]+\s+FAIL\b/.test(line)) {
+      return line
+    }
+  }
+
+  return null
+}
+
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
 
@@ -1032,11 +1049,19 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResult = agentResponse as any
           const agentText = agentResult.text || ''
           const agentMeta = agentResult.meta || {}
+          const reportedFailure = detectParticipantReportedFailure(agentText)
 
-          participant.status = 'completed' as any
+          participant.status = reportedFailure ? 'failed' as any : 'completed' as any
           ;(participant as any).response = agentText
+          if (reportedFailure) {
+            ;(participant as any).error = `Agent reported failure: ${reportedFailure}`
+          }
           participant.completedAt = new Date().toISOString()
-          execution.logs.push(`Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`)
+          execution.logs.push(
+            reportedFailure
+              ? `Agent ${participant.agentId} reported failure: ${reportedFailure}`
+              : `Agent ${participant.agentId} completed: ${agentText.slice(0, 100)}`
+          )
 
           // Detect blockers/questions from agent output
           const { createNotification } = require('./notifications')
@@ -1064,6 +1089,16 @@ export function triggerWorkflow(workflowId: string, options?: {
               entityId: participant.agentId,
               entityType: 'agent',
               fingerprint: `agent-error:${workflowId}:${participant.agentId}:${execution.id}`,
+              workflowId,
+            })
+          } else if (reportedFailure) {
+            createNotification({
+              type: 'agent-error',
+              title: `${participant.agentId} reported a failed check`,
+              message: reportedFailure,
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `agent-fail:${workflowId}:${participant.agentId}:${execution.id}`,
               workflowId,
             })
           }

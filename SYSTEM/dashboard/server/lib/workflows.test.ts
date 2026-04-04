@@ -19,6 +19,7 @@ import {
   triggerWorkflow,
   getExecution,
   resolveParticipants,
+  detectParticipantReportedFailure,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -316,6 +317,12 @@ test('resolveParticipants still expands group targets when no direct execution t
   assert(participants.length === 2, `Expected group expansion to include 2 participants, got ${participants.length}`)
   assert(participants.some((p) => p.agentId === 'lead'), 'Expected lead in group-driven participants')
   assert(participants.some((p) => p.agentId === 'analyst'), 'Expected analyst in group-driven participants')
+})
+
+test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
+  assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
+  assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
+  assert(detectParticipantReportedFailure('COMMS PASS') === null, 'Expected PASS marker to remain non-failing')
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {
