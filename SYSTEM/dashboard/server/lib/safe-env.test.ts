@@ -121,6 +121,14 @@ test('userExecutionEnv blanks non-selected providers during BYOK execution', () 
   assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic to be blanked during BYOK OpenAI execution')
 })
 
+test('userExecutionEnv forwards Ollama base URL for local-model execution', () => {
+  const env = userExecutionEnv({ ollamaBaseUrl: 'http://127.0.0.1:11434' })
+
+  assert(env.OLLAMA_BASE_URL === 'http://127.0.0.1:11434', 'Expected Ollama base URL in child env')
+  assert(env.OPENAI_API_KEY === '', 'Expected hosted OpenAI key slot blanked for Ollama execution')
+  assert(env.ANTHROPIC_API_KEY === '', 'Expected hosted Anthropic key slot blanked for Ollama execution')
+})
+
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
   const env = systemExecutionEnv()
   assert(env.PATH === process.env.PATH, 'Expected safe base env to retain PATH')

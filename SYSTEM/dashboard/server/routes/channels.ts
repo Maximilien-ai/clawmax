@@ -3,13 +3,14 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
-import { safeEnv } from '../lib/safe-env'
+import { userExecutionEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages, directMessageKey, type Message } from '../lib/messages'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
-import { isGatewayConfigured } from '../lib/gateway-rpc'
+import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 
 const router = Router()
 
@@ -164,18 +165,28 @@ router.delete('/groups/:name', (req, res) => {
 /** Call an agent with a message and return the response */
 async function callAgent(agentId: string, message: string, sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
-  const providerKeys = { openai: byokKeys?.openai, anthropic: byokKeys?.anthropic, gemini: byokKeys?.gemini }
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const executionEnv = userExecutionEnv({
+    openai: byokKeys?.openai,
+    anthropic: byokKeys?.anthropic,
+    gemini: byokKeys?.gemini,
+    ollamaBaseUrl: byokKeys?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+  })
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
+  const useLocal = !isGatewayRunning().running
+  const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+  if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
+    throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
+  }
 
-  return withTemporaryAgentAuthProfiles(agentId, providerKeys, resolvedAgent.model, resolvedAgent.provider, () => {
+  return withTemporaryAgentAuthProfiles(agentId, {
+    openai: executionEnv.OPENAI_API_KEY,
+    anthropic: executionEnv.ANTHROPIC_API_KEY,
+    gemini: executionEnv.GEMINI_API_KEY,
+  }, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', '--local']
-      const env = { ...safeEnv() }
-      if (byokKeys?.openai) env.OPENAI_API_KEY = byokKeys.openai
-      if (byokKeys?.anthropic) env.ANTHROPIC_API_KEY = byokKeys.anthropic
-      if (byokKeys?.gemini) env.GEMINI_API_KEY = byokKeys.gemini
-      if (byokKeys?.ollamaBaseUrl) env.OLLAMA_BASE_URL = byokKeys.ollamaBaseUrl
-      const proc = spawn('openclaw', args, { env })
+      const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+      const proc = spawn('openclaw', args, { env: executionEnv })
 
     let stdout = ''
     let stderr = ''

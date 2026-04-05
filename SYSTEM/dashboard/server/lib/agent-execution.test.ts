@@ -228,6 +228,57 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
 })
 
+test('withTemporaryAgentAuthProfiles updates the matching workspace record when ids collide', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'clawmax-system-test')
+  const defaultAgentWorkspace = path.join(defaultWorkspace, 'AGENTS', 'test1')
+  const activeAgentWorkspace = path.join(activeWorkspace, 'AGENTS', 'test1')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+
+  fs.mkdirSync(defaultAgentWorkspace, { recursive: true })
+  fs.mkdirSync(activeAgentWorkspace, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(defaultAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** anthropic/claude-opus-4-6\n', 'utf-8')
+  fs.writeFileSync(path.join(activeAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: defaultAgentWorkspace, agentDir, model: 'anthropic/claude-opus-4-6' },
+        { id: 'test1', workspace: activeAgentWorkspace, agentDir, model: 'openai/gpt-4o-mini' },
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(authProfilePath, JSON.stringify({ version: 1, profiles: {}, usageStats: {} }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'system-test',
+    workspaces: [
+      { id: 'default', name: 'Default', path: defaultWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'system-test', name: 'ClawMax System Test', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const before = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const defaultEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
+    const activeEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
+    assert(defaultEntry.model === 'anthropic/claude-opus-4-6', 'Expected stale default workspace model to remain untouched')
+    assert(activeEntry.model === 'openai/gpt-4.1', 'Expected active workspace record to receive temporary override')
+  })
+
+  const restored = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(JSON.stringify(restored) === JSON.stringify(before), 'Expected openclaw.json restored after temporary override')
+})
+
 test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')

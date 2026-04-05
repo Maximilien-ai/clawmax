@@ -165,7 +165,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
   if (effectiveModel && hadConfig) {
-    const update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel)
+    let update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel, {
+      workspacePath: execution.workspace,
+    })
+    if (!update.ok && execution.workspace) {
+      update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel)
+    }
     if (!update.ok) {
       throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
     }

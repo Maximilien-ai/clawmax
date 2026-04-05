@@ -3,12 +3,13 @@ import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
-import { isGatewayConfigured } from '../lib/gateway-rpc'
+import { isGatewayRunning } from '../lib/gateway-rpc'
 import { traceAgentChat } from '../lib/opik'
+import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
-import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 
 const router = Router()
 
@@ -88,7 +89,7 @@ router.post('/:id/chat', (req, res) => {
   const { message, sessionId, byok } = req.body as {
     message?: string
     sessionId?: string
-    byok?: { openai?: string; anthropic?: string }
+    byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
   }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
@@ -105,14 +106,27 @@ router.post('/:id/chat', (req, res) => {
     return res.status(402).json({ error: budgetBlock })
   }
 
-  const executionEnv = userExecutionEnv(byok)
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const executionEnv = userExecutionEnv({
+    openai: byok?.openai,
+    anthropic: byok?.anthropic,
+    gemini: byok?.gemini,
+    ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+  })
   const resolvedAgent = resolveAgentExecutionConfig(id)
-  const effectiveSessionId = sessionId || `dashboard-${id}-chat`
+  const effectiveSessionId = scopeSessionIdToModel(sessionId || `dashboard-${id}-chat`, resolvedAgent.model)
 
   // Validate API keys exist before starting chat
-  if (!executionEnv.ANTHROPIC_API_KEY && !executionEnv.OPENAI_API_KEY) {
+  const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
+  const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+  if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
     return res.status(400).json({
-      error: 'No execution API keys configured. Add USER_* defaults in SYSTEM/dashboard/.env or configure BYOK preview keys.'
+      error: `Agent ${id} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured. Add an Ollama base URL in BYOK or workspace integrations.`
+    })
+  }
+  if (!hasHostedKeys && !hasOllamaPath) {
+    return res.status(400).json({
+      error: 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.'
     })
   }
 
@@ -138,7 +152,7 @@ router.post('/:id/chat', (req, res) => {
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
-  const useLocal = !isGatewayConfigured()
+  const useLocal = !isGatewayRunning().running
   const args = ['agent', '--agent', id, '--session-id', effectiveSessionId, '--message', message, ...(useLocal ? ['--local'] : [])]
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
@@ -150,6 +164,7 @@ router.post('/:id/chat', (req, res) => {
   withTemporaryAgentAuthProfiles(id, {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
+    gemini: executionEnv.GEMINI_API_KEY,
   }, resolvedAgent.model, resolvedAgent.provider, async () => {
     await new Promise<void>((resolve) => {
       const spawned = spawn('openclaw', args, {

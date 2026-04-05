@@ -204,7 +204,14 @@ router.post('/:id/trigger', (req, res) => {
   try {
     const { id } = req.params
     const { byok, secrets, inputs } = req.body as {
-      byok?: { openai?: string; anthropic?: string }
+      byok?: {
+        openai?: string
+        anthropic?: string
+        gemini?: string
+        ollamaBaseUrl?: string
+        ollamaDefaultModel?: string
+        preferredModel?: string
+      }
       secrets?: Record<string, string>
       inputs?: Record<string, string>
     }

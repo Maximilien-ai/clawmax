@@ -98,6 +98,50 @@ async function run() {
     assert(!stillPresent, 'Expected agent entry to be removed from openclaw.json')
   })
 
+  await test('deleteAgent preserves shared state when another workspace still references the same agent id', () => {
+    const multiHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-delete-agent-multi-'))
+    const activeWorkspace = path.join(multiHome, 'workspace-a')
+    const otherWorkspace = path.join(multiHome, 'workspace-b')
+    const duplicateId = 'shared-agent'
+    const activeAgentDir = path.join(activeWorkspace, 'AGENTS', duplicateId)
+    const otherAgentDir = path.join(otherWorkspace, 'AGENTS', duplicateId)
+    const sharedRootDir = path.join(multiHome, '.openclaw', 'agents', duplicateId)
+    const sharedAgentRuntimeDir = path.join(sharedRootDir, 'agent')
+    const multiConfigPath = path.join(multiHome, '.openclaw', 'openclaw.json')
+
+    fs.mkdirSync(activeAgentDir, { recursive: true })
+    fs.mkdirSync(otherAgentDir, { recursive: true })
+    fs.writeFileSync(path.join(activeAgentDir, 'IDENTITY.md'), '# Active Copy\n', 'utf-8')
+    fs.writeFileSync(path.join(otherAgentDir, 'IDENTITY.md'), '# Other Copy\n', 'utf-8')
+    fs.mkdirSync(sharedAgentRuntimeDir, { recursive: true })
+    fs.writeFileSync(path.join(sharedAgentRuntimeDir, 'session.json'), '{}', 'utf-8')
+    fs.mkdirSync(path.dirname(multiConfigPath), { recursive: true })
+    fs.writeFileSync(multiConfigPath, JSON.stringify({
+      agents: {
+        list: [
+          { id: duplicateId, workspace: activeAgentDir, agentDir: sharedAgentRuntimeDir },
+          { id: duplicateId, workspace: otherAgentDir, agentDir: sharedAgentRuntimeDir },
+        ],
+      },
+    }, null, 2))
+
+    writeWorkspaceRegistry(multiHome, activeWorkspace)
+    process.env.HOME = multiHome
+    process.env.OPENCLAW_WORKSPACE = activeWorkspace
+    resetWorkspaceManagerForTests()
+
+    const result = deleteAgent(duplicateId, true)
+    assert(result.errors.length === 0, `Expected no errors, got: ${result.errors.join('; ')}`)
+    assert(!fs.existsSync(activeAgentDir), 'Expected active workspace copy removed')
+    assert(fs.existsSync(otherAgentDir), 'Expected other workspace copy preserved')
+    assert(fs.existsSync(sharedRootDir), 'Expected shared runtime preserved for remaining workspace copy')
+
+    const config = JSON.parse(fs.readFileSync(multiConfigPath, 'utf-8'))
+    const remaining = (config.agents?.list || []).filter((agent: any) => agent.id === duplicateId)
+    assert(remaining.length === 1, `Expected one duplicate entry to remain, got ${remaining.length}`)
+    assert(remaining[0].workspace === otherAgentDir, 'Expected other workspace entry to remain registered')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 

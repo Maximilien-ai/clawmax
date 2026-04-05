@@ -2428,6 +2428,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
 
+  const syncIdentityModel = React.useCallback((content: string, nextModel: string) => {
+    if (!nextModel.trim()) return content
+    if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
+      return content.replace(/^[-*]\s+\*\*Model:\*\*\s+.+$/m, `- **Model:** ${nextModel}`)
+    }
+    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
+      return content.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Model:** ${nextModel}\n$&`)
+    }
+    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
+      return content.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Model:** ${nextModel}`)
+    }
+    return `${content.trimEnd()}\n\n- **Model:** ${nextModel}\n`
+  }, [])
+
   React.useEffect(() => {
     setLoading(true)
     setError(null)
@@ -2515,6 +2529,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setSaving(true)
     setError(null)
     try {
+      const nextIdentity = model ? syncIdentityModel(identity, model) : identity
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
@@ -2530,7 +2545,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       const res = await fetch(`/api/agents/${agent.id}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity, soul, tools }),
+        body: JSON.stringify({ identity: nextIdentity, soul, tools }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -2540,6 +2555,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         throw new Error(data.error || 'Failed to save config')
       }
       setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+      setIdentity(nextIdentity)
       onSaved()
     } catch (err: any) {
       setError(err.message || 'Failed to save config')

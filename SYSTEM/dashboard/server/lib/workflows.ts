@@ -8,7 +8,7 @@ import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
 import { traceAgentChat, traceWorkflowExecution } from './opik'
-import { isGatewayConfigured } from './gateway-rpc'
+import { isGatewayRunning } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
@@ -94,6 +94,13 @@ export interface WorkflowExecution {
   participants: WorkflowExecutionParticipant[]
   logs: string[]
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
+}
+
+interface WorkflowRuntimeOverrides {
+  openai?: string
+  anthropic?: string
+  gemini?: string
+  ollamaBaseUrl?: string
 }
 
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
@@ -768,7 +775,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
-  byok?: { openai?: string; anthropic?: string }
+  byok?: WorkflowRuntimeOverrides
   secrets?: Record<string, string>
   inputs?: Record<string, string>
 }): { success: boolean; executionId?: string; error?: string } {
@@ -932,7 +939,12 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Run workflow by calling each participant agent directly
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
-      const executionEnv = userExecutionEnv(options?.byok)
+      const executionEnv = userExecutionEnv({
+        openai: options?.byok?.openai,
+        anthropic: options?.byok?.anthropic,
+        gemini: options?.byok?.gemini,
+        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
+      })
       const persistExecution = () => {
         try {
           fs.mkdirSync(path.dirname(executionFilePath), { recursive: true })
@@ -962,11 +974,17 @@ export function triggerWorkflow(workflowId: string, options?: {
           // Call agent via CLI
           const agentResponse = await new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
-            const useLocal = !isGatewayConfigured()
+            const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
+            if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
+              reject(new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`))
+              return
+            }
+            const useLocal = !isGatewayRunning().running
             const args = ['agent', '--agent', participant.agentId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
+              gemini: executionEnv.GEMINI_API_KEY,
             }, resolvedAgent.model, resolvedAgent.provider, async () => {
               await new Promise<void>((innerResolve) => {
                 const proc = spawn('openclaw', args, { env: executionEnv })

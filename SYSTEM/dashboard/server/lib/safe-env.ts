@@ -3,6 +3,10 @@
  */
 import { type ProviderKeys, resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
 
+export interface ExecutionEnvOverrides extends ProviderKeys {
+  ollamaBaseUrl?: string
+}
+
 /**
  * Returns a whitelisted subset of process.env for child processes.
  * Prevents leaking secrets to subprocesses that don't need them.
@@ -28,17 +32,22 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
   return { ...base, ...extras }
 }
 
-function providerKeysToEnv(providerKeys: ProviderKeys): Record<string, string> | undefined {
+function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {
   return {
     OPENAI_API_KEY: providerKeys.openai || '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
     GEMINI_API_KEY: providerKeys.gemini || '',
+    OLLAMA_BASE_URL: providerKeys.ollamaBaseUrl || '',
     SENSO_API_KEY: process.env.SENSO_API_KEY || '',
   }
 }
 
-export function userExecutionEnv(byokOverrides?: ProviderKeys): NodeJS.ProcessEnv {
-  return safeEnv(providerKeysToEnv(resolveUserExecutionProviderKeys(undefined, byokOverrides)))
+export function userExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.ProcessEnv {
+  const resolvedProviderKeys = resolveUserExecutionProviderKeys(undefined, byokOverrides)
+  return safeEnv(providerKeysToEnv({
+    ...resolvedProviderKeys,
+    ollamaBaseUrl: byokOverrides?.ollamaBaseUrl?.trim() || undefined,
+  }))
 }
 
 export function systemExecutionEnv(): NodeJS.ProcessEnv {

@@ -1546,6 +1546,32 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   const archiveDir = getArchiveDir()
   const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
   const sharedHomeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', id)
+  const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', id)
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  let hasRemainingWorkspaceCopies = false
+
+  try {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (Array.isArray(config.agents?.list)) {
+        const originalLength = config.agents.list.length
+        config.agents.list = config.agents.list.filter((agent: any) => {
+          if (agent?.id !== id) return true
+          const workspacePath = typeof agent?.workspace === 'string' ? path.resolve(agent.workspace) : ''
+          return workspacePath !== path.resolve(activeWorkspaceAgentDir)
+        })
+        hasRemainingWorkspaceCopies = config.agents.list.some((agent: any) => agent?.id === id)
+        if (config.agents.list.length < originalLength) {
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+          steps.push(`Removed ${id} from openclaw.json for active workspace`)
+        } else {
+          steps.push(`No active-workspace openclaw.json entry found for ${id} (skipped)`)
+        }
+      }
+    }
+  } catch (e) {
+    errors.push(`Failed to remove from openclaw.json: ${e}`)
+  }
 
   // Remove workspace AGENTS dir (or archive dir)
   try {
@@ -1557,7 +1583,9 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   // Remove shared home agent dir (~/.openclaw/agents/<id>)
   try {
-    if (fs.existsSync(sharedHomeAgentDir)) {
+    if (hasRemainingWorkspaceCopies) {
+      steps.push(`Preserved shared agent dir ~/.openclaw/agents/${id}/ because another workspace still references it`)
+    } else if (fs.existsSync(sharedHomeAgentDir)) {
       fs.rmSync(sharedHomeAgentDir, { recursive: true, force: true })
       steps.push(`Removed shared agent dir ~/.openclaw/agents/${id}/`)
     } else {
@@ -1570,7 +1598,9 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   // Optionally remove profile state dir (~/.openclaw-<id>)
   if (removeStateDir) {
     const stateDir = path.join(process.env.HOME || '', `.openclaw-${id}`)
-    if (fs.existsSync(stateDir)) {
+    if (hasRemainingWorkspaceCopies) {
+      steps.push(`Preserved state dir ~/.openclaw-${id}/ because another workspace still references ${id}`)
+    } else if (fs.existsSync(stateDir)) {
       try {
         fs.rmSync(stateDir, { recursive: true, force: true })
         steps.push(`Removed state dir ~/.openclaw-${id}/`)
@@ -1603,24 +1633,6 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
       }
     }
   } catch {}
-
-  // Remove agent from openclaw.json
-  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
-  try {
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (config.agents?.list) {
-        const originalLength = config.agents.list.length
-        config.agents.list = config.agents.list.filter((a: any) => a.id !== id)
-        if (config.agents.list.length < originalLength) {
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
-          steps.push(`Removed ${id} from openclaw.json`)
-        }
-      }
-    }
-  } catch (e) {
-    errors.push(`Failed to remove from openclaw.json: ${e}`)
-  }
 
   // Remove agent from COMMUNITIES.md and GROUPS.md member lists
   const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')

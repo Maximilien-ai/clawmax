@@ -898,6 +898,18 @@ router.get('/usage', async (req, res) => {
   const days = parseInt(req.query.days as string) || 30
 
   try {
+    const gatewayStatus = isGatewayRunning()
+    if (!isGatewayConfigured() || !gatewayStatus.running) {
+      return res.json({
+        agentUsage: {},
+        days,
+        error: 'Gateway unavailable or no usage data',
+        details: gatewayStatus.port
+          ? `Gateway not running on port ${gatewayStatus.port}`
+          : 'Gateway not configured',
+      })
+    }
+
     const gateway = getGatewayClient()
 
     // Call sessions.usage with days param
