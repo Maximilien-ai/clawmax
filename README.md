@@ -62,6 +62,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Template & Workflow Import/Export** — first-pass [`TEMPLATE.md`](https://github.com/Maximilien-ai/templates) and [`WORKFLOW.md`](https://github.com/Maximilien-ai/workflows) import/export flows in-product
 - **Docker Deployment Support** — canonical public Docker assets for cloud/on-prem handoff
 
+Cloud/on-prem runtime note:
+- The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
+- If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.
+
 ---
 
 ## 🌟 Features

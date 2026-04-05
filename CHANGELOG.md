@@ -2,6 +2,20 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.6] - 2026-04-05
+
+### Fixes — Cloud Runtime Bootstrap
+- **Runtime-Capable Docker Image** — the runtime image now installs the `openclaw` CLI instead of shipping a dashboard-only container that cannot register or execute real agents
+- **Container Entrypoint Bootstrap** — cloud/on-prem startup now initializes `HOME`, `OPENCLAW_WORKSPACE`, required workspace directories, and `gateway.mode=local`, and fails fast if `openclaw` is missing
+- **Gateway Start Attempt on Boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh deployments have a real runtime path before Doctor/manual repair
+- **Persistent OpenClaw State in Compose** — Docker Compose now persists `~/.openclaw` separately from workspace files so agent registration and session state survive container restarts
+
+### Fixes — Template Apply Readiness
+- **Workflow-Aware GitHub Prereqs** — template apply readiness no longer hard-fails GitHub CLI checks for `clawmax-system-test` unless GitHub coordination is actually enabled for that apply
+
+### Docs
+- **Cloud Runtime Persistence Note** — README now calls out that cloud/on-prem deployments must persist both workspace files and OpenClaw state
+
 ## [v1.2.5] - 2026-04-03
 
 ### Features — Secure Runtime Inputs

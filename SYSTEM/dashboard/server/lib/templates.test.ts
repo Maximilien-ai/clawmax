@@ -15,6 +15,7 @@ import {
   type OrganizationTemplate,
   type AgentTemplate
 } from './templates'
+import { checkTemplatePrereqs } from './prereqs'
 import fs from 'fs'
 import path from 'path'
 import { REPO_ROOT } from './paths'
@@ -189,6 +190,19 @@ test('ClawMax System Test workflows use current workflow groups instead of separ
   assert(comms!.content.includes('Do not attempt to use a separate tool, plugin, transport, or session label'), 'Communications workflow should explicitly forbid separate session-label handling')
   assert(report!.content.includes('current group channel'), 'Report workflow should instruct agents to use the current group channel')
   assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
+})
+
+test('ClawMax System Test prereqs do not hard-fail GitHub before GitHub is enabled', () => {
+  const template = getTemplate('organization', 'clawmax-system-test') as OrganizationTemplate | null
+  assert(template !== null, 'ClawMax System Test template should exist')
+
+  const prereqs = checkTemplatePrereqs(template!, {
+    useGithub: false,
+    useWorkspaceFs: true,
+  })
+
+  assert(!prereqs.checks.some(check => check.id === 'github-auth'), 'GitHub CLI auth should not be checked before GitHub is enabled')
+  assert(!prereqs.checks.some(check => check.id === 'gh-issues'), 'GitHub issue scope should not be checked before GitHub is enabled')
 })
 
 test('Shared SOUL guidance tells agents to respond in group chats when addressed', () => {

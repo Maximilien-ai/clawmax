@@ -258,6 +258,9 @@ export function checkTemplatePrereqs(template: {
   }
 
   for (const skillId of allSkills) {
+    if ((skillId === 'github' || skillId === 'gh-issues') && !options.useGithub) {
+      continue
+    }
     const req = SKILL_REQUIREMENTS[skillId]
     if (req && !seen.has(req.check().id)) {
       const check = req.check()

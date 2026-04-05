@@ -7,6 +7,7 @@ services:
       - "${DASHBOARD_PORT:-3001}:3001"
     volumes:
       - ./WORKSPACES:/app/WORKSPACES
+      - clawmax-openclaw-state:/app/.openclaw
     env_file:
       - path: ./SYSTEM/dashboard/.env
         required: false
@@ -22,3 +23,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+volumes:
+  clawmax-openclaw-state:
