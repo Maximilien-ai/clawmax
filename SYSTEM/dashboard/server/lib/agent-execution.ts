@@ -3,6 +3,7 @@ import path from 'path'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { updateAgentModelInConfigFile } from './agent-model'
+import { resetAgentSessionsForModelChange } from './agent-model'
 
 interface OpenClawAgentRecord {
   id: string
@@ -87,6 +88,41 @@ export function scopeSessionIdToModel(sessionId: string, model?: string): string
   return `${base}-${modelToken}`.slice(0, 80)
 }
 
+function normalizeSessionModel(model?: string): string | undefined {
+  if (!model) return undefined
+  const trimmed = model.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('ollama/')) {
+    return trimmed
+  }
+  if (trimmed.startsWith('claude')) return `anthropic/${trimmed}`
+  if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1')) return `openai/${trimmed}`
+  if (trimmed.startsWith('gemini-')) return `gemini/${trimmed}`
+  if (trimmed.includes(':')) return `ollama/${trimmed}`
+  return trimmed
+}
+
+function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
+  const normalizedPreferred = normalizeSessionModel(preferredModel)
+  if (!normalizedPreferred) return
+
+  try {
+    const sessionsPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
+    if (!fs.existsSync(sessionsPath)) return
+    const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+    const mainSession = sessions?.[`agent:${agentId}:main`]
+    const persistedModel = normalizeSessionModel(mainSession?.model || mainSession?.systemPromptReport?.model)
+    if (!persistedModel || persistedModel === normalizedPreferred) return
+
+    const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+    if (!reset.ok) {
+      throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
+    }
+  } catch (err) {
+    console.warn(`[Agent Execution] Failed to inspect/reset sessions for ${agentId}:`, err)
+  }
+}
+
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
@@ -126,6 +162,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
   preferredProvider: ExecutionProvider | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
+  resetSessionsIfModelChanged(agentId, preferredModel)
+
   if (preferredProvider === 'ollama') {
     return fn()
   }

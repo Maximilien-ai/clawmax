@@ -314,6 +314,48 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama'
   })
 })
 
+test('withTemporaryAgentAuthProfiles resets stale main sessions when the configured model changes', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'sessions')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:test-ollama:main': {
+      sessionId: 'group-test-ollama-ollama-qwen2-5-latest',
+      modelProvider: 'anthropic',
+      model: 'claude-opus-4-6',
+      sessionFile: path.join(sessionsDir, 'prior.jsonl'),
+      systemPromptReport: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-6',
+      }
+    }
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'prior.jsonl'), '{"type":"message"}\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-ollama', workspace: path.join(home, 'workspace', 'AGENTS', 'test-ollama'), agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test-ollama', {}, 'ollama/qwen2.5:latest', 'ollama', async () => {
+    assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected stale sessions index archived before execution')
+    assert(!fs.existsSync(path.join(sessionsDir, 'prior.jsonl')), 'Expected stale session transcript archived before execution')
+  })
+
+  const archiveDir = path.join(sessionsDir, 'archive')
+  const archived = fs.readdirSync(archiveDir)
+  assert(archived.some(name => name.endsWith('sessions.json')), 'Expected archived sessions index after reset')
+  assert(archived.some(name => name.endsWith('prior.jsonl')), 'Expected archived session transcript after reset')
+})
+
 setTimeout(() => {
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
