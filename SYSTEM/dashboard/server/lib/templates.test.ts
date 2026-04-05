@@ -186,7 +186,7 @@ test('ClawMax System Test workflows use current workflow groups instead of separ
   assert(report !== undefined, 'test-report workflow should exist')
 
   assert(comms!.content.includes('current group channel'), 'Communications workflow should instruct agents to use the current group channel')
-  assert(!/session label/i.test(comms!.content.replace('Do not create or look up a separate session label.', '')), 'Communications workflow should not rely on session labels')
+  assert(comms!.content.includes('Do not attempt to use a separate tool, plugin, transport, or session label'), 'Communications workflow should explicitly forbid separate session-label handling')
   assert(report!.content.includes('current group channel'), 'Report workflow should instruct agents to use the current group channel')
   assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
 })
