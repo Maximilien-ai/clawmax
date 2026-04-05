@@ -932,6 +932,13 @@ export function triggerWorkflow(workflowId: string, options?: {
       runtimeContextLines.push(`- Current workflow group channel(s): ${(workflow.targeting.groups || []).join(', ')}`)
       runtimeContextLines.push('- Use the current workflow group channel for replies and reports in this run')
       runtimeContextLines.push('- Do not create or look up separate session labels unless explicitly configured in the workspace')
+      runtimeContextLines.push('- ClawMax will post your final response back into the current workflow group channel automatically')
+      runtimeContextLines.push('- Do not treat missing external channel plugins or messaging transports as a failure for this workflow unless the workflow explicitly asks you to test those transports')
+    }
+    if ((workflow.targeting.communities || []).length > 0) {
+      runtimeContextLines.push(`- Current workflow community channel(s): ${(workflow.targeting.communities || []).join(', ')}`)
+      runtimeContextLines.push('- ClawMax will post your final response back into the current workflow community channel automatically')
+      runtimeContextLines.push('- Do not treat missing external channel plugins or messaging transports as a failure for this workflow unless the workflow explicitly asks you to test those transports')
     }
     const executionMessage = runtimeContextLines.length > 0
       ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
