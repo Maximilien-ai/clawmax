@@ -166,7 +166,6 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
   const [agentUsage, setAgentUsage] = useState<Record<string, { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }>>({})
-  const [usageDays, setUsageDays] = useState(30)
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
     const url = resetPagination
@@ -254,24 +253,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     }
   }, [isActive, fetchAgents])
 
-  // Fetch agent usage data
+  // Native gateway usage polling is intentionally disabled for now.
+  // Opik-backed metering is the current source of truth, and the gateway
+  // usage RPC requires scopes that are noisy/confusing in the dashboard.
   useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const response = await fetch(`/api/agents/usage?days=${usageDays}`)
-        const data = await response.json()
-        if (data.agentUsage) {
-          setAgentUsage(data.agentUsage)
-        }
-      } catch (err) {
-        console.error('Failed to fetch agent usage:', err)
-      }
-    }
-    fetchUsage()
-    // Refresh usage every 5 minutes
-    const interval = setInterval(fetchUsage, 300000)
-    return () => clearInterval(interval)
-  }, [usageDays])
+    setAgentUsage({})
+  }, [])
 
   useEffect(() => {
     const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
