@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.5)
+[![Version](https://img.shields.io/badge/version-1.2.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.6)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.5
+## 🔥 What's New in v1.2.6
+
+- **Cloud runtime bootstrap hardening** — the runtime image now installs `openclaw`, initializes `HOME` and `OPENCLAW_WORKSPACE`, and bootstraps a real OpenClaw runtime path on container start
+- **Gateway startup on boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh cloud/on-prem deployments do not rely on manual Doctor repair first
+- **Persistent OpenClaw state in container deployments** — Docker/Compose guidance now persists `~/.openclaw` separately from workspace files so agent registration and sessions survive restart
+- **Workflow-aware GitHub prereqs** — template apply no longer hard-fails GitHub CLI checks for `clawmax-system-test` unless GitHub coordination is actually enabled
+
+## 🔥 Previously in v1.2.5
 
 - **System test harness reliability** — `SYSTEM/test.sh` now recreates the system-test workspace before apply and waits for imported workflows to appear before verification/trigger
 - **Template DAG and tag audit** — multi-workflow templates now preserve correct dependencies, and every community, group, and workflow now has tags
@@ -33,34 +40,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **50+ organization templates** — added ten new proposal templates across entertainment, astronomy, paper digests, markets, evaluation, product research, competitive analysis, rapid website creation, and blog launch
 - **25 reusable agent templates** — expanded the agent-template library with repeatable roles from events, testing, product research, markets, astronomy, and shipping flows
 - **Auth test coverage** — OTP request/verify/reuse/expiry tests now run in the normal `SYSTEM/test.sh` path
-
-## 🔥 Previously in v1.2.2
-
-- **Event planning templates** — new small, medium, and large event-planning proposal templates are live in both ClawMax and the public templates repo
-- **Events discovery** — Templates page now has a dedicated `Events` filter chip
-- **Default channel replies** — group and community chat now fan out to all members by default unless the user narrows with `@name`
-- **Live agent chat streaming** — agent chat now streams live stdout deltas instead of waiting for the full response
-- **Testing/doc cleanup** — testing guide refreshed for the current system-test flow and remaining clean-room gap
-
-## 🔥 Previously in v1.2.1
-
-- **Workspaces Integrations UX polish** — optional integration checks no longer block save, warnings identify the exact failing providers, and validation toasts stay visible above the modal
-- **Discovered provider model lists** — Gemini and Ollama discovered models now appear directly in the preferred-model selector, and Ollama installed models can be refreshed/selected inline
-- **Runtime defaults follow-through** — saved Senso context and GitHub repo defaults now persist per workspace and flow into template apply plus workflow execution context
-- **Safer template import validation** — `TEMPLATE.md` imports are schema-validated before save
-- **Search suggestions** — Templates and Workflows now suggest nearby starting points when search is weak or empty
-- **Workspace export and clean-slate testing** — workspace exports download cleanly, system-test cleanup is cleaner, and `SYSTEM/test.sh` supports custom dashboard ports for repeatable validation
-- **DAG rerun truthfulness** — rerunning upstream workflows now resets downstream progress instead of reusing stale completion state
-- **Packaged skills in Skills Manager** — built-in ClawMax skills like `workspace-ls` now show up in the catalog consistently
-- **UI polish** — workspace switcher actions no longer overlap long workspace names, unread badges are visible again, and DAG connectors stay aligned across zoom levels
-
-## 🔥 Previously in v1.2.0
-
-- **Workspaces Integrations** — unified setup surface for Models, Senso, Opik, GitHub, Gemini, and Ollama with validation and saved defaults
-- **Shareable Workspace Dashboards** — stakeholder-friendly live dashboards with compact/standard/detail modes, compact charts, and generated links
-- **Massively Expanded Template Catalog** — science, travel, hobbies, family, personal assistant, and finance proposal templates plus richer reusable agent templates
-- **Template & Workflow Import/Export** — first-pass [`TEMPLATE.md`](https://github.com/Maximilien-ai/templates) and [`WORKFLOW.md`](https://github.com/Maximilien-ai/workflows) import/export flows in-product
-- **Docker Deployment Support** — canonical public Docker assets for cloud/on-prem handoff
 
 Cloud/on-prem runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
