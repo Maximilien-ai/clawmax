@@ -538,7 +538,7 @@ export default function BulkOperationsPanel({
         ) : !showSecondConfirm ? (
           <>
             {/* First Confirmation screen */}
-            <div className="px-6 py-6">
+            <div className="px-6 py-6 pb-24">
               <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-3">
                   <div className="text-yellow-600 text-xl">⚠️</div>
@@ -617,7 +617,7 @@ export default function BulkOperationsPanel({
         ) : (
           <>
             {/* Second Confirmation screen (for delete only) */}
-            <div className="px-6 py-6">
+            <div className="px-6 py-6 pb-24">
               <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
                 <div className="flex items-start gap-3">
                   <div className="text-red-600 text-2xl">🚨</div>
@@ -657,7 +657,7 @@ export default function BulkOperationsPanel({
 
               <div className="p-4 bg-gray-50 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-900">
                 <div className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Agents to be deleted:</div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto pr-1">
                   {selectedAgents.map(a => (
                     <span
                       key={a.id}
