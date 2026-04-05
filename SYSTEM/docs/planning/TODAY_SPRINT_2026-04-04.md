@@ -106,3 +106,31 @@ If `#94` is still unresolved after roughly 3.5 hours, stop broadening scope and 
 - Best case: `#94` fixed, `#8` fixed, `#95` lightly refined
 - Good day: `#94` fixed and validated, with clear notes on `#8`
 - Acceptable fallback: `#94` narrowed to one concrete failing seam with a partial patch and regression coverage
+
+## Mini Sprint Addendum — Gateway First
+
+### Immediate Priority
+
+1. **Gateway/runtime truth audit**
+   - Verify that configured model/provider matches actual runtime across direct chat, group chat, and workflows
+   - Eliminate silent hosted fallback for `ollama/...` agents
+   - Verify persisted OpenClaw session state cannot override current model selection
+
+2. **Doctor / gateway alignment**
+   - Make Doctor warnings match the real gateway/runtime failure modes seen in the field
+   - Cover `ECONNREFUSED 127.0.0.1:18789`, configured-but-down gateway, and noisy scope errors
+   - Reduce misleading gateway noise in logs and UI
+
+3. **End-to-end runtime verification**
+   - Re-test direct chat, group chat, workflow kickoff, and usage/metering fallback behavior
+   - Confirm that failure states are explicit instead of silently drifting to the wrong provider
+
+4. **Release prep only after runtime truth**
+   - Draft release notes and do release hygiene only if gateway/runtime behavior is trustworthy
+   - Hold release if Ollama-selected agents can still execute on hosted Claude in normal UI flow
+
+### Release Hold
+
+- **Do not cut a release while runtime truth is ambiguous.**
+- Current release blocker: **Ollama-selected agents can still execute on Claude in normal UI flow**.
+- CI is green on the current branch, but release quality still depends on resolving the gateway/runtime selection issue end-to-end.
