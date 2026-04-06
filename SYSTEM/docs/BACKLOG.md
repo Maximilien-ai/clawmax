@@ -25,6 +25,7 @@
 - [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
 - [ ] **Workflow result surfacing in notifications and workspace dashboards** — when a workflow produces a strong final artifact or summary, surface a prominent “latest result” link/card in notifications and the workspace dashboard so users do not have to dig through busy group chat threads to find the outcome. Start with Lu.ma-style synthesis workflows, then generalize to other templates.
 - [ ] **Senso and external artifact result notifications** — file artifacts and GitHub issue/PR links now surface into `Results`, but Senso outputs and other external result types still need first-class notification hooks plus dashboard surfacing so users can see all meaningful agent outputs in one place.
+- [ ] **First-run onboarding wizard follow-through** — the initial wizard should grow from simple route guidance into a richer setup flow: detect BYOK readiness, offer OpenClaw agent import vs. create-team paths, suggest templates by category/use case, and disappear automatically once the workspace is meaningfully initialized.
 
 ## Today Focus — April 2, 2026
 

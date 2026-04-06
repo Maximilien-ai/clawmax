@@ -18,6 +18,7 @@ import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
 import { NotificationCenter } from './components/NotificationCenter'
+import { OnboardingWizard } from './components/OnboardingWizard'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'logs'
 
@@ -147,6 +148,7 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
+  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'import' | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
@@ -387,6 +389,9 @@ export default function App() {
               onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
               onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
               onNavigateToPage={(p) => setPage(p as any)}
+              onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
+              onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
+              onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
             />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
@@ -396,6 +401,8 @@ export default function App() {
                 onNavigateToWorkflows={() => { setPage('workflows'); }}
                 onNavigateToTemplates={() => { setPage('templates'); }}
                 initialAgentId={initialAgentId}
+                initialAction={initialAgentAction}
+                onInitialActionHandled={() => setInitialAgentAction(undefined)}
                 isActive={page === 'agents'}
               />
             </div>
@@ -451,7 +458,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onOpenAgentCreate, onOpenAgentImport, onOpenByok }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -462,6 +469,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
+  onOpenAgentCreate?: () => void
+  onOpenAgentImport?: () => void
+  onOpenByok?: () => void
 }) {
   const { user, logout, config } = useAuth()
 
@@ -541,6 +551,13 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
             setPage('docs')
           }}
           onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
+        />
+        <OnboardingWizard
+          visible={(system?.agentCount || 0) === 0}
+          onOpenByok={() => onOpenByok?.()}
+          onImportAgents={() => onOpenAgentImport?.()}
+          onCreateAgent={() => onOpenAgentCreate?.()}
+          onOpenTemplates={() => onNavigateToPage?.('templates')}
         />
         <ByokWizard />
         {user && !config?.authDisabled && (

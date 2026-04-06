@@ -145,6 +145,15 @@ export function ByokWizard() {
   }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, user])
 
   useEffect(() => {
+    const openWizard = () => {
+      setDismissed(false)
+      setOpen(true)
+    }
+    window.addEventListener('open-byok-wizard', openWizard)
+    return () => window.removeEventListener('open-byok-wizard', openWizard)
+  }, [])
+
+  useEffect(() => {
     if (!open) return
     fetch('/api/integrations/status')
       .then(async (r) => {

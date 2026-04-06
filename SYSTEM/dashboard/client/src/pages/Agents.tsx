@@ -101,7 +101,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'import'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
@@ -287,6 +287,18 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
     }
   }, [initialAgentId, agents])
+
+  useEffect(() => {
+    if (!isActive || !initialAction) return
+    if (initialAction === 'create') {
+      setCloneFromAgent(null)
+      setAiGenerateMode(false)
+      setShowAddWizard(true)
+    } else if (initialAction === 'import') {
+      setShowImportModal(true)
+    }
+    onInitialActionHandled?.()
+  }, [initialAction, isActive, onInitialActionHandled])
 
   const handleRefresh = () => {
     if (cooling) return
