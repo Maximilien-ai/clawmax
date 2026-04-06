@@ -251,6 +251,8 @@ const ARTIFACT_IGNORE_FILES = new Set([
   'IDENTITY.md',
   'SOUL.md',
   'TOOLS.md',
+  'AGENTS.md',
+  'USER.md',
   'GROUPS.md',
   'COMMUNITIES.md',
   'HEARTBEAT.md',
@@ -262,8 +264,36 @@ function isInterestingArtifactFile(file: string): boolean {
   return true
 }
 
+function extractArtifactFileName(notification: Notification): string | null {
+  if (notification.artifactPath) {
+    return path.basename(notification.artifactPath)
+  }
+  const match = notification.title.match(/\b([A-Z0-9_.-]+\.md|[A-Z0-9_.-]+\.txt|[A-Z0-9_.-]+\.json|[A-Z0-9_.-]+\.csv)\b/i)
+  return match?.[1] || null
+}
+
+function resolveIgnoredArtifactNotifications(): void {
+  const notifications = loadNotifications()
+  let changed = false
+
+  for (const notification of notifications) {
+    if (notification.type !== 'artifact-update') continue
+    if (notification.dismissedAt || notification.resolvedAt) continue
+    const file = extractArtifactFileName(notification)
+    if (!file || isInterestingArtifactFile(file)) continue
+    notification.resolvedAt = new Date().toISOString()
+    changed = true
+  }
+
+  if (changed) {
+    saveNotifications(notifications)
+  }
+}
+
 async function runMonitorScan(): Promise<void> {
   try {
+    resolveIgnoredArtifactNotifications()
+
     // 1. Check agent health
     const agents = listAgents()
     const activeAgents = agents.filter(a => !a.archived)
