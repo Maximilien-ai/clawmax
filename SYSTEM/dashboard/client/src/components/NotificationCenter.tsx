@@ -56,6 +56,12 @@ function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
+function getArtifactDisplayName(target?: string): string {
+  if (!target) return 'Open file'
+  const parts = target.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || target
+}
+
 const SEVERITY_DOT: Record<string, string> = {
   critical: 'bg-red-500',
   warning: 'bg-amber-500',
@@ -300,6 +306,16 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{timeAgo(n.createdAt)}</span>
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</div>
+                          {n.type === 'artifact-update' && (n.artifactPath || n.artifactUrl) && (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(n)}
+                              className="mt-1 text-xs font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 hover:underline break-all text-left"
+                              title={n.artifactPath || n.artifactUrl}
+                            >
+                              {getArtifactDisplayName(n.artifactPath || n.artifactUrl || n.title)}
+                            </button>
+                          )}
                           {/* Progress bar */}
                           {n.type === 'workflow-progress' && n.progress != null && (
                             <div className="mt-1.5">
