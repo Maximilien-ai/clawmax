@@ -82,8 +82,13 @@ ENV DASHBOARD_PORT=3001
 ENV OPENCLAW_WORKSPACE=/app/WORKSPACES/default
 ENV CLAWMAX_REPO_ROOT=/app
 ENV OPENCLAW_GIT_REF=${OPENCLAW_GIT_REF}
+ENV CLAWMAX_GATEWAY_WATCHDOG=true
+ENV CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC=30
 
 EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:3001/api/health >/dev/null || exit 1
 
 ENTRYPOINT ["/app/SYSTEM/dashboard/docker-entrypoint.sh"]
 CMD ["node", "/app/SYSTEM/dashboard/dist/server/index.js"]
