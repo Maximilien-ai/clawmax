@@ -77,6 +77,7 @@ function findOpenClawSkillsDir(): string {
 
   // 2. npm global installs (Homebrew, system)
   candidates.push(
+    path.join('/opt/openclaw/node_modules/openclaw/skills'),
     path.join('/opt/homebrew/lib/node_modules/openclaw/skills'),
     path.join('/usr/local/lib/node_modules/openclaw/skills'),
   )
