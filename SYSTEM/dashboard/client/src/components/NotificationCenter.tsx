@@ -178,6 +178,11 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
     setOpen(false)
   }
 
+  const notificationHasViewAction = (n: Notification) =>
+    (n.type === 'artifact-update' && (Boolean(n.artifactPath) || Boolean(n.artifactUrl))) ||
+    Boolean(n.entityId && !n.blockerType && n.entityType !== 'agent') ||
+    n.entityType === 'budget'
+
   // Group notifications by category (derived from type)
   const getCategory = (n: Notification): string => {
     if (n.type === 'artifact-update') return 'results'
@@ -280,7 +285,18 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${SEVERITY_DOT[n.severity]}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{n.title}</span>
+                            <button
+                              type="button"
+                              onClick={() => notificationHasViewAction(n) && handleAction(n)}
+                              className={`text-sm font-medium text-left truncate ${
+                                notificationHasViewAction(n)
+                                  ? 'text-sky-700 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300'
+                                  : 'text-gray-900 dark:text-gray-100'
+                              }`}
+                              title={notificationHasViewAction(n) ? 'Open result' : undefined}
+                            >
+                              {n.title}
+                            </button>
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{timeAgo(n.createdAt)}</span>
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</div>
@@ -469,7 +485,15 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
 
                           {/* Standard footer actions */}
                           <div className="flex items-center gap-2 mt-1.5">
-                            {n.entityId && !n.blockerType && n.entityType !== 'agent' && (
+                            {n.type === 'artifact-update' && (n.artifactPath || n.artifactUrl) && (
+                              <button
+                                onClick={() => handleAction(n)}
+                                className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
+                              >
+                                Open file →
+                              </button>
+                            )}
+                            {n.entityId && !n.blockerType && n.entityType !== 'agent' && n.type !== 'artifact-update' && (
                               <button
                                 onClick={() => handleAction(n)}
                                 className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
