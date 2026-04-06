@@ -389,6 +389,7 @@ export default function App() {
               onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
               onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
               onNavigateToPage={(p) => setPage(p as any)}
+              onNavigateToDoc={(file) => { setDocFile(file); setPage('docs') }}
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
@@ -458,7 +459,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onOpenAgentCreate, onOpenAgentImport, onOpenByok }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentImport, onOpenByok }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -469,6 +470,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
+  onNavigateToDoc?: (path: string) => void
   onOpenAgentCreate?: () => void
   onOpenAgentImport?: () => void
   onOpenByok?: () => void
@@ -546,10 +548,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onNavigateToAgent={onNavigateToAgent}
           onNavigateToWorkflow={onNavigateToWorkflow}
           onNavigateToPage={onNavigateToPage}
-          onNavigateToDoc={(path: string) => {
-            setDocFile(path)
-            setPage('docs')
-          }}
+          onNavigateToDoc={onNavigateToDoc}
           onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
         />
         <OnboardingWizard
