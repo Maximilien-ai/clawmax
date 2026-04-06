@@ -156,7 +156,7 @@
           "family-lead"
         ]
       },
-      "content": "# Family Week Kickoff\n\nYou are the Family Lead. The family ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **This week’s priorities:** [school, appointments, travel, chores, bills, custom]\n- **Key family members or roles:** [names or roles]\n- **Known stress points:** [time crunches, missing supplies, overloaded days, custom]\n- **Output artifact:** [weekly plan, chore board, family brief]\n\n## Your Tasks\n1. Define the top family priorities for the week\n2. Ask Schedule Coordinator for the first schedule risk review\n3. Ask Home Ops Coordinator for the top household tasks\n4. Ask Kids Support Coordinator for school/activity needs\n5. Post the current family ops plan to Status",
+      "content": "# Family Week Kickoff\n\nYou are the Family Lead. The family ops hub just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **This week’s priorities:** [school, appointments, travel, chores, bills, custom]\n- **Key family members or roles:** [names or roles]\n- **Known stress points:** [time crunches, missing supplies, overloaded days, custom]\n- **Output artifact:** [weekly plan, chore board, family brief]\n\n## Your Tasks\n1. Define the top family priorities for the week\n2. Ask Schedule Coordinator for the first schedule risk review\n3. Ask Home Ops Coordinator for the top household tasks\n4. Ask Kids Support Coordinator for school/activity needs\n5. Choose the final artifact the family should receive\n6. Post the current family ops plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -194,6 +194,98 @@
         "family",
         "family-ops-hub",
         "household-reset"
+      ]
+    },
+    {
+      "id": "schedule-review",
+      "name": "Schedule Review",
+      "description": "Review the family calendar, conflicts, and transport needs.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "schedule-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Schedules"
+        ],
+        "tags": [],
+        "agents": [
+          "schedule-coordinator"
+        ]
+      },
+      "content": "# Schedule Review\n\n1. Review the week for collisions, overloaded days, and pickup or transport risks\n2. Highlight the appointments or events that require preparation now\n3. Suggest any swaps, reminders, or simplifications that would reduce stress\n4. Post the schedule review and top conflicts to Schedules",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "family-week-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "family-ops-hub",
+        "schedule-review"
+      ]
+    },
+    {
+      "id": "kids-support-plan",
+      "name": "Kids Support Plan",
+      "description": "Capture school, activity, and support needs for the week.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "kids-support-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Kids"
+        ],
+        "tags": [],
+        "agents": [
+          "kids-support-coordinator"
+        ]
+      },
+      "content": "# Kids Support Plan\n\n1. Review school deadlines, activities, and any support needs for the week\n2. Flag where extra supplies, rides, or adult help are needed\n3. Suggest a practical sequence for homework, prep, and family logistics\n4. Post the kids support plan to Kids",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "family-week-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "family-ops-hub",
+        "kids-support-plan"
+      ]
+    },
+    {
+      "id": "family-week-brief",
+      "name": "Family Week Brief",
+      "description": "Produce the final weekly family ops plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "family-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "family-lead"
+        ]
+      },
+      "content": "# Family Week Brief\n\n1. Synthesize the schedule, household, and kids support plans into one weekly brief\n2. Produce the chosen output artifact such as a weekly plan, chore board, or family brief\n3. Highlight the top risks, deadlines, and next actions for the household\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "household-reset",
+        "schedule-review",
+        "kids-support-plan"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "family-ops-hub",
+        "family-week-brief"
       ]
     }
   ]

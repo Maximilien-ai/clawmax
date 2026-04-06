@@ -162,7 +162,7 @@
           "trivia-host"
         ]
       },
-      "content": "# Trivia Night Kickoff\n\nYou are the Trivia Host.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme:** [general movies, one franchise, decade, director, genre, custom]\n- **Audience size:** [small, medium, party, custom]\n- **Difficulty:** [easy, mixed, hard]\n- **Rounds planned:** [3, 4, 5, custom]\n- **Output artifact:** [ready-to-host trivia pack, host script, answer key]\n\n## Your Tasks\n1. Restate the game-night goal and constraints\n2. Ask Question Writers for the first batch of questions\n3. Ask Round Designer for the round structure\n4. Ask Score Keeper for scoring rules and tie-breakers\n5. Post the trivia plan to Status",
+      "content": "# Trivia Night Kickoff\n\nYou are the Trivia Host.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme:** [general movies, one franchise, decade, director, genre, custom]\n- **Audience size:** [small, medium, party, custom]\n- **Difficulty:** [easy, mixed, hard]\n- **Rounds planned:** [3, 4, 5, custom]\n- **Output artifact:** [ready-to-host trivia pack, host script, answer key]\n\n## Your Tasks\n1. Restate the game-night goal and constraints\n2. Ask Question Writers for the first batch of questions\n3. Ask Round Designer for the round structure\n4. Ask Score Keeper for scoring rules and tie-breakers\n5. Choose the final trivia artifact the team should produce\n6. Post the trivia plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -200,6 +200,98 @@
         "hobbies",
         "movie-trivia-night",
         "trivia-pack-build"
+      ]
+    },
+    {
+      "id": "host-runbook",
+      "name": "Host Runbook",
+      "description": "Prepare the host pacing, transitions, and facilitation notes.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "trivia-host",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Host Notes"
+        ],
+        "tags": [],
+        "agents": [
+          "trivia-host"
+        ]
+      },
+      "content": "# Host Runbook\n\n1. Build the run-of-show for intros, round transitions, and answer reveals\n2. Suggest pacing notes, tie-break moments, and crowd-management guidance\n3. Capture the host script or cue notes needed for a smooth game night\n4. Post the host runbook to Host Notes",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "trivia-night-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-trivia-night",
+        "host-runbook"
+      ]
+    },
+    {
+      "id": "score-plan",
+      "name": "Score Plan",
+      "description": "Finalize scoring, answer validation, and tie-break rules.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "score-keeper",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Scoring"
+        ],
+        "tags": [],
+        "agents": [
+          "score-keeper"
+        ]
+      },
+      "content": "# Score Plan\n\n1. Define the scoring model, point weights, and tie-breaker rules for the night\n2. Clarify answer validation, accepted variants, and disputes handling\n3. Produce a clean score sheet or answer-key structure the host can use\n4. Post the scoring plan to Scoring",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "trivia-night-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-trivia-night",
+        "score-plan"
+      ]
+    },
+    {
+      "id": "trivia-night-brief",
+      "name": "Trivia Night Brief",
+      "description": "Produce the final host-ready trivia packet.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "trivia-host",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "trivia-host"
+        ]
+      },
+      "content": "# Trivia Night Brief\n\n1. Synthesize the trivia pack, host runbook, and score plan into one final packet\n2. Produce the chosen output artifact such as a ready-to-host pack, host script, or answer key\n3. Highlight any missing rounds, balance issues, or setup needs before game night\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "trivia-pack-build",
+        "host-runbook",
+        "score-plan"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-trivia-night",
+        "trivia-night-brief"
       ]
     }
   ]

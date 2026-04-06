@@ -148,7 +148,7 @@
           "kitchen-lead"
         ]
       },
-      "content": "# Cooking Kickoff\n\nYou are the Kitchen Lead. The home cooking studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meal or project:** [weeknight dinner, baking, meal prep, special occasion, custom]\n- **Constraints:** [budget, time, dietary needs, equipment, custom]\n- **Skill goal:** [learn a technique, repeat a favorite, experiment, custom]\n- **Output artifact:** [meal plan, shopping list, recipe note]\n\n## Your Tasks\n1. Define the cooking goal and constraints\n2. Ask Menu Planner for the first proposal\n3. Ask Prep Coordinator for the ingredient and timing plan\n4. Ask Taste Reviewer to define the review rubric\n5. Post the current kitchen plan to Status",
+      "content": "# Cooking Kickoff\n\nYou are the Kitchen Lead. The home cooking studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Meal or project:** [weeknight dinner, baking, meal prep, special occasion, custom]\n- **Constraints:** [budget, time, dietary needs, equipment, custom]\n- **Skill goal:** [learn a technique, repeat a favorite, experiment, custom]\n- **Output artifact:** [meal plan, shopping list, recipe note]\n\n## Your Tasks\n1. Define the cooking goal and constraints\n2. Ask Menu Planner for the first proposal\n3. Ask Prep Coordinator for the ingredient and timing plan\n4. Ask Taste Reviewer to define the review rubric\n5. Choose the final artifact the cooking studio should produce\n6. Post the current kitchen plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -186,6 +186,98 @@
         "hobbies",
         "home-cooking-studio",
         "recipe-retro"
+      ]
+    },
+    {
+      "id": "menu-build",
+      "name": "Menu Build",
+      "description": "Develop the recipe and serving plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "menu-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Recipes"
+        ],
+        "tags": [],
+        "agents": [
+          "menu-planner"
+        ]
+      },
+      "content": "# Menu Build\n\n1. Propose the best recipe or menu options for the goal and constraints\n2. Explain the tradeoffs across time, cost, difficulty, and serving style\n3. Suggest any substitutions, shortcuts, or upgrades worth considering\n4. Post the recommended menu and recipe plan to Recipes",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "cooking-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "home-cooking-studio",
+        "menu-build"
+      ]
+    },
+    {
+      "id": "prep-plan",
+      "name": "Prep Plan",
+      "description": "Build the prep, shopping, and kitchen workflow plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "prep-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Kitchen Prep"
+        ],
+        "tags": [],
+        "agents": [
+          "prep-coordinator"
+        ]
+      },
+      "content": "# Prep Plan\n\n1. Build the ingredient, shopping, and mise-en-place plan for the chosen menu\n2. Flag any missing equipment, timing bottlenecks, or prep tasks to front-load\n3. Suggest a practical cooking sequence for a smooth session\n4. Post the prep plan and shopping checklist to Kitchen Prep",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "cooking-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "home-cooking-studio",
+        "prep-plan"
+      ]
+    },
+    {
+      "id": "cooking-session-brief",
+      "name": "Cooking Session Brief",
+      "description": "Produce the final meal plan and cooking artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "kitchen-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "kitchen-lead"
+        ]
+      },
+      "content": "# Cooking Session Brief\n\n1. Synthesize the menu, prep, and review guidance into one final cooking brief\n2. Produce the chosen output artifact such as a meal plan, shopping list, or recipe note\n3. Include the key steps, constraints, and improvement ideas for the next session\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "menu-build",
+        "prep-plan",
+        "recipe-retro"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "home-cooking-studio",
+        "cooking-session-brief"
       ]
     }
   ]

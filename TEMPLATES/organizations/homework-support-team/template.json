@@ -159,7 +159,7 @@
           "study-lead"
         ]
       },
-      "content": "# Homework Kickoff\n\nYou are the Study Lead. The homework support team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Student or learners:** [names, grades, roles]\n- **Current subjects:** [math, reading, science, writing, custom]\n- **Known deadlines:** [today, this week, projects, tests]\n- **Pain points:** [motivation, confusion, time management, custom]\n- **Output artifact:** [study plan, homework board, project checklist]\n\n## Your Tasks\n1. Define the current homework priorities\n2. Ask Assignment Planner for the first work breakdown\n3. Ask Project Coach for any larger-project milestone plan\n4. Ask Review Tutor for the best study support approach\n5. Post the study plan to Status",
+      "content": "# Homework Kickoff\n\nYou are the Study Lead. The homework support team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Student or learners:** [names, grades, roles]\n- **Current subjects:** [math, reading, science, writing, custom]\n- **Known deadlines:** [today, this week, projects, tests]\n- **Pain points:** [motivation, confusion, time management, custom]\n- **Output artifact:** [study plan, homework board, project checklist]\n\n## Your Tasks\n1. Define the current homework priorities\n2. Ask Assignment Planner for the first work breakdown\n3. Ask Project Coach for any larger-project milestone plan\n4. Ask Review Tutor for the best study support approach\n5. Choose the final artifact the family should receive\n6. Post the study plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -197,6 +197,98 @@
         "family",
         "homework-support-team",
         "assignment-breakdown"
+      ]
+    },
+    {
+      "id": "project-milestones",
+      "name": "Project Milestones",
+      "description": "Break long projects into milestone plans.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "project-coach",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Projects"
+        ],
+        "tags": [],
+        "agents": [
+          "project-coach"
+        ]
+      },
+      "content": "# Project Milestones\n\n1. Identify the larger assignments, projects, or test-prep items in the current workload\n2. Break them into milestones with target dates and prep steps\n3. Flag where research, supplies, or adult help may be needed\n4. Post the milestone plan to Projects",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "homework-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "homework-support-team",
+        "project-milestones"
+      ]
+    },
+    {
+      "id": "study-review-plan",
+      "name": "Study Review Plan",
+      "description": "Build the practice and review support plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "review-tutor",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Study Support"
+        ],
+        "tags": [],
+        "agents": [
+          "review-tutor"
+        ]
+      },
+      "content": "# Study Review Plan\n\n1. Recommend the best practice, review, and confidence-building steps for the current subjects\n2. Identify where confusion is likely and which concepts need reinforcement first\n3. Suggest a realistic review cadence for the week\n4. Post the study review plan to Study Support",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "homework-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "homework-support-team",
+        "study-review-plan"
+      ]
+    },
+    {
+      "id": "homework-brief",
+      "name": "Homework Brief",
+      "description": "Produce the final study plan and homework artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "study-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "study-lead"
+        ]
+      },
+      "content": "# Homework Brief\n\n1. Synthesize the assignment, project, and study-support plans into one final brief\n2. Produce the chosen output artifact such as a study plan, homework board, or project checklist\n3. Highlight the top deadlines, blockers, and next actions for the learner and family\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "assignment-breakdown",
+        "project-milestones",
+        "study-review-plan"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "homework-support-team",
+        "homework-brief"
       ]
     }
   ]

@@ -147,7 +147,7 @@
           "club-lead"
         ]
       },
-      "content": "# Movie Night Kickoff\n\nYou are the Club Lead. The movie club just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme or mood:** [classic, sci-fi, family, thriller, director study, custom]\n- **Audience:** [solo, couple, family, club, custom]\n- **Decision horizon:** [tonight, this week, long-term watchlist]\n- **Output artifact:** [watchlist, ranked picks, discussion guide]\n\n## Your Tasks\n1. Define the viewing goal and constraints\n2. Ask Programmer for the first set of picks\n3. Ask Discussion Host for prompts or angles to watch for\n4. Ask Recommendation Editor for what to queue next\n5. Post the current watch plan to Status",
+      "content": "# Movie Night Kickoff\n\nYou are the Club Lead. The movie club just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Theme or mood:** [classic, sci-fi, family, thriller, director study, custom]\n- **Audience:** [solo, couple, family, club, custom]\n- **Decision horizon:** [tonight, this week, long-term watchlist]\n- **Output artifact:** [watchlist, ranked picks, discussion guide]\n\n## Your Tasks\n1. Define the viewing goal and constraints\n2. Ask Programmer for the first set of picks\n3. Ask Discussion Host for prompts or angles to watch for\n4. Ask Recommendation Editor for what to queue next\n5. Choose the final artifact the club should receive\n6. Post the current watch plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -187,6 +187,67 @@
         "hobbies",
         "movie-club",
         "watchlist-refresh"
+      ]
+    },
+    {
+      "id": "discussion-guide",
+      "name": "Discussion Guide",
+      "description": "Prepare the post-watch discussion angles and prompts.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "discussion-host",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Discussion"
+        ],
+        "tags": [],
+        "agents": [
+          "discussion-host"
+        ]
+      },
+      "content": "# Discussion Guide\n\n1. Draft the best questions, themes, and reactions to watch for during or after the film\n2. Suggest a few discussion prompts for different audiences or moods\n3. Note any spoilers, context, or framing that would help the conversation\n4. Post the discussion guide to Discussion",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "movie-night-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-club",
+        "discussion-guide"
+      ]
+    },
+    {
+      "id": "movie-club-brief",
+      "name": "Movie Club Brief",
+      "description": "Produce the final watch packet and club output.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "club-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "club-lead"
+        ]
+      },
+      "content": "# Movie Club Brief\n\n1. Synthesize the picks, discussion prompts, and follow-up recommendations\n2. Produce the chosen output artifact such as a watchlist, ranked picks, or discussion guide\n3. Include the best next-viewing options and why they fit the current theme\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "watchlist-refresh",
+        "discussion-guide"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "movie-club",
+        "movie-club-brief"
       ]
     }
   ]

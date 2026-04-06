@@ -157,7 +157,7 @@
           "memory-lead"
         ]
       },
-      "content": "# Memory Kickoff\n\nYou are the Memory Lead. The trip memory studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Trip name:** [destination or trip title]\n- **Media inputs:** [photos, notes, videos, voice memos, custom]\n- **Audience:** [private archive, family, friends, public, custom]\n- **Output artifact:** [album, recap note, highlight reel plan, printed keepsake]\n\n## Your Tasks\n1. Define the story goal for the trip recap\n2. Ask Highlight Collector for the strongest moments and gaps\n3. Ask Story Editor for the first recap structure\n4. Ask Sharing Coordinator for the best sharing format\n5. Post the current memory plan to Status",
+      "content": "# Memory Kickoff\n\nYou are the Memory Lead. The trip memory studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Trip name:** [destination or trip title]\n- **Media inputs:** [photos, notes, videos, voice memos, custom]\n- **Audience:** [private archive, family, friends, public, custom]\n- **Output artifact:** [album, recap note, highlight reel plan, printed keepsake]\n\n## Your Tasks\n1. Define the story goal for the trip recap\n2. Ask Highlight Collector for the strongest moments and gaps\n3. Ask Story Editor for the first recap structure\n4. Ask Sharing Coordinator for the best sharing format\n5. Choose the final memory artifact to produce\n6. Post the current memory plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -197,6 +197,67 @@
         "travel",
         "trip-memory-studio",
         "highlight-curation"
+      ]
+    },
+    {
+      "id": "sharing-plan",
+      "name": "Sharing Plan",
+      "description": "Plan how the final trip memories should be shared or packaged.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "sharing-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Share"
+        ],
+        "tags": [],
+        "agents": [
+          "sharing-coordinator"
+        ]
+      },
+      "content": "# Sharing Plan\n\n1. Recommend the best format for sharing or saving the trip memories\n2. Identify what belongs in a private archive versus a public or family-facing recap\n3. Suggest any print, album, message, or keepsake options worth preparing\n4. Post the sharing plan to Share",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "memory-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "trip-memory-studio",
+        "sharing-plan"
+      ]
+    },
+    {
+      "id": "trip-memory-brief",
+      "name": "Trip Memory Brief",
+      "description": "Produce the final recap and memory artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "memory-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "memory-lead"
+        ]
+      },
+      "content": "# Trip Memory Brief\n\n1. Synthesize the highlights, story structure, and sharing plan into one final recap\n2. Produce the chosen output artifact such as an album plan, recap note, or printed keepsake brief\n3. Highlight any missing media, gaps, or polish steps before final sharing\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "highlight-curation",
+        "sharing-plan"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "trip-memory-studio",
+        "trip-memory-brief"
       ]
     }
   ]
