@@ -122,6 +122,13 @@ function linkifyWorkspaceFiles(content: string): string {
     })
 }
 
+function extractWorkspaceFileMentions(content: string): string[] {
+  const matches = Array.from(
+    content.matchAll(/\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g)
+  ).map((m) => m[0])
+  return Array.from(new Set(matches))
+}
+
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -716,6 +723,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                       {renderMarkdown(msg.content || '')}
                     </div>
+                    {onNavigateToDoc && extractWorkspaceFileMentions(msg.content || '').length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] opacity-70">Files:</span>
+                        {extractWorkspaceFileMentions(msg.content || '').map((file) => (
+                          <button
+                            key={file}
+                            type="button"
+                            onClick={() => onNavigateToDoc(file)}
+                            className="text-[11px] px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 underline"
+                          >
+                            {file}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="text-xs opacity-60 mt-1">
                       {new Date(msg.timestamp).toLocaleTimeString()}
                     </div>
