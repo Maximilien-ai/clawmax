@@ -33,6 +33,7 @@ interface Props {
   mode?: 'overlay' | 'pane'
   onExpand?: () => void
   onMessageSent?: (mentionedAgentIds: string[], hasAll: boolean) => void
+  onNavigateToDoc?: (path: string) => void
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -83,7 +84,20 @@ function cleanContent(content: string): string {
   return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
 }
 
-export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent }: Props) {
+function linkifyWorkspaceFiles(content: string): string {
+  return content
+    .replace(/(^|[\s(])([A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_m, prefix, target) => {
+      if (!target.includes('/')) {
+        return `${prefix}[${target}](workspace-file:${target})`
+      }
+      if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(target)) {
+        return `${prefix}[${target}](workspace-file:${target})`
+      }
+      return `${prefix}${target}`
+    })
+}
+
+export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -629,6 +643,30 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   }
 
   const isOverlay = mode === 'overlay'
+  const renderMarkdown = (content: string, clean = false) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ href, children }) => {
+          if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
+            const file = href.replace('workspace-file:', '')
+            return (
+              <button
+                type="button"
+                onClick={() => onNavigateToDoc(file)}
+                className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
+              >
+                {children}
+              </button>
+            )
+          }
+          return <a href={href} target="_blank" rel="noreferrer">{children}</a>
+        },
+      }}
+    >
+      {linkifyWorkspaceFiles(clean ? cleanContent(content) : content)}
+    </ReactMarkdown>
+  )
 
   return (
     <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"} onClick={isOverlay ? onClose : undefined}>
@@ -723,15 +761,11 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
               </div>
               {msg.from !== 'User' ? (
                 <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {cleanContent(msg.content)}
-                  </ReactMarkdown>
+                  {renderMarkdown(msg.content, true)}
                 </div>
               ) : (
                 <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  {renderMarkdown(msg.content)}
                 </div>
               )}
             </div>

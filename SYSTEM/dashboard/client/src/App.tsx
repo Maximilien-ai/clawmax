@@ -435,6 +435,7 @@ export default function App() {
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialGroupName={initialGroupName}
                 onClearInitialGroupName={() => setInitialGroupName(undefined)}
                 isActive={page === 'communication'}

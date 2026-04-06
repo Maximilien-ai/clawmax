@@ -1939,6 +1939,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             agentName={chatTarget.name}
             agentStatus={chatTarget.status}
             onClose={() => setChatTarget(null)}
+            onNavigateToDoc={onNavigateToDoc}
             onSuccess={() => {
               // Show toast if agent was offline when chat started
               if (chatTarget.status === 'offline') {
@@ -2125,6 +2126,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           channel={bulkChatChannel}
           onClose={() => setBulkChatChannel(null)}
           mode="overlay"
+          onNavigateToDoc={onNavigateToDoc}
         />
       )}
 

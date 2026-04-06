@@ -21,6 +21,7 @@ interface Props {
   agentStatus?: 'online' | 'offline' | 'unknown'
   onClose: () => void
   onSuccess?: () => void
+  onNavigateToDoc?: (path: string) => void
 }
 
 // Strip ANSI escape codes from text
@@ -108,7 +109,20 @@ function cleanMessageContent(content: string): string {
   return cleaned || '(processing...)'
 }
 
-export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess }: Props) {
+function linkifyWorkspaceFiles(content: string): string {
+  return content
+    .replace(/(^|[\s(])([A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_m, prefix, target) => {
+      if (!target.includes('/')) {
+        return `${prefix}[${target}](workspace-file:${target})`
+      }
+      if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(target)) {
+        return `${prefix}[${target}](workspace-file:${target})`
+      }
+      return `${prefix}${target}`
+    })
+}
+
+export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
@@ -219,6 +233,31 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const renderMarkdown = (content: string, clean = false) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ href, children }) => {
+          if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
+            const file = href.replace('workspace-file:', '')
+            return (
+              <button
+                type="button"
+                onClick={() => onNavigateToDoc(file)}
+                className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
+              >
+                {children}
+              </button>
+            )
+          }
+          return <a href={href} target="_blank" rel="noreferrer">{children}</a>
+        },
+      }}
+    >
+      {linkifyWorkspaceFiles(clean ? cleanMessageContent(content) : content)}
+    </ReactMarkdown>
+  )
 
   // Save slide mode preference to localStorage whenever it changes
   useEffect(() => {
@@ -658,9 +697,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {cleanMessageContent(msg.content) || (streaming && idx === messages.length - 1 ? '▌' : '')}
-                        </ReactMarkdown>
+                        {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true)}
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-1">
@@ -677,9 +714,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 ) : (
                   <>
                     <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content || ''}
-                      </ReactMarkdown>
+                      {renderMarkdown(msg.content || '')}
                     </div>
                     <div className="text-xs opacity-60 mt-1">
                       {new Date(msg.timestamp).toLocaleTimeString()}

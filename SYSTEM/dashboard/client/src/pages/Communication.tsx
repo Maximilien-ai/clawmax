@@ -66,7 +66,7 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
+export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
   const { showSuccess } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -724,6 +724,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             channel={chatPanelChannel}
             onClose={() => setChatPanelChannel(null)}
             mode="pane"
+            onNavigateToDoc={onNavigateToDoc}
             onMessageSent={(mentionedIds, hasAll) => {
               // Check which mentioned agents were offline
               const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
@@ -752,6 +753,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         channel={chatPanelChannel}
         onClose={() => setChatPanelChannel(null)}
         mode="overlay"
+        onNavigateToDoc={onNavigateToDoc}
         onMessageSent={(mentionedIds, hasAll) => {
           // Check which mentioned agents were offline
           const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
