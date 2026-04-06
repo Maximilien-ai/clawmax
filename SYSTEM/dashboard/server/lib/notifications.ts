@@ -59,6 +59,7 @@ export interface Notification {
   blockerResolution?: { action: string; value?: string; resolvedBy?: string; resolvedAt?: string }
   workflowId?: string
   progress?: number // 0-100 for workflow-progress type
+  artifactPath?: string
 }
 
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
@@ -118,6 +119,7 @@ export function createNotification(params: {
   blockerOptions?: string[]
   workflowId?: string
   progress?: number
+  artifactPath?: string
 }): Notification | null {
   const notifications = loadNotifications()
 
@@ -147,6 +149,7 @@ export function createNotification(params: {
     blockerOptions: params.blockerOptions,
     workflowId: params.workflowId,
     progress: params.progress,
+    artifactPath: params.artifactPath,
   }
 
   notifications.push(notification)
@@ -509,6 +512,7 @@ async function runMonitorScan(): Promise<void> {
           entityId: entry.agentId,
           entityType: 'agent',
           fingerprint,
+          artifactPath: `AGENTS/${entry.agentId}/${entry.file}`,
         })
       }
       artifactScanPrimed = true

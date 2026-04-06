@@ -21,6 +21,7 @@ interface Notification {
   blockerOptions?: string[]
   workflowId?: string
   progress?: number
+  artifactPath?: string
 }
 
 // Helper: resolve a notification action
@@ -39,6 +40,7 @@ interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
+  onNavigateToDoc?: (path: string) => void
   onAgentRestarted?: (agentId: string) => void
 }
 
@@ -69,7 +71,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ['results', 'agent', 'workflow', 'communication', 'budget']
 
-export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onAgentRestarted }: NotificationCenterProps) {
+export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
@@ -159,7 +161,9 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   }
 
   const handleAction = (n: Notification) => {
-    if (n.type === 'channel-activity' && onNavigateToPage) {
+    if (n.type === 'artifact-update' && n.artifactPath && onNavigateToDoc) {
+      onNavigateToDoc(n.artifactPath)
+    } else if (n.type === 'channel-activity' && onNavigateToPage) {
       onNavigateToPage('communication')
     } else if (n.entityType === 'agent' && n.entityId && onNavigateToAgent) {
       onNavigateToAgent(n.entityId)

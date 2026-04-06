@@ -536,6 +536,10 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onNavigateToAgent={onNavigateToAgent}
           onNavigateToWorkflow={onNavigateToWorkflow}
           onNavigateToPage={onNavigateToPage}
+          onNavigateToDoc={(path: string) => {
+            setDocFile(path)
+            setPage('docs')
+          }}
           onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
         />
         <ByokWizard />
