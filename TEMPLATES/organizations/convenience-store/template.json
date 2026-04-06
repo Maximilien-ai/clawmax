@@ -129,7 +129,7 @@
           "cashier-lead"
         ]
       },
-      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Post opening priorities to Status group",
+      "content": "# Store Team Kickoff\n\nYou are the Store Manager. Your team just came online.\n\n## Store Configuration\n> **Customize these before applying:**\n\n- **Store name:** [e.g., Quick Stop Market]\n- **Location:** [e.g., 123 Main St, Downtown]\n- **Operating hours:** [e.g., 6am-11pm daily]\n- **Key categories:** [e.g., snacks, beverages, tobacco, lottery]\n- **Suppliers:** [e.g., Sysco, local distributors]\n- **GitHub repo:** [e.g., owner/repo — for coordination and tracking]\n- **Output artifact:** [store checklist, reorder plan, shift playbook]\n\n## Your Tasks\n1. Introduce yourself in the Store Team community\n2. Review the workspace for existing inventory data or schedules\n3. Assign responsibilities to inventory clerk and cashier lead\n4. Set up the daily inventory count schedule\n5. Choose the main output artifact for the store team\n6. Post opening priorities to Status group",
       "type": "once",
       "owner": "store-manager",
       "tags": [
@@ -143,9 +143,9 @@
       "id": "daily-inventory-count",
       "name": "Daily Inventory Count",
       "description": "Morning inventory check and restock planning",
-      "schedule": "0 6 * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -156,11 +156,11 @@
           "inventory-clerk"
         ]
       },
-      "content": "# Daily Inventory Count\n\n1. Walk the store and count stock levels for all tracked categories\n2. Compare counts against minimum stock thresholds\n3. Flag any items below restock threshold or approaching expiry\n4. Generate restock order draft for manager approval\n5. Post inventory summary to Status group",
+      "content": "# Inventory Review\n\n1. Identify the most important store categories to track first\n2. Define the minimum-stock thresholds and expiry checks for those categories\n3. Recommend the daily count format and restock draft the clerk should produce\n4. Flag the highest-risk supply gaps or spoilage risks\n5. Post the inventory operating plan to Inventory",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "business",
@@ -172,9 +172,9 @@
       "id": "restock-alerts",
       "name": "Restock Alerts",
       "description": "Check for critical low-stock items throughout the day",
-      "schedule": "0 */4 * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -183,11 +183,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Restock Alert Check\n\n1. Check fast-moving items against minimum stock levels\n2. Flag any critical shortages (items at zero or near-zero)\n3. For critical items: notify store manager immediately\n4. Check pending restock orders and expected delivery dates\n5. Update inventory tracking with any received deliveries",
+      "content": "# Restock Planning\n\n1. Propose the reorder cadence for fast-moving and high-margin items\n2. Identify which supplier relationships or delivery windows matter most\n3. Define what should trigger an urgent manager approval versus a normal reorder\n4. Recommend a simple restock tracker the team can maintain\n5. Post the restock plan and current concerns to Inventory",
       "dependsOn": [
         "daily-inventory-count"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "business",
@@ -199,7 +199,7 @@
       "id": "shift-scheduling",
       "name": "Shift Scheduling",
       "description": "Weekly shift schedule creation",
-      "schedule": "0 18 * * 0",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": {
@@ -212,17 +212,49 @@
           "store-manager"
         ]
       },
-      "content": "# Weekly Shift Schedule\n\n1. Review next week's expected traffic (weekdays vs weekends, any events)\n2. Draft shift schedule ensuring coverage for all operating hours\n3. Assign cashier lead to peak hours\n4. Post draft schedule to Floor Operations group for team review\n5. Finalize and post confirmed schedule to Status group",
+      "content": "# Floor Operations Plan\n\n1. Define the busiest store windows and where floor coverage matters most\n2. Recommend the staffing, register, and handoff pattern for those windows\n3. Flag the recurring customer-service or floor-presentation issues to watch\n4. Produce a short floor checklist the cashier lead can reuse\n5. Post the floor operations plan to Floor Operations",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "owner": "store-manager",
       "tags": [
         "workflow",
         "business",
         "convenience-store",
         "shift-scheduling"
+      ]
+    },
+    {
+      "id": "store-operations-brief",
+      "name": "Store Operations Brief",
+      "description": "Produce the final store operating plan and output artifact",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "store-manager"
+        ]
+      },
+      "content": "# Store Operations Brief\n\n1. Synthesize the inventory, restock, and floor operations recommendations\n2. Produce the store operating plan the owner or manager should follow first\n3. Include the top risks, upcoming decisions, and next actions\n4. Create a final artifact such as `store_operations_brief.md`, checklist, or issue set if requested\n5. Post the final brief and artifact links to Status",
+      "dependsOn": [
+        "daily-inventory-count",
+        "restock-alerts",
+        "shift-scheduling"
+      ],
+      "type": "conditional",
+      "owner": "store-manager",
+      "tags": [
+        "workflow",
+        "business",
+        "convenience-store",
+        "store-operations-brief"
       ]
     }
   ],

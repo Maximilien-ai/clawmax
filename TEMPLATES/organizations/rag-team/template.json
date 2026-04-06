@@ -219,7 +219,7 @@
       "id": "rag-setup",
       "name": "RAG Setup",
       "schedule": "manual",
-      "enabled": false,
+      "enabled": true,
       "targeting": {
         "tags": [
           "planner"
@@ -227,17 +227,14 @@
         "communities": [],
         "groups": [],
         "agents": [
-          "planner",
-          "data-engineer",
-          "search-engineer",
-          "eval-engineer",
-          "ops-engineer"
+          "planner"
         ]
       },
-      "executionMode": "automated",
-      "description": "Gather requirements, configure weave-cli, verify VDB health",
-      "content": "## RAG Setup\n\n1. Gather user requirements: What data sources? What query patterns? What quality bar?\n2. Recommend VDB based on requirements (run `weave vdb list` to show options)\n3. Run `weave config create --env` to initialize config.yaml and .env\n4. Run `weave doctor --fix` to verify all components healthy\n5. Run `weave health check` to confirm VDB connectivity\n6. Report setup status and recommended next steps to the Planning group",
+      "executionMode": "managed",
+      "description": "Gather requirements, choose the target RAG stack, and define the work plan",
+      "content": "# RAG Setup\n\nYou are the RAG Planner. The RAG team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [docs, tickets, wiki, product specs, code, mixed]\n- **Primary user questions:** [support QA, internal search, analyst research, mixed]\n- **Quality bar:** [fast prototype, balanced, production-grade]\n- **Candidate vector databases:** [pgvector, Pinecone, Weaviate, Qdrant, mixed]\n- **Target output artifact:** [architecture brief, runbook, deployment plan, mixed]\n\n## Your Tasks\n1. Restate the user problem, source data, and quality bar\n2. Recommend the initial vector database and retrieval strategy\n3. Break the work into ingestion, search tuning, evaluation, and deployment lanes\n4. Assign success criteria for each specialist lane\n5. Post the execution plan and open questions to Status",
       "type": "once",
+      "owner": "planner",
       "tags": [
         "workflow",
         "technical",
@@ -249,7 +246,7 @@
       "id": "data-pipeline",
       "name": "Data Pipeline",
       "schedule": "manual",
-      "enabled": false,
+      "enabled": true,
       "targeting": {
         "tags": [
           "data"
@@ -258,13 +255,13 @@
         "groups": [],
         "agents": []
       },
-      "executionMode": "automated",
-      "description": "Create collections, ingest documents in parallel batches, backup",
-      "content": "## Data Pipeline\n\n1. Run `weave schema suggest` on the source data directory to get AI schema recommendations\n2. Run `weave chunking suggest` on a sample file for chunk size guidance\n3. Create collections: `weave collection create <name>`\n4. Dry-run ingestion: `weave pipeline ingest <source> --collection <name> --dry-run`\n5. Run full ingestion with parallelism: `weave pipeline ingest <source> --collection <name> --workers 4 --batch-size 100`\n6. Verify counts: `weave collection count <name>` and `weave document list <name>`\n7. Backup: `weave backup create <collection> --compress`\n8. Report ingestion stats to Data Pipeline group",
+      "executionMode": "managed",
+      "description": "Define the ingestion plan, collection structure, and validation checkpoints",
+      "content": "# Data Pipeline\n\n1. Propose the collection layout, schema assumptions, and chunking approach\n2. Identify the highest-risk ingestion sources and any cleanup needs\n3. Outline the dry-run, full ingest, and backup sequence the team should execute\n4. Define the validation checks for counts, freshness, and source coverage\n5. Post the ingestion plan and expected outputs to Data Pipeline",
       "dependsOn": [
         "rag-setup"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "technical",
@@ -276,7 +273,7 @@
       "id": "search-tuning",
       "name": "Search Tuning",
       "schedule": "manual",
-      "enabled": false,
+      "enabled": true,
       "targeting": {
         "tags": [
           "search"
@@ -285,13 +282,13 @@
         "groups": [],
         "agents": []
       },
-      "executionMode": "automated",
-      "description": "Configure agents, test queries, compare search modes and embeddings",
-      "content": "## Search Tuning\n\n1. Create a RAG agent: `weave agents create rag-agent --type rag`\n2. Create a QA agent: `weave agents create qa-agent --type qa`\n3. Test representative queries across search modes: semantic, BM25, hybrid\n4. Compare results: `weave collection query <name> \"test query\" --top-k 10`\n5. If quality is low, try re-embedding: `weave collection re-embed <name> --new-embedding <model>`\n6. Compare models: `weave collection compare <original> <re-embedded> --query \"test\" --report comparison.md`\n7. Report best search configuration to Search & QA group",
+      "executionMode": "managed",
+      "description": "Propose the search strategy, query test set, and tuning experiments",
+      "content": "# Search Tuning\n\n1. Translate the user questions into a representative query set\n2. Compare the recommended search modes: semantic, keyword, and hybrid\n3. Note which embedding or reranking experiments are worth trying first\n4. Define the acceptance criteria for relevance, citation quality, and latency\n5. Post the recommended tuning plan and tradeoffs to Search & QA",
       "dependsOn": [
         "rag-setup"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "technical",
@@ -303,7 +300,7 @@
       "id": "eval-cycle",
       "name": "Eval Cycle",
       "schedule": "manual",
-      "enabled": false,
+      "enabled": true,
       "targeting": {
         "tags": [
           "eval"
@@ -312,14 +309,14 @@
         "groups": [],
         "agents": []
       },
-      "executionMode": "automated",
-      "description": "Run baseline evals, benchmark agents, report results and recommendations",
-      "content": "## Eval Cycle\n\n1. Create or verify baseline dataset (YAML with queries, expected answers, required concepts)\n2. Run baseline eval: `weave eval run --agent rag-agent --dataset baseline --collection <name>`\n3. Run benchmark across agent types: `weave eval benchmark --agents rag-agent,qa-agent --dataset baseline`\n4. Check scores: accuracy >= 0.70, citation >= 0.75, relevance >= 0.60\n5. If below threshold, recommend specific changes:\n   - Low relevance: try hybrid search or different embedding model\n   - Low accuracy: switch to QA agent with lower temperature\n   - Low citation: enable strict mode with must_cite\n6. Report results and recommendations to Quality group",
+      "executionMode": "managed",
+      "description": "Define the evaluation rubric, benchmark set, and quality gate",
+      "content": "# Eval Cycle\n\n1. Propose the baseline evaluation set and the metrics that matter most\n2. Define the pass/fail thresholds for answer quality, citations, and coverage\n3. Identify the top failure modes the evaluation should catch early\n4. Recommend the first iteration loop if results land below the target bar\n5. Post the evaluation framework and quality gate to Quality",
       "dependsOn": [
         "data-pipeline",
         "search-tuning"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "technical",
@@ -331,7 +328,7 @@
       "id": "deploy",
       "name": "Deploy",
       "schedule": "manual",
-      "enabled": false,
+      "enabled": true,
       "targeting": {
         "tags": [
           "ops"
@@ -340,9 +337,9 @@
         "groups": [],
         "agents": []
       },
-      "executionMode": "automated",
-      "description": "Initialize stack, deploy to k8s/podman, verify health, set up monitoring",
-      "content": "## Deploy\n\n1. Initialize stack config: `weave stack init`\n2. Validate: `weave stack validate`\n3. Deploy: `weave stack up --runtime kind` (local) or `--runtime eks` (cloud)\n4. Verify health: `weave stack status`\n5. Ingest data into stack: `weave stack ingest <source> --collection <name>`\n6. Open dashboard: `weave stack dashboard`\n7. Set up monitoring: `weave serve --metrics-port 9090`\n8. Configure backup schedule\n9. Report deployment status to Ops group",
+      "executionMode": "managed",
+      "description": "Prepare the rollout plan, health checks, and day-2 runbook",
+      "content": "# Deploy\n\n1. Recommend the first deployment environment and runtime shape\n2. List the rollout steps, validation checks, and rollback guardrails\n3. Define monitoring, backup, and day-2 ownership expectations\n4. Flag any prerequisites the team must clear before deployment\n5. Post the deployment plan and go/no-go criteria to Ops",
       "dependsOn": [
         "eval-cycle"
       ],
@@ -355,9 +352,9 @@
       ]
     },
     {
-      "id": "daily-status",
-      "name": "Daily Status",
-      "schedule": "0 9 * * 1-5",
+      "id": "solution-brief",
+      "name": "Solution Brief",
+      "schedule": "manual",
       "enabled": true,
       "targeting": {
         "groups": [
@@ -365,20 +362,26 @@
         ],
         "communities": [],
         "tags": [],
-        "agents": []
+        "agents": [
+          "planner"
+        ]
       },
-      "executionMode": "automated",
-      "description": "Daily status check — each agent reports progress in their area",
-      "content": "## Daily Status\n\nReport your current status to the team:\n1. What did you accomplish since last check-in?\n2. What are you working on now?\n3. Any blockers or issues that need attention?\n4. Estimated progress toward your current objective (%)?\n\nKeep it brief — 2-3 sentences per item.",
+      "executionMode": "managed",
+      "description": "Produce the final RAG recommendation brief and rollout plan",
+      "content": "# Solution Brief\n\n1. Synthesize the setup, ingestion, search, evaluation, and deployment findings\n2. Produce a concise recommended architecture with the chosen tradeoffs\n3. Include the key risks, readiness gaps, and next execution steps\n4. Create a final artifact such as `rag_solution_brief.md` or a GitHub issue plan if requested\n5. Post the final brief and artifact links to Status",
       "dependsOn": [
-        "rag-setup"
+        "data-pipeline",
+        "search-tuning",
+        "eval-cycle",
+        "deploy"
       ],
-      "type": "recurring",
+      "type": "conditional",
+      "owner": "planner",
       "tags": [
         "workflow",
         "technical",
         "rag-team",
-        "daily-status"
+        "solution-brief"
       ]
     }
   ],

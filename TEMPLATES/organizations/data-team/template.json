@@ -185,7 +185,7 @@
           "ml-engineer"
         ]
       },
-      "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo — for pipeline code and models]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment",
+      "content": "# Data Team Kickoff\n\nYou are the Data Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Data sources:** [e.g., PostgreSQL, S3, Kafka, APIs]\n- **Pipeline tools:** [e.g., Airflow, dbt, Spark, Fivetran]\n- **Data warehouse:** [e.g., BigQuery, Snowflake, Redshift]\n- **Key metrics:** [e.g., DAU, revenue, conversion rate, churn]\n- **ML use cases:** [e.g., recommendation engine, fraud detection, forecasting]\n- **GitHub repo:** [e.g., owner/repo — for pipeline code and models]\n- **Output artifact:** [data plan, quality brief, analytics readout, ML review]\n\n## Your Tasks\n1. Introduce yourself in the Data Team community\n2. Review the workspace for existing pipeline code, schemas, or dashboards\n3. Assign pipeline ownership areas to data engineers\n4. Brief the analyst on priority reporting needs\n5. Discuss ML roadmap with the ML engineer and set first experiment\n6. Post the initial team plan to Status",
       "type": "once",
       "owner": "data-lead",
       "tags": [
@@ -199,9 +199,9 @@
       "id": "pipeline-monitoring",
       "name": "Pipeline Monitoring",
       "description": "Hourly pipeline health check and failure alerting",
-      "schedule": "0 * * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -210,11 +210,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Pipeline Monitoring\n\n1. Check all scheduled ETL/ELT job statuses\n2. Flag any failed or stalled pipelines with error details\n3. Verify data freshness — check latest timestamps in key tables\n4. For failures: notify the responsible data engineer and log incident\n5. Post pipeline health summary to Status group",
+      "content": "# Pipeline Monitoring\n\n1. Define the critical pipelines, data freshness checks, and failure conditions\n2. Identify the ownership split across the data engineers\n3. Recommend the minimum alerting and incident-response flow for the team\n4. Note which schemas, jobs, or sources are highest risk\n5. Post the pipeline operating plan to Pipeline",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "technical",
@@ -226,9 +226,9 @@
       "id": "data-quality-check",
       "name": "Data Quality Check",
       "description": "Daily data quality validation and anomaly detection",
-      "schedule": "0 8 * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -238,11 +238,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Daily Data Quality Check\n\n1. Run schema validation on all ingested tables\n2. Check for null rates, duplicate keys, and referential integrity\n3. Compare row counts against expected ranges (detect drops or spikes)\n4. Run statistical anomaly detection on key business metrics\n5. Post quality scorecard to Status group — flag any violations",
+      "content": "# Data Quality Check\n\n1. Define the core quality tests for the team: freshness, nulls, duplicates, and integrity\n2. Identify the most important business metrics to monitor for anomalies\n3. Recommend thresholds and escalation paths when data quality drops\n4. Produce a simple quality scorecard format the team can reuse\n5. Post the quality framework to Analytics",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "technical",
@@ -253,8 +253,8 @@
     {
       "id": "model-evaluation",
       "name": "Model Evaluation",
-      "description": "Weekly ML model performance review",
-      "schedule": "0 14 * * 5",
+      "description": "ML model performance review and experiment plan",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": {
@@ -267,18 +267,81 @@
           "ml-engineer"
         ]
       },
-      "content": "# Weekly Model Evaluation\n\n1. Pull inference metrics for all deployed models (accuracy, latency, error rate)\n2. Compare current performance against baseline and SLA thresholds\n3. Check for data drift — distribution shifts in input features\n4. Recommend retraining if metrics degraded beyond threshold\n5. Post model performance report to Status group with trend charts",
+      "content": "# Model Evaluation\n\n1. List the active ML use cases and the metrics that matter most\n2. Define the baseline, drift checks, and retraining triggers for each model class\n3. Recommend the first experiment or evaluation cycle the ML engineer should run\n4. Call out dependencies on data quality or pipeline reliability\n5. Post the ML evaluation plan to ML",
       "dependsOn": [
         "pipeline-monitoring",
         "data-quality-check"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "owner": "ml-engineer",
       "tags": [
         "workflow",
         "technical",
         "data-team",
         "model-evaluation"
+      ]
+    },
+    {
+      "id": "analytics-readout",
+      "name": "Analytics Readout",
+      "description": "Produce the business reporting and stakeholder readout",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Analytics"
+        ],
+        "tags": [],
+        "agents": [
+          "analyst"
+        ]
+      },
+      "content": "# Analytics Readout\n\n1. Translate the kickoff goals into a small set of key stakeholder metrics\n2. Recommend the first dashboards, recurring reports, or ad-hoc analysis packs\n3. Explain what the business should watch first and why\n4. Flag any data gaps that would weaken decision-making\n5. Post the analytics plan and readout structure to Analytics",
+      "dependsOn": [
+        "team-kickoff"
+      ],
+      "type": "conditional",
+      "owner": "analyst",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "analytics-readout"
+      ]
+    },
+    {
+      "id": "data-team-brief",
+      "name": "Data Team Brief",
+      "description": "Produce the final cross-functional data plan and output artifact",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "data-lead"
+        ]
+      },
+      "content": "# Data Team Brief\n\n1. Synthesize the pipeline, analytics, quality, and ML findings\n2. Produce the recommended operating plan for the data team\n3. Include the most important risks, dependencies, and next implementation steps\n4. Create a final artifact such as `data_team_brief.md` or GitHub issue set if requested\n5. Post the final brief and artifact links to Status",
+      "dependsOn": [
+        "pipeline-monitoring",
+        "data-quality-check",
+        "model-evaluation",
+        "analytics-readout"
+      ],
+      "type": "conditional",
+      "owner": "data-lead",
+      "tags": [
+        "workflow",
+        "technical",
+        "data-team",
+        "data-team-brief"
       ]
     }
   ]

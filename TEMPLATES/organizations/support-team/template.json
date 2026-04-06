@@ -176,7 +176,7 @@
           "knowledge-mgr"
         ]
       },
-      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo — for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas",
+      "content": "# Support Team Kickoff\n\nYou are the Support Lead. Your team just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Product/service:** [e.g., ClawMax multiagent platform]\n- **SLA targets:** [first response <1hr + resolution <24hr, first response <30min + resolution <4hr, first response <15min + resolution <1hr, custom]\n- **Ticket source:** [GitHub issues, email, Zendesk, Jira, Intercom, custom]\n- **GitHub repo:** [e.g., owner/repo — for tracking issues]\n- **Escalation criteria:** [P0=outage P1=broken-feature P2=degraded P3=cosmetic, P0=critical P1=high P2=medium P3=low, custom]\n- **Output artifact:** [support playbook, escalation plan, KB brief, GitHub issue set]\n\n## Your Tasks\n1. Introduce yourself in the Support Team community\n2. Review the workspace for existing tickets or customer data\n3. Set SLA targets and escalation policies\n4. Assign initial ticket queues to support agents\n5. Brief the knowledge manager on priority documentation areas\n6. Post the starting support plan to Status",
       "type": "once",
       "owner": "support-lead",
       "tags": [
@@ -190,9 +190,9 @@
       "id": "ticket-triage",
       "name": "Ticket Triage",
       "description": "Triage and prioritize incoming support tickets",
-      "schedule": "*/30 * * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -201,11 +201,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# Ticket Triage Cycle\n\n1. Pull all unassigned tickets since last triage\n2. Categorize by priority (P0 = outage, P1 = broken feature, P2 = question, P3 = enhancement)\n3. P0/P1: immediately assign to escalation engineer and notify support lead\n4. P2/P3: assign to support agents based on current load and expertise\n5. Update ticket status and post triage summary to Triage group",
+      "content": "# Ticket Triage Cycle\n\n1. Define the intake buckets, priority rules, and assignment logic for the current ticket source\n2. Identify the queues or issue labels the frontline team should own first\n3. Flag which ticket classes should route directly to escalation\n4. Produce a triage checklist the team can reuse on every cycle\n5. Post the triage plan and open risks to Triage group",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "business",
@@ -217,9 +217,9 @@
       "id": "sla-monitoring",
       "name": "SLA Monitoring",
       "description": "Monitor SLA compliance and flag at-risk tickets",
-      "schedule": "0 * * * *",
+      "schedule": "manual",
       "enabled": true,
-      "executionMode": "automated",
+      "executionMode": "managed",
       "targeting": {
         "communities": [],
         "groups": [
@@ -228,11 +228,11 @@
         "tags": [],
         "agents": []
       },
-      "content": "# SLA Monitoring\n\n1. Check all open tickets against SLA thresholds\n2. Flag tickets approaching SLA breach (80% of allowed time)\n3. For breached SLAs: notify support lead and escalate if needed\n4. Calculate current SLA compliance rate and CSAT score\n5. Post hourly SLA dashboard to Status group",
+      "content": "# SLA Monitoring\n\n1. Translate the chosen SLA targets into a simple operating scoreboard\n2. Define which tickets count as at-risk and what triggers escalation\n3. Highlight the metrics the support lead should watch daily\n4. Recommend a short status summary format for the team and stakeholders\n5. Post the SLA monitoring framework to Status group",
       "dependsOn": [
         "team-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "tags": [
         "workflow",
         "business",
@@ -244,7 +244,7 @@
       "id": "knowledge-base-updates",
       "name": "Knowledge Base Updates",
       "description": "Weekly KB gap analysis and article updates",
-      "schedule": "0 10 * * 5",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": {
@@ -257,18 +257,50 @@
           "knowledge-mgr"
         ]
       },
-      "content": "# Weekly KB Review\n\n1. Analyze resolved tickets from the past week — identify recurring questions\n2. Check if existing KB articles cover the top 10 ticket topics\n3. Draft new articles for any gaps found\n4. Update outdated articles based on product changes\n5. Post KB update summary and link new articles in Knowledge Base group",
+      "content": "# Knowledge Base Updates\n\n1. Review the expected ticket themes and identify the highest-value help content gaps\n2. Propose the first FAQ, runbook, or troubleshooting articles the team should create\n3. Note what should become GitHub issues, docs tasks, or internal KB pages\n4. Summarize how support learnings should flow back into documentation\n5. Post the documentation plan and next articles to Knowledge Base",
       "dependsOn": [
         "ticket-triage",
         "sla-monitoring"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "owner": "knowledge-mgr",
       "tags": [
         "workflow",
         "business",
         "support-team",
         "knowledge-base-updates"
+      ]
+    },
+    {
+      "id": "support-operations-brief",
+      "name": "Support Operations Brief",
+      "description": "Produce the final support operating model and visible output",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "support-lead"
+        ]
+      },
+      "content": "# Support Operations Brief\n\n1. Synthesize the kickoff, triage, SLA, and knowledge-base decisions\n2. Produce the recommended support operating model for the team\n3. Include the priority queues, escalation rules, SLA summary, and docs plan\n4. Create a final artifact such as `support_operations_brief.md` or GitHub issue set if requested\n5. Post the final brief and artifact links to Status",
+      "dependsOn": [
+        "ticket-triage",
+        "sla-monitoring",
+        "knowledge-base-updates"
+      ],
+      "type": "conditional",
+      "owner": "support-lead",
+      "tags": [
+        "workflow",
+        "business",
+        "support-team",
+        "support-operations-brief"
       ]
     }
   ],

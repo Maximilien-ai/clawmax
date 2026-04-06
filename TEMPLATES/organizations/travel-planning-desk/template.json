@@ -158,7 +158,7 @@
           "travel-lead"
         ]
       },
-      "content": "# Trip Kickoff\n\nYou are the Travel Lead. The travel planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Destination or route:** [city, region, country, road trip, custom]\n- **Travel dates or window:** [exact dates, month, flexible range]\n- **Trip style:** [vacation, family visit, work trip, adventure, mixed]\n- **Budget range:** [lean, moderate, premium, custom]\n- **Travel party:** [solo, couple, family, friends, custom]\n- **Output artifact:** [itinerary, booking checklist, memory plan]\n\n## Your Tasks\n1. Restate the trip goal, budget, and pacing\n2. Direct Itinerary Designer to propose the first route or day plan\n3. Direct Logistics Coordinator to list the main booking and prep needs\n4. Ask Memory Curator to suggest how to capture highlights along the way\n5. Post the initial travel plan to Status",
+      "content": "# Trip Kickoff\n\nYou are the Travel Lead. The travel planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Destination or route:** [city, region, country, road trip, custom]\n- **Travel dates or window:** [exact dates, month, flexible range]\n- **Trip style:** [vacation, family visit, work trip, adventure, mixed]\n- **Budget range:** [lean, moderate, premium, custom]\n- **Travel party:** [solo, couple, family, friends, custom]\n- **Output artifact:** [itinerary, booking checklist, memory plan]\n\n## Your Tasks\n1. Restate the trip goal, budget, and pacing\n2. Direct Itinerary Designer to propose the first route or day plan\n3. Direct Logistics Coordinator to list the main booking and prep needs\n4. Ask Memory Curator to suggest how to capture highlights along the way\n5. Choose the output format the desk should produce\n6. Post the initial travel plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -226,6 +226,68 @@
         "travel",
         "travel-planning-desk",
         "logistics-check"
+      ]
+    },
+    {
+      "id": "memory-plan",
+      "name": "Memory Plan",
+      "description": "Define how trip highlights and keepsakes will be captured",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "memory-curator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Memories"
+        ],
+        "tags": [],
+        "agents": [
+          "memory-curator"
+        ]
+      },
+      "content": "# Memory Plan\n\n1. Suggest how to capture the best moments of the trip without adding friction\n2. Recommend a note, photo, or journal structure for the travel party\n3. Identify the moments or milestones worth preserving after the trip\n4. Post the memory plan and keepsake ideas to Memories",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "trip-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "travel-planning-desk",
+        "memory-plan"
+      ]
+    },
+    {
+      "id": "trip-brief",
+      "name": "Trip Brief",
+      "description": "Produce the final travel plan and output artifact",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "travel-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "travel-lead"
+        ]
+      },
+      "content": "# Trip Brief\n\n1. Synthesize the itinerary, logistics, and memory recommendations\n2. Produce the final trip plan in the requested output format\n3. Include the top bookings, decisions, and packing or timing reminders\n4. Create a final artifact such as `trip_brief.md`, itinerary, or checklist if requested\n5. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "itinerary-build",
+        "logistics-check",
+        "memory-plan"
+      ],
+      "tags": [
+        "workflow",
+        "travel",
+        "travel-planning-desk",
+        "trip-brief"
       ]
     }
   ]

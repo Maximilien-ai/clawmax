@@ -135,7 +135,7 @@
           "event-lead"
         ]
       },
-      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [date, time, timezone]\n- **Expected guests:** [count, names, roles]\n- **Venue or format:** [home, restaurant, backyard, rented room, hybrid, custom]\n- **Food and drink plan:** [meal, snacks, potluck, drinks, custom]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Summarize the event plan in Status\n5. Flag the few decisions that the host must make next",
+      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [date, time, timezone]\n- **Expected guests:** [count, names, roles]\n- **Venue or format:** [home, restaurant, backyard, rented room, hybrid, custom]\n- **Food and drink plan:** [meal, snacks, potluck, drinks, custom]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Choose the final planning artifact the host should receive\n5. Summarize the event plan in Status\n6. Flag the few decisions that the host must make next",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -196,13 +196,44 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "guest-list-check"
+        "small-event-kickoff"
       ],
       "tags": [
         "workflow",
         "personal",
         "small-event-planning-desk",
         "event-day-readiness"
+      ]
+    },
+    {
+      "id": "host-brief",
+      "name": "Host Brief",
+      "description": "Produce the final host-facing event plan and output artifact",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "event-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "event-lead"
+        ]
+      },
+      "content": "# Host Brief\n\n1. Synthesize the guest and logistics plans into one host-facing event brief\n2. Produce the final artifact in the requested output format\n3. Include the guest follow-ups, setup checklist, and event-day sequence\n4. Call out the last few decisions or purchases the host must complete\n5. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "guest-list-check",
+        "event-day-readiness"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "small-event-planning-desk",
+        "host-brief"
       ]
     }
   ]

@@ -7,8 +7,8 @@
 ## Summary
 
 - Audited: `53` organization templates
-- Structurally strong: `36`
-- Usable but should improve: `16`
+- Structurally strong: `42`
+- Usable but should improve: `10`
 - Internal/special-case exception: `1`
 
 ## Audit Rule
@@ -60,34 +60,16 @@ These already fit the intended ClawMax pattern well enough for demos:
 - `tax-planning-desk`
 - `technical-writing`
 
-## Priority Fix Queue
+## Completed Since Audit
 
-These are the templates most worth improving next because they either lack a real final output step or are still too coarse for demos:
+These priority templates have now been upgraded to the intended kickoff -> specialist lanes -> final output pattern:
 
-1. `rag-team`
-   - No real kickoff customization block
-   - No clear final synthesis/output workflow
-   - High-value technical template, so this should move up
-
-2. `support-team`
-   - Good kickoff and operating lanes
-   - Missing an explicit final support summary / escalation / KB output step
-
-3. `data-team`
-   - Has intermediate workflows
-   - Missing a clear final report/review/synthesis step
-
-4. `convenience-store`
-   - Has multiple lanes
-   - Missing a clear completion/output workflow
-
-5. `travel-planning-desk`
-   - Kickoff is good
-   - Needs a final itinerary / booking packet / trip brief workflow
-
-6. `small-event-planning-desk`
-   - Kickoff plus useful middle steps
-   - Needs a final host packet / run-of-show / final checklist step
+- `rag-team`
+- `support-team`
+- `data-team`
+- `convenience-store`
+- `travel-planning-desk`
+- `small-event-planning-desk`
 
 ## Secondary Fix Queue
 
@@ -110,16 +92,16 @@ These are lighter-weight personal/lifestyle templates that still need a stronger
   - Missing a standard “Project Configuration” kickoff shape
   - This is acceptable as an internal/system validation template, so it should not block demo-template readiness
 
-## Recommended Tomorrow Order
+## Recommended Next Order
 
-If template improvement work happens tomorrow, start here:
+If template improvement work continues next, start here:
 
-1. `rag-team`
-2. `support-team`
-3. `data-team`
-4. `convenience-store`
-5. `travel-planning-desk`
-6. `small-event-planning-desk`
+1. `family-ops-hub`
+2. `home-cooking-studio`
+3. `homework-support-team`
+4. `movie-club`
+5. `movie-trivia-night`
+6. `trip-memory-studio`
 
 ## Notes
 
