@@ -62,7 +62,7 @@ function timeAgo(iso: string): string {
 }
 
 export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) {
-  const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace, reorderWorkspaces } = useWorkspace()
+  const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace, reorderWorkspaces, refreshWorkspaces } = useWorkspace()
   const { showSuccess, showError } = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -91,6 +91,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const [dashboardCompactColumns, setDashboardCompactColumns] = useState({ ...DEFAULT_COMPACT_COLUMNS })
   const [draggedSection, setDraggedSection] = useState<null | 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
     const res = await fetch(`/api/workspaces/${workspaceId}/dashboards`)
@@ -184,6 +185,29 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       showSuccess(`Workspace "${workspace.name}" exported`)
     } catch (err: any) {
       showError(err.message || 'Failed to export workspace')
+    }
+  }
+
+  const importWorkspace = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer()
+      const response = await fetch('/api/workspaces/import-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/zip' },
+        body: buffer,
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to import workspace')
+      }
+
+      await refreshWorkspaces()
+      showSuccess(`Workspace "${data.workspace?.name || 'Imported'}" restored`)
+      if (data.workspace?.id) {
+        await switchWorkspace(data.workspace.id)
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to import workspace')
     }
   }
 
@@ -536,6 +560,29 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
             </svg>
             <span>Create New Workspace</span>
           </button>
+          <button
+            onClick={() => importInputRef.current?.click()}
+            className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span>Import Workspace ZIP</span>
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".zip,application/zip"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.currentTarget.value = ''
+              setIsOpen(false)
+              if (file) {
+                void importWorkspace(file)
+              }
+            }}
+          />
         </div>
       )}
 

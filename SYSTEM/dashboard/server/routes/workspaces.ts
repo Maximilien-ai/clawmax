@@ -10,6 +10,9 @@ import {
   updateWorkspaceDashboard,
 } from '../lib/workspace-dashboards'
 import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName } from '../lib/workspace-export'
+import { importWorkspaceFromZipArchive } from '../lib/workspace-import'
+import fs from 'fs'
+import os from 'os'
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
@@ -141,6 +144,29 @@ router.get('/:id/export', async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || 'Failed to export workspace' })
     }
+  }
+})
+
+// POST /api/workspaces/import-zip - Import workspace from exported zip archive
+router.post('/import-zip', express.raw({ type: 'application/zip', limit: '200mb' }), async (req, res) => {
+  try {
+    const targetName = typeof req.query.targetName === 'string' ? req.query.targetName : undefined
+    const targetPath = typeof req.query.targetPath === 'string' ? req.query.targetPath : undefined
+    const activate = req.query.activate === 'false' ? false : true
+    const body = req.body as Buffer
+
+    if (!body || !Buffer.isBuffer(body) || body.length === 0) {
+      return res.status(400).json({ error: 'ZIP body is required' })
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'clawmax-workspace-import-'))
+    const zipPath = path.join(tmpDir, 'workspace.zip')
+    fs.writeFileSync(zipPath, body)
+
+    const result = importWorkspaceFromZipArchive(zipPath, { targetName, targetPath, activate })
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to import workspace' })
   }
 })
 

@@ -24,6 +24,7 @@
 - [ ] **Template apply tool readiness probes** — extend the new pre-apply readiness step with per-skill / per-tool checks so users can see whether assigned tools are actually usable before deploying a team
 - [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
 - [ ] **Workflow result surfacing in notifications and workspace dashboards** — when a workflow produces a strong final artifact or summary, surface a prominent “latest result” link/card in notifications and the workspace dashboard so users do not have to dig through busy group chat threads to find the outcome. Start with Lu.ma-style synthesis workflows, then generalize to other templates.
+- [ ] **Senso and external artifact result notifications** — file artifacts and GitHub issue/PR links now surface into `Results`, but Senso outputs and other external result types still need first-class notification hooks plus dashboard surfacing so users can see all meaningful agent outputs in one place.
 
 ## Today Focus — April 2, 2026
 
