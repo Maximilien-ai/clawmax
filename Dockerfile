@@ -36,7 +36,14 @@ WORKDIR /app/SYSTEM/dashboard
 ARG OPENCLAW_GIT_REF
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends gh ca-certificates \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gh \
+    git \
+    jq \
+    python3 \
+    ripgrep \
   && rm -rf /var/lib/apt/lists/*
 
 COPY SYSTEM/dashboard/package*.json ./
