@@ -3,16 +3,27 @@
 > Primary theme: cloud runtime truth
 > Release posture: hold any broader rollout until cloud agents run real sessions instead of fixtures
 
+## Current Root Cause
+
+- Live audit on April 6, 2026 confirmed the cloud dashboard pod is shipping fixture OpenClaw, not the real CLI/runtime.
+- In the live pod, `/usr/local/bin/openclaw` points to `/opt/openclaw/openclaw.mjs`, and that file prints `openclaw fixture`.
+- The `clawmax-cli` cloud publish path currently stages `.ci/fixtures/openclaw` into the dashboard image build context.
+- This explains all three cloud symptoms at once:
+  - agent chat returns `openclaw fixture`
+  - Skills page is empty because `~/.openclaw/openclaw.json` is missing
+  - Doctor/runtime registration cannot become healthy because there is no real OpenClaw runtime in the image
+
 ## Top Priority
 
 1. **Cloud runtime/bootstrap debug on live instance**
    - Target instance: `http://23eb5821-72ba-4ba5-b431-56e2d40065d3.k8s.civo.com/`
-   - Confirm why agents still answer with `openclaw fixture`
-   - Verify whether `openclaw` CLI, gateway, workspace registration, and agent sessions are actually present in the deployed container
+   - Fix the `clawmax-cli` cloud image build to package real OpenClaw instead of `.ci/fixtures/openclaw`
+   - Rebuild and redeploy a cloud image, then verify the live pod has a real `openclaw --version`
+   - Verify whether gateway, workspace registration, and agent sessions become healthy once the real runtime is present
 
 2. **Cloud skill discovery parity**
-   - Explain why the Skills page is empty even when agents exist
-   - Check whether runtime registration/bootstrap is out of sync with workspace UI state
+   - Recheck Skills only after the real OpenClaw runtime is in the image
+   - Confirm `~/.openclaw/openclaw.json` is created and agent registration matches `/workspace/AGENTS`
 
 3. **Cloud log-stream stability**
    - Trace repeated `Connection lost. Reconnecting...`
