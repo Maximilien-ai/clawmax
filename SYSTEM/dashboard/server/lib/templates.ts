@@ -147,7 +147,7 @@ function parseExtraTemplateRoots(): string[] {
   const raw = process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS?.trim()
   if (!raw) return []
   return raw
-    .split(path.delimiter)
+    .split(new RegExp(`[${path.delimiter === ';' ? ';,' : ':,'}]`))
     .map(item => item.trim())
     .filter(Boolean)
 }

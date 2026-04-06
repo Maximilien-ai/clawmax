@@ -333,6 +333,43 @@ test('extra template dirs load flat enterprise organization templates', () => {
   }
 })
 
+test('Enterprise template roots accept comma-separated env values', () => {
+  const rootA = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-enterprise-a-'))
+  const rootB = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-enterprise-b-'))
+  const slugA = 'alpha-template'
+  const slugB = 'beta-template'
+  const previous = process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS
+
+  fs.mkdirSync(path.join(rootA, slugA), { recursive: true })
+  fs.writeFileSync(path.join(rootA, slugA, 'template.json'), JSON.stringify({
+    name: 'Alpha Template',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'alpha-agent', role: 'Alpha role' }]
+  }, null, 2), 'utf-8')
+
+  fs.mkdirSync(path.join(rootB, slugB), { recursive: true })
+  fs.writeFileSync(path.join(rootB, slugB, 'template.json'), JSON.stringify({
+    name: 'Beta Template',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'beta-agent', role: 'Beta role' }]
+  }, null, 2), 'utf-8')
+
+  process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS = `${rootA},${rootB}`
+
+  try {
+    const templates = listTemplates('organization') as OrganizationTemplate[]
+    assert(templates.some(template => template.slug === slugA && template.source === 'enterprise'), 'Should load first comma-separated enterprise root')
+    assert(templates.some(template => template.slug === slugB && template.source === 'enterprise'), 'Should load second comma-separated enterprise root')
+  } finally {
+    if (typeof previous === 'undefined') delete process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS
+    else process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS = previous
+    fs.rmSync(rootA, { recursive: true, force: true })
+    fs.rmSync(rootB, { recursive: true, force: true })
+  }
+})
+
 // Test 11: Org templates have communities and groups
 test('Organization templates include communities and groups', () => {
   const templates = listTemplates('organization') as OrganizationTemplate[]
