@@ -22,6 +22,7 @@ interface Notification {
   workflowId?: string
   progress?: number
   artifactPath?: string
+  artifactUrl?: string
 }
 
 // Helper: resolve a notification action
@@ -163,6 +164,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const handleAction = (n: Notification) => {
     if (n.type === 'artifact-update' && n.artifactPath && onNavigateToDoc) {
       onNavigateToDoc(n.artifactPath)
+    } else if (n.type === 'artifact-update' && n.artifactUrl) {
+      window.open(n.artifactUrl, '_blank', 'noopener,noreferrer')
     } else if (n.type === 'channel-activity' && onNavigateToPage) {
       onNavigateToPage('communication')
     } else if (n.entityType === 'agent' && n.entityId && onNavigateToAgent) {

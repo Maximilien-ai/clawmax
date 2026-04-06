@@ -60,6 +60,7 @@ export interface Notification {
   workflowId?: string
   progress?: number // 0-100 for workflow-progress type
   artifactPath?: string
+  artifactUrl?: string
 }
 
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
@@ -120,6 +121,7 @@ export function createNotification(params: {
   workflowId?: string
   progress?: number
   artifactPath?: string
+  artifactUrl?: string
 }): Notification | null {
   const notifications = loadNotifications()
 
@@ -150,6 +152,7 @@ export function createNotification(params: {
     workflowId: params.workflowId,
     progress: params.progress,
     artifactPath: params.artifactPath,
+    artifactUrl: params.artifactUrl,
   }
 
   notifications.push(notification)

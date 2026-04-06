@@ -20,6 +20,8 @@ import {
   getExecution,
   resolveParticipants,
   detectParticipantReportedFailure,
+  extractGitHubResultLinks,
+  summarizeGitHubResultLink,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -323,6 +325,25 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
   assert(detectParticipantReportedFailure('COMMS PASS') === null, 'Expected PASS marker to remain non-failing')
+})
+
+test('extractGitHubResultLinks finds issue and PR URLs cleanly', () => {
+  const text = 'Created https://github.com/Maximilien-ai/clawmax/issues/12 and opened https://github.com/Maximilien-ai/clawmax/pull/57.'
+  const links = extractGitHubResultLinks(text)
+  assert(links.length === 2, `Expected 2 links, got ${links.length}`)
+  assert(links[0] === 'https://github.com/Maximilien-ai/clawmax/issues/12', 'Expected trimmed issue URL')
+  assert(links[1] === 'https://github.com/Maximilien-ai/clawmax/pull/57', 'Expected trimmed PR URL')
+})
+
+test('summarizeGitHubResultLink produces compact labels', () => {
+  assert(
+    summarizeGitHubResultLink('https://github.com/Maximilien-ai/clawmax/pull/57') === 'Maximilien-ai/clawmax PR #57',
+    'Expected compact PR label'
+  )
+  assert(
+    summarizeGitHubResultLink('https://github.com/Maximilien-ai/clawmax/issues/12') === 'Maximilien-ai/clawmax issue #12',
+    'Expected compact issue label'
+  )
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {

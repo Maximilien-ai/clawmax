@@ -120,6 +120,34 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   return null
 }
 
+const GITHUB_RESULT_URL_REGEX = /https:\/\/github\.com\/[^\s)>\]]+\/(issues|pull)\/\d+[^\s)>\]]*/gi
+
+export function extractGitHubResultLinks(agentText: string, limit = 3): string[] {
+  const seen = new Set<string>()
+  for (const match of agentText.match(GITHUB_RESULT_URL_REGEX) || []) {
+    const normalized = match.replace(/[.,;!?]+$/, '')
+    if (!seen.has(normalized)) {
+      seen.add(normalized)
+      if (seen.size >= limit) break
+    }
+  }
+  return Array.from(seen)
+}
+
+export function summarizeGitHubResultLink(link: string): string {
+  try {
+    const parsed = new URL(link)
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const owner = parts[0]
+    const repo = parts[1]
+    const kind = parts[2] === 'pull' ? 'PR' : 'issue'
+    const number = parts[3]
+    return `${owner}/${repo} ${kind} #${number}`
+  } catch {
+    return 'GitHub result'
+  }
+}
+
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
 
@@ -1107,6 +1135,19 @@ export function triggerWorkflow(workflowId: string, options?: {
               entityType: 'agent',
               fingerprint: `agent-fail:${workflowId}:${participant.agentId}:${execution.id}`,
               workflowId,
+            })
+          }
+
+          for (const githubLink of extractGitHubResultLinks(agentText)) {
+            createNotification({
+              type: 'artifact-update',
+              title: `${participant.agentId} produced ${summarizeGitHubResultLink(githubLink)}`,
+              message: `GitHub result from ${participant.agentId}: ${githubLink}`,
+              entityId: participant.agentId,
+              entityType: 'agent',
+              fingerprint: `github-result:${workflowId}:${participant.agentId}:${githubLink}`,
+              workflowId,
+              artifactUrl: githubLink,
             })
           }
 
