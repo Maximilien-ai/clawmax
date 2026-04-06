@@ -9,7 +9,7 @@ import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 interface AgentTemplate {
   name: string
   type: 'agent'
-  source?: 'system' | 'workspace'
+  source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
   emoji?: string
@@ -32,7 +32,7 @@ interface AgentTemplate {
 interface OrganizationTemplate {
   name: string
   type: 'organization'
-  source?: 'system' | 'workspace'
+  source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
   emoji?: string
@@ -168,7 +168,7 @@ interface TemplateRow {
   key: string
   name: string
   type: Template['type']
-  source: 'system' | 'workspace'
+  source: 'system' | 'workspace' | 'enterprise'
   agentCount: number
   groupCount: number
   workflowCount: number
@@ -280,8 +280,8 @@ export default function Templates() {
         ? agentTemplates.find(template => template.name === name)
         : orgTemplates.find(template => template.name === name)
 
-    if (targetTemplate && targetTemplate.type !== 'workflow' && targetTemplate.source === 'system') {
-      showError('System templates cannot be deleted from the dashboard')
+    if (targetTemplate && targetTemplate.type !== 'workflow' && targetTemplate.source !== 'workspace') {
+      showError('Only workspace templates can be deleted from the dashboard')
       return
     }
 
@@ -552,7 +552,7 @@ export default function Templates() {
   const handleBulkDelete = async () => {
     if (selectedTemplateKeys.size === 0) return
 
-    const rowsToDelete = selectedRows.filter(row => row.source !== 'system')
+    const rowsToDelete = selectedRows.filter(row => row.source === 'workspace')
     if (rowsToDelete.length === 0) {
       showError('Only workspace templates can be deleted')
       return
@@ -1370,7 +1370,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
   const communityCount = isOrg && template.communities ? template.communities.length : 0
   const groupCount = isOrg && template.groups ? template.groups.length : 0
   const workflowCount = isOrg && (template as any).workflows ? (template as any).workflows.length : 0
-  const canDelete = template.source !== 'system'
+  const canDelete = template.source === 'workspace'
 
   return (
     <div
@@ -1464,6 +1464,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
         <span>v{template.version}</span>
         <div className="flex items-center gap-2">
           {template.source === 'system' && <span className="text-amber-500">System</span>}
+          {template.source === 'enterprise' && <span className="text-fuchsia-500">Enterprise</span>}
           {template.author && <span>by {template.author}</span>}
         </div>
       </div>
@@ -1481,7 +1482,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
 }) {
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
-  const canDelete = template.type === 'workflow' || template.source !== 'system'
+  const canDelete = template.type === 'workflow' || template.source === 'workspace'
   const templateEmoji = (template as any).emoji
 
   return (

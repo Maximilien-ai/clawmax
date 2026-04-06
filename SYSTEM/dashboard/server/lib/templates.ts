@@ -64,7 +64,7 @@ export interface AgentTemplateAgent {
 export interface AgentTemplate {
   name: string
   type: 'agent'
-  source?: 'system' | 'workspace'
+  source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
   emoji?: string
@@ -126,7 +126,7 @@ export interface Workflow {
 export interface OrganizationTemplate {
   name: string
   type: 'organization'
-  source?: 'system' | 'workspace'
+  source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
   emoji?: string
@@ -140,6 +140,52 @@ export interface OrganizationTemplate {
 }
 
 export type Template = AgentTemplate | OrganizationTemplate
+
+type TemplateSource = 'system' | 'workspace' | 'enterprise'
+
+function parseExtraTemplateRoots(): string[] {
+  const raw = process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS?.trim()
+  if (!raw) return []
+  return raw
+    .split(path.delimiter)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function collectTemplateDirsFromRoot(root: string, type: 'agent' | 'organization', source: TemplateSource): Array<{ dir: string; source: TemplateSource; slug: string }> {
+  const candidates: string[] = []
+
+  if (type === 'agent') {
+    candidates.push(path.join(root, 'agents'))
+  } else {
+    candidates.push(path.join(root, 'organizations'))
+    candidates.push(root)
+  }
+
+  const results: Array<{ dir: string; source: TemplateSource; slug: string }> = []
+  const seen = new Set<string>()
+
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) continue
+    let entries: fs.Dirent[] = []
+    try {
+      entries = fs.readdirSync(candidate, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const dir = path.join(candidate, entry.name)
+      const marker = path.resolve(dir)
+      if (seen.has(marker)) continue
+      if (!fs.existsSync(path.join(dir, 'template.json'))) continue
+      seen.add(marker)
+      results.push({ dir, source, slug: entry.name })
+    }
+  }
+
+  return results
+}
 
 function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
@@ -707,7 +753,8 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
 export function listTemplates(type?: 'agent' | 'organization'): Template[] {
   ensureTemplateDirs()
   const templates = new Map<string, Template>()
-  const dirs: Array<{ dir: string; source: 'system' | 'workspace'; slug: string }> = []
+  const dirs: Array<{ dir: string; source: TemplateSource; slug: string }> = []
+  const extraRoots = parseExtraTemplateRoots()
 
   // Collect templates from both global and workspace directories
   if (!type || type === 'agent') {
@@ -718,6 +765,10 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
         .map(d => ({ dir: path.join(getAgentTemplatesDir(), d.name), source: 'workspace' as const, slug: d.name }))
       dirs.push(...agentDirs)
     } catch {}
+
+    for (const root of extraRoots) {
+      dirs.push(...collectTemplateDirsFromRoot(root, 'agent', 'enterprise'))
+    }
 
     // Global agent templates (system)
     try {
@@ -736,6 +787,10 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
         .map(d => ({ dir: path.join(getOrgTemplatesDir(), d.name), source: 'workspace' as const, slug: d.name }))
       dirs.push(...orgDirs)
     } catch {}
+
+    for (const root of extraRoots) {
+      dirs.push(...collectTemplateDirsFromRoot(root, 'organization', 'enterprise'))
+    }
 
     // Global org templates (system)
     try {
@@ -779,6 +834,14 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
   if (fs.existsSync(workspaceTemplateDir)) {
     const template = readTemplateFromDir(workspaceTemplateDir)
     if (template) return { ...template, source: 'workspace', slug }
+  }
+
+  for (const root of parseExtraTemplateRoots()) {
+    for (const entry of collectTemplateDirsFromRoot(root, type, 'enterprise')) {
+      if (entry.slug !== slug) continue
+      const template = readTemplateFromDir(entry.dir)
+      if (template) return { ...template, source: 'enterprise', slug }
+    }
   }
 
   // Check global templates second (system templates)

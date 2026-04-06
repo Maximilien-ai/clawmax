@@ -17,6 +17,7 @@ import {
 } from './templates'
 import { checkTemplatePrereqs } from './prereqs'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { REPO_ROOT } from './paths'
 
@@ -276,6 +277,59 @@ test('getTemplate() retrieves org template by slug', () => {
     assert(template.agents.length > 0, 'Should have agents')
   } else {
     console.log('  Template not found (may need to be created first)')
+  }
+})
+
+test('extra template dirs load flat enterprise organization templates', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-enterprise-templates-'))
+  const slug = 'enterprise-test-desk'
+  const templateDir = path.join(tempRoot, slug)
+  fs.mkdirSync(templateDir, { recursive: true })
+  fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+    name: 'Enterprise Test Desk',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [
+      { id: 'enterprise-lead', name: 'Enterprise Lead', role: 'Lead role' }
+    ],
+    communities: [
+      { name: 'Enterprise Research', description: 'Enterprise community' }
+    ],
+    groups: [
+      { name: 'Status', description: 'Status group', community: 'Enterprise Research' }
+    ],
+    workflows: [
+      {
+        id: 'enterprise-test-kickoff',
+        name: 'Enterprise Test Kickoff',
+        description: 'Kickoff',
+        schedule: 'manual',
+        enabled: true,
+        executionMode: 'managed',
+        owner: 'enterprise-lead',
+        type: 'once',
+        targeting: { communities: [], groups: ['Status'], tags: [], agents: ['enterprise-lead'] },
+        content: '# Enterprise Test Kickoff\n\nTest kickoff.'
+      }
+    ]
+  }, null, 2), 'utf-8')
+
+  const previous = process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS
+  process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS = tempRoot
+
+  try {
+    const templates = listTemplates('organization') as OrganizationTemplate[]
+    const found = templates.find(template => template.name === 'Enterprise Test Desk')
+    assert(found !== undefined, 'Expected enterprise template from extra dir')
+    assertEqual(found?.source as any, 'enterprise', 'Expected enterprise source label')
+
+    const bySlug = getTemplate('organization', slug) as OrganizationTemplate | null
+    assert(bySlug !== null, 'Expected enterprise template to be retrievable by slug')
+    assertEqual(bySlug?.source as any, 'enterprise', 'Expected getTemplate to preserve enterprise source')
+  } finally {
+    if (typeof previous === 'undefined') delete process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS
+    else process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS = previous
+    fs.rmSync(tempRoot, { recursive: true, force: true })
   }
 })
 
