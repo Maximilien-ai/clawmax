@@ -150,7 +150,7 @@
           "movie-lead"
         ]
       },
-      "content": "# Friday Movie Kickoff\n\nYou are the Movie Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Mood:** [comfort, funny, thrilling, family, sci-fi, custom]\n- **Audience:** [solo, couple, friends, family]\n- **Time available:** [under 90 min, under 2 hours, any]\n- **Streaming services or constraints:** [services, ratings, language, custom]\n- **Output artifact:** [ranked shortlist, one final pick, backup plan]\n\n## Your Tasks\n1. Restate the mood, audience, and time limit\n2. Ask Movie Scouts for the best options\n3. Ask Tie Breaker for the clean final comparison\n4. Ask Snack Planner for the simplest setup suggestions\n5. Post the final pick plus one backup in Status",
+      "content": "# Friday Movie Kickoff\n\nYou are the Movie Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Mood:** [comfort, funny, thrilling, family, sci-fi, custom]\n- **Audience:** [solo, couple, friends, family]\n- **Time available:** [under 90 min, under 2 hours, any]\n- **Streaming services or constraints:** [services, ratings, language, custom]\n- **Output artifact:** [ranked shortlist, one final pick, backup plan]\n\n## Your Tasks\n1. Restate the mood, audience, and time limit\n2. Ask Movie Scouts for the best options\n3. Ask Tie Breaker for the clean final comparison\n4. Ask Snack Planner for the simplest setup suggestions\n5. Choose the final movie-night artifact the team should produce\n6. Post the final pick plus one backup in Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -188,6 +188,98 @@
         "personal",
         "friday-night-movie-picker",
         "final-pick-review"
+      ]
+    },
+    {
+      "id": "shortlist-build",
+      "name": "Shortlist Build",
+      "description": "Build the ranked shortlist that fits tonight’s mood and constraints.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "movie-scout",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Picks"
+        ],
+        "tags": [],
+        "agents": [
+          "movie-scout"
+        ]
+      },
+      "content": "# Shortlist Build\n\n1. Build the strongest shortlist for the chosen mood, audience, and runtime\n2. Note the tradeoffs across tone, pacing, and effort required to commit\n3. Suggest one adventurous option and one easy win\n4. Post the shortlist to Picks",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "friday-movie-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "friday-night-movie-picker",
+        "shortlist-build"
+      ]
+    },
+    {
+      "id": "snack-and-setup-plan",
+      "name": "Snack and Setup Plan",
+      "description": "Prepare the simplest snack and atmosphere plan for the night.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "snack-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Mood"
+        ],
+        "tags": [],
+        "agents": [
+          "snack-planner"
+        ]
+      },
+      "content": "# Snack and Setup Plan\n\n1. Suggest a minimal snack, seating, and atmosphere setup for the chosen mood\n2. Keep the plan simple and realistic for the audience and time available\n3. Flag any quick extras that would noticeably improve the night\n4. Post the setup plan to Mood",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "friday-movie-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "friday-night-movie-picker",
+        "snack-and-setup-plan"
+      ]
+    },
+    {
+      "id": "friday-movie-brief",
+      "name": "Friday Movie Brief",
+      "description": "Produce the final Friday-night movie packet and output artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "movie-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "movie-lead"
+        ]
+      },
+      "content": "# Friday Movie Brief\n\n1. Synthesize the shortlist, tie-break review, and snack/setup plan into one final packet\n2. Produce the chosen output artifact such as a ranked shortlist, final pick, or backup plan\n3. Include the winning pick, backup option, and the simplest setup notes\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "shortlist-build",
+        "final-pick-review",
+        "snack-and-setup-plan"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "friday-night-movie-picker",
+        "friday-movie-brief"
       ]
     }
   ]

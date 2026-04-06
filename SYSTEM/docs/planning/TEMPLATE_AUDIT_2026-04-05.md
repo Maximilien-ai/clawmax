@@ -7,8 +7,8 @@
 ## Summary
 
 - Audited: `53` organization templates
-- Structurally strong: `48`
-- Usable but should improve: `4`
+- Structurally strong: `52`
+- Usable but should improve: `0`
 - Internal/special-case exception: `1`
 
 ## Audit Rule
@@ -76,15 +76,16 @@ These priority templates have now been upgraded to the intended kickoff -> speci
 - `movie-club`
 - `movie-trivia-night`
 - `trip-memory-studio`
+- `astronomy-club`
+- `friday-night-movie-picker`
+- `household-bills-desk`
+- `photography-studio`
 
 ## Secondary Fix Queue
 
 These are lighter-weight personal/lifestyle templates that still need a stronger completion pattern or more decomposition:
 
-- `astronomy-club`
-- `friday-night-movie-picker`
-- `household-bills-desk`
-- `photography-studio`
+- none in the original audit queue remain
 
 ## Internal / Special Case
 
@@ -94,12 +95,7 @@ These are lighter-weight personal/lifestyle templates that still need a stronger
 
 ## Recommended Next Order
 
-If template improvement work continues next, start here:
-
-1. `astronomy-club`
-2. `friday-night-movie-picker`
-3. `household-bills-desk`
-4. `photography-studio`
+If template improvement work continues next, audit for new additions or revisit demo quality based on live customer feedback instead of structural gaps.
 
 ## Notes
 

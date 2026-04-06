@@ -149,7 +149,7 @@
           "admin-lead"
         ]
       },
-      "content": "# Bills Kickoff\n\nYou are the Admin Lead. The household bills desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Recurring bills in scope:** [rent, utilities, subscriptions, school, insurance, custom]\n- **Review window:** [this week, this month, custom]\n- **Pain points:** [late fees, missed renewals, unclear ownership, custom]\n- **Output artifact:** [bill calendar, admin checklist, monthly review]\n\n## Your Tasks\n1. Define the current admin and payment scope\n2. Ask Bill Tracker for the upcoming due-date view\n3. Ask Paperwork Coordinator for any open admin items\n4. Ask Review Analyst for missed-risk checks\n5. Post the current household admin plan to Status",
+      "content": "# Bills Kickoff\n\nYou are the Admin Lead. The household bills desk just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Recurring bills in scope:** [rent, utilities, subscriptions, school, insurance, custom]\n- **Review window:** [this week, this month, custom]\n- **Pain points:** [late fees, missed renewals, unclear ownership, custom]\n- **Output artifact:** [bill calendar, admin checklist, monthly review]\n\n## Your Tasks\n1. Define the current admin and payment scope\n2. Ask Bill Tracker for the upcoming due-date view\n3. Ask Paperwork Coordinator for any open admin items\n4. Ask Review Analyst for missed-risk checks\n5. Choose the final artifact the household should receive\n6. Post the current household admin plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -189,6 +189,98 @@
         "family",
         "household-bills-desk",
         "monthly-admin-review"
+      ]
+    },
+    {
+      "id": "due-date-calendar",
+      "name": "Due Date Calendar",
+      "description": "Build the visible due-date and payment tracking view.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "bill-tracker",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Bills"
+        ],
+        "tags": [],
+        "agents": [
+          "bill-tracker"
+        ]
+      },
+      "content": "# Due Date Calendar\n\n1. Organize the current bills into a visible due-date sequence\n2. Highlight the nearest deadlines, autopay assumptions, and missing ownership\n3. Call out anything that risks a late fee or missed payment\n4. Post the due-date calendar summary to Bills",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "bills-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "household-bills-desk",
+        "due-date-calendar"
+      ]
+    },
+    {
+      "id": "paperwork-followup",
+      "name": "Paperwork Follow-up",
+      "description": "Capture the account, paperwork, and admin tasks that still need action.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "paperwork-coordinator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Admin"
+        ],
+        "tags": [],
+        "agents": [
+          "paperwork-coordinator"
+        ]
+      },
+      "content": "# Paperwork Follow-up\n\n1. Identify the forms, account changes, renewals, or paperwork still open\n2. Group them by urgency and the person most likely to handle them\n3. Suggest the simplest next admin actions to get the household current\n4. Post the admin follow-up plan to Admin",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "bills-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "household-bills-desk",
+        "paperwork-followup"
+      ]
+    },
+    {
+      "id": "household-admin-brief",
+      "name": "Household Admin Brief",
+      "description": "Produce the final household admin packet and output artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "admin-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "admin-lead"
+        ]
+      },
+      "content": "# Household Admin Brief\n\n1. Synthesize the due-date calendar, paperwork follow-up, and review findings into one final packet\n2. Produce the chosen output artifact such as a bill calendar, admin checklist, or monthly review\n3. Highlight the nearest deadlines, unresolved risks, and next actions for the household\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "due-date-calendar",
+        "paperwork-followup",
+        "monthly-admin-review"
+      ],
+      "tags": [
+        "workflow",
+        "family",
+        "household-bills-desk",
+        "household-admin-brief"
       ]
     }
   ]

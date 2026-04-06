@@ -158,7 +158,7 @@
           "club-observer"
         ]
       },
-      "content": "# Astronomy Monthly Kickoff\n\nYou are the Club Observer.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Location or sky conditions:** [city, suburb, dark sky, custom]\n- **Month or time horizon:** [this month, next 30 days, custom]\n- **Gear:** [naked eye, binoculars, small telescope, advanced telescope]\n- **Priority:** [planets, moon, deep sky, meteor showers, custom]\n- **Output artifact:** [monthly sky brief, telescope nights list, beginner guide]\n\n## Your Tasks\n1. Restate the observing context and gear limits\n2. Ask Skywatch Scouts for the best nights to go outside\n3. Ask Alignment Analyst for the key sky events this month\n4. Ask Astro Guide for a simple observer brief\n5. Post the best telescope-worthy nights to Status",
+      "content": "# Astronomy Monthly Kickoff\n\nYou are the Club Observer.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Location or sky conditions:** [city, suburb, dark sky, custom]\n- **Month or time horizon:** [this month, next 30 days, custom]\n- **Gear:** [naked eye, binoculars, small telescope, advanced telescope]\n- **Priority:** [planets, moon, deep sky, meteor showers, custom]\n- **Output artifact:** [monthly sky brief, telescope nights list, beginner guide]\n\n## Your Tasks\n1. Restate the observing context and gear limits\n2. Ask Skywatch Scouts for the best nights to go outside\n3. Ask Alignment Analyst for the key sky events this month\n4. Ask Astro Guide for a simple observer brief\n5. Choose the final astronomy artifact the club should produce\n6. Post the best telescope-worthy nights to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -196,6 +196,98 @@
         "science",
         "astronomy-club",
         "sky-event-digest"
+      ]
+    },
+    {
+      "id": "observing-window-review",
+      "name": "Observing Window Review",
+      "description": "Review the best practical nights and what is realistically visible.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "skywatch-scout",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Observing"
+        ],
+        "tags": [],
+        "agents": [
+          "skywatch-scout"
+        ]
+      },
+      "content": "# Observing Window Review\n\n1. Identify the most practical nights to observe given the location, gear, and likely conditions\n2. Flag which targets are realistic versus which are likely disappointing\n3. Suggest the best observing order and rough timing for the month\n4. Post the observing window review to Observing",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "astronomy-monthly-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "astronomy-club",
+        "observing-window-review"
+      ]
+    },
+    {
+      "id": "observer-guide",
+      "name": "Observer Guide",
+      "description": "Prepare the simple learning brief for observers.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "astro-guide",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Learning"
+        ],
+        "tags": [],
+        "agents": [
+          "astro-guide"
+        ]
+      },
+      "content": "# Observer Guide\n\n1. Explain what observers should look for and how to orient themselves in the sky\n2. Keep the explanation practical for the chosen gear and audience\n3. Note the few concepts or reference points that matter most this month\n4. Post the observer guide to Learning",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "astronomy-monthly-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "astronomy-club",
+        "observer-guide"
+      ]
+    },
+    {
+      "id": "monthly-sky-brief",
+      "name": "Monthly Sky Brief",
+      "description": "Produce the final monthly astronomy brief and artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "club-observer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "club-observer"
+        ]
+      },
+      "content": "# Monthly Sky Brief\n\n1. Synthesize the observing windows, sky-event digest, and observer guide into one final astronomy brief\n2. Produce the chosen output artifact such as a monthly sky brief, telescope nights list, or beginner guide\n3. Highlight the best nights, the biggest events, and any practical caveats\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "sky-event-digest",
+        "observing-window-review",
+        "observer-guide"
+      ],
+      "tags": [
+        "workflow",
+        "science",
+        "astronomy-club",
+        "monthly-sky-brief"
       ]
     }
   ]

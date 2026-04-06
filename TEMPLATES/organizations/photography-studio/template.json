@@ -157,7 +157,7 @@
           "photo-lead"
         ]
       },
-      "content": "# Photo Project Kickoff\n\nYou are the Photo Lead. The photography studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Project theme:** [street, portraits, travel, product, nature, custom]\n- **Shoot goal:** [practice, portfolio, client-style, social post, custom]\n- **Constraints:** [time, gear, weather, budget, custom]\n- **Output artifact:** [shot list, edit shortlist, portfolio board]\n\n## Your Tasks\n1. Define the creative goal and output standard\n2. Ask Shoot Planner for the first session plan\n3. Ask Edit Critic for evaluation criteria\n4. Ask Portfolio Curator for the output path\n5. Post the current project plan to Status",
+      "content": "# Photo Project Kickoff\n\nYou are the Photo Lead. The photography studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Project theme:** [street, portraits, travel, product, nature, custom]\n- **Shoot goal:** [practice, portfolio, client-style, social post, custom]\n- **Constraints:** [time, gear, weather, budget, custom]\n- **Output artifact:** [shot list, edit shortlist, portfolio board]\n\n## Your Tasks\n1. Define the creative goal and output standard\n2. Ask Shoot Planner for the first session plan\n3. Ask Edit Critic for evaluation criteria\n4. Ask Portfolio Curator for the output path\n5. Choose the final photography artifact the studio should produce\n6. Post the current project plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -197,6 +197,98 @@
         "hobbies",
         "photography-studio",
         "shoot-review"
+      ]
+    },
+    {
+      "id": "shoot-plan",
+      "name": "Shoot Plan",
+      "description": "Prepare the location, shot list, and session plan.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "shoot-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Shoots"
+        ],
+        "tags": [],
+        "agents": [
+          "shoot-planner"
+        ]
+      },
+      "content": "# Shoot Plan\n\n1. Recommend the best location, timing, and shot list for the chosen project\n2. Call out any lighting, gear, or weather dependencies that matter most\n3. Suggest a practical sequence for the shoot session\n4. Post the shoot plan to Shoots",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "photo-project-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "photography-studio",
+        "shoot-plan"
+      ]
+    },
+    {
+      "id": "portfolio-direction",
+      "name": "Portfolio Direction",
+      "description": "Define how the strongest images should be packaged or presented.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "portfolio-curator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Portfolio"
+        ],
+        "tags": [],
+        "agents": [
+          "portfolio-curator"
+        ]
+      },
+      "content": "# Portfolio Direction\n\n1. Recommend the best way to package or sequence the strongest images\n2. Explain what belongs in the portfolio cut versus what should stay out\n3. Suggest a simple release or sharing plan for the current project\n4. Post the portfolio direction to Portfolio",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "photo-project-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "photography-studio",
+        "portfolio-direction"
+      ]
+    },
+    {
+      "id": "photo-project-brief",
+      "name": "Photo Project Brief",
+      "description": "Produce the final photography packet and output artifact.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "photo-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "photo-lead"
+        ]
+      },
+      "content": "# Photo Project Brief\n\n1. Synthesize the shoot plan, review, and portfolio direction into one final packet\n2. Produce the chosen output artifact such as a shot list, edit shortlist, or portfolio board\n3. Highlight the strongest images, next improvements, and follow-up actions\n4. Post the final brief and artifact links to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "shoot-plan",
+        "shoot-review",
+        "portfolio-direction"
+      ],
+      "tags": [
+        "workflow",
+        "hobbies",
+        "photography-studio",
+        "photo-project-brief"
       ]
     }
   ]
