@@ -1,25 +1,29 @@
-# Tomorrow Sprint: April 6, 2026
+# Sprint: April 6, 2026
 
 > Primary theme: cloud runtime truth
-> Release posture: hold any broader rollout until cloud agents run real sessions instead of fixtures
+> Release posture: hold any broader rollout until cloud agents run real OpenClaw sessions successfully
 
 ## Current Root Cause
 
-- Live audit on April 6, 2026 confirmed the cloud dashboard pod is shipping fixture OpenClaw, not the real CLI/runtime.
-- In the live pod, `/usr/local/bin/openclaw` points to `/opt/openclaw/openclaw.mjs`, and that file prints `openclaw fixture`.
-- The `clawmax-cli` cloud publish path currently stages `.ci/fixtures/openclaw` into the dashboard image build context.
-- This explains all three cloud symptoms at once:
-  - agent chat returns `openclaw fixture`
-  - Skills page is empty because `~/.openclaw/openclaw.json` is missing
-  - Doctor/runtime registration cannot become healthy because there is no real OpenClaw runtime in the image
+- The original fixture-runtime blocker was confirmed and addressed in the image contract: cloud is no longer expected to ship `.ci/fixtures/openclaw`.
+- The current cloud blocker is different:
+  - the real OpenClaw package is now present
+  - but the image is installing source without the built `dist/entry.(m)js` output
+  - cloud logs now fail with `openclaw: missing dist/entry.(m)js (build output).`
+- The canonical fix has been pushed in [Dockerfile](/Users/maximilien/github/Maximilien-ai/clawmax-codex/Dockerfile):
+  - add an `openclaw-builder` stage
+  - clone pinned OpenClaw ref `1116ae97662cce066dd130bc07d925fdd1dd3f32`
+  - run `npm install` and `npm run build`
+  - install the built package into the runtime image
 
 ## Top Priority
 
 1. **Cloud runtime/bootstrap debug on live instance**
    - Target instance: `http://23eb5821-72ba-4ba5-b431-56e2d40065d3.k8s.civo.com/`
-   - Fix the `clawmax-cli` cloud image build to package real OpenClaw instead of `.ci/fixtures/openclaw`
-   - Rebuild and redeploy a cloud image, then verify the live pod has a real `openclaw --version`
-   - Verify whether gateway, workspace registration, and agent sessions become healthy once the real runtime is present
+   - Rebuild and redeploy a cloud image from `clawmax` `main` including Docker commit `23aaf52`
+   - Verify the live pod has a real `openclaw --version`
+   - Verify the missing-build-output error is gone
+   - Verify whether gateway, workspace registration, and agent sessions become healthy once the built runtime is present
 
 2. **Cloud skill discovery parity**
    - Recheck Skills only after the real OpenClaw runtime is in the image
@@ -64,14 +68,17 @@ Run these on the cloud pod/container for the target instance:
 
 ## Expected Outcomes
 
-- Cloud agents no longer return `openclaw fixture`
+- Cloud agents no longer fail on missing OpenClaw build output
 - Skills page reflects actual workspace/runtime state
 - log reconnect noise is reduced or precisely attributed
 - remaining deployment blockers are narrowed to one concrete seam
 
 ## Secondary If Time Allows
 
-- Template audit follow-through from [TEMPLATE_AUDIT_2026-04-05.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/TEMPLATE_AUDIT_2026-04-05.md)
-  - first queue: `rag-team`, `support-team`, `data-team`, `convenience-store`, `travel-planning-desk`, `small-event-planning-desk`
+- Cloud retest follow-through on:
+  - `openclaw --version`
+  - one agent chat
+  - Skills page
+  - Doctor output
 - Senso/external result notification design
 - onboarding follow-through scope for richer first-user setup
