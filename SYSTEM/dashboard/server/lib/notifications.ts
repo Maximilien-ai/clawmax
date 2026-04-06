@@ -7,7 +7,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
-import { getWorkspacePath, listAgents, parseGroups } from './workspace'
+import { getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups } from './workspace'
 import { listWorkflows, listExecutions, WorkflowExecution } from './workflows'
 import { getBudgetStatus } from './budget'
 import { getMessages } from './messages'
@@ -17,6 +17,7 @@ import { getWorkspaceMetering } from './metering'
 export type NotificationType =
   | 'agent-error'
   | 'agent-offline'
+  | 'artifact-update'
   | 'agent-needs-feedback'
   | 'agent-needs-decision'
   | 'workflow-failed'
@@ -63,6 +64,7 @@ export interface Notification {
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
   'agent-error': 'critical',
   'agent-offline': 'info',
+  'artifact-update': 'info',
   'agent-needs-feedback': 'warning',
   'agent-needs-decision': 'warning',
   'workflow-failed': 'critical',
@@ -236,6 +238,23 @@ const MONITOR_INTERVAL_MS = 60_000 // 60 seconds
 
 // Track last-seen message counts to detect new activity
 const lastSeenMessageCounts = new Map<string, number>()
+const lastSeenArtifactMtims = new Map<string, string>()
+let artifactScanPrimed = false
+
+const ARTIFACT_IGNORE_FILES = new Set([
+  'IDENTITY.md',
+  'SOUL.md',
+  'TOOLS.md',
+  'GROUPS.md',
+  'COMMUNITIES.md',
+  'HEARTBEAT.md',
+])
+
+function isInterestingArtifactFile(file: string): boolean {
+  if (ARTIFACT_IGNORE_FILES.has(file)) return false
+  if (file.startsWith('.')) return false
+  return true
+}
 
 async function runMonitorScan(): Promise<void> {
   try {
@@ -464,6 +483,35 @@ async function runMonitorScan(): Promise<void> {
 
         lastSeenMessageCounts.set(key, count)
       }
+    } catch {}
+
+    // 6. Surface newly created or updated workspace artifacts
+    try {
+      const activity = getWorkspaceActivity(200)
+      for (const entry of activity) {
+        if (!isInterestingArtifactFile(entry.file)) continue
+        const key = `${entry.agentId}:${entry.file}`
+        const previousMtime = lastSeenArtifactMtims.get(key)
+        const isNew = previousMtime === undefined
+        const changed = previousMtime !== entry.mtime
+        lastSeenArtifactMtims.set(key, entry.mtime)
+
+        if (!artifactScanPrimed) continue
+        if (!changed) continue
+
+        const fingerprint = `artifact-update:${entry.agentId}:${entry.file}:${entry.mtime}`
+        createNotification({
+          type: 'artifact-update',
+          title: isNew ? `${entry.agentId} created ${entry.file}` : `${entry.agentId} updated ${entry.file}`,
+          message: isNew
+            ? `New workspace artifact from ${entry.agentId}: ${entry.file}`
+            : `Updated workspace artifact from ${entry.agentId}: ${entry.file}`,
+          entityId: entry.agentId,
+          entityType: 'agent',
+          fingerprint,
+        })
+      }
+      artifactScanPrimed = true
     } catch {}
 
     // Prune old notifications

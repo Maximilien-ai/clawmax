@@ -62,11 +62,12 @@ const SEVERITY_DOT: Record<string, string> = {
 const CATEGORY_LABELS: Record<string, string> = {
   agent: 'Agents',
   workflow: 'Workflows',
+  results: 'Results',
   budget: 'Budget',
   communication: 'Communication',
 }
 
-const CATEGORY_ORDER = ['agent', 'workflow', 'communication', 'budget']
+const CATEGORY_ORDER = ['results', 'agent', 'workflow', 'communication', 'budget']
 
 export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
@@ -172,6 +173,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
 
   // Group notifications by category (derived from type)
   const getCategory = (n: Notification): string => {
+    if (n.type === 'artifact-update') return 'results'
     if (n.type.startsWith('agent-') || n.type === 'agent-error' || n.type === 'agent-offline' || n.type === 'agent-needs-feedback') return 'agent'
     if (n.type.startsWith('workflow-')) return 'workflow'
     if (n.type.startsWith('cost-')) return 'budget'
