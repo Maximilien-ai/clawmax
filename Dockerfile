@@ -14,9 +14,13 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app/SYSTEM/dashboard
 
+ARG OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32
+
 COPY SYSTEM/dashboard/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
-RUN npm install -g openclaw
+# Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
+# not drift to fixtures or an unvalidated upstream revision.
+RUN npm install -g "github:openclaw/openclaw#${OPENCLAW_GIT_REF}"
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
@@ -43,6 +47,7 @@ ENV HOME=/app
 ENV DASHBOARD_PORT=3001
 ENV OPENCLAW_WORKSPACE=/app/WORKSPACES/default
 ENV CLAWMAX_REPO_ROOT=/app
+ENV OPENCLAW_GIT_REF=${OPENCLAW_GIT_REF}
 
 EXPOSE 3001
 
