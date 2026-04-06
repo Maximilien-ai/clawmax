@@ -1,5 +1,23 @@
 # syntax=docker/dockerfile:1
 
+ARG OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32
+
+FROM node:22-bookworm-slim AS openclaw-builder
+
+ARG OPENCLAW_GIT_REF
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/openclaw-src
+
+RUN git clone https://github.com/openclaw/openclaw.git . \
+  && git checkout "${OPENCLAW_GIT_REF}"
+
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm run build
+
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app/SYSTEM/dashboard
@@ -14,13 +32,15 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app/SYSTEM/dashboard
 
-ARG OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32
+ARG OPENCLAW_GIT_REF
 
 COPY SYSTEM/dashboard/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
 # not drift to fixtures or an unvalidated upstream revision.
-RUN npm install -g "github:openclaw/openclaw#${OPENCLAW_GIT_REF}"
+COPY --from=openclaw-builder /opt/openclaw-src /opt/openclaw-src
+RUN npm install -g /opt/openclaw-src \
+  && rm -rf /opt/openclaw-src
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
