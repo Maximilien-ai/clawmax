@@ -6,7 +6,7 @@ import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
-import { readLocalSecrets, SecretRequirement, writeLocalSecrets } from '../lib/localSecrets'
+import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets } from '../lib/localSecrets'
 
 interface AgentTargeting {
   communities: string[]
@@ -459,6 +459,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     trackedExecutionsRef.current = trackedExecutions
   }, [trackedExecutions])
+
+  const selectedWorkflowSecretReadiness = selectedWorkflow
+    ? summarizeSecretReadiness(selectedWorkflow.secretRequirements || [], workflowSecrets)
+    : null
+  const triggeringWorkflowSecretReadiness = triggeringWorkflow
+    ? summarizeSecretReadiness(triggeringWorkflow.secretRequirements || [], workflowSecrets)
+    : null
 
   // Poll for running workflows and detect completions
   useEffect(() => {
@@ -1768,31 +1775,55 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   )}
 
                   {(selectedWorkflow.secretRequirements || []).length > 0 && (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {(selectedWorkflow.secretRequirements || []).map((requirement) => {
-                        const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
-                          ? 'password'
-                          : requirement.kind === 'url'
-                            ? 'url'
-                            : 'text'
-                        return (
-                          <div key={requirement.key} className="space-y-1.5">
-                            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {requirement.label}
-                              {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
-                            </label>
-                            <input
-                              type={inputType}
-                              value={workflowSecrets[requirement.key] || ''}
-                              onChange={(e) => setWorkflowSecrets((prev) => ({ ...prev, [requirement.key]: e.target.value }))}
-                              placeholder={requirement.placeholder || requirement.key}
-                              className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            />
-                            {requirement.help && <div className="text-xs text-gray-500 dark:text-gray-400">{requirement.help}</div>}
+                    <>
+                      {selectedWorkflowSecretReadiness && (
+                        <div className={`rounded-md border p-3 text-sm ${
+                          selectedWorkflowSecretReadiness.status === 'ready'
+                            ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                            : selectedWorkflowSecretReadiness.status === 'partial'
+                              ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                              : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+                        }`}>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+                            {selectedWorkflowSecretReadiness.status === 'ready'
+                              ? 'Workflow secrets ready'
+                              : selectedWorkflowSecretReadiness.status === 'partial'
+                                ? 'Workflow secrets partially configured'
+                                : 'Workflow secrets missing'}
                           </div>
-                        )
-                      })}
-                    </div>
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            {selectedWorkflowSecretReadiness.present} of {selectedWorkflowSecretReadiness.total} configured
+                            {selectedWorkflowSecretReadiness.missingRequired > 0 ? ` · ${selectedWorkflowSecretReadiness.missingRequired} required missing` : ''}
+                            {selectedWorkflowSecretReadiness.optionalMissing > 0 ? ` · ${selectedWorkflowSecretReadiness.optionalMissing} optional still empty` : ''}
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {(selectedWorkflow.secretRequirements || []).map((requirement) => {
+                          const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
+                            ? 'password'
+                            : requirement.kind === 'url'
+                              ? 'url'
+                              : 'text'
+                          return (
+                            <div key={requirement.key} className="space-y-1.5">
+                              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {requirement.label}
+                                {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                              </label>
+                              <input
+                                type={inputType}
+                                value={workflowSecrets[requirement.key] || ''}
+                                onChange={(e) => setWorkflowSecrets((prev) => ({ ...prev, [requirement.key]: e.target.value }))}
+                                placeholder={requirement.placeholder || requirement.key}
+                                className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              />
+                              {requirement.help && <div className="text-xs text-gray-500 dark:text-gray-400">{requirement.help}</div>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
                   )}
 
                   <div className="flex justify-end">
@@ -2231,6 +2262,28 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <div className="text-sm text-gray-600 dark:text-gray-300">
                 Stored in this browser only. Values are passed to this workflow run without being written into the workflow markdown file.
               </div>
+              {triggeringWorkflowSecretReadiness && (
+                <div className={`rounded-md border p-3 text-sm ${
+                  triggeringWorkflowSecretReadiness.status === 'ready'
+                    ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                    : triggeringWorkflowSecretReadiness.status === 'partial'
+                      ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                      : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+                }`}>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                    {triggeringWorkflowSecretReadiness.status === 'ready'
+                      ? 'Ready to run'
+                      : triggeringWorkflowSecretReadiness.status === 'partial'
+                        ? 'Optional inputs still missing'
+                        : 'Required inputs still missing'}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {triggeringWorkflowSecretReadiness.present} of {triggeringWorkflowSecretReadiness.total} configured
+                    {triggeringWorkflowSecretReadiness.missingRequired > 0 ? ` · ${triggeringWorkflowSecretReadiness.missingRequired} required missing` : ''}
+                    {triggeringWorkflowSecretReadiness.optionalMissing > 0 ? ` · ${triggeringWorkflowSecretReadiness.optionalMissing} optional still empty` : ''}
+                  </div>
+                </div>
+              )}
               {(triggeringWorkflow.secretRequirements || []).map((requirement) => {
                 const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
                   ? 'password'

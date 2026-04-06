@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
-import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, writeLocalSecrets } from '../lib/localSecrets'
+import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets } from '../lib/localSecrets'
 
 interface TemplateParameter {
   agentId: string
@@ -79,6 +79,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const secretRequirements = template.secretRequirements || []
+  const secretReadiness = summarizeSecretReadiness(secretRequirements, templateSecrets)
   const customizeSteps: Array<{ id: CustomizeStep; label: string }> = [
     { id: 'team', label: 'Team' },
     { id: 'context', label: 'Context' },
@@ -513,6 +514,45 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             <span>✓</span> Readiness checks passed ({prereqs.summary.pass} checks passed)
           </div>
         ) : null}
+            {secretRequirements.length > 0 && (
+              <div className={`mb-4 rounded-lg border p-4 ${
+                secretReadiness.status === 'ready'
+                  ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                  : secretReadiness.status === 'partial'
+                    ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                    : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+              }`}>
+                <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Browser-local secrets & runtime inputs</div>
+                <div className="flex items-start gap-2 text-sm">
+                  <span className={
+                    secretReadiness.status === 'ready'
+                      ? 'text-green-500'
+                      : secretReadiness.status === 'partial'
+                        ? 'text-amber-500'
+                        : 'text-red-500'
+                  }>
+                    {secretReadiness.status === 'ready' ? '✓' : secretReadiness.status === 'partial' ? '⚠' : '✗'}
+                  </span>
+                  <div>
+                    <div className="text-gray-800 dark:text-gray-200 font-medium">
+                      {secretReadiness.status === 'ready'
+                        ? 'All declared browser-local inputs are ready'
+                        : secretReadiness.status === 'partial'
+                          ? 'Some optional browser-local inputs are still empty'
+                          : 'Required browser-local inputs are still missing'}
+                    </div>
+                    <div className="text-gray-500 dark:text-gray-400">
+                      {secretReadiness.present} of {secretReadiness.total} configured
+                      {secretReadiness.missingRequired > 0 ? ` · ${secretReadiness.missingRequired} required missing` : ''}
+                      {secretReadiness.optionalMissing > 0 ? ` · ${secretReadiness.optionalMissing} optional still empty` : ''}
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Fill these in on the Secrets step. Values stay in this browser and are not written into template markdown or server config.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {prereqs?.expectations && prereqs.expectations.length > 0 && (
               <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">What To Expect</div>
