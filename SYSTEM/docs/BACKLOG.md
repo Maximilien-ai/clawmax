@@ -57,7 +57,7 @@
 
 ### Backup & Restore (Sprint Priority #3)
 - [ ] **Workspace backup** — zip workspace + config, downloadable from UI. Trigger manually or schedule.
-- [ ] **Workspace restore** — upload zip to restore workspace state
+- [x] **Workspace restore** — ZIP import/restore shipped in the workspace switcher for exported workspace archives. Keep follow-through on compatibility, conflict handling, and cloud validation.
 - [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
 
 ### Customer-Facing Visibility (High Priority)
@@ -116,6 +116,7 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ### UX & Product Polish
+- [x] **First-run onboarding wizard** — added a lightweight top-bar onboarding flow for empty workspaces that routes users into BYOK, agent import, agent creation, and templates.
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
 - [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip when no system/user/BYOK keys are configured
