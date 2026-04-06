@@ -206,6 +206,7 @@
         "team-kickoff"
       ],
       "type": "conditional",
+      "owner": "support-agent",
       "tags": [
         "workflow",
         "business",
@@ -233,6 +234,7 @@
         "team-kickoff"
       ],
       "type": "conditional",
+      "owner": "support-lead",
       "tags": [
         "workflow",
         "business",

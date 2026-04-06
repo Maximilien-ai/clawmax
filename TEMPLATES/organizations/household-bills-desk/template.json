@@ -222,7 +222,7 @@
       ]
     },
     {
-      "id": "paperwork-followup",
+      "id": "paperwork-follow-up",
       "name": "Paperwork Follow-up",
       "description": "Capture the account, paperwork, and admin tasks that still need action.",
       "schedule": "manual",
@@ -248,7 +248,7 @@
         "workflow",
         "family",
         "household-bills-desk",
-        "paperwork-followup"
+        "paperwork-follow-up"
       ]
     },
     {
@@ -273,7 +273,7 @@
       "executionMode": "managed",
       "dependsOn": [
         "due-date-calendar",
-        "paperwork-followup",
+        "paperwork-follow-up",
         "monthly-admin-review"
       ],
       "tags": [

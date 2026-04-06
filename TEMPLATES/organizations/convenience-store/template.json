@@ -161,6 +161,7 @@
         "team-kickoff"
       ],
       "type": "conditional",
+      "owner": "inventory-clerk",
       "tags": [
         "workflow",
         "business",
@@ -188,6 +189,7 @@
         "daily-inventory-count"
       ],
       "type": "conditional",
+      "owner": "inventory-clerk",
       "tags": [
         "workflow",
         "business",

@@ -262,6 +262,7 @@
         "rag-setup"
       ],
       "type": "conditional",
+      "owner": "data-engineer",
       "tags": [
         "workflow",
         "technical",
@@ -289,6 +290,7 @@
         "rag-setup"
       ],
       "type": "conditional",
+      "owner": "search-engineer",
       "tags": [
         "workflow",
         "technical",
@@ -317,6 +319,7 @@
         "search-tuning"
       ],
       "type": "conditional",
+      "owner": "eval-engineer",
       "tags": [
         "workflow",
         "technical",
@@ -344,6 +347,7 @@
         "eval-cycle"
       ],
       "type": "conditional",
+      "owner": "ops-engineer",
       "tags": [
         "workflow",
         "technical",
