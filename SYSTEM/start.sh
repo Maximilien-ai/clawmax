@@ -14,6 +14,7 @@ BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_ORIGIN="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 API_ORIGIN="${DASHBOARD_PUBLIC_URL:-http://localhost:${BACKEND_PORT}}"
+REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
 export DASHBOARD_APP_URL="$FRONTEND_ORIGIN"
@@ -24,7 +25,6 @@ fi
 
 # Set workspace to WORKSPACES/default if not already set
 if [ -z "$OPENCLAW_WORKSPACE" ]; then
-  REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
   export OPENCLAW_WORKSPACE="$REPO_ROOT/WORKSPACES/default"
 fi
 
@@ -51,6 +51,37 @@ echo "Workspace: $OPENCLAW_WORKSPACE"
 echo "Backend: $API_ORIGIN"
 echo "Frontend: $FRONTEND_ORIGIN"
 echo ""
+
+if [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
+  WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
+  WATCHDOG_PLIST="$HOME/Library/LaunchAgents/ai.clawmax.gateway-watchdog.plist"
+  mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.openclaw/logs"
+  chmod +x "$WATCHDOG_SCRIPT"
+  cat > "$WATCHDOG_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.clawmax.gateway-watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>$WATCHDOG_SCRIPT</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>30</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$HOME/.openclaw/logs/gateway-watchdog.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/.openclaw/logs/gateway-watchdog.err.log</string>
+  </dict>
+</plist>
+EOF
+  launchctl unload "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
+  launchctl load "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
+fi
 
 # Check if already running
 BACKEND_RUNNING=false
