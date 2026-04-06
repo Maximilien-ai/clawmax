@@ -35,6 +35,10 @@ WORKDIR /app/SYSTEM/dashboard
 
 ARG OPENCLAW_GIT_REF
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends gh ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY SYSTEM/dashboard/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
