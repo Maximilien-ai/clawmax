@@ -60,5 +60,7 @@ Run these on the cloud pod/container for the target instance:
 
 ## Secondary If Time Allows
 
+- Template audit follow-through from [TEMPLATE_AUDIT_2026-04-05.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/TEMPLATE_AUDIT_2026-04-05.md)
+  - first queue: `rag-team`, `support-team`, `data-team`, `convenience-store`, `travel-planning-desk`, `small-event-planning-desk`
 - Senso/external result notification design
 - onboarding follow-through scope for richer first-user setup
