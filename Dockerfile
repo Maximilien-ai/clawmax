@@ -17,6 +17,7 @@ RUN git clone https://github.com/openclaw/openclaw.git . \
 
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 RUN npm run build
+RUN npm pack
 
 FROM node:22-bookworm-slim AS builder
 
@@ -37,13 +38,12 @@ ARG OPENCLAW_GIT_REF
 COPY SYSTEM/dashboard/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
-# not drift to fixtures or an unvalidated upstream revision. Copy the built
-# tree directly instead of relying on npm's packaging step, which can exclude
-# dist output for source installs.
-COPY --from=openclaw-builder /opt/openclaw-src /opt/openclaw/node_modules/openclaw
-RUN mkdir -p /usr/local/bin \
-  && printf '#!/bin/sh\nexec node /opt/openclaw/node_modules/openclaw/openclaw.mjs "$@"\n' > /usr/local/bin/openclaw \
-  && chmod +x /usr/local/bin/openclaw
+# not drift to fixtures or an unvalidated upstream revision. Install from a
+# packed artifact so dist output and production dependencies land exactly as
+# they would in a real package install.
+COPY --from=openclaw-builder /opt/openclaw-src/openclaw-*.tgz /tmp/openclaw.tgz
+RUN npm install -g /tmp/openclaw.tgz \
+  && rm -f /tmp/openclaw.tgz
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
