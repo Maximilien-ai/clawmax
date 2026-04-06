@@ -625,10 +625,22 @@ router.post('/doctor', async (req, res) => {
 
   // Check if openclaw CLI is available
   let hasOpenclawCli = false
+  let platformMessage: string | undefined
   try {
-    require('child_process').execSync('which openclaw', { stdio: 'pipe' })
-    hasOpenclawCli = true
-  } catch {}
+    const { execSync } = require('child_process')
+    execSync('which openclaw', { stdio: 'pipe' })
+    const versionText = String(execSync('openclaw --version', { stdio: 'pipe', env: safeEnv() }) || '').trim()
+    if (versionText.includes('openclaw fixture')) {
+      platformMessage = 'OpenClaw CLI resolves to a fixture runtime instead of a real build.'
+    } else {
+      hasOpenclawCli = true
+    }
+  } catch (err: any) {
+    const stderr = String(err?.stderr || err?.stdout || err?.message || '')
+    if (stderr.includes('missing dist/entry')) {
+      platformMessage = 'OpenClaw is installed but its build output is missing. Rebuild the image with a built runtime.'
+    }
+  }
 
   const gatewayStatus = isGatewayRunning()
   const gatewayRunning = gatewayStatus.running
@@ -773,6 +785,7 @@ router.post('/doctor', async (req, res) => {
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,
+    message: platformMessage,
   })
 })
 

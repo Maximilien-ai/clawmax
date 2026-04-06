@@ -48,6 +48,12 @@ export default function Logs() {
   const eventSourceRef = useRef<EventSource | null>(null)
   const pausedLogsBufferRef = useRef<LogEntry[]>([])
 
+  const runtimeHint = logs.find(log => log.raw.includes('missing dist/entry.(m)js'))
+    ? 'OpenClaw is present but not built in this runtime image. Rebuild the image from the canonical Dockerfile with the pinned OpenClaw build stage.'
+    : logs.find(log => log.raw.includes('openclaw fixture'))
+      ? 'This runtime is still using a fixture OpenClaw build instead of the real CLI/runtime.'
+      : null
+
   // Parse log line into structured entry
   const parseLogLine = (line: string): LogEntry => {
     // Example formats:
@@ -115,7 +121,7 @@ export default function Logs() {
 
       eventSource.onerror = () => {
         setConnected(false)
-        setError('Connection lost. Reconnecting...')
+        setError('Log stream interrupted — retrying...')
         eventSource.close()
         // Retry after 3 seconds
         setTimeout(connectSSE, 3000)
@@ -294,8 +300,17 @@ export default function Logs() {
               {doctorResults.message && doctorResults.results.length === 0 && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">{doctorResults.message}</div>
               )}
+              {doctorResults.message && doctorResults.results.length > 0 && (
+                <div className="text-xs text-amber-700 dark:text-amber-300">{doctorResults.message}</div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {runtimeHint && (
+        <div className="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
+          {runtimeHint}
         </div>
       )}
 
