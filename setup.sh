@@ -6,6 +6,9 @@
 
 set -e
 
+# Keep local setup aligned with the tested runtime pin used by the canonical Docker image.
+OPENCLAW_GIT_REF="${OPENCLAW_GIT_REF:-1116ae97662cce066dd130bc07d925fdd1dd3f32}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -298,7 +301,7 @@ else
     echo -e "  Choose an installation method:"
     echo ""
     echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended (fastest)${NC}"
-    echo "     npm install -g openclaw"
+    echo "     npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
     echo ""
     echo -e "  ${BOLD}2)${NC} Homebrew (Maximilien-ai tap)"
     echo "     brew tap maximilien-ai/openclaw && brew install openclaw"
@@ -314,8 +317,8 @@ else
     REPLY=${REPLY:-1}
     case $REPLY in
       1|"")
-        print_info "Installing OpenClaw via npm (fastest)..."
-        if npm install -g openclaw; then
+        print_info "Installing OpenClaw via npm (fastest, pinned to tested ref)..."
+        if npm install -g "github:openclaw/openclaw#$OPENCLAW_GIT_REF"; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw CLI installed"
@@ -328,7 +331,7 @@ else
             print_success "OpenClaw CLI installed via Homebrew"
           else
             print_warning "Installation failed"
-            echo "  Try manually: npm install -g openclaw"
+            echo "  Try manually: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
           fi
         fi
         ;;
@@ -340,7 +343,7 @@ else
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw CLI installed via Homebrew"
         else
-          print_warning "Homebrew install failed — try: npm install -g openclaw"
+          print_warning "Homebrew install failed — try: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
         fi
         ;;
       *)
@@ -350,12 +353,12 @@ else
   else
     # Non-interactive: try npm install automatically
     print_info "Installing OpenClaw CLI..."
-    if npm install -g openclaw 2>/dev/null; then
+    if npm install -g "github:openclaw/openclaw#$OPENCLAW_GIT_REF" 2>/dev/null; then
       hash -r 2>/dev/null || true
       OPENCLAW_INSTALLED=true
       print_success "OpenClaw CLI installed"
     else
-      print_warning "OpenClaw install failed — try: npm install -g openclaw"
+      print_warning "OpenClaw install failed — try: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
     fi
   fi
 fi
@@ -369,7 +372,7 @@ if [ "$OPENCLAW_INSTALLED" = true ]; then
   print_success "OpenClaw CLI ready: $OPENCLAW_VER"
 elif [ "$OPENCLAW_INSTALLED" = false ]; then
   print_warning "OpenClaw CLI not installed — agent start/stop/chat will not work"
-  echo -e "  Install later: ${BOLD}npm install -g openclaw${NC}"
+  echo -e "  Install later: ${BOLD}npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF${NC}"
 fi
 
 echo ""
@@ -621,6 +624,7 @@ DASHBOARD_AUTH_DISABLED=true
 # ⚠ Dev mode: no login required. Do NOT use in production.
 ENVEOF
 elif [ "$AUTH_MODE" = "email_otp" ]; then
+  JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | fold -w 64 | head -n 1)
   cat >> "$ENV_FILE" << ENVEOF
 DASHBOARD_AUTH_MODE=email_otp
 BYPASS_OAUTH=false
@@ -628,6 +632,7 @@ OTP_ALLOWED_EMAILS=$OTP_ALLOWED_EMAILS
 OTP_EXPIRY_MINUTES=15
 OTP_FROM_EMAIL=max@clawmax.ai
 OTP_EMAIL_SUBJECT=Your ClawMax login code
+JWT_SECRET=$JWT_SECRET
 ENVEOF
   if [ "$OTP_DEV_MODE" = "log" ]; then
     cat >> "$ENV_FILE" << 'ENVEOF'
@@ -640,11 +645,13 @@ ENVEOF
 ENVEOF
   fi
 else
+  JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | fold -w 64 | head -n 1)
   cat >> "$ENV_FILE" << ENVEOF
 DASHBOARD_AUTH_MODE=github_oauth
 BYPASS_OAUTH=false
 GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
 GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
+JWT_SECRET=$JWT_SECRET
 ENVEOF
 fi
 
@@ -744,11 +751,15 @@ if [ "$OPENCLAW_INSTALLED" = true ]; then
     print_success "Gateway auth token configured"
   fi
 
-  # Install gateway service
-  if ! launchctl list 2>/dev/null | grep -q "ai.openclaw.gateway"; then
-    openclaw gateway install 2>/dev/null && print_success "Gateway service installed" || print_warning "Gateway service install failed"
+  # Install gateway service on macOS only.
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if ! launchctl list 2>/dev/null | grep -q "ai.openclaw.gateway"; then
+      openclaw gateway install 2>/dev/null && print_success "Gateway service installed" || print_warning "Gateway service install failed"
+    else
+      print_success "Gateway service already installed"
+    fi
   else
-    print_success "Gateway service already installed"
+    print_info "Skipping gateway service install on $(uname -s) — using direct gateway startup"
   fi
 
   # Start/restart gateway
