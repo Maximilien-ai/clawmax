@@ -37,10 +37,13 @@ ARG OPENCLAW_GIT_REF
 COPY SYSTEM/dashboard/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
-# not drift to fixtures or an unvalidated upstream revision.
-COPY --from=openclaw-builder /opt/openclaw-src /opt/openclaw-src
-RUN npm install -g /opt/openclaw-src \
-  && rm -rf /opt/openclaw-src
+# not drift to fixtures or an unvalidated upstream revision. Copy the built
+# tree directly instead of relying on npm's packaging step, which can exclude
+# dist output for source installs.
+COPY --from=openclaw-builder /opt/openclaw-src /opt/openclaw/node_modules/openclaw
+RUN mkdir -p /usr/local/bin \
+  && printf '#!/bin/sh\nexec node /opt/openclaw/node_modules/openclaw/openclaw.mjs "$@"\n' > /usr/local/bin/openclaw \
+  && chmod +x /usr/local/bin/openclaw
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
