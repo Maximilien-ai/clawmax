@@ -71,8 +71,8 @@ router.post('/github-auth', (req, res) => {
   }
 
   const args = mode === 'refresh-repo-scope'
-    ? ['auth', 'refresh', '-s', 'repo']
-    : ['auth', 'login', '--web', '--git-protocol', 'https', '--scopes', 'repo']
+    ? ['auth', 'refresh', '--hostname', 'github.com', '-s', 'repo']
+    : ['auth', 'login', '--web', '--clipboard', '--git-protocol', 'https', '--scopes', 'repo']
 
   send('start', `$ gh ${args.join(' ')}\n`)
   send('log', mode === 'refresh-repo-scope'

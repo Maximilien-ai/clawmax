@@ -117,6 +117,7 @@ export function ByokWizard() {
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
+  const [githubStatusChecking, setGithubStatusChecking] = useState(false)
   const [githubAuthLogs, setGithubAuthLogs] = useState<string[]>([])
   const [githubAuthRunning, setGithubAuthRunning] = useState(false)
   const [githubAuthError, setGithubAuthError] = useState<string | null>(null)
@@ -128,14 +129,23 @@ export function ByokWizard() {
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
 
   const refreshGithubChecks = React.useCallback(async () => {
+    setGithubStatusChecking(true)
     try {
       const response = await fetch('/api/integrations/github-status')
       const data = response.ok ? await response.json() : null
       setGithubChecks(Array.isArray(data?.checks) ? data.checks : [])
+      if (data?.ready) {
+        showSuccess('GitHub readiness looks good')
+      } else {
+        showInfo('GitHub readiness checked')
+      }
     } catch {
       setGithubChecks([])
+      showWarning('Could not refresh GitHub readiness')
+    } finally {
+      setGithubStatusChecking(false)
     }
-  }, [])
+  }, [showInfo, showSuccess, showWarning])
 
   useEffect(() => {
     const stored = readStoredByokKeys()
@@ -682,6 +692,25 @@ export function ByokWizard() {
     githubDefaultRepo.trim() ? `GitHub repo → ${githubDefaultRepo.trim()}` : null,
   ].filter(Boolean)
 
+  const githubAuthTranscript = githubAuthLogs.join('')
+  const githubDeviceCode = useMemo(() => {
+    const match = githubAuthTranscript.match(/one-time code:\s*([A-Z0-9-]+)/i)
+    return match?.[1] || ''
+  }, [githubAuthTranscript])
+  const githubDeviceUrl = useMemo(() => {
+    const match = githubAuthTranscript.match(/https:\/\/github\.com\/login\/device[^\s]*/i)
+    return match?.[0] || ''
+  }, [githubAuthTranscript])
+
+  const copyText = async (value: string, successMessage: string, failureMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      showSuccess(successMessage)
+    } catch {
+      showWarning(failureMessage)
+    }
+  }
+
   const goToNextStep = () => {
     if (step === 'partners' && selectedPartnerDefinitions.length === 0) {
       void handleSave()
@@ -1182,15 +1211,52 @@ export function ByokWizard() {
                       <button
                         type="button"
                         onClick={() => void refreshGithubChecks()}
-                        disabled={githubAuthRunning}
+                        disabled={githubAuthRunning || githubStatusChecking}
                         className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
                       >
-                        Recheck Status
+                        {githubStatusChecking ? 'Checking…' : 'Recheck Status'}
                       </button>
                     </div>
                     <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                       ClawMax can run the GitHub CLI auth flow here, stream the terminal output, and recheck readiness when it finishes.
                     </div>
+                    {(githubDeviceCode || githubDeviceUrl) && (
+                      <div className="mt-3 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-3 py-3 text-sm text-sky-900 dark:text-sky-100">
+                        <div className="font-medium">GitHub device login helper</div>
+                        {githubDeviceCode && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-xs uppercase tracking-wide opacity-80">Code</span>
+                            <code className="rounded bg-white/80 dark:bg-gray-900/70 px-2 py-1 font-mono text-sm">{githubDeviceCode}</code>
+                            <button
+                              type="button"
+                              onClick={() => void copyText(githubDeviceCode, 'Copied GitHub device code', 'Could not copy GitHub device code')}
+                              className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+                            >
+                              Copy Code
+                            </button>
+                          </div>
+                        )}
+                        {githubDeviceUrl && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <a
+                              href={githubDeviceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 text-xs rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+                            >
+                              Open GitHub Device Login
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => void copyText(githubDeviceUrl, 'Copied GitHub device URL', 'Could not copy GitHub device URL')}
+                              className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+                            >
+                              Copy URL
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {(githubAuthRunning || githubAuthLogs.length > 0) && (
                       <div className="mt-3 bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-48 overflow-y-auto whitespace-pre-wrap">
                         {githubAuthLogs.join('')}
