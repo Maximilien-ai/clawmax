@@ -261,6 +261,15 @@ export function ByokWizard() {
   const githubDefaultRepo = getPartnerValue('github', 'defaultRepo')
   const sensoContextLabel = getPartnerValue('senso', 'contextLabel')
   const opikConfigured = !!opikApiKey.trim()
+  const githubAuthTranscript = githubAuthLogs.join('')
+  const githubDeviceCode = useMemo(() => {
+    const match = githubAuthTranscript.match(/one-time code:\s*([A-Z0-9-]+)/i)
+    return match?.[1] || ''
+  }, [githubAuthTranscript])
+  const githubDeviceUrl = useMemo(() => {
+    const match = githubAuthTranscript.match(/https:\/\/github\.com\/login\/device[^\s]*/i)
+    return match?.[0] || ''
+  }, [githubAuthTranscript])
 
   const providerChecks = useMemo(() => {
     const resolveSource = (provider: ProviderKey) => {
@@ -691,16 +700,6 @@ export function ByokWizard() {
     sensoContextLabel.trim() ? `Senso context → ${sensoContextLabel.trim()}` : null,
     githubDefaultRepo.trim() ? `GitHub repo → ${githubDefaultRepo.trim()}` : null,
   ].filter(Boolean)
-
-  const githubAuthTranscript = githubAuthLogs.join('')
-  const githubDeviceCode = useMemo(() => {
-    const match = githubAuthTranscript.match(/one-time code:\s*([A-Z0-9-]+)/i)
-    return match?.[1] || ''
-  }, [githubAuthTranscript])
-  const githubDeviceUrl = useMemo(() => {
-    const match = githubAuthTranscript.match(/https:\/\/github\.com\/login\/device[^\s]*/i)
-    return match?.[0] || ''
-  }, [githubAuthTranscript])
 
   const copyText = async (value: string, successMessage: string, failureMessage: string) => {
     try {
