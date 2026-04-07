@@ -36,5 +36,10 @@
       "senso-ingest-clawmax",
       "senso-search-clawmax"
     ]
+  },
+  "validation": {
+    "mode": "config",
+    "label": "Check keys",
+    "helperText": "Checks that the Senso API key is present. Live Senso API validation is not yet implemented from this form."
   }
 }

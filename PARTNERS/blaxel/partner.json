@@ -48,5 +48,11 @@
     "mode": "curated-installer",
     "commandId": "blaxel-agent-skills",
     "label": "Install Blaxel agent skills"
+  },
+  "validation": {
+    "mode": "live",
+    "resultKey": "blaxel",
+    "label": "Check keys",
+    "helperText": "Validates the Blaxel API key against the live Blaxel API. Project ID remains an optional workspace default."
   }
 }

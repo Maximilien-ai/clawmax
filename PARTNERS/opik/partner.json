@@ -29,5 +29,11 @@
       "required": false,
       "secret": false
     }
-  ]
+  ],
+  "validation": {
+    "mode": "live",
+    "resultKey": "opik",
+    "label": "Check keys",
+    "helperText": "Validates the Opik API key, workspace, and project access against the live Opik API."
+  }
 }

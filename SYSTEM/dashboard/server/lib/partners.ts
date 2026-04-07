@@ -16,6 +16,13 @@ export interface PartnerSkillsDefinition {
   label?: string
 }
 
+export interface PartnerValidationDefinition {
+  mode: 'live' | 'config' | 'status'
+  resultKey?: string
+  label?: string
+  helperText?: string
+}
+
 export interface PartnerDefinition {
   slug: string
   name: string
@@ -27,6 +34,7 @@ export interface PartnerDefinition {
   enabledByDefault?: boolean
   fields?: PartnerFieldDefinition[]
   skills?: PartnerSkillsDefinition
+  validation?: PartnerValidationDefinition
   content?: string
   sourceRoot?: string
 }

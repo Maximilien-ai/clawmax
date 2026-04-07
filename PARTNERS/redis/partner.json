@@ -36,5 +36,11 @@
       "redis-development"
     ],
     "label": "Redis skill installer pending official package"
+  },
+  "validation": {
+    "mode": "config",
+    "resultKey": "redis",
+    "label": "Check keys",
+    "helperText": "Checks that the Redis URL and token are present and well-formed. Live Redis auth validation is not yet implemented from this form."
   }
 }

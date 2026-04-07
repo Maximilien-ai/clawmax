@@ -22,5 +22,10 @@
       "github"
     ],
     "label": "Bundled GitHub skill"
+  },
+  "validation": {
+    "mode": "status",
+    "label": "Check keys",
+    "helperText": "Checks GitHub CLI install state, auth status, and repo scope readiness for issue and PR workflows."
   }
 }

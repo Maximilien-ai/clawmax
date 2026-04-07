@@ -10,7 +10,8 @@ function maskKey(value: string) {
 
 type Step = 'models' | 'partners' | `partner:${string}`
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
-type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
+type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
+type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'blaxel' | 'redis' | 'senso', ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
 type PartnerFieldDefinition = {
   key: string
@@ -25,6 +26,12 @@ type PartnerSkillsDefinition = {
   commandId?: string
   label?: string
 }
+type PartnerValidationDefinition = {
+  mode: 'live' | 'config' | 'status'
+  resultKey?: string
+  label?: string
+  helperText?: string
+}
 type PartnerDefinition = {
   slug: string
   name: string
@@ -36,6 +43,7 @@ type PartnerDefinition = {
   enabledByDefault?: boolean
   fields?: PartnerFieldDefinition[]
   skills?: PartnerSkillsDefinition
+  validation?: PartnerValidationDefinition
   content?: string
 }
 type IntegrationStatus = {
@@ -113,6 +121,9 @@ export function ByokWizard() {
     gemini: { status: 'idle', message: '' },
     ollama: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
+    blaxel: { status: 'idle', message: '' },
+    redis: { status: 'idle', message: '' },
+    senso: { status: 'idle', message: '' },
   })
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -479,6 +490,11 @@ export function ByokWizard() {
           opikApiKey: opikApiKey.trim(),
           opikWorkspace: opikWorkspace.trim(),
           opikProject: opikProject.trim(),
+          blaxelApiKey: getPartnerSecret('blaxel', 'apiKey').trim(),
+          blaxelProjectId: getPartnerValue('blaxel', 'projectId').trim(),
+          redisApiKey: getPartnerSecret('redis', 'apiKey').trim(),
+          redisUrl: getPartnerValue('redis', 'url').trim(),
+          sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
         }),
       })
       const contentType = res.headers.get('content-type') || ''
@@ -489,6 +505,9 @@ export function ByokWizard() {
           gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          blaxel: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          redis: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
         return true
@@ -501,6 +520,9 @@ export function ByokWizard() {
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
         ollama: { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
+        blaxel: { status: data.blaxel?.status || 'idle', message: data.blaxel?.message || '' },
+        redis: { status: data.redis?.status || 'idle', message: data.redis?.message || '' },
+        senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
       }
       setValidation(nextState)
       if (nextState.ollama.status === 'valid') void loadOllamaModels(true)
@@ -513,6 +535,9 @@ export function ByokWizard() {
           gemini: 'Gemini',
           ollama: 'Ollama',
           opik: 'Opik',
+          blaxel: 'Blaxel',
+          redis: 'Redis',
+          senso: 'Senso',
         }
         showWarning(`Some integration checks failed: ${failures.map(([key]) => labels[key] || key).join(', ')}. Review the messages below. You can still save and complete optional integrations later.`)
         return true
@@ -528,7 +553,17 @@ export function ByokWizard() {
   }
 
   const handleSave = async () => {
-    const shouldValidate = !!(openaiKey.trim() || anthropicKey.trim() || geminiApiKey.trim() || opikApiKey.trim() || ollamaConfigured)
+    const shouldValidate = !!(
+      openaiKey.trim()
+      || anthropicKey.trim()
+      || geminiApiKey.trim()
+      || opikApiKey.trim()
+      || ollamaConfigured
+      || getPartnerSecret('blaxel', 'apiKey').trim()
+      || getPartnerSecret('redis', 'apiKey').trim()
+      || getPartnerValue('redis', 'url').trim()
+      || getPartnerSecret('senso', 'apiKey').trim()
+    )
     if (shouldValidate) {
       const ok = await runValidation()
       if (!ok) return
@@ -679,6 +714,11 @@ export function ByokWizard() {
         {entry.message}
       </div>
     )
+  }
+
+  const renderPartnerValidation = (partner: PartnerDefinition) => {
+    const resultKey = (partner.validation?.resultKey || partner.slug) as keyof ValidationState
+    return renderValidation(resultKey)
   }
 
   const discoveredPreferredOptions = [
@@ -1160,6 +1200,9 @@ export function ByokWizard() {
                     {currentPartner.docsUrl ? <> Docs: <a href={currentPartner.docsUrl} target="_blank" rel="noopener noreferrer" className="underline">{currentPartner.docsUrl}</a></> : null}
                     {currentPartner.website ? <> · Website: <a href={currentPartner.website} target="_blank" rel="noopener noreferrer" className="underline">{currentPartner.website}</a></> : null}
                   </div>
+                  {currentPartner.validation?.helperText ? (
+                    <div className="mt-2 text-xs opacity-80">{currentPartner.validation.helperText}</div>
+                  ) : null}
                   {renderPartnerSkillsNote(currentPartner)}
                 </div>
 
@@ -1277,7 +1320,7 @@ export function ByokWizard() {
 
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
-                  {currentPartner.slug === 'opik' && renderValidation('opik')}
+                  {currentPartner.validation && currentPartner.slug !== 'github' && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">
                       <button
@@ -1293,9 +1336,9 @@ export function ByokWizard() {
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
-                    {currentPartner.slug === 'opik' && (
+                    {currentPartner.validation && currentPartner.slug !== 'github' && (
                       <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
-                        {validating ? 'Checking…' : 'Check Keys'}
+                        {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                       </button>
                     )}
                     <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
