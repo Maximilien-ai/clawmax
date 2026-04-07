@@ -117,11 +117,25 @@ export function ByokWizard() {
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
+  const [githubAuthLogs, setGithubAuthLogs] = useState<string[]>([])
+  const [githubAuthRunning, setGithubAuthRunning] = useState(false)
+  const [githubAuthError, setGithubAuthError] = useState<string | null>(null)
+  const [githubAuthDone, setGithubAuthDone] = useState(false)
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
+
+  const refreshGithubChecks = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/integrations/github-status')
+      const data = response.ok ? await response.json() : null
+      setGithubChecks(Array.isArray(data?.checks) ? data.checks : [])
+    } catch {
+      setGithubChecks([])
+    }
+  }, [])
 
   useEffect(() => {
     const stored = readStoredByokKeys()
@@ -330,21 +344,8 @@ export function ByokWizard() {
         partnerDefinitions: [],
       }))
 
-    fetch('/api/templates/organizations/prereqs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        agents: [{ id: 'github-check', skills: ['github', 'gh-issues'] }],
-        workflows: [],
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const checks = (data?.checks || []).filter((check: any) => check.id === 'github-auth' || check.id === 'gh-issues')
-        setGithubChecks(checks)
-      })
-      .catch(() => setGithubChecks([]))
-  }, [open])
+    void refreshGithubChecks()
+  }, [open, refreshGithubChecks])
 
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
     const baseUrl = ollamaBaseUrl.trim()
@@ -588,6 +589,63 @@ export function ByokWizard() {
     }
   }
 
+  const runGitHubAuth = async (mode: 'login' | 'refresh-repo-scope') => {
+    setGithubAuthLogs([])
+    setGithubAuthError(null)
+    setGithubAuthDone(false)
+    setGithubAuthRunning(true)
+
+    try {
+      const resp = await fetch('/api/integrations/github-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      })
+
+      if (!resp.ok || !resp.body) {
+        setGithubAuthError('Failed to start GitHub auth flow')
+        setGithubAuthRunning(false)
+        return
+      }
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const msg = JSON.parse(line.slice(6)) as { type: string; data: string }
+            if (msg.type === 'log' || msg.type === 'start') {
+              setGithubAuthLogs((current) => [...current, msg.data])
+            } else if (msg.type === 'status') {
+              const parsed = JSON.parse(msg.data)
+              setGithubChecks(Array.isArray(parsed?.checks) ? parsed.checks : [])
+            } else if (msg.type === 'done') {
+              setGithubAuthLogs((current) => [...current, msg.data])
+              setGithubAuthDone(true)
+              setGithubAuthRunning(false)
+            } else if (msg.type === 'error') {
+              setGithubAuthError(msg.data)
+              setGithubAuthRunning(false)
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      setGithubAuthError(err?.message || 'GitHub auth failed')
+    } finally {
+      setGithubAuthRunning(false)
+      void refreshGithubChecks()
+    }
+  }
+
   const renderValidation = (key: keyof ValidationState) => {
     const entry = validation[key]
     if (entry.status === 'idle') return null
@@ -645,7 +703,7 @@ export function ByokWizard() {
         : 'Not configured — workspace files remain the default shared context layer'
     }
     if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — monitoring will be limited or ignored'
-    if (partner.slug === 'github') return githubReady ? 'GitHub CLI and issue workflows look ready.' : 'GitHub is optional, but software and delivery templates work better when gh and gh-issues are ready.'
+    if (partner.slug === 'github') return githubReady ? 'GitHub CLI and issue workflows look ready.' : 'GitHub delivery workflows need auth before agents can create issues or PRs.'
 
     const secretFields = (partner.fields || []).filter((field) => field.secret && getPartnerSecret(partner.slug, field.key).trim())
     const plainFields = (partner.fields || []).filter((field) => !field.secret && getPartnerValue(partner.slug, field.key).trim())
@@ -675,7 +733,7 @@ export function ByokWizard() {
     if (partner.slug === 'github') {
       return (
         <>
-          Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax still works without it, but GitHub is recommended for software and operational teams.
+          Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax can check GitHub readiness here and run the auth flow in-product so you do not have to leave the workspace.
         </>
       )
     }
@@ -1104,6 +1162,51 @@ export function ByokWizard() {
                         </div>
                       ))}
                     </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void runGitHubAuth('login')}
+                        disabled={githubAuthRunning}
+                        className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
+                      >
+                        {githubAuthRunning ? 'Connecting…' : 'Connect GitHub'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runGitHubAuth('refresh-repo-scope')}
+                        disabled={githubAuthRunning}
+                        className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                      >
+                        Refresh Repo Scope
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void refreshGithubChecks()}
+                        disabled={githubAuthRunning}
+                        className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                      >
+                        Recheck Status
+                      </button>
+                    </div>
+                    <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                      ClawMax can run the GitHub CLI auth flow here, stream the terminal output, and recheck readiness when it finishes.
+                    </div>
+                    {(githubAuthRunning || githubAuthLogs.length > 0) && (
+                      <div className="mt-3 bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-48 overflow-y-auto whitespace-pre-wrap">
+                        {githubAuthLogs.join('')}
+                        {githubAuthRunning && <span className="animate-pulse">▌</span>}
+                      </div>
+                    )}
+                    {githubAuthError && (
+                      <div className="mt-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                        {githubAuthError}
+                      </div>
+                    )}
+                    {githubAuthDone && !githubAuthError && (
+                      <div className="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                        GitHub auth flow completed. Review the readiness state above to confirm issue and PR workflows are ready.
+                      </div>
+                    )}
                   </div>
                 )}
 

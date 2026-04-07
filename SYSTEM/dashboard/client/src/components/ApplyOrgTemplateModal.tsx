@@ -74,6 +74,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [hasSensoApiKey, setHasSensoApiKey] = useState(false)
   const [hasBlaxelApiKey, setHasBlaxelApiKey] = useState(false)
   const [hasRedisApiKey, setHasRedisApiKey] = useState(false)
+  const [hasGithubAuth, setHasGithubAuth] = useState(false)
   const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
@@ -157,6 +158,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         setVisiblePartners(Array.isArray(data?.visiblePartners) ? data.visiblePartners : [])
       })
       .catch(() => {})
+    fetch('/api/integrations/github-status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const checks = Array.isArray(data?.checks) ? data.checks : []
+        setHasGithubAuth(checks.length > 0 && checks.every((check: any) => check.status === 'pass'))
+      })
+      .catch(() => {})
     fetch('/api/integrations/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -214,7 +222,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const partnerIsVisible = (slug: string) => visiblePartners.length === 0 || visiblePartners.includes(slug)
   const partnerIsEnabled = (slug: string) => enabledPartners.length === 0 ? true : enabledPartners.includes(slug)
 
-  const githubAvailable = partnerIsVisible('github') && partnerIsEnabled('github') && !!githubRepo.trim()
+  const githubAvailable = partnerIsVisible('github') && partnerIsEnabled('github') && !!githubRepo.trim() && hasGithubAuth
   const sensoAvailable = partnerIsVisible('senso') && partnerIsEnabled('senso') && hasSensoApiKey
   const blaxelAvailable = partnerIsVisible('blaxel') && partnerIsEnabled('blaxel') && (hasBlaxelApiKey || !!blaxelProjectId.trim() || !!blaxelSandbox.trim())
   const redisAvailable = partnerIsVisible('redis') && partnerIsEnabled('redis') && (hasRedisApiKey || !!redisUrl.trim())
@@ -223,7 +231,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     !githubAvailable && partnerIsVisible('github') ? {
       slug: 'github',
       name: 'GitHub',
-      detail: 'Requires a selected GitHub integration and a default repository in Workspaces Integrations.'
+      detail: 'Requires a selected GitHub integration, a default repository, and GitHub CLI auth in Workspaces Integrations.'
     } : null,
     !blaxelAvailable && partnerIsVisible('blaxel') ? {
       slug: 'blaxel',
