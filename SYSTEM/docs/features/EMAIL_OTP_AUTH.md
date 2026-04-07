@@ -252,8 +252,31 @@ So dev still must use an explicit allowed email.
 ### Nice to have
 
 - audit log entries for request/verify success/failure
-- resend cooldown, e.g. one request every `60s`
 - optional trusted-device label in session metadata
+
+## Current resend behavior
+
+ClawMax now supports OTP resend directly from the login screen.
+
+Behavior:
+
+- show `Resend code` after the first OTP request
+- show a visible countdown until resend is allowed again
+- allow `Change email` without reloading the page
+
+Server-side resend protection:
+
+- sends `1-3`: `30s` cooldown
+- sends `4-5`: `60s` cooldown
+- sends `6-7`: `120s` cooldown
+- sends `8+`: capped at `300s`
+
+Hard limits:
+
+- max `10` OTP sends per email per hour
+- max `20` OTP sends per IP per hour
+
+When cooldown or limits apply, the server returns retry metadata so the login page can show the user exactly when resend becomes available again.
 
 ## UX
 

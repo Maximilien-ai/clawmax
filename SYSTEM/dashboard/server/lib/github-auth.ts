@@ -162,7 +162,10 @@ type OtpRecord = {
   codeHash: string
   expiresAt: number
   createdAt: number
+  sendCount: number
+  cooldownUntil?: number
   consumedAt?: number
+  supersededAt?: number
   attemptCount: number
   requestIp?: string
 }
@@ -174,7 +177,11 @@ type OtpStore = {
 
 const OTP_STORE_PATH = path.join(__dirname, '..', 'data', 'auth', 'otp-store.json')
 const OTP_DEV_FILE_PATH = path.resolve(__dirname, '..', '..', '..', '..', '.clawmax-otp-dev.json')
-const OTP_REQUEST_WINDOW_MS = 60 * 1000
+const OTP_RESEND_BASE_MS = 30 * 1000
+const OTP_RESEND_MAX_MS = 5 * 60 * 1000
+const OTP_REQUEST_HARD_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const OTP_MAX_REQUESTS_PER_EMAIL_PER_HOUR = 10
+const OTP_MAX_REQUESTS_PER_IP_PER_HOUR = 20
 const OTP_EXPIRY_MS = parseInt(process.env.OTP_EXPIRY_MINUTES || '15', 10) * 60 * 1000
 const OTP_MAX_ATTEMPTS = 5
 
@@ -253,6 +260,13 @@ function hashOtp(email: string, code: string): string {
 function createOtpCode(): string {
   const value = crypto.randomInt(0, 1000000)
   return String(value).padStart(6, '0')
+}
+
+function computeOtpCooldownMs(sendCount: number): number {
+  if (sendCount <= 3) return OTP_RESEND_BASE_MS
+  if (sendCount <= 5) return 60 * 1000
+  if (sendCount <= 7) return 120 * 1000
+  return OTP_RESEND_MAX_MS
 }
 
 function createOtpSessionToken(email: string, rememberDevice: boolean): string {
@@ -508,33 +522,71 @@ export function createAuthRouter(): Router {
     const rawEmail = typeof req.body?.email === 'string' ? req.body.email : ''
     const email = normalizeEmail(rawEmail)
     const generic = { ok: true, message: 'If this email is allowed, a code has been sent.' }
+    const maskedEmail = email ? `${email.slice(0, 2)}***${email.slice(email.indexOf('@'))}` : 'unknown'
 
     if (!allowOtpAuth() || !email) {
+      console.log(`[Auth][OTP] Ignored request (otp disabled or missing email) from ${req.ip}`)
       return res.json(generic)
     }
 
     const allowed = getOtpAllowedEmails()
     if (!allowed.includes(email)) {
+      console.log(`[Auth][OTP] Ignored request for non-allowlisted email ${maskedEmail} from ${req.ip}`)
       return res.json(generic)
     }
 
     const now = Date.now()
     const store = loadOtpStore()
-    const recent = store.records.find((record) => record.email === email && now - record.createdAt < OTP_REQUEST_WINDOW_MS)
-    if (recent) {
-      return res.json(generic)
+    const recentEmailRequests = store.records.filter((record) => record.email === email && now - record.createdAt < OTP_REQUEST_HARD_LIMIT_WINDOW_MS)
+    const recentIpRequests = store.records.filter((record) => record.requestIp && record.requestIp === req.ip && now - record.createdAt < OTP_REQUEST_HARD_LIMIT_WINDOW_MS)
+    if (recentEmailRequests.length >= OTP_MAX_REQUESTS_PER_EMAIL_PER_HOUR) {
+      console.warn(`[Auth][OTP] Email request limit hit for ${maskedEmail}`)
+      return res.status(429).json({
+        error: 'Too many login code requests for this email. Try again later.',
+        retryAfterSeconds: Math.ceil((OTP_REQUEST_HARD_LIMIT_WINDOW_MS - (now - recentEmailRequests[0].createdAt)) / 1000),
+      })
+    }
+    if (recentIpRequests.length >= OTP_MAX_REQUESTS_PER_IP_PER_HOUR) {
+      console.warn(`[Auth][OTP] IP request limit hit for ${req.ip}`)
+      return res.status(429).json({
+        error: 'Too many login code requests from this network. Try again later.',
+        retryAfterSeconds: Math.ceil((OTP_REQUEST_HARD_LIMIT_WINDOW_MS - (now - recentIpRequests[0].createdAt)) / 1000),
+      })
+    }
+
+    const activeRecord = [...store.records]
+      .reverse()
+      .find((record) => record.email === email && !record.consumedAt && !record.supersededAt && record.expiresAt > now)
+
+    if (activeRecord?.cooldownUntil && activeRecord.cooldownUntil > now) {
+      console.log(`[Auth][OTP] Cooldown active for ${maskedEmail} (${Math.ceil((activeRecord.cooldownUntil - now) / 1000)}s remaining)`)
+      return res.status(429).json({
+        error: `Please wait before requesting another code.`,
+        retryAfterSeconds: Math.ceil((activeRecord.cooldownUntil - now) / 1000),
+        resendAvailableAt: activeRecord.cooldownUntil,
+      })
     }
 
     const code = createOtpCode()
     const nextRecords = store.records
-      .filter((record) => !(record.email === email && !record.consumedAt))
       .filter((record) => record.expiresAt > now || !!record.consumedAt)
+
+    for (const record of nextRecords) {
+      if (record.email === email && !record.consumedAt && !record.supersededAt) {
+        record.supersededAt = now
+      }
+    }
+
+    const sendCount = (activeRecord?.sendCount || 0) + 1
+    const cooldownMs = computeOtpCooldownMs(sendCount)
 
     nextRecords.push({
       email,
       codeHash: hashOtp(email, code),
       expiresAt: now + OTP_EXPIRY_MS,
       createdAt: now,
+      sendCount,
+      cooldownUntil: now + cooldownMs,
       attemptCount: 0,
       requestIp: req.ip,
     })
@@ -542,6 +594,7 @@ export function createAuthRouter(): Router {
 
     try {
       await sendOtpEmail(email, code)
+      console.log(`[Auth][OTP] Sent login code to ${maskedEmail} (send #${sendCount})`)
     } catch (err: any) {
       console.error('[Auth][OTP] Failed to send OTP:', err.message)
       return res.status(500).json({ error: err.message || 'Failed to send code' })
@@ -549,6 +602,8 @@ export function createAuthRouter(): Router {
 
     res.json({
       ...generic,
+      retryAfterSeconds: Math.ceil(cooldownMs / 1000),
+      resendAvailableAt: now + cooldownMs,
       ...(isOtpDevMode()
         ? {
             message: `Dev mode is enabled. Read the latest code from ${OTP_DEV_FILE_PATH}.`,

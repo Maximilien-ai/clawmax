@@ -142,8 +142,52 @@ async function run() {
     assert(res.statusCode === 200, 'Expected OTP request to succeed')
     assert(res.jsonBody?.ok === true, 'Expected ok response')
     assert(res.jsonBody?.devOtpFile === otpDevFilePath, 'Expected dev OTP file path in response')
+    assert(res.jsonBody?.retryAfterSeconds === 30, `Expected initial resend cooldown, got ${res.jsonBody?.retryAfterSeconds}`)
     assert(fs.existsSync(otpDevFilePath), 'Expected dev OTP file to be written')
     assert(/^\d{6}$/.test(readDevCode()), 'Expected a 6-digit dev OTP code')
+  })
+
+  await test('OTP resend is blocked during cooldown with retry metadata', async () => {
+    resetFiles()
+    configureOtpEnv()
+    const handler = getRouteHandler('post', '/otp/request')
+
+    await handler(makeReq({ email: 'owner@example.com' }), makeRes())
+    const res = makeRes()
+    await handler(makeReq({ email: 'owner@example.com' }), res)
+
+    assert(res.statusCode === 429, `Expected cooldown status, got ${res.statusCode}`)
+    assert(typeof res.jsonBody?.retryAfterSeconds === 'number', 'Expected retryAfterSeconds')
+    assert(typeof res.jsonBody?.resendAvailableAt === 'number', 'Expected resendAvailableAt')
+  })
+
+  await test('OTP resend after cooldown issues a fresh code and increases cooldown after repeated sends', async () => {
+    resetFiles()
+    configureOtpEnv()
+    const handler = getRouteHandler('post', '/otp/request')
+
+    await handler(makeReq({ email: 'owner@example.com' }), makeRes())
+    let firstCode = readDevCode()
+
+    for (let sendIndex = 2; sendIndex <= 4; sendIndex++) {
+      const store = JSON.parse(fs.readFileSync(otpStorePath, 'utf-8'))
+      const active = [...store.records].reverse().find((record: any) => record.email === 'owner@example.com' && !record.consumedAt && !record.supersededAt)
+      active.cooldownUntil = Date.now() - 1000
+      fs.writeFileSync(otpStorePath, JSON.stringify(store, null, 2), 'utf-8')
+
+      const res = makeRes()
+      await handler(makeReq({ email: 'owner@example.com' }), res)
+      const nextCode = readDevCode()
+
+      assert(res.statusCode === 200, `Expected resend ${sendIndex} to succeed`)
+      assert(nextCode !== firstCode, 'Expected a fresh OTP code on resend')
+      if (sendIndex <= 3) {
+        assert(res.jsonBody?.retryAfterSeconds === 30, `Expected 30s cooldown for send ${sendIndex}, got ${res.jsonBody?.retryAfterSeconds}`)
+      } else {
+        assert(res.jsonBody?.retryAfterSeconds === 60, `Expected 60s cooldown for send ${sendIndex}, got ${res.jsonBody?.retryAfterSeconds}`)
+      }
+      firstCode = nextCode
+    }
   })
 
   await test('OTP request for non-allowlisted email stays generic and does not create dev file', async () => {

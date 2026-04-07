@@ -11,10 +11,20 @@ export default function Login() {
   const [submitting, setSubmitting] = React.useState(false)
   const [otpMessage, setOtpMessage] = React.useState<string | null>(null)
   const [devOtpFile, setDevOtpFile] = React.useState<string | null>(null)
+  const [resendAvailableAt, setResendAvailableAt] = React.useState<number | null>(null)
+  const [nowMs, setNowMs] = React.useState(() => Date.now())
 
   const params = new URLSearchParams(window.location.search)
   const authError = params.get('auth_error')
   const deniedLogin = params.get('login')
+
+  React.useEffect(() => {
+    if (!resendAvailableAt) return
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [resendAvailableAt])
+
+  const resendCountdown = resendAvailableAt ? Math.max(0, Math.ceil((resendAvailableAt - nowMs) / 1000)) : 0
 
   async function handleRequestOtp() {
     setSubmitting(true)
@@ -26,8 +36,10 @@ export default function Login() {
       setOtpRequested(true)
       setOtpMessage(result.message || 'If this email is allowed, a code has been sent.')
       setDevOtpFile(result.devOtpFile || null)
+      setResendAvailableAt(result.resendAvailableAt || (result.retryAfterSeconds ? Date.now() + result.retryAfterSeconds * 1000 : null))
     } else {
       setOtpMessage(result.error || 'Failed to send code')
+      setResendAvailableAt(result.resendAvailableAt || (result.retryAfterSeconds ? Date.now() + result.retryAfterSeconds * 1000 : null))
     }
   }
 
@@ -124,6 +136,39 @@ export default function Login() {
                       <input type="checkbox" checked={rememberDevice} onChange={e => setRememberDevice(e.target.checked)} />
                       Remember this device
                     </label>
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                      <div>
+                        Didn&apos;t get the code?
+                        <div className="mt-0.5 text-slate-400">
+                          {resendCountdown > 0
+                            ? `You can resend in ${resendCountdown}s`
+                            : 'Request a fresh login code to this email.'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleRequestOtp}
+                          disabled={!email.trim() || submitting || resendCountdown > 0}
+                          className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 font-medium text-white transition-colors hover:bg-sky-500/20 disabled:opacity-60"
+                        >
+                          {submitting ? 'Sending...' : 'Resend code'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOtpRequested(false)
+                            setCode('')
+                            setOtpMessage(null)
+                            setDevOtpFile(null)
+                            setResendAvailableAt(null)
+                          }}
+                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-medium text-slate-200 transition-colors hover:bg-white/10"
+                        >
+                          Change email
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
                 {otpMessage && (
