@@ -73,6 +73,21 @@ interface GeneratedFiles {
   tools: string
 }
 
+export function extractJsonResponseText(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return '{}'
+  const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, trimmed]
+  return (jsonMatch[1] || trimmed).trim()
+}
+
+export function parseJsonResponse<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(extractJsonResponseText(raw)) as T
+  } catch {
+    return fallback
+  }
+}
+
 const IDENTITY_TEMPLATE = `# IDENTITY.md - Who Am I?
 
 - **Name:** {name}
@@ -197,17 +212,17 @@ Rules:
     max_tokens: 200,
   })
 
-  const raw = completion.choices[0].message.content?.trim() || '{}'
-  try {
-    const parsed = JSON.parse(raw)
-    return {
-      name: parsed.name || 'New Agent',
-      tags: parsed.tags || [],
-      model: parsed.model || 'anthropic/claude-sonnet-4-20250514',
-      skills: parsed.skills || [],
-    }
-  } catch {
-    return { name: 'New Agent', tags: [], model: 'anthropic/claude-sonnet-4-20250514', skills: [] }
+  const parsed = parseJsonResponse<{
+    name?: string
+    tags?: string[]
+    model?: string
+    skills?: string[]
+  }>(completion.choices[0].message.content || '{}', {})
+  return {
+    name: parsed.name || 'New Agent',
+    tags: parsed.tags || [],
+    model: parsed.model || 'anthropic/claude-sonnet-4-20250514',
+    skills: parsed.skills || [],
   }
 }
 
@@ -234,7 +249,10 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
     temperature: 0.7,
   })
 
-  const result = JSON.parse(completion.choices[0].message.content || '{}')
+  const result = parseJsonResponse<{ role?: string; vibe?: string; emoji?: string }>(
+    completion.choices[0].message.content || '{}',
+    {}
+  )
 
   return IDENTITY_TEMPLATE
     .replace('{name}', input.name)
@@ -268,7 +286,10 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
     temperature: 0.8,
   })
 
-  const result = JSON.parse(completion.choices[0].message.content || '{}')
+  const result = parseJsonResponse<{ role_description?: string; personality?: string }>(
+    completion.choices[0].message.content || '{}',
+    {}
+  )
 
   return SOUL_TEMPLATE
     .replace('{role_description}', result.role_description || 'You are a helpful assistant.')
@@ -304,7 +325,10 @@ Respond in JSON format: { "tools_section": "..." }`
     temperature: 0.7,
   })
 
-  const result = JSON.parse(completion.choices[0].message.content || '{}')
+  const result = parseJsonResponse<{ tools_section?: string }>(
+    completion.choices[0].message.content || '{}',
+    {}
+  )
 
   return TOOLS_TEMPLATE.replace('{tools_section}', result.tools_section || '## Your Tools\n\nConfigure tool-specific notes here as you learn what you need.')
 }
@@ -412,8 +436,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
   })
 
   const raw = completion.choices[0].message.content?.trim() || ''
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw]
-  const jsonStr = (jsonMatch[1] || raw).trim()
+  const jsonStr = extractJsonResponseText(raw)
 
   try {
     return JSON.parse(jsonStr)
@@ -468,8 +491,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
   })
 
   const raw = completion.choices[0].message.content?.trim() || ''
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw]
-  const jsonStr = (jsonMatch[1] || raw).trim()
+  const jsonStr = extractJsonResponseText(raw)
 
   try {
     return JSON.parse(jsonStr)
@@ -516,7 +538,7 @@ Rules:
 
     const raw = completion.choices[0].message.content?.trim() || ''
     try {
-      const parsed = JSON.parse(raw)
+      const parsed = JSON.parse(extractJsonResponseText(raw))
       return { cron: parsed.cron || '', explanation: parsed.explanation || '' }
     } catch {
       // Try to extract cron from raw text
