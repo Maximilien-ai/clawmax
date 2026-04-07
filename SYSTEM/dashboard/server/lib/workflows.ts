@@ -148,6 +148,10 @@ export function summarizeGitHubResultLink(link: string): string {
   }
 }
 
+export function buildWorkflowSessionId(executionId: string, agentId: string): string {
+  return `workflow-${executionId}-${agentId}`
+}
+
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
 
@@ -1064,7 +1068,8 @@ export function triggerWorkflow(workflowId: string, options?: {
               return
             }
             const useLocal = !isGatewayRunning().running
-            const args = ['agent', '--agent', participant.agentId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
+            const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+            const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,

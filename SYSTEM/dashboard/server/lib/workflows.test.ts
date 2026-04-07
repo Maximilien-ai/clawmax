@@ -22,6 +22,7 @@ import {
   detectParticipantReportedFailure,
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
+  buildWorkflowSessionId,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -344,6 +345,23 @@ test('summarizeGitHubResultLink produces compact labels', () => {
     summarizeGitHubResultLink('https://github.com/Maximilien-ai/clawmax/issues/12') === 'Maximilien-ai/clawmax issue #12',
     'Expected compact issue label'
   )
+})
+
+test('buildWorkflowSessionId uses workflow execution and agent id', () => {
+  const sessionId = buildWorkflowSessionId('exec-123', 'analysis-lead')
+  assert(
+    sessionId === 'workflow-exec-123-analysis-lead',
+    `Expected workflow session format, got ${sessionId}`
+  )
+})
+
+test('buildWorkflowSessionId produces distinct sessions per agent and run', () => {
+  const first = buildWorkflowSessionId('exec-123', 'agent-a')
+  const second = buildWorkflowSessionId('exec-123', 'agent-b')
+  const third = buildWorkflowSessionId('exec-456', 'agent-a')
+
+  assert(first !== second, 'Expected different agents in same execution to use different sessions')
+  assert(first !== third, 'Expected same agent across executions to use different sessions')
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {
