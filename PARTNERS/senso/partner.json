@@ -1,0 +1,40 @@
+{
+  "slug": "senso",
+  "name": "Senso",
+  "logoUrl": "https://www.senso.ai/_next/image?q=75&url=%2FSenso-1x.png&w=640",
+  "website": "https://senso.ai",
+  "docsUrl": "https://docs.senso.ai/",
+  "description": "Shared evidence and context layer for agent research, ingestion, search, and content generation workflows.",
+  "category": "context",
+  "enabledByDefault": true,
+  "fields": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "password",
+      "required": false,
+      "secret": true
+    },
+    {
+      "key": "contextLabel",
+      "label": "Default context label",
+      "type": "text",
+      "required": false,
+      "secret": false
+    }
+  ],
+  "skills": {
+    "mode": "shipables",
+    "label": "Official Senso skills plus ClawMax variants",
+    "items": [
+      "senso-ai/senso-ingest",
+      "senso-ai/senso-search",
+      "senso-ai/senso-content-gen",
+      "senso-ai/brand-setup",
+      "senso-ai/kb-organize",
+      "senso-ai/review-publish",
+      "senso-ingest-clawmax",
+      "senso-search-clawmax"
+    ]
+  }
+}

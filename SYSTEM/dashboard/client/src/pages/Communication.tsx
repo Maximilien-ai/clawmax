@@ -66,7 +66,7 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, onClearInitialGroupName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; onClearInitialGroupName?: () => void; isActive?: boolean } = {}) {
+export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, initialOpenChatName, onClearInitialGroupName, onClearInitialOpenChatName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; initialOpenChatName?: string; onClearInitialGroupName?: () => void; onClearInitialOpenChatName?: () => void; isActive?: boolean } = {}) {
   const { showSuccess } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -247,6 +247,16 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     return Array.from(channelMap.values())
   }, [agents])
+
+  useEffect(() => {
+    if (!initialOpenChatName || !isActive || loading || allChannels.length === 0) return
+
+    const channel = allChannels.find((candidate) => candidate.name === initialOpenChatName)
+    if (!channel) return
+
+    openChat(channel)
+    onClearInitialOpenChatName?.()
+  }, [initialOpenChatName, isActive, loading, allChannels, openChat, onClearInitialOpenChatName])
 
   // Extract all unique tags
   const allTags = useMemo(() => {

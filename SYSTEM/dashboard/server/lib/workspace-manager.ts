@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { AsyncLocalStorage } from 'async_hooks'
 
 export interface Workspace {
   id: string
@@ -17,6 +18,8 @@ export interface WorkspaceRegistry {
   activeWorkspaceId: string
   workspaces: Workspace[]
 }
+
+const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
 
 export class WorkspaceManager {
   private registryPath: string
@@ -118,6 +121,18 @@ export class WorkspaceManager {
       throw new Error(`Workspace path already exists: ${workspacePath}`)
     }
 
+    if (fs.existsSync(workspacePath)) {
+      const stats = fs.statSync(workspacePath)
+      if (!stats.isDirectory()) {
+        throw new Error(`Workspace path is not a directory: ${workspacePath}`)
+      }
+
+      const entries = fs.readdirSync(workspacePath).filter((entry) => entry !== '.DS_Store')
+      if (entries.length > 0) {
+        throw new Error(`Workspace path is not empty: ${workspacePath}`)
+      }
+    }
+
     // Generate ID from name (lowercase, remove spaces, ensure uniqueness)
     let baseId = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-')
     let id = baseId
@@ -176,6 +191,13 @@ export class WorkspaceManager {
   /** Get active workspace */
   getActiveWorkspace(): Workspace {
     const registry = this.loadRegistry()
+    const context = workspaceContext.getStore()
+    if (context?.workspaceId) {
+      const contextualWorkspace = registry.workspaces.find(w => w.id === context.workspaceId)
+      if (contextualWorkspace) {
+        return contextualWorkspace
+      }
+    }
     const workspace = registry.workspaces.find(w => w.id === registry.activeWorkspaceId)
 
     if (!workspace) {
@@ -237,14 +259,7 @@ export class WorkspaceManager {
     if (!workspace) {
       throw new Error(`Workspace not found: ${id}`)
     }
-
-    const previous = registry.activeWorkspaceId
-    registry.activeWorkspaceId = id
-    try {
-      return await fn()
-    } finally {
-      registry.activeWorkspaceId = previous
-    }
+    return await workspaceContext.run({ workspaceId: id }, fn)
   }
 
   /** Initialize workspace directory structure (AGENTS/, ORG/, SYSTEM/) */

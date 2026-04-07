@@ -124,6 +124,71 @@ interface SharedDashboardPayload {
   }>
 }
 
+const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g
+const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/g
+const NOISE_FILE_NAMES = new Set(['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'GROUPS.md', 'COMMUNITIES.md', 'HEARTBEAT.md', 'USER.md', 'AGENTS.md'])
+
+function normalizeWorkspaceFileTarget(target: string): string {
+  const absoluteMatch = target.match(/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/)
+  if (absoluteMatch) return absoluteMatch[1]
+  return target
+}
+
+function isNoiseWorkspaceFile(target: string): boolean {
+  const normalized = normalizeWorkspaceFileTarget(target)
+  const base = normalized.split('/').pop() || normalized
+  if (NOISE_FILE_NAMES.has(base)) return true
+  if (/^WORKFLOWS\/executions\/.+\.json$/i.test(normalized)) return true
+  if (/^SYSTEM\/messages\/.+\.json$/i.test(normalized)) return true
+  if (/^SYSTEM\/(?:agent-state|budget|notifications|workspace-dashboards)\.json$/i.test(normalized)) return true
+  return false
+}
+
+function extractWorkspaceFileMentions(content: string): string[] {
+  const matches: string[] = []
+
+  for (const match of content.matchAll(ABSOLUTE_WORKSPACE_FILE_REGEX)) {
+    matches.push(match[1])
+  }
+
+  for (const match of content.matchAll(WORKSPACE_FILE_REGEX)) {
+    matches.push(match[0])
+  }
+
+  return Array.from(
+    new Set(
+      matches
+        .map((target) => normalizeWorkspaceFileTarget(target))
+        .filter((target) => !isNoiseWorkspaceFile(target))
+    )
+  )
+}
+
+function linkifyWorkspaceFiles(content: string): string {
+  return content.replace(/(^|[\s(])((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)|[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_match, prefix, target) => {
+    const normalized = normalizeWorkspaceFileTarget(target)
+    if (isNoiseWorkspaceFile(normalized)) return `${prefix}${target}`
+    return `${prefix}[${normalized}](workspace-file:${normalized})`
+  })
+}
+
+function extractMostRecentWorkspaceFiles(messages: Array<{ content: string }>, limit = 1): string[] {
+  const seen = new Set<string>()
+  const results: string[] = []
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const files = extractWorkspaceFileMentions(messages[index]?.content || '')
+    for (const file of files) {
+      if (seen.has(file)) continue
+      seen.add(file)
+      results.push(file)
+      if (results.length >= limit) return results
+    }
+  }
+
+  return results
+}
+
 function normalizePayload(input: any): SharedDashboardPayload {
   return {
     refreshedAt: typeof input?.refreshedAt === 'string' ? input.refreshedAt : new Date().toISOString(),
@@ -228,7 +293,7 @@ function timeAgo(iso: string | null | undefined): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-function MarkdownBlock({ content, className = '' }: { content: string; className?: string }) {
+function MarkdownBlock({ content, className = '', onOpenDoc }: { content: string; className?: string; onOpenDoc?: (path: string) => void }) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -242,10 +307,24 @@ function MarkdownBlock({ content, className = '' }: { content: string; className
           li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
           code: ({ children }) => <code className="rounded bg-gray-200 px-1 py-0.5 text-[0.95em] text-inherit dark:bg-slate-950/60">{children}</code>,
           pre: ({ children }) => <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-slate-950/80 dark:text-gray-100 last:mb-0">{children}</pre>,
-          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline underline-offset-2 dark:text-sky-300">{children}</a>,
+          a: ({ children, href }) => {
+            if (href?.startsWith('workspace-file:') && onOpenDoc) {
+              const file = href.replace('workspace-file:', '')
+              return (
+                <button
+                  type="button"
+                  onClick={() => onOpenDoc(file)}
+                  className="text-sky-600 underline underline-offset-2 dark:text-sky-300"
+                >
+                  {children}
+                </button>
+              )
+            }
+            return <a href={href} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline underline-offset-2 dark:text-sky-300">{children}</a>
+          },
         }}
       >
-        {content}
+        {linkifyWorkspaceFiles(content)}
       </ReactMarkdown>
     </div>
   )
@@ -255,6 +334,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [payload, setPayload] = useState<SharedDashboardPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [docEntries, setDocEntries] = useState<Array<{ path: string }>>([])
+  const [docPath, setDocPath] = useState<string | null>(null)
+  const [docContent, setDocContent] = useState('')
+  const [docLoading, setDocLoading] = useState(false)
+  const [docError, setDocError] = useState<string | null>(null)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('dark-mode')
     if (saved !== null) return saved === 'true'
@@ -293,6 +377,26 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     return () => { cancelled = true; clearInterval(interval) }
   }, [token, autoRefresh])
 
+  useEffect(() => {
+    let cancelled = false
+    const loadDocEntries = async () => {
+      try {
+        const res = await fetch('/api/docs')
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to load docs index')
+        if (!cancelled) {
+          setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setDocEntries([])
+        }
+      }
+    }
+    loadDocEntries()
+    return () => { cancelled = true }
+  }, [])
+
   const overviewCards = useMemo(() => {
     if (!payload) return []
     return [
@@ -304,6 +408,95 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       ['Spend', `$${payload.costs.metering.totalCostUsd.toFixed(2)}`],
     ]
   }, [payload])
+
+  function resolveDocPath(path: string): string {
+    if (path.includes('/')) return path
+
+    const exact = docEntries.find((entry) => entry.path === path)
+    if (exact) return exact.path
+
+    const matches = docEntries.filter((entry) => entry.path.endsWith(`/${path}`) || entry.path === path)
+    if (matches.length === 1) return matches[0].path
+
+    const preferred = matches.find((entry) => entry.path.startsWith('AGENTS/'))
+      || matches.find((entry) => entry.path.startsWith('WORKFLOWS/'))
+      || matches.find((entry) => entry.path.startsWith('ORG/'))
+      || matches[0]
+
+    return preferred?.path || path
+  }
+
+  async function openDoc(path: string) {
+    const resolvedPath = resolveDocPath(path)
+    setDocPath(resolvedPath)
+    setDocLoading(true)
+    setDocError(null)
+    try {
+      const res = await fetch(`/api/docs/content?path=${encodeURIComponent(resolvedPath)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to load file')
+      setDocContent(typeof data.content === 'string' ? data.content : '')
+    } catch (err: any) {
+      setDocError(err.message || 'Failed to load file')
+      setDocContent('')
+    } finally {
+      setDocLoading(false)
+    }
+  }
+
+  function renderFileChips(files: string[], options: { compact?: boolean; latestOnly?: boolean } = {}) {
+    const uniqueFiles = Array.from(new Set(files))
+    const visibleFiles = options.latestOnly ? uniqueFiles.slice(0, 1) : uniqueFiles.slice(0, options.compact ? 2 : 5)
+    if (visibleFiles.length === 0) return null
+    return (
+      <div className={`mt-2 flex flex-wrap items-center gap-2 ${options.compact ? 'text-[11px]' : ''}`}>
+        <span className="text-[11px] font-medium text-gray-500 dark:text-slate-500">
+          {options.latestOnly ? 'Latest file:' : 'Files:'}
+        </span>
+        {visibleFiles.map((file) => (
+          <button
+            key={file}
+            type="button"
+            onClick={() => openDoc(file)}
+            className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-700 hover:bg-sky-500/20 dark:text-sky-300"
+          >
+            {file}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  const docPreviewOverlay = docPath ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6" onClick={() => setDocPath(null)}>
+      <div className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Workspace File</div>
+            <div className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{docPath}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDocPath(null)}
+            className="rounded-lg px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            Close
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto bg-gray-50 p-4 dark:bg-slate-950/80">
+          {docLoading ? (
+            <div className="text-sm text-gray-500 dark:text-slate-400">Loading file…</div>
+          ) : docError ? (
+            <div className="text-sm text-red-600 dark:text-red-400">{docError}</div>
+          ) : /\.(json|txt|csv|yml|yaml)$/i.test(docPath) ? (
+            <pre className="overflow-x-auto rounded-xl bg-white p-4 text-xs text-gray-800 dark:bg-slate-900 dark:text-slate-100">{docContent}</pre>
+          ) : (
+            <MarkdownBlock content={docContent} className="rounded-xl bg-white p-4 text-sm text-gray-800 dark:bg-slate-900 dark:text-slate-100" onOpenDoc={openDoc} />
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null
 
   if (error) {
     return <div className="min-h-screen bg-slate-950 text-white p-8">{error}</div>
@@ -627,9 +820,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                                 {artifact.label}
                               </a>
                             ) : (
-                              <span key={`${artifact.label}-${artifact.relativePath || 'file'}`} className="rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs text-gray-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300">
+                              <button
+                                key={`${artifact.label}-${artifact.relativePath || 'file'}`}
+                                type="button"
+                                onClick={() => artifact.relativePath && openDoc(artifact.relativePath)}
+                                className="rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-200 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-800"
+                              >
                                 {artifact.label}
-                              </span>
+                              </button>
                             )
                           ))}
                         </div>
@@ -685,10 +883,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       </div>
                       <div className="mt-3 text-sm text-gray-700 dark:text-slate-300">
                         {chat.latestMessage ? (
-                          <MarkdownBlock content={chat.latestMessage.content} />
+                          <MarkdownBlock content={chat.latestMessage.content} onOpenDoc={openDoc} />
                         ) : (
                           'No messages yet. This channel is available for workspace coordination.'
                         )}
+                        {renderFileChips(extractMostRecentWorkspaceFiles(chat.recentMessages, detail ? 5 : 3))}
                       </div>
                       {detail && chat.recentMessages.length > 0 && (
                         <div className="mt-3 rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-white/10 dark:bg-slate-900/60">
@@ -700,7 +899,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                                   <span>{message.from}</span>
                                   <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
                                 </div>
-                                <MarkdownBlock content={message.content} />
+                                <MarkdownBlock content={message.content} onOpenDoc={openDoc} />
+                                {renderFileChips(extractWorkspaceFileMentions(message.content))}
                               </div>
                             ))}
                           </div>
@@ -709,9 +909,12 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     </>
                   )}
                   {compact && (
-                    <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                      {chat.latestMessage ? `${chat.members.length} members · ${chat.messageCount} messages` : 'No messages yet'}
-                    </div>
+                    <>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                        {chat.latestMessage ? `${chat.members.length} members · ${chat.messageCount} messages` : 'No messages yet'}
+                      </div>
+                      {renderFileChips(extractMostRecentWorkspaceFiles(chat.recentMessages, 1), { compact: true, latestOnly: true })}
+                    </>
                   )}
                 </div>
               ))}
@@ -743,6 +946,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             ))}
           </div>
         </div>
+        {docPreviewOverlay}
       </div>
     )
   }
@@ -788,6 +992,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             </div>
           </div>
         </div>
+        {docPreviewOverlay}
       </div>
     )
   }
@@ -844,6 +1049,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           </div>
         )}
       </div>
+      {docPreviewOverlay}
     </div>
   )
 }

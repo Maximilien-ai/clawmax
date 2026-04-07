@@ -11,10 +11,12 @@ import {
   deleteWorkspaceSkill,
   updateSkillContent
 } from '../lib/skills'
+import { getCuratedPartnerInstaller } from '../lib/partner-installs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
 
 // GET /api/skills/browse-directory - Show native directory picker (macOS)
@@ -615,6 +617,34 @@ router.post('/registry/install', async (req, res) => {
   } catch (err: any) {
     console.error('Shipables install error:', err.message)
     res.status(500).json({ error: err.message || 'Failed to install skill from registry' })
+  }
+})
+
+// POST /api/skills/partner-install - Run curated partner-owned skill installer
+router.post('/partner-install', async (req, res) => {
+  try {
+    const { commandId } = req.body
+    if (!commandId || typeof commandId !== 'string') {
+      return res.status(400).json({ error: 'commandId is required' })
+    }
+
+    const installer = getCuratedPartnerInstaller(commandId)
+    if (!installer) {
+      return res.status(400).json({ error: 'Unknown curated partner installer' })
+    }
+
+    const [command, ...args] = installer.command
+    const { stdout, stderr } = await execFileAsync(command, args, { timeout: 60000 })
+    res.json({
+      ok: true,
+      commandId: installer.commandId,
+      label: installer.label,
+      stdout: `${stdout || ''}`.trim(),
+      stderr: `${stderr || ''}`.trim(),
+    })
+  } catch (err: any) {
+    console.error('Curated partner install error:', err.message)
+    res.status(500).json({ error: err.message || 'Failed to run curated partner installer' })
   }
 })
 

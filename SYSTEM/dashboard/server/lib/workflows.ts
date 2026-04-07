@@ -923,6 +923,23 @@ export function triggerWorkflow(workflowId: string, options?: {
     if (integrationDefaults.sensoContextLabel && !Object.keys(inputs).some((key) => /senso context|senso folder|context label/i.test(key))) {
       inputs['Senso context'] = integrationDefaults.sensoContextLabel
     }
+    const blaxelDefaults = integrationDefaults.partners?.blaxel || {}
+    if (typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !Object.keys(inputs).some((key) => /blaxel project/i.test(key))) {
+      inputs['Blaxel project'] = blaxelDefaults.projectId.trim()
+    }
+    if (typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !Object.keys(inputs).some((key) => /blaxel sandbox|sandbox/i.test(key))) {
+      inputs['Blaxel sandbox'] = blaxelDefaults.defaultSandbox.trim()
+    }
+    if (typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !Object.keys(inputs).some((key) => /blaxel region|region/i.test(key))) {
+      inputs['Blaxel region'] = blaxelDefaults.region.trim()
+    }
+    const redisDefaults = integrationDefaults.partners?.redis || {}
+    if (typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !Object.keys(inputs).some((key) => /redis url|redis endpoint/i.test(key))) {
+      inputs['Redis URL'] = redisDefaults.url.trim()
+    }
+    if (typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !Object.keys(inputs).some((key) => /redis namespace|namespace/i.test(key))) {
+      inputs['Redis namespace'] = redisDefaults.namespace.trim()
+    }
     if (options?.inputs) {
       for (const [key, value] of Object.entries(options.inputs)) {
         if (typeof value === 'string' && value.trim()) {
@@ -944,6 +961,21 @@ export function triggerWorkflow(workflowId: string, options?: {
     }
     if (integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
       runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
+    }
+    if (typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !content.includes(blaxelDefaults.projectId.trim())) {
+      runtimeContextLines.push(`- Blaxel project: \`${blaxelDefaults.projectId.trim()}\``)
+    }
+    if (typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !content.includes(blaxelDefaults.defaultSandbox.trim())) {
+      runtimeContextLines.push(`- Blaxel sandbox: \`${blaxelDefaults.defaultSandbox.trim()}\``)
+    }
+    if (typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !content.includes(blaxelDefaults.region.trim())) {
+      runtimeContextLines.push(`- Blaxel region: \`${blaxelDefaults.region.trim()}\``)
+    }
+    if (typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !content.includes(redisDefaults.url.trim())) {
+      runtimeContextLines.push(`- Redis URL: \`${redisDefaults.url.trim()}\``)
+    }
+    if (typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !content.includes(redisDefaults.namespace.trim())) {
+      runtimeContextLines.push(`- Redis namespace: \`${redisDefaults.namespace.trim()}\``)
     }
     if (workflow.secretRequirements?.length && options?.secrets) {
       for (const requirement of workflow.secretRequirements) {

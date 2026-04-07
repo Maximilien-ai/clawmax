@@ -1,0 +1,26 @@
+{
+  "slug": "github",
+  "name": "GitHub",
+  "logoUrl": "https://brand.github.com/_next/static/media/logo-03.cc5e5332.png",
+  "website": "https://github.com",
+  "docsUrl": "https://docs.github.com/",
+  "description": "Repository, issues, and pull request integration for coding and delivery workflows.",
+  "category": "delivery",
+  "enabledByDefault": true,
+  "fields": [
+    {
+      "key": "defaultRepo",
+      "label": "Default repository",
+      "type": "text",
+      "required": false,
+      "secret": false
+    }
+  ],
+  "skills": {
+    "mode": "catalog",
+    "items": [
+      "github"
+    ],
+    "label": "Bundled GitHub skill"
+  }
+}

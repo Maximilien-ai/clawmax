@@ -36,13 +36,28 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
-  const [importSource, setImportSource] = useState<'local' | 'github' | 'registry'>('local')
+  const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner'>('local')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<Array<{ name: string; description?: string; version?: string; downloads?: number }>>([])
   const [registrySearching, setRegistrySearching] = useState(false)
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
   const [registryTotal, setRegistryTotal] = useState(0)
   const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
+  const [partnerInstallers, setPartnerInstallers] = useState<Array<{
+    slug: string
+    name: string
+    description: string
+    logoUrl?: string
+    website?: string
+    docsUrl?: string
+    skills: {
+      mode: 'shipables' | 'curated-installer' | 'planned' | 'catalog'
+      commandId?: string
+      label?: string
+      items?: string[]
+    }
+  }>>([])
+  const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [viewingSkill, setViewingSkill] = useState<OpenClawSkill | null>(null)
   const [skillContent, setSkillContent] = useState('')
   const [editingSkill, setEditingSkill] = useState(false)
@@ -54,6 +69,21 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   // Load agents list on mount
   useEffect(() => {
     loadAgents()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/integrations/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const definitions = Array.isArray(data?.partnerDefinitions) ? data.partnerDefinitions : []
+        setPartnerInstallers(
+          definitions.filter((partner: any) => {
+            const mode = partner?.skills?.mode
+            return mode === 'curated-installer' || mode === 'catalog' || mode === 'shipables'
+          })
+        )
+      })
+      .catch(() => setPartnerInstallers([]))
   }, [])
 
   // Update agent when initialAgentId prop changes
@@ -749,10 +779,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
         {/* Import Skill Dialog */}
         {showImportDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] mx-4 flex flex-col overflow-hidden">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between gap-4">
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Import Custom Skill</h2>
                   <button
                     onClick={() => {
@@ -765,40 +795,54 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     ×
                   </button>
                 </div>
+              </div>
 
-                {/* Source Tabs */}
-                <div className="flex gap-2 mb-6 border-b">
+              <div className="px-6 pt-4 pb-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setImportSource('local')}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                       importSource === 'local'
-                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
                     📁 Local Directory
                   </button>
                   <button
                     onClick={() => setImportSource('github')}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                       importSource === 'github'
-                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
                     🐙 GitHub Repository
                   </button>
                   <button
                     onClick={() => setImportSource('registry')}
-                    className={`px-4 py-2 font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                       importSource === 'registry'
-                        ? 'text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 dark:border-purple-400'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
                     🚀 Shipables Registry
                   </button>
+                  <button
+                    onClick={() => setImportSource('partner')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                      importSource === 'partner'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    🤝 Partner Skills
+                  </button>
                 </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-6">
 
                 {/* Local Import */}
                 {importSource === 'local' && (
@@ -845,7 +889,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                               setError('Failed to open directory picker: ' + err.message)
                             }
                           }}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 border rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap dark:bg-gray-800 dark:text-gray-300"
+                          className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
                         >
                           📁 Browse...
                         </button>
@@ -1019,23 +1063,117 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
+                {importSource === 'partner' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Browse partner-backed skills and approved installers. Install buttons appear only for curated allowlisted commands.
+                    </p>
+
+                    {partnerInstallers.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-gray-400">
+                        No partner-backed skills are enabled in this environment.
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        {partnerInstallers.map((partner, idx) => (
+                          <div key={partner.slug} className={`flex items-start justify-between gap-4 px-4 py-4 ${idx < partnerInstallers.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {partner.logoUrl ? (
+                                  <img
+                                    src={partner.logoUrl}
+                                    alt={`${partner.name} logo`}
+                                    className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                                    loading="lazy"
+                                  />
+                                ) : null}
+                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{partner.name}</div>
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{partner.description}</div>
+                              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                {partner.skills.label || (
+                                  partner.skills.mode === 'curated-installer'
+                                    ? 'Curated skill install available'
+                                    : partner.skills.mode === 'shipables'
+                                      ? 'Known Shipables skills'
+                                      : 'Known partner skills'
+                                )}
+                              </div>
+                              {partner.skills.items && partner.skills.items.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {partner.skills.items.map((item) => (
+                                    <span
+                                      key={item}
+                                      className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-300"
+                                    >
+                                      {item}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {(partner.website || partner.docsUrl) && (
+                                <div className="mt-2 flex gap-3 text-xs">
+                                  {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Website</a> : null}
+                                  {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Docs</a> : null}
+                                </div>
+                              )}
+                            </div>
+                            {partner.skills.mode === 'curated-installer' ? (
+                              <button
+                                onClick={async () => {
+                                  if (!partner.skills.commandId) return
+                                  setPartnerInstalling(partner.slug)
+                                  try {
+                                    const resp = await fetch('/api/skills/partner-install', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ commandId: partner.skills.commandId }),
+                                    })
+                                    const data = await resp.json().catch(() => ({}))
+                                    if (!resp.ok) throw new Error(data.error || 'Install failed')
+                                    showSuccess(`Installed ${partner.name} skills`)
+                                    await loadSkills()
+                                  } catch (err: any) {
+                                    showToastError(err.message || `Failed to install ${partner.name} skills`)
+                                  } finally {
+                                    setPartnerInstalling(null)
+                                  }
+                                }}
+                                disabled={!!partnerInstalling}
+                                className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                              >
+                                {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
+                              </button>
+                            ) : (
+                              <div className="shrink-0 text-xs text-gray-400 dark:text-gray-500">
+                                {partner.skills.mode === 'shipables' ? 'Install from Shipables' : 'Reference'}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Error Display */}
                 {error && (
                   <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                     ❌ {error}
                   </div>
                 )}
+              </div>
 
-                {/* Actions (for local/github only) */}
-                {importSource !== 'registry' && (
-                  <div className="flex gap-3 mt-6">
+              {/* Actions (for local/github only) */}
+              {importSource !== 'registry' && importSource !== 'partner' && (
+                <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
                     <button
                       onClick={handleImportSkill}
                       disabled={importing || !importPath.trim()}
                       className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                         importing || !importPath.trim()
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+                          : 'bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-400'
                       }`}
                     >
                       {importing ? 'Importing...' : 'Import Skill'}
@@ -1050,9 +1188,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     >
                       Cancel
                     </button>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,0 +1,277 @@
+{
+  "name": "RAG To Sandbox Launch Team",
+  "emoji": "🚀",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "technical",
+  "description": "Proposal template for building a RAG stack, evaluating it, and preparing a sandbox deployment path with Blaxel and Redis-backed memory defaults.",
+  "author": "ClawMax Team",
+  "tags": [
+    "technical",
+    "rag",
+    "blaxel",
+    "redis",
+    "sandbox",
+    "partner"
+  ],
+  "parameters": [
+    {
+      "agentId": "ingest-engineer",
+      "label": "Number of Ingest Engineers",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "RAG Launch",
+      "description": "Shared coordination space for taking a RAG system from data plan to sandbox deploy.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "rag-launch"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Planning",
+      "community": "RAG Launch",
+      "description": "RAG architecture, source assumptions, and launch bar.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "planning"
+      ]
+    },
+    {
+      "name": "Data",
+      "community": "RAG Launch",
+      "description": "Ingestion, chunking, indexing, and source quality.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "data"
+      ]
+    },
+    {
+      "name": "Search",
+      "community": "RAG Launch",
+      "description": "Retrieval behavior, answer quality, and evaluation output.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "search"
+      ]
+    },
+    {
+      "name": "Deploy",
+      "community": "RAG Launch",
+      "description": "Sandbox runtime, deploy packaging, and release readiness.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "deploy"
+      ]
+    },
+    {
+      "name": "Status",
+      "community": "RAG Launch",
+      "description": "Cross-team updates, risks, and final launch guidance.",
+      "tags": [
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "status"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "launch-planner",
+      "name": "Launch Planner",
+      "role": "RAG lead — defines the user problem, launch bar, and final system shape.",
+      "tags": [
+        "lead",
+        "rag"
+      ],
+      "communities": [
+        "RAG Launch"
+      ],
+      "groups": [
+        "Planning",
+        "Status"
+      ]
+    },
+    {
+      "id": "ingest-engineer",
+      "name": "Ingest Engineer",
+      "role": "Data specialist — turns source material into a clean ingestion and indexing plan.",
+      "tags": [
+        "data",
+        "rag"
+      ],
+      "communities": [
+        "RAG Launch"
+      ],
+      "groups": [
+        "Data",
+        "Status"
+      ]
+    },
+    {
+      "id": "retrieval-engineer",
+      "name": "Retrieval Engineer",
+      "role": "Search specialist — improves retrieval quality, answer grounding, and eval strategy.",
+      "tags": [
+        "search",
+        "rag"
+      ],
+      "communities": [
+        "RAG Launch"
+      ],
+      "groups": [
+        "Search",
+        "Status"
+      ]
+    },
+    {
+      "id": "sandbox-launch-operator",
+      "name": "Sandbox Launch Operator",
+      "role": "Deployment specialist — packages the RAG stack for sandbox runtime and prepares the final launch path.",
+      "tags": [
+        "deploy",
+        "blaxel",
+        "redis"
+      ],
+      "communities": [
+        "RAG Launch"
+      ],
+      "groups": [
+        "Deploy",
+        "Status"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "rag-launch-kickoff",
+      "name": "RAG Launch Kickoff",
+      "description": "Define the RAG goal, data shape, evaluation bar, and deploy target.",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "launch-planner",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "launch-planner"
+        ]
+      },
+      "content": "# RAG Launch Kickoff\n\nYou are the Launch Planner.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **RAG product or use case:** [use-case]\n- **Primary users:** [users]\n- **Data sources:** [docs, tickets, wiki, code, mixed]\n- **Evaluation bar:** [prototype, balanced, production-grade]\n- **Preferred retrieval stack:** [simple, hybrid, eval-heavy, custom]\n- **Preferred Blaxel project:** [project]\n- **Preferred Blaxel sandbox:** [sandbox]\n- **Redis URL:** [redis-url]\n- **Redis namespace:** [namespace]\n- **Output artifact:** [launch plan, deployed stack, sandbox demo]\n\n## Your Tasks\n1. Restate the use case, users, data sources, and evaluation bar\n2. Ask Ingest Engineers for the ingestion and chunking plan\n3. Ask Retrieval Engineer for the retrieval and evaluation plan\n4. Ask Sandbox Launch Operator for the deploy and memory plan\n5. Post the execution plan to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "rag-launch-kickoff"
+      ]
+    },
+    {
+      "id": "ingestion-and-index-plan",
+      "name": "Ingestion And Index Plan",
+      "description": "Define the ingestion, chunking, and indexing path for the initial RAG build.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "ingest-engineer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Data"
+        ],
+        "tags": [],
+        "agents": [
+          "ingest-engineer"
+        ]
+      },
+      "content": "# Ingestion And Index Plan\n\n1. Review the use case, data sources, and retrieval goals from kickoff\n2. Define the ingestion sequence, chunking approach, and indexing assumptions for the first build\n3. Call out the riskiest source-quality and freshness issues\n4. Recommend the fastest path to a useful first retrieval dataset\n5. Post the ingestion and index plan to Data and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "rag-launch-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "ingestion-and-index-plan"
+      ]
+    },
+    {
+      "id": "retrieval-eval-pass",
+      "name": "Retrieval Eval Pass",
+      "description": "Define the retrieval quality strategy, answer behavior, and evaluation loop.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "retrieval-engineer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Search",
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "retrieval-engineer"
+        ]
+      },
+      "content": "# Retrieval Eval Pass\n\n1. Review the use case and ingestion plan from earlier steps\n2. Recommend the first retrieval strategy, answer-grounding approach, and evaluation loop\n3. Call out likely answer failure modes and what should be measured first\n4. Define the minimum evidence needed before the team should package the system for launch\n5. Post the retrieval eval pass to Search and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "ingestion-and-index-plan"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "retrieval-eval-pass"
+      ]
+    },
+    {
+      "id": "sandbox-launch-plan",
+      "name": "Sandbox Launch Plan",
+      "description": "Define how the RAG system should be packaged for sandbox deployment and shared memory.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "sandbox-launch-operator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Deploy",
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "sandbox-launch-operator"
+        ]
+      },
+      "content": "# Sandbox Launch Plan\n\n1. Review the ingestion and retrieval plans from earlier steps\n2. Define the sandbox runtime layout needed to package and deploy the initial RAG system through Blaxel\n3. Recommend what state and memory should live in Redis versus the filesystem or vector layer\n4. Call out launch blockers around secrets, ports, runtime services, and validation checks\n5. Post the sandbox launch plan to Deploy and a final launch recommendation to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "retrieval-eval-pass"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "rag-to-sandbox-launch-team",
+        "sandbox-launch-plan"
+      ]
+    }
+  ]
+}

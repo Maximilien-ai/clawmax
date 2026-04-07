@@ -5,6 +5,14 @@
 
 ## Top Priority
 
+- [ ] **Workspace Integrations redesign for optional partner pages** — preserve current first-class setup for model/API-key capture, then split optional third-party integrations into partner-specific pages selected by instance config and/or env allowlist. Minimum parity to keep: Senso, Opik, and GitHub. New partner targets: Blaxel and Redis.
+- [ ] **Partner definition contract + loader** — add machine-readable partner metadata plus markdown copy/assets so integrations can be externalized into a partner repo later. Proposed direction: `PARTNERS/<slug>/partner.json` + `PARTNERS/<slug>/PARTNER.md` + assets, with optional external roots such as `CLAWMAX_EXTRA_PARTNER_DIRS`.
+- [ ] **Blaxel integration** — add workspace integration capture for Blaxel sandbox credentials/defaults, curated skill-install path, and template-apply hooks so agents can use sandbox compute safely.
+- [ ] **Redis integration** — add workspace integration capture for Redis agent-memory credentials/defaults, curated skill-install path, and template-apply hooks for long-term/short-term memory.
+- [ ] **Curated partner skill installation flow** — support approved partner-provided skill installers as first-class setup actions without opening arbitrary `npx` / npm execution to user-entered commands. Use this for Blaxel first; revisit a broader package/installer model later.
+- [ ] **Partner-aware template apply toggles** — extend the current Senso-style template apply flow so generic templates can enable selected/configured partner integrations like Blaxel and Redis without bespoke template forks.
+- [ ] **Blaxel/Redis template pack** — create at least 2–3 templates per partner plus 1–2 combined templates, starting with sandbox app-builder and Redis-backed memory / RAG flows.
+- [ ] **Workspace auto-switch watch item** — likely fixed via request-local workspace context, but keep tracking until it survives more real multi-workspace/shared-dashboard usage without silent active-workspace drift.
 - [x] **Browser-local secrets for templates, workflows, and skills** — first pass shipped: templates, workflows, and skills can now declare secret requirements and prompt for browser-local runtime inputs like API keys, event slugs, URLs, export paths, and tokens without writing them into workflow markdown or server config by default.
 - [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run.
 - [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`

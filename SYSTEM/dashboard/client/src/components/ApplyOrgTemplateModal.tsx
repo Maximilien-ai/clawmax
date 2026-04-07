@@ -62,6 +62,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [githubRepo, setGithubRepo] = useState('')
   const [useSenso, setUseSenso] = useState(false)
   const [sensoFolder, setSensoFolder] = useState('')
+  const [useBlaxel, setUseBlaxel] = useState(false)
+  const [blaxelProjectId, setBlaxelProjectId] = useState('')
+  const [blaxelSandbox, setBlaxelSandbox] = useState('')
+  const [blaxelRegion, setBlaxelRegion] = useState('')
+  const [useRedis, setUseRedis] = useState(false)
+  const [redisUrl, setRedisUrl] = useState('')
+  const [redisNamespace, setRedisNamespace] = useState('')
   const [useWorkspaceFs, setUseWorkspaceFs] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
@@ -115,6 +122,27 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         return stored.sensoContextLabel!.trim()
       })
     }
+    if (stored.partnerSecrets?.blaxel?.apiKey?.trim() || stored.partnerValues?.blaxel?.projectId?.trim() || stored.partnerValues?.blaxel?.defaultSandbox?.trim()) {
+      setUseBlaxel(true)
+    }
+    if (stored.partnerValues?.blaxel?.projectId?.trim()) {
+      setBlaxelProjectId((current) => current || stored.partnerValues!.blaxel!.projectId!.trim())
+    }
+    if (stored.partnerValues?.blaxel?.defaultSandbox?.trim()) {
+      setBlaxelSandbox((current) => current || stored.partnerValues!.blaxel!.defaultSandbox!.trim())
+    }
+    if (stored.partnerValues?.blaxel?.region?.trim()) {
+      setBlaxelRegion((current) => current || stored.partnerValues!.blaxel!.region!.trim())
+    }
+    if (stored.partnerSecrets?.redis?.apiKey?.trim() || stored.partnerValues?.redis?.url?.trim()) {
+      setUseRedis(true)
+    }
+    if (stored.partnerValues?.redis?.url?.trim()) {
+      setRedisUrl((current) => current || stored.partnerValues!.redis!.url!.trim())
+    }
+    if (stored.partnerValues?.redis?.namespace?.trim()) {
+      setRedisNamespace((current) => current || stored.partnerValues!.redis!.namespace!.trim())
+    }
     fetch('/api/integrations/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -133,6 +161,26 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             return config.sensoContextLabel.trim()
           })
         }
+        if (config.partners?.blaxel?.projectId?.trim()) {
+          setUseBlaxel(true)
+          setBlaxelProjectId((current) => current || config.partners.blaxel.projectId.trim())
+        }
+        if (config.partners?.blaxel?.defaultSandbox?.trim()) {
+          setUseBlaxel(true)
+          setBlaxelSandbox((current) => current || config.partners.blaxel.defaultSandbox.trim())
+        }
+        if (config.partners?.blaxel?.region?.trim()) {
+          setUseBlaxel(true)
+          setBlaxelRegion((current) => current || config.partners.blaxel.region.trim())
+        }
+        if (config.partners?.redis?.url?.trim()) {
+          setUseRedis(true)
+          setRedisUrl((current) => current || config.partners.redis.url.trim())
+        }
+        if (config.partners?.redis?.namespace?.trim()) {
+          setUseRedis(true)
+          setRedisNamespace((current) => current || config.partners.redis.namespace.trim())
+        }
       })
       .catch(() => {})
   }, [])
@@ -148,13 +196,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         githubRepo,
         useSenso,
         sensoContextLabel: sensoFolder,
+        useBlaxel,
+        blaxelProjectId,
+        blaxelSandbox,
+        blaxelRegion,
+        useRedis,
+        redisUrl,
+        redisNamespace,
         useWorkspaceFs,
       }),
     })
       .then(r => r.json())
       .then(data => { setPrereqs(data); setPrereqsLoading(false) })
       .catch(() => setPrereqsLoading(false))
-  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useWorkspaceFs])
+  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace, useWorkspaceFs])
 
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
@@ -289,6 +344,39 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
           if (!existing.includes('Senso Shared Context')) {
             finalOverrides[wf.id] = existing + sensoBlock
+          }
+        }
+      }
+      if (useBlaxel && template.workflows) {
+        const blaxelLines = [
+          '**Blaxel Sandbox Runtime:** Use Blaxel for sandboxed execution, deployment, and experiments.',
+          '- Prefer running code, services, and deployment steps in Blaxel sandboxes instead of the local runtime when practical',
+          '- Use Blaxel as the isolated compute layer for app builds, tests, and deployment verification',
+          blaxelProjectId.trim() ? `- Preferred Blaxel project: \`${blaxelProjectId.trim()}\`` : null,
+          blaxelSandbox.trim() ? `- Preferred Blaxel sandbox: \`${blaxelSandbox.trim()}\`` : null,
+          blaxelRegion.trim() ? `- Preferred Blaxel region: \`${blaxelRegion.trim()}\`` : null,
+        ].filter(Boolean)
+        const blaxelBlock = `\n\n---\n${blaxelLines.join('\n')}\n---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('Blaxel Sandbox Runtime')) {
+            finalOverrides[wf.id] = existing + blaxelBlock
+          }
+        }
+      }
+      if (useRedis && template.workflows) {
+        const redisLines = [
+          '**Redis Memory Layer:** Use Redis for shared fast memory and durable coordination state when the workflow benefits from it.',
+          '- Prefer Redis over ad hoc filesystem-only memory for short-term and long-term recall when available',
+          '- Use Redis to cache intermediate state, reusable context, and memory snapshots across agent runs',
+          redisUrl.trim() ? `- Redis URL: \`${redisUrl.trim()}\`` : null,
+          redisNamespace.trim() ? `- Preferred Redis namespace: \`${redisNamespace.trim()}\`` : null,
+        ].filter(Boolean)
+        const redisBlock = `\n\n---\n${redisLines.join('\n')}\n---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('Redis Memory Layer')) {
+            finalOverrides[wf.id] = existing + redisBlock
           }
         }
       }
@@ -801,6 +889,98 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
                     />
                     <p className="text-[10px] text-gray-400 mt-1">Agents will create issues, branches, and PRs in this repo</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useBlaxel}
+                    onChange={e => setUseBlaxel(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Blaxel Sandbox Runtime</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Tell agents to use Blaxel sandboxes for safer execution, app deployment, service bring-up, and richer experiments.
+                    </div>
+                  </div>
+                </label>
+                {useBlaxel && (
+                  <div className="mt-3 ml-7 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Blaxel Project</label>
+                      <input
+                        type="text"
+                        value={blaxelProjectId}
+                        onChange={e => setBlaxelProjectId(e.target.value)}
+                        placeholder="sandbox-project"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Default Sandbox</label>
+                      <input
+                        type="text"
+                        value={blaxelSandbox}
+                        onChange={e => setBlaxelSandbox(e.target.value)}
+                        placeholder="demo-sandbox"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Region</label>
+                      <input
+                        type="text"
+                        value={blaxelRegion}
+                        onChange={e => setBlaxelRegion(e.target.value)}
+                        placeholder="us-west"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useRedis}
+                    onChange={e => setUseRedis(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Redis Memory</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Tell agents to use Redis for faster shared memory, intermediate state, and longer-lived recall when available.
+                    </div>
+                  </div>
+                </label>
+                {useRedis && (
+                  <div className="mt-3 ml-7 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Redis URL</label>
+                      <input
+                        type="text"
+                        value={redisUrl}
+                        onChange={e => setRedisUrl(e.target.value)}
+                        placeholder="redis://..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Namespace</label>
+                      <input
+                        type="text"
+                        value={redisNamespace}
+                        onChange={e => setRedisNamespace(e.target.value)}
+                        placeholder="workspace-memory"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

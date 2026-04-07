@@ -8,35 +8,104 @@ function maskKey(value: string) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
-type Step = 'models' | 'senso' | 'monitoring' | 'github'
+type Step = 'models' | 'partners' | `partner:${string}`
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
 type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik', { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }>
+type ModelsByProvider = Record<string, { name: string; models: string[] }>
+type PartnerFieldDefinition = {
+  key: string
+  label: string
+  type: 'text' | 'password' | 'select'
+  required?: boolean
+  secret?: boolean
+}
+type PartnerSkillsDefinition = {
+  mode: 'shipables' | 'curated-installer' | 'planned' | 'catalog'
+  items?: string[]
+  commandId?: string
+  label?: string
+}
+type PartnerDefinition = {
+  slug: string
+  name: string
+  logoUrl?: string
+  website?: string
+  docsUrl?: string
+  description: string
+  category?: string
+  enabledByDefault?: boolean
+  fields?: PartnerFieldDefinition[]
+  skills?: PartnerSkillsDefinition
+  content?: string
+}
 type IntegrationStatus = {
   validationAvailable: boolean
   validationMode: 'live' | 'fallback'
   providers: string[]
   notes?: string[]
+  visiblePartners: string[]
+  partnerDefinitions: PartnerDefinition[]
 }
-type ModelsByProvider = Record<string, { name: string; models: string[] }>
+type WorkspaceIntegrationConfig = {
+  preferredModel?: string
+  githubDefaultRepo?: string
+  sensoContextLabel?: string
+  ollamaBaseUrl?: string
+  ollamaDefaultModel?: string
+  opikWorkspace?: string
+  opikProject?: string
+  enabledPartners?: string[]
+  partners?: Record<string, Record<string, string | boolean | undefined>>
+}
+type PartnerValueMap = Record<string, Record<string, string>>
+
+const defaultOllamaBaseUrl = 'http://localhost:11434'
+
+function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
+  const next: PartnerValueMap = { ...base }
+  for (const [slug, values] of Object.entries(extra)) {
+    next[slug] = { ...(next[slug] || {}), ...values }
+  }
+  return next
+}
+
+function normalizePartnerValues(values: Record<string, string | boolean | undefined> | undefined): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values || {})
+      .filter(([, value]) => typeof value === 'string' && value.trim())
+      .map(([key, value]) => [key, value.trim()])
+  )
+}
+
+function buildPartnerConfig(values: PartnerValueMap): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    Object.entries(values)
+      .map(([slug, partnerValues]) => [
+        slug,
+        Object.fromEntries(
+          Object.entries(partnerValues || {})
+            .map(([key, value]) => [key, value.trim()])
+            .filter(([, value]) => !!value)
+        ),
+      ])
+      .filter(([, partnerValues]) => Object.keys(partnerValues).length > 0)
+  )
+}
 
 export function ByokWizard() {
   const { user, config } = useAuth()
   const { showSuccess, showInfo, showWarning } = useToast()
-  const defaultOllamaBaseUrl = 'http://localhost:11434'
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('models')
   const [openaiKey, setOpenaiKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
   const [geminiApiKey, setGeminiApiKey] = useState('')
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434')
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(defaultOllamaBaseUrl)
   const [ollamaDefaultModel, setOllamaDefaultModel] = useState('')
-  const [sensoApiKey, setSensoApiKey] = useState('')
-  const [sensoContextLabel, setSensoContextLabel] = useState('')
-  const [opikApiKey, setOpikApiKey] = useState('')
-  const [opikWorkspace, setOpikWorkspace] = useState('')
-  const [opikProject, setOpikProject] = useState('')
-  const [githubDefaultRepo, setGithubDefaultRepo] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
+  const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
+  const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
+  const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [validating, setValidating] = useState(false)
   const [validation, setValidation] = useState<ValidationState>({
     openai: { status: 'idle', message: '' },
@@ -52,21 +121,18 @@ export function ByokWizard() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
+  const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
 
   useEffect(() => {
     const stored = readStoredByokKeys()
     setOpenaiKey(stored.openai || '')
     setAnthropicKey(stored.anthropic || '')
     setGeminiApiKey(stored.geminiApiKey || '')
-    setOllamaBaseUrl(stored.ollamaBaseUrl || 'http://localhost:11434')
+    setOllamaBaseUrl(stored.ollamaBaseUrl || defaultOllamaBaseUrl)
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
-    setSensoApiKey(stored.sensoApiKey || '')
-    setSensoContextLabel(stored.sensoContextLabel || '')
-    setOpikApiKey(stored.opikApiKey || '')
-    setOpikWorkspace(stored.opikWorkspace || '')
-    setOpikProject(stored.opikProject || '')
-    setGithubDefaultRepo(stored.githubDefaultRepo || '')
     setPreferredModel(stored.preferredModel || '')
+    setPartnerSecrets(stored.partnerSecrets || {})
+    setPartnerValues(stored.partnerValues || {})
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
     setHydrated(true)
   }, [])
@@ -76,14 +142,31 @@ export function ByokWizard() {
     fetch('/api/integrations/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        const config = data?.config || {}
-        setPreferredModel((current) => current || config.preferredModel || '')
-        setGithubDefaultRepo((current) => current || config.githubDefaultRepo || '')
-        setSensoContextLabel((current) => current || config.sensoContextLabel || '')
-        setOllamaBaseUrl((current) => (current && current !== 'http://localhost:11434') ? current : (config.ollamaBaseUrl || current))
-        setOllamaDefaultModel((current) => current || config.ollamaDefaultModel || '')
-        setOpikWorkspace((current) => current || config.opikWorkspace || '')
-        setOpikProject((current) => current || config.opikProject || '')
+        const workspaceConfig = (data?.config || {}) as WorkspaceIntegrationConfig
+        setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
+        setOllamaBaseUrl((current) => (current && current !== defaultOllamaBaseUrl) ? current : (workspaceConfig.ollamaBaseUrl || current))
+        setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
+        setPartnerValues((current) => mergePartnerMaps(current, {
+          ...Object.fromEntries(
+            Object.entries(workspaceConfig.partners || {}).map(([slug, values]) => [slug, normalizePartnerValues(values)])
+          ),
+          senso: {
+            ...(current.senso || {}),
+            ...(workspaceConfig.sensoContextLabel ? { contextLabel: workspaceConfig.sensoContextLabel } : {}),
+          },
+          opik: {
+            ...(current.opik || {}),
+            ...(workspaceConfig.opikWorkspace ? { workspace: workspaceConfig.opikWorkspace } : {}),
+            ...(workspaceConfig.opikProject ? { project: workspaceConfig.opikProject } : {}),
+          },
+          github: {
+            ...(current.github || {}),
+            ...(workspaceConfig.githubDefaultRepo ? { defaultRepo: workspaceConfig.githubDefaultRepo } : {}),
+          },
+        }))
+        if (Array.isArray(workspaceConfig.enabledPartners) && workspaceConfig.enabledPartners.length > 0) {
+          setSelectedPartners((current) => current.length > 0 ? current : workspaceConfig.enabledPartners!)
+        }
       })
       .catch(() => {})
   }, [hydrated])
@@ -93,11 +176,67 @@ export function ByokWizard() {
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
   const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
-  const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
-  const sensoConfigured = !!sensoApiKey.trim()
-  const opikConfigured = !!opikApiKey.trim()
   const normalizedOllamaBaseUrl = ollamaBaseUrl.trim()
   const ollamaConfigured = !!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl)
+
+  const getPartnerSecret = React.useCallback((slug: string, key: string) => partnerSecrets[slug]?.[key] || '', [partnerSecrets])
+  const getPartnerValue = React.useCallback((slug: string, key: string) => partnerValues[slug]?.[key] || '', [partnerValues])
+
+  const setPartnerField = React.useCallback((slug: string, key: string, value: string, secret?: boolean) => {
+    if (secret) {
+      setPartnerSecrets((current) => ({
+        ...current,
+        [slug]: {
+          ...(current[slug] || {}),
+          [key]: value,
+        },
+      }))
+      return
+    }
+    setPartnerValues((current) => ({
+      ...current,
+      [slug]: {
+        ...(current[slug] || {}),
+        [key]: value,
+      },
+    }))
+  }, [])
+
+  const visiblePartnerDefinitions = useMemo(() => integrationStatus?.partnerDefinitions || [], [integrationStatus])
+  const visiblePartnerSlugs = useMemo(() => integrationStatus?.visiblePartners || [], [integrationStatus])
+
+  useEffect(() => {
+    if (!visiblePartnerSlugs.length) return
+    setSelectedPartners((current) => {
+      if (current.length > 0) return current
+      return visiblePartnerSlugs
+    })
+  }, [visiblePartnerSlugs])
+
+  const selectedPartnerDefinitions = useMemo(
+    () => visiblePartnerDefinitions.filter((partner) => selectedPartners.includes(partner.slug)),
+    [selectedPartners, visiblePartnerDefinitions]
+  )
+
+  const stepOrder = useMemo<Step[]>(
+    () => ['models', 'partners', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
+    [selectedPartnerDefinitions]
+  )
+
+  useEffect(() => {
+    if (!stepOrder.includes(step)) {
+      setStep('models')
+    }
+  }, [step, stepOrder])
+
+  const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
+  const sensoConfigured = !!getPartnerSecret('senso', 'apiKey').trim()
+  const opikApiKey = getPartnerSecret('opik', 'apiKey')
+  const opikWorkspace = getPartnerValue('opik', 'workspace')
+  const opikProject = getPartnerValue('opik', 'project')
+  const githubDefaultRepo = getPartnerValue('github', 'defaultRepo')
+  const sensoContextLabel = getPartnerValue('senso', 'contextLabel')
+  const opikConfigured = !!opikApiKey.trim()
 
   const providerChecks = useMemo(() => {
     const resolveSource = (provider: ProviderKey) => {
@@ -130,10 +269,10 @@ export function ByokWizard() {
     config?.systemKeyDefaults?.openai,
     config?.userKeyDefaults?.anthropic,
     config?.userKeyDefaults?.openai,
+    geminiApiKey,
     hasAnthropicAvailable,
     hasGeminiAvailable,
     hasOpenAiAvailable,
-    geminiApiKey,
     openaiKey,
   ])
 
@@ -159,7 +298,14 @@ export function ByokWizard() {
       .then(async (r) => {
         const contentType = r.headers.get('content-type') || ''
         if (!contentType.includes('application/json')) {
-          setIntegrationStatus({ validationAvailable: false, validationMode: 'fallback', providers: [], notes: ['Live validation is unavailable on the current server build.'] })
+          setIntegrationStatus({
+            validationAvailable: false,
+            validationMode: 'fallback',
+            providers: [],
+            notes: ['Live validation is unavailable on the current server build.'],
+            visiblePartners: [],
+            partnerDefinitions: [],
+          })
           return null
         }
         return r.json()
@@ -171,9 +317,18 @@ export function ByokWizard() {
           validationMode: data.validationMode === 'live' ? 'live' : 'fallback',
           providers: Array.isArray(data.providers) ? data.providers : [],
           notes: Array.isArray(data.notes) ? data.notes : [],
+          visiblePartners: Array.isArray(data.visiblePartners) ? data.visiblePartners : [],
+          partnerDefinitions: Array.isArray(data.partnerDefinitions) ? data.partnerDefinitions : [],
         })
       })
-      .catch(() => setIntegrationStatus({ validationAvailable: false, validationMode: 'fallback', providers: [], notes: ['Live validation is unavailable on the current server build.'] }))
+      .catch(() => setIntegrationStatus({
+        validationAvailable: false,
+        validationMode: 'fallback',
+        providers: [],
+        notes: ['Live validation is unavailable on the current server build.'],
+        visiblePartners: [],
+        partnerDefinitions: [],
+      }))
 
     fetch('/api/templates/organizations/prereqs', {
       method: 'POST',
@@ -255,7 +410,7 @@ export function ByokWizard() {
     if (!open || step !== 'models') return
     void loadOllamaModels(false)
     void loadAvailableModels(false)
-  }, [open, step, loadOllamaModels, loadAvailableModels])
+  }, [open, step, loadAvailableModels, loadOllamaModels])
 
   const statusText = useMemo(() => {
     if (hasDefaultUserKeys) return 'Default user keys available from env'
@@ -279,7 +434,7 @@ export function ByokWizard() {
       return parts.join(' · ')
     }
     return 'Not configured — ClawMax still works, but monitoring visibility may be reduced'
-  }, [opikApiKey, opikWorkspace, opikProject])
+  }, [opikApiKey, opikProject, opikWorkspace])
 
   const ollamaStatusText = useMemo(() => {
     if (!ollamaConfigured) return 'Not configured — local open-source models are optional and unavailable until Ollama is running'
@@ -328,9 +483,7 @@ export function ByokWizard() {
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
       }
       setValidation(nextState)
-      if (nextState.ollama.status === 'valid') {
-        void loadOllamaModels(true)
-      }
+      if (nextState.ollama.status === 'valid') void loadOllamaModels(true)
       void loadAvailableModels(true)
       const failures = Object.entries(nextState).filter(([, entry]) => entry.status === 'invalid' || entry.status === 'error')
       if (failures.length > 0) {
@@ -341,8 +494,7 @@ export function ByokWizard() {
           ollama: 'Ollama',
           opik: 'Opik',
         }
-        const failedNames = failures.map(([key]) => labels[key] || key).join(', ')
-        showWarning(`Some integration checks failed: ${failedNames}. Review the messages below. You can still save and complete optional integrations later.`)
+        showWarning(`Some integration checks failed: ${failures.map(([key]) => labels[key] || key).join(', ')}. Review the messages below. You can still save and complete optional integrations later.`)
         return true
       }
       showSuccess('Integration checks completed')
@@ -364,20 +516,27 @@ export function ByokWizard() {
     if (!openaiKey.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !(config as any)?.userKeyDefaults?.gemini && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic && !(config as any)?.systemKeyDefaults?.gemini) {
       showWarning('No LLM keys detected yet. Add OpenAI, Anthropic, or Gemini, or rely on configured defaults before running agents.')
     }
+
+    const persistedPartnerValues = buildPartnerConfig(partnerValues)
+    const persistedPartnerSecrets = buildPartnerConfig(partnerSecrets)
+
     writeStoredByokKeys({
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
       geminiApiKey: geminiApiKey.trim(),
       ollamaBaseUrl: ollamaBaseUrl.trim(),
       ollamaDefaultModel: ollamaDefaultModel.trim(),
-      sensoApiKey: sensoApiKey.trim(),
+      sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
       sensoContextLabel: sensoContextLabel.trim(),
       opikApiKey: opikApiKey.trim(),
       opikWorkspace: opikWorkspace.trim(),
       opikProject: opikProject.trim(),
       githubDefaultRepo: githubDefaultRepo.trim(),
       preferredModel: preferredModel || undefined,
+      partnerSecrets: persistedPartnerSecrets,
+      partnerValues: persistedPartnerValues,
     })
+
     await fetch('/api/integrations/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -389,8 +548,11 @@ export function ByokWizard() {
         ollamaDefaultModel: ollamaDefaultModel.trim() || undefined,
         opikWorkspace: opikWorkspace.trim() || undefined,
         opikProject: opikProject.trim() || undefined,
+        enabledPartners: selectedPartners,
+        partners: persistedPartnerValues,
       }),
     }).catch(() => {})
+
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
@@ -452,6 +614,147 @@ export function ByokWizard() {
     arr.findIndex((candidate) => candidate.value === option.value) === index
   )
 
+  const currentStepIndex = stepOrder.indexOf(step)
+  const currentPartner = step.startsWith('partner:')
+    ? visiblePartnerDefinitions.find((partner) => partner.slug === step.replace(/^partner:/, ''))
+    : null
+
+  const templateDefaultsSummary = [
+    sensoContextLabel.trim() ? `Senso context → ${sensoContextLabel.trim()}` : null,
+    githubDefaultRepo.trim() ? `GitHub repo → ${githubDefaultRepo.trim()}` : null,
+  ].filter(Boolean)
+
+  const goToNextStep = () => {
+    if (step === 'partners' && selectedPartnerDefinitions.length === 0) {
+      void handleSave()
+      return
+    }
+    const nextStep = stepOrder[currentStepIndex + 1]
+    if (nextStep) setStep(nextStep)
+  }
+
+  const goToPreviousStep = () => {
+    const previousStep = stepOrder[currentStepIndex - 1]
+    if (previousStep) setStep(previousStep)
+  }
+
+  const describePartnerStatus = (partner: PartnerDefinition) => {
+    if (partner.slug === 'senso') {
+      return sensoConfigured
+        ? `Configured ${maskKey(getPartnerSecret('senso', 'apiKey'))}${sensoContextLabel ? ` · context: ${sensoContextLabel}` : ''}`
+        : 'Not configured — workspace files remain the default shared context layer'
+    }
+    if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — monitoring will be limited or ignored'
+    if (partner.slug === 'github') return githubReady ? 'GitHub CLI and issue workflows look ready.' : 'GitHub is optional, but software and delivery templates work better when gh and gh-issues are ready.'
+
+    const secretFields = (partner.fields || []).filter((field) => field.secret && getPartnerSecret(partner.slug, field.key).trim())
+    const plainFields = (partner.fields || []).filter((field) => !field.secret && getPartnerValue(partner.slug, field.key).trim())
+    if (secretFields.length === 0 && plainFields.length === 0) return 'Not configured yet'
+    const labels = [
+      ...secretFields.map((field) => `${field.label}: ${maskKey(getPartnerSecret(partner.slug, field.key))}`),
+      ...plainFields.map((field) => `${field.label}: ${getPartnerValue(partner.slug, field.key)}`),
+    ]
+    return labels.join(' · ')
+  }
+
+  const renderPartnerHelp = (partner: PartnerDefinition) => {
+    if (partner.slug === 'senso') {
+      return (
+        <>
+          Use Senso to store evidence, recall prior work, and share context across agents. ClawMax still works without it using workspace files and native workflow handoffs.
+        </>
+      )
+    }
+    if (partner.slug === 'opik') {
+      return (
+        <>
+          Connect your own Opik account to track agent calls, tokens, and costs under your workspace. Live tracing still requires matching server-side <span className="font-mono">OPIK_*</span> env vars plus a dashboard restart.
+        </>
+      )
+    }
+    if (partner.slug === 'github') {
+      return (
+        <>
+          Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax still works without it, but GitHub is recommended for software and operational teams.
+        </>
+      )
+    }
+    return partner.description
+  }
+
+  const renderPartnerSkillsNote = (partner: PartnerDefinition) => {
+    if (!partner.skills) return null
+    if (partner.skills.mode === 'shipables' && partner.skills.items?.length) {
+      return <div className="mt-2 text-xs opacity-80">Included skills: {partner.skills.items.join(', ')}</div>
+    }
+    if (partner.skills.mode === 'catalog' && partner.skills.items?.length) {
+      return <div className="mt-2 text-xs opacity-80">{partner.skills.label || 'Known skills'}: {partner.skills.items.join(', ')}</div>
+    }
+    if (partner.skills.mode === 'curated-installer') {
+      const installing = partnerInstallState[partner.slug] === 'installing'
+      return (
+        <div className="mt-2 flex items-center gap-3">
+          <div className="text-xs opacity-80">{partner.skills.label || 'Curated skill install available'}.</div>
+          <button
+            type="button"
+            disabled={installing}
+            onClick={async () => {
+              if (!partner.skills?.commandId) return
+              setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'installing' }))
+              try {
+                const res = await fetch('/api/skills/partner-install', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ commandId: partner.skills.commandId }),
+                })
+                const data = await res.json().catch(() => ({}))
+                if (!res.ok) throw new Error(data.error || 'Failed to install partner skills')
+                showSuccess(`${partner.name} skills installed`)
+              } catch (err: any) {
+                showWarning(err.message || `Failed to install ${partner.name} skills`)
+              } finally {
+                setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'idle' }))
+              }
+            }}
+            className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
+          >
+            {installing ? 'Installing…' : 'Install Skills'}
+          </button>
+        </div>
+      )
+    }
+    if (partner.skills.mode === 'planned') {
+      return <div className="mt-2 text-xs opacity-80">{partner.skills.label || 'Partner skills are planned.'}</div>
+    }
+    return null
+  }
+
+  const renderPartnerField = (partner: PartnerDefinition, field: PartnerFieldDefinition) => {
+    const value = field.secret ? getPartnerSecret(partner.slug, field.key) : getPartnerValue(partner.slug, field.key)
+    const placeholder =
+      partner.slug === 'github' && field.key === 'defaultRepo' ? 'owner/repo'
+      : partner.slug === 'senso' && field.key === 'contextLabel' ? 'e.g. Workspace / Team / Project'
+      : partner.slug === 'opik' && field.key === 'workspace' ? 'e.g. my-team'
+      : partner.slug === 'opik' && field.key === 'project' ? 'e.g. clawmax-agents'
+      : partner.slug === 'blaxel' && field.key === 'projectId' ? 'e.g. sandbox-project'
+      : partner.slug === 'blaxel' && field.key === 'defaultSandbox' ? 'e.g. demo-sandbox'
+      : partner.slug === 'redis' && field.key === 'url' ? 'redis://...'
+      : field.label
+
+    return (
+      <div key={`${partner.slug}-${field.key}`}>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+        <input
+          type={field.type === 'password' ? 'password' : 'text'}
+          value={value}
+          onChange={(e) => setPartnerField(partner.slug, field.key, e.target.value, field.secret)}
+          placeholder={placeholder}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+        />
+      </div>
+    )
+  }
+
   return (
     <>
       <button
@@ -469,7 +772,7 @@ export function ByokWizard() {
               <div>
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspaces Integrations</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Dev preview. Provider secrets stay local to this browser for now. Non-secret workspace defaults persist per workspace for template apply and runtime follow-through.
+                  Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.
                 </p>
               </div>
               <button
@@ -482,13 +785,33 @@ export function ByokWizard() {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span className={`px-2 py-1 rounded-full ${step === 'models' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>1. Models</span>
+              <button
+                type="button"
+                onClick={() => setStep('models')}
+                className={`px-2 py-1 rounded-full transition-colors ${step === 'models' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              >
+                1. Models
+              </button>
               <span>→</span>
-              <span className={`px-2 py-1 rounded-full ${step === 'senso' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>2. Senso</span>
-              <span>→</span>
-              <span className={`px-2 py-1 rounded-full ${step === 'monitoring' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>3. Opik</span>
-              <span>→</span>
-              <span className={`px-2 py-1 rounded-full ${step === 'github' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700'}`}>4. GitHub</span>
+              <button
+                type="button"
+                onClick={() => setStep('partners')}
+                className={`px-2 py-1 rounded-full transition-colors ${step === 'partners' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              >
+                2. Partners
+              </button>
+              {selectedPartnerDefinitions.map((partner, index) => (
+                <React.Fragment key={partner.slug}>
+                  <span>→</span>
+                  <button
+                    type="button"
+                    onClick={() => setStep(`partner:${partner.slug}`)}
+                    className={`px-2 py-1 rounded-full transition-colors ${step === `partner:${partner.slug}` ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                  >
+                    {index + 3}. {partner.name}
+                  </button>
+                </React.Fragment>
+              ))}
             </div>
 
             <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
@@ -502,13 +825,11 @@ export function ByokWizard() {
               <div className="mt-1 text-xs opacity-90">
                 {integrationStatus?.validationAvailable
                   ? 'This server can validate provider keys and local Ollama reachability right now.'
-                  : 'This server cannot validate integrations live right now. Local browser save still works, and template defaults will still prefill.'}
+                  : 'This server cannot validate integrations live right now. Local browser save still works, and template defaults still prefill.'}
               </div>
-              {(sensoContextLabel.trim() || githubDefaultRepo.trim()) && (
+              {templateDefaultsSummary.length > 0 && (
                 <div className="mt-2 text-xs opacity-90">
-                  Template apply defaults:
-                  {sensoContextLabel.trim() ? ` Senso context → ${sensoContextLabel.trim()}.` : ''}
-                  {githubDefaultRepo.trim() ? ` GitHub repo → ${githubDefaultRepo.trim()}.` : ''}
+                  Template apply defaults: {templateDefaultsSummary.join(' · ')}
                 </div>
               )}
             </div>
@@ -521,7 +842,7 @@ export function ByokWizard() {
                     System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
                   </div>
                   <div className="mt-2 text-xs opacity-80">
-                    We support broad model choice, but results vary by provider and version. We recommend the suggested defaults first. If a model performs especially well or poorly in ClawMax, please share feedback on GitHub.
+                    We support broad model choice, but results vary by provider and version. Start with recommended defaults. If a model performs especially well or poorly in ClawMax, please share feedback on GitHub.
                   </div>
                 </div>
 
@@ -580,16 +901,8 @@ export function ByokWizard() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Installed Ollama models</div>
                           <div className="flex items-center gap-2">
-                            {ollamaModelsLoading && (
-                              <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => void loadOllamaModels(true)}
-                              className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
-                            >
-                              Refresh
-                            </button>
+                            {ollamaModelsLoading && <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>}
+                            <button type="button" onClick={() => void loadOllamaModels(true)} className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300">Refresh</button>
                           </div>
                         </div>
                         {ollamaModels.length > 0 ? (
@@ -614,9 +927,7 @@ export function ByokWizard() {
                           </div>
                         ) : (
                           <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                            {ollamaModelsLoading
-                              ? 'Checking Ollama for installed models…'
-                              : 'No installed models found yet. Pull a model with Ollama, then reopen or update the base URL.'}
+                            {ollamaModelsLoading ? 'Checking Ollama for installed models…' : 'No installed models found yet. Pull a model with Ollama, then reopen or update the base URL.'}
                           </div>
                         )}
                       </div>
@@ -630,13 +941,9 @@ export function ByokWizard() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
                       <select value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
-                        {uniquePreferredOptions.length > 0 ? (
-                          uniquePreferredOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))
-                        ) : (
+                        {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        )) : (
                           <>
                             {hasAnthropicAvailable && (
                               <>
@@ -658,9 +965,7 @@ export function ByokWizard() {
                                 <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
                               </>
                             )}
-                            {ollamaConfigured && ollamaDefaultModel && (
-                              <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>
-                            )}
+                            {ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
                           </>
                         )}
                       </select>
@@ -674,156 +979,163 @@ export function ByokWizard() {
                   <div className="flex items-center gap-2">
                     <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
                     <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60">Save &amp; Close</button>
-                    <button onClick={() => setStep('senso')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    <button onClick={() => setStep('partners')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
                   </div>
                 </div>
               </>
             )}
 
-            {step === 'senso' && (
+            {step === 'partners' && (
               <>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
-                  <div className="font-medium">Senso shared context (optional)</div>
+                  <div className="font-medium">Optional partner integrations</div>
                   <div className="mt-1">
-                    Use Senso to store evidence, recall prior work, and share context across agents. ClawMax still works without it using workspace files and native workflow handoffs.
-                  </div>
-                  <div className="mt-2 text-xs opacity-80">
-                    Optional partner integration. Senso offers OSS and free-tier options. Docs: <a href="https://docs.senso.ai/" target="_blank" rel="noopener noreferrer" className="underline">docs.senso.ai</a> · Login: <a href="https://platform.senso.ai/" target="_blank" rel="noopener noreferrer" className="underline">platform.senso.ai</a>
+                    Choose which partner pages to configure for this workspace. You can select all, some, or none. Selected integrations drive template defaults and future partner-aware template options.
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Senso status</div>
-                  <div className="mt-1">{sensoConfigured ? `Configured ${maskKey(sensoApiKey)}${sensoContextLabel ? ` · context: ${sensoContextLabel}` : ''}` : 'Not configured — workspace files remain the default shared context layer'}</div>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Senso API key</label>
-                    <input type="password" value={sensoApiKey} onChange={(e) => setSensoApiKey(e.target.value)} placeholder="Senso API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Senso context label</label>
-                    <input type="text" value={sensoContextLabel} onChange={(e) => setSensoContextLabel(e.target.value)} placeholder="e.g. Workspace / Team / Project" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-                  </div>
+                <div className="mt-5 space-y-3">
+                  {visiblePartnerDefinitions.length === 0 ? (
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
+                      No optional partner integrations are enabled for this environment.
+                    </div>
+                  ) : visiblePartnerDefinitions.map((partner) => {
+                    const checked = selectedPartners.includes(partner.slug)
+                    return (
+                      <label key={partner.slug} className={`block rounded-xl border p-4 cursor-pointer transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedPartners((current) => e.target.checked
+                                ? Array.from(new Set([...current, partner.slug]))
+                                : current.filter((slug) => slug !== partner.slug))
+                            }}
+                            className="mt-1"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {partner.logoUrl ? (
+                                <img
+                                  src={partner.logoUrl}
+                                  alt={`${partner.name} logo`}
+                                  className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
+                              {partner.category ? <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">{partner.category}</span> : null}
+                            </div>
+                            <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{partner.description}</div>
+                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{describePartnerStatus(partner)}</div>
+                            {(partner.website || partner.docsUrl) && (
+                              <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                                {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Website</a> : null}
+                                {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Docs</a> : null}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    )
+                  })}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={() => setStep('models')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
-                  <button onClick={() => setStep('monitoring')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
-                </div>
-              </>
-            )}
-
-            {step === 'monitoring' && (
-              <>
-                <div className="mt-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-4 text-sm text-purple-900 dark:text-purple-100">
-                  <div className="font-medium">Opik monitoring (optional)</div>
-                  <div className="mt-1">
-                    Connect your own <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">Opik</a> account to track agent calls, tokens, and costs under your workspace. Without this, monitoring is reduced or skipped, but ClawMax still runs normally.
-                  </div>
-                  <div className="mt-2 text-xs opacity-80">
-                    Optional partner integration. Opik offers OSS and free-tier options. Login: <a href="https://www.comet.com/site/products/opik/" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-700 dark:hover:text-purple-300">comet.com/site/products/opik</a>
-                  </div>
-                  <div className="mt-2 text-xs opacity-80">
-                    Current limitation: browser-local Opik entry validates your account details, but live tracing still requires server-side <span className="font-mono">OPIK_API_KEY</span>, <span className="font-mono">OPIK_WORKSPACE</span>, and <span className="font-mono">OPIK_PROJECT_NAME</span> in <span className="font-mono">SYSTEM/dashboard/.env</span> plus a server restart.
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Monitoring status</div>
-                  <div className="mt-1">{opikConfigured ? monitoringStatusText : 'Not configured — monitoring will be limited or ignored'}</div>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  <div>
-                    <label htmlFor="byok-opik-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik API key</label>
-                    <input id="byok-opik-key" type="password" value={opikApiKey} onChange={(e) => setOpikApiKey(e.target.value)} placeholder="Your Opik API key" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    {renderValidation('opik')}
-                  </div>
-                  <div>
-                    <label htmlFor="byok-opik-workspace" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik workspace</label>
-                    <input id="byok-opik-workspace" type="text" value={opikWorkspace} onChange={(e) => setOpikWorkspace(e.target.value)} placeholder="e.g. my-team" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    <p className="mt-1 text-xs text-gray-400">Found in your Opik dashboard settings</p>
-                  </div>
-                  <div>
-                    <label htmlFor="byok-opik-project" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opik project name</label>
-                    <input id="byok-opik-project" type="text" value={opikProject} onChange={(e) => setOpikProject(e.target.value)} placeholder="e.g. clawmax-agents" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    <p className="mt-1 text-xs text-gray-400">All agent traces will be logged under this project once matching server env is configured and the dashboard restarts.</p>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={() => setStep('senso')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleCopyOpikEnv}
-                      className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Copy .env Snippet
+                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
+                    <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">
+                      {selectedPartnerDefinitions.length > 0 ? 'Next →' : 'Save Integrations'}
                     </button>
-                    <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
-                    <button onClick={() => setStep('github')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
                   </div>
                 </div>
               </>
             )}
 
-            {step === 'github' && (
+            {currentPartner && (
               <>
                 <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 text-sm text-slate-700 dark:text-slate-200">
-                  <div className="font-medium">GitHub integration</div>
-                  <div className="mt-1">
-                    Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax still works without it, but GitHub is recommended for software and operational teams.
+                  <div className="flex items-center gap-3">
+                    {currentPartner.logoUrl ? (
+                      <img
+                        src={currentPartner.logoUrl}
+                        alt={`${currentPartner.name} logo`}
+                        className="h-8 w-auto max-w-[120px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div className="font-medium">{currentPartner.name}</div>
                   </div>
+                  <div className="mt-1">{renderPartnerHelp(currentPartner)}</div>
                   <div className="mt-2 text-xs opacity-80">
-                    If GitHub is not ready yet, install the CLI with <span className="font-mono">brew install gh</span> and authenticate with <span className="font-mono">gh auth login</span>.
+                    Optional partner integration.
+                    {currentPartner.docsUrl ? <> Docs: <a href={currentPartner.docsUrl} target="_blank" rel="noopener noreferrer" className="underline">{currentPartner.docsUrl}</a></> : null}
+                    {currentPartner.website ? <> · Website: <a href={currentPartner.website} target="_blank" rel="noopener noreferrer" className="underline">{currentPartner.website}</a></> : null}
                   </div>
+                  {renderPartnerSkillsNote(currentPartner)}
                 </div>
 
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">GitHub status</div>
-                  <div className="mt-2 space-y-2">
-                    {githubChecks.length === 0 ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub CLI and issue workflow support…</div>
-                    ) : githubChecks.map((check) => (
-                      <div
-                        key={check.id}
-                        className={`rounded-lg border px-3 py-2 ${
-                          check.status === 'pass'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
-                            : check.status === 'warn'
-                              ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
-                              : 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100'
-                        }`}
-                      >
-                        <div className="font-medium">{check.label}</div>
-                        <div className="mt-1 text-xs opacity-80">{check.message}{check.fixHint ? ` · ${check.fixHint}` : ''}</div>
-                      </div>
-                    ))}
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {githubReady ? 'GitHub looks ready for workspace issue and PR workflows.' : 'GitHub is optional, but software and delivery templates work better when gh and gh-issues are ready.'}
-                    </div>
-                    {!githubReady && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-                        Quick setup: install <span className="font-mono">gh</span>, run <span className="font-mono">gh auth login</span>, and refresh repo scope with <span className="font-mono">gh auth refresh -s repo</span> if needed.
-                      </div>
-                    )}
-                  </div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{currentPartner.name} status</div>
+                  <div className="mt-1">{describePartnerStatus(currentPartner)}</div>
                 </div>
 
-                <div className="mt-5 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default GitHub repo</label>
-                    <input type="text" value={githubDefaultRepo} onChange={(e) => setGithubDefaultRepo(e.target.value)} placeholder="owner/repo" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+                {currentPartner.slug === 'github' && (
+                  <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">GitHub readiness</div>
+                    <div className="mt-2 space-y-2">
+                      {githubChecks.length === 0 ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub CLI and issue workflow support…</div>
+                      ) : githubChecks.map((check) => (
+                        <div
+                          key={check.id}
+                          className={`rounded-lg border px-3 py-2 ${
+                            check.status === 'pass'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                              : check.status === 'warn'
+                                ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                                : 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100'
+                          }`}
+                        >
+                          <div className="font-medium">{check.label}</div>
+                          <div className="mt-1 text-xs opacity-80">{check.message}{check.fixHint ? ` · ${check.fixHint}` : ''}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                <div className="mt-5 space-y-4">
+                  {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
+                  {currentPartner.slug === 'opik' && renderValidation('opik')}
+                  {currentPartner.slug === 'opik' && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleCopyOpikEnv}
+                        className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Copy .env Snippet
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={() => setStep('monitoring')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
+                  <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setOpen(false); setStep('models') }} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Close</button>
-                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
+                    {currentPartner.slug === 'opik' && (
+                      <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
+                        {validating ? 'Checking…' : 'Check Keys'}
+                      </button>
+                    )}
+                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
+                    {currentStepIndex < stepOrder.length - 1 ? (
+                      <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    ) : (
+                      <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
+                    )}
                   </div>
                 </div>
               </>

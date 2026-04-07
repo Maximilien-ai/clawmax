@@ -72,6 +72,17 @@ test('triggerWorkflow stores workspace integration defaults in execution inputs'
   writeWorkspaceIntegrationConfig({
     githubDefaultRepo: 'Maximilien-ai/clawmax',
     sensoContextLabel: 'Launch / Demo',
+    partners: {
+      blaxel: {
+        projectId: 'demo-project',
+        defaultSandbox: 'sandbox-a',
+        region: 'us-west',
+      },
+      redis: {
+        url: 'redis://localhost:6379',
+        namespace: 'workspace-memory',
+      },
+    },
   })
 
   const created = createWorkflow({
@@ -94,6 +105,11 @@ test('triggerWorkflow stores workspace integration defaults in execution inputs'
   assert(execution !== null, 'Expected execution record')
   assert(execution?.inputs?.['GitHub repo'] === 'Maximilien-ai/clawmax', 'Expected GitHub repo input')
   assert(execution?.inputs?.['Senso context'] === 'Launch / Demo', 'Expected Senso context input')
+  assert(execution?.inputs?.['Blaxel project'] === 'demo-project', 'Expected Blaxel project input')
+  assert(execution?.inputs?.['Blaxel sandbox'] === 'sandbox-a', 'Expected Blaxel sandbox input')
+  assert(execution?.inputs?.['Blaxel region'] === 'us-west', 'Expected Blaxel region input')
+  assert(execution?.inputs?.['Redis URL'] === 'redis://localhost:6379', 'Expected Redis URL input')
+  assert(execution?.inputs?.['Redis namespace'] === 'workspace-memory', 'Expected Redis namespace input')
 })
 
 for (const workflowId of createdWorkflowIds) {

@@ -62,6 +62,7 @@ COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 WORKDIR /app
 
 COPY TEMPLATES ./TEMPLATES
+COPY PARTNERS ./PARTNERS
 COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh

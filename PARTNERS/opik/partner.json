@@ -1,0 +1,33 @@
+{
+  "slug": "opik",
+  "name": "Opik",
+  "logoUrl": "https://www.comet.com/site/wp-content/uploads/2025/07/comet-logo-dark.svg",
+  "website": "https://www.comet.com/site/products/opik/",
+  "docsUrl": "https://www.comet.com/site/products/opik/",
+  "description": "Tracing and monitoring for agent runs and model execution.",
+  "category": "monitoring",
+  "enabledByDefault": true,
+  "fields": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "password",
+      "required": false,
+      "secret": true
+    },
+    {
+      "key": "workspace",
+      "label": "Workspace",
+      "type": "text",
+      "required": false,
+      "secret": false
+    },
+    {
+      "key": "project",
+      "label": "Project",
+      "type": "text",
+      "required": false,
+      "secret": false
+    }
+  ]
+}

@@ -14,6 +14,8 @@ export interface StoredByokKeys {
   opikProject?: string
   githubDefaultRepo?: string
   preferredModel?: string
+  partnerSecrets?: Record<string, Record<string, string>>
+  partnerValues?: Record<string, Record<string, string>>
 }
 
 export function getByokStorageKey() {
@@ -26,7 +28,35 @@ export function getByokDismissKey() {
 
 export function readStoredByokKeys(): StoredByokKeys {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const next = typeof parsed === 'object' && parsed ? parsed as StoredByokKeys : {}
+    const partnerSecrets = { ...(next.partnerSecrets || {}) }
+    const partnerValues = { ...(next.partnerValues || {}) }
+
+    if (next.sensoApiKey) {
+      partnerSecrets.senso = { ...(partnerSecrets.senso || {}), apiKey: partnerSecrets.senso?.apiKey || next.sensoApiKey }
+    }
+    if (next.sensoContextLabel) {
+      partnerValues.senso = { ...(partnerValues.senso || {}), contextLabel: partnerValues.senso?.contextLabel || next.sensoContextLabel }
+    }
+    if (next.opikApiKey) {
+      partnerSecrets.opik = { ...(partnerSecrets.opik || {}), apiKey: partnerSecrets.opik?.apiKey || next.opikApiKey }
+    }
+    if (next.opikWorkspace) {
+      partnerValues.opik = { ...(partnerValues.opik || {}), workspace: partnerValues.opik?.workspace || next.opikWorkspace }
+    }
+    if (next.opikProject) {
+      partnerValues.opik = { ...(partnerValues.opik || {}), project: partnerValues.opik?.project || next.opikProject }
+    }
+    if (next.githubDefaultRepo) {
+      partnerValues.github = { ...(partnerValues.github || {}), defaultRepo: partnerValues.github?.defaultRepo || next.githubDefaultRepo }
+    }
+
+    return {
+      ...next,
+      partnerSecrets,
+      partnerValues,
+    }
   } catch {
     return {}
   }

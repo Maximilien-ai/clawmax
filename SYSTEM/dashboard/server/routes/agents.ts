@@ -16,6 +16,7 @@ import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashbo
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
+import { normalizeChatMessage } from '../lib/chat-normalization'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -1883,7 +1884,7 @@ router.get('/:id/chat/messages', async (req, res) => {
 
           messages.push({
             role: msg.role,
-            content: textContent,
+            content: normalizeChatMessage(textContent),
             timestamp: msg.timestamp || entry.timestamp || Date.now()
           })
         }
@@ -2010,7 +2011,7 @@ router.get('/:id/chat/archives', async (req, res) => {
                 }
 
                 if (textContent && msg.role) {
-                  messages.push({ role: msg.role, content: textContent })
+                  messages.push({ role: msg.role, content: normalizeChatMessage(textContent) })
                 }
               }
             } catch {
@@ -2110,7 +2111,7 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
           if (content) {
             messages.push({
               role: msg.role || 'user',
-              content,
+              content: normalizeChatMessage(content),
               timestamp: obj.timestamp || msg.timestamp || Date.now()
             })
           }

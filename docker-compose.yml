@@ -17,6 +17,8 @@ services:
       OPENCLAW_WORKSPACE: /app/WORKSPACES/default
       CLAWMAX_REPO_ROOT: /app
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github}
+      CLAWMAX_EXTRA_PARTNER_DIRS: ${CLAWMAX_EXTRA_PARTNER_DIRS:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

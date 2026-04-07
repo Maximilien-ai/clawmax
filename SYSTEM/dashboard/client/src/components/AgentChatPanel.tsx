@@ -707,6 +707,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                         {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true)}
                       </div>
                     )}
+                    {onNavigateToDoc && extractWorkspaceFileMentions(msg.content || '').length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] opacity-70">Files:</span>
+                        {extractWorkspaceFileMentions(msg.content || '').map((file) => (
+                          <button
+                            key={file}
+                            type="button"
+                            onClick={() => onNavigateToDoc(file)}
+                            className="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                          >
+                            {file}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-xs opacity-60">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                       <button

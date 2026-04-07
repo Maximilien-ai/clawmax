@@ -83,7 +83,7 @@ type WorkflowHealthState = 'running' | 'enabled' | 'failed' | 'paused' | 'disabl
 
 interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
-  onNavigateToGroup?: (groupName: string) => void
+  onNavigateToGroup?: (groupName: string, openChat?: boolean) => void
   onNavigateToCommunity?: (communityName: string) => void
   onNavigateToDoc?: (file: string) => void
   initialWorkflowId?: string
@@ -1872,7 +1872,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <React.Fragment key={group}>
                           {idx > 0 && ', '}
                           <button
-                            onClick={() => onNavigateToGroup?.(group)}
+                            onClick={() => onNavigateToGroup?.(group, true)}
                             className="text-sky-600 hover:text-sky-700 hover:underline"
                           >
                             {group}
@@ -2139,7 +2139,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                           <React.Fragment key={group}>
                             {idx > 0 && ', '}
                             <button
-                              onClick={() => onNavigateToGroup?.(group)}
+                              onClick={() => onNavigateToGroup?.(group, true)}
                               className="text-sky-600 hover:text-sky-700 hover:underline font-medium"
                             >
                               {group}

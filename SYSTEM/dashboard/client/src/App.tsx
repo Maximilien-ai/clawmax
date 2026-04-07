@@ -150,6 +150,7 @@ export default function App() {
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'import' | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
+  const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
   const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
@@ -422,7 +423,11 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
               <Workflows
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                onNavigateToGroup={(groupName, openChat) => {
+                  setInitialGroupName(groupName)
+                  setInitialOpenChatName(openChat ? groupName : undefined)
+                  setPage('communication')
+                }}
                 onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialWorkflowId={initialWorkflowId}
@@ -438,6 +443,8 @@ export default function App() {
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialGroupName={initialGroupName}
                 onClearInitialGroupName={() => setInitialGroupName(undefined)}
+                initialOpenChatName={initialOpenChatName}
+                onClearInitialOpenChatName={() => setInitialOpenChatName(undefined)}
                 isActive={page === 'communication'}
               />
             </div>
