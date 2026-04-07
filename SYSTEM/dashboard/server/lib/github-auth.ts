@@ -219,7 +219,7 @@ function allowOtpAuth(): boolean {
 }
 
 function isOtpDevMode(): boolean {
-  return process.env.OTP_DEV_MODE === 'log' && process.env.NODE_ENV !== 'production'
+  return process.env.OTP_DEV_MODE === 'log'
 }
 
 function ensureOtpStore(): void {

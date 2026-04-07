@@ -147,6 +147,22 @@ async function run() {
     assert(/^\d{6}$/.test(readDevCode()), 'Expected a 6-digit dev OTP code')
   })
 
+  await test('OTP dev log mode still writes code in production when explicitly enabled', async () => {
+    resetFiles()
+    configureOtpEnv()
+    process.env.NODE_ENV = 'production'
+    const handler = getRouteHandler('post', '/otp/request')
+    const req = makeReq({ email: 'owner@example.com' })
+    const res = makeRes()
+
+    await handler(req, res)
+
+    assert(res.statusCode === 200, 'Expected OTP request to succeed in production log mode')
+    assert(res.jsonBody?.devOtpFile === otpDevFilePath, 'Expected dev OTP file path in response in production log mode')
+    assert(fs.existsSync(otpDevFilePath), 'Expected dev OTP file to be written in production log mode')
+    assert(/^\d{6}$/.test(readDevCode()), 'Expected a 6-digit dev OTP code in production log mode')
+  })
+
   await test('OTP resend is blocked during cooldown with retry metadata', async () => {
     resetFiles()
     configureOtpEnv()

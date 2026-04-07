@@ -225,7 +225,7 @@ Behavior:
 - still generate OTP normally
 - instead of sending email, log the code to server console and optionally a local file
 
-This gives local developers a real OTP flow without requiring live email delivery.
+This gives real test deployments and local developers a real OTP flow without requiring live email delivery.
 
 Also require:
 

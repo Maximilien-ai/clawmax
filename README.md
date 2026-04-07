@@ -389,9 +389,10 @@ If `OTP_DEV_MODE` is unset, or set to any other value:
 - dev OTP logging is disabled
 - `email_otp` then requires real email delivery such as `RESEND_API_KEY`
 
-In local dev with `OTP_DEV_MODE=log`:
+When `OTP_DEV_MODE=log` is enabled:
 
 - no live email is sent
+- the OTP is logged to the main dashboard server stdout/stderr stream
 - the latest code is written to `.clawmax-otp-dev.json`
 - the login UI shows the path after requesting a code
 
