@@ -69,7 +69,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [useRedis, setUseRedis] = useState(false)
   const [redisUrl, setRedisUrl] = useState('')
   const [redisNamespace, setRedisNamespace] = useState('')
-  const [useWorkspaceFs, setUseWorkspaceFs] = useState(false)
+  const [enabledPartners, setEnabledPartners] = useState<string[]>([])
+  const [visiblePartners, setVisiblePartners] = useState<string[]>([])
+  const [hasSensoApiKey, setHasSensoApiKey] = useState(false)
+  const [hasBlaxelApiKey, setHasBlaxelApiKey] = useState(false)
+  const [hasRedisApiKey, setHasRedisApiKey] = useState(false)
+  const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   // Local field values for controlled inputs — synced to markdown on blur
@@ -113,6 +118,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       })
     }
     if (stored.sensoApiKey?.trim()) {
+      setHasSensoApiKey(true)
       setUseSenso(true)
     }
     if (stored.sensoContextLabel?.trim()) {
@@ -123,6 +129,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       })
     }
     if (stored.partnerSecrets?.blaxel?.apiKey?.trim() || stored.partnerValues?.blaxel?.projectId?.trim() || stored.partnerValues?.blaxel?.defaultSandbox?.trim()) {
+      if (stored.partnerSecrets?.blaxel?.apiKey?.trim()) setHasBlaxelApiKey(true)
       setUseBlaxel(true)
     }
     if (stored.partnerValues?.blaxel?.projectId?.trim()) {
@@ -135,6 +142,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       setBlaxelRegion((current) => current || stored.partnerValues!.blaxel!.region!.trim())
     }
     if (stored.partnerSecrets?.redis?.apiKey?.trim() || stored.partnerValues?.redis?.url?.trim()) {
+      if (stored.partnerSecrets?.redis?.apiKey?.trim()) setHasRedisApiKey(true)
       setUseRedis(true)
     }
     if (stored.partnerValues?.redis?.url?.trim()) {
@@ -143,10 +151,28 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     if (stored.partnerValues?.redis?.namespace?.trim()) {
       setRedisNamespace((current) => current || stored.partnerValues!.redis!.namespace!.trim())
     }
+    fetch('/api/integrations/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        setVisiblePartners(Array.isArray(data?.visiblePartners) ? data.visiblePartners : [])
+      })
+      .catch(() => {})
     fetch('/api/integrations/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const config = data?.config || {}
+        const enabled = Array.isArray(config.enabledPartners)
+          ? config.enabledPartners.filter((item: unknown): item is string => typeof item === 'string')
+          : []
+        setEnabledPartners(enabled)
+
+        if (enabled.length > 0) {
+          if (!enabled.includes('github')) setUseGithub(false)
+          if (!enabled.includes('senso')) setUseSenso(false)
+          if (!enabled.includes('blaxel')) setUseBlaxel(false)
+          if (!enabled.includes('redis')) setUseRedis(false)
+        }
+
         if (config.githubDefaultRepo?.trim()) {
           setGithubRepo((current) => {
             if (current) return current
@@ -185,6 +211,37 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       .catch(() => {})
   }, [])
 
+  const partnerIsVisible = (slug: string) => visiblePartners.length === 0 || visiblePartners.includes(slug)
+  const partnerIsEnabled = (slug: string) => enabledPartners.length === 0 ? true : enabledPartners.includes(slug)
+
+  const githubAvailable = partnerIsVisible('github') && partnerIsEnabled('github') && !!githubRepo.trim()
+  const sensoAvailable = partnerIsVisible('senso') && partnerIsEnabled('senso') && hasSensoApiKey
+  const blaxelAvailable = partnerIsVisible('blaxel') && partnerIsEnabled('blaxel') && (hasBlaxelApiKey || !!blaxelProjectId.trim() || !!blaxelSandbox.trim())
+  const redisAvailable = partnerIsVisible('redis') && partnerIsEnabled('redis') && (hasRedisApiKey || !!redisUrl.trim())
+
+  const unavailablePartnerOptions = [
+    !githubAvailable && partnerIsVisible('github') ? {
+      slug: 'github',
+      name: 'GitHub',
+      detail: 'Requires a selected GitHub integration and a default repository in Workspaces Integrations.'
+    } : null,
+    !blaxelAvailable && partnerIsVisible('blaxel') ? {
+      slug: 'blaxel',
+      name: 'Blaxel Sandbox Runtime',
+      detail: 'Requires a selected Blaxel integration with workspace defaults or partner credentials configured.'
+    } : null,
+    !redisAvailable && partnerIsVisible('redis') ? {
+      slug: 'redis',
+      name: 'Redis Memory',
+      detail: 'Requires a selected Redis integration with a Redis URL or partner credentials configured.'
+    } : null,
+    !sensoAvailable && partnerIsVisible('senso') ? {
+      slug: 'senso',
+      name: 'Senso Shared Context',
+      detail: 'Requires a selected Senso integration with an API key configured in Workspaces Integrations.'
+    } : null,
+  ].filter((item): item is { slug: string; name: string; detail: string } => !!item)
+
   React.useEffect(() => {
     setPrereqsLoading(true)
     fetch('/api/templates/organizations/prereqs', {
@@ -203,13 +260,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         useRedis,
         redisUrl,
         redisNamespace,
-        useWorkspaceFs,
       }),
     })
       .then(r => r.json())
       .then(data => { setPrereqs(data); setPrereqsLoading(false) })
       .catch(() => setPrereqsLoading(false))
-  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace, useWorkspaceFs])
+  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace])
 
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
@@ -380,15 +436,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           }
         }
       }
-      if (useWorkspaceFs && template.workflows) {
-        const fsBlock = `\n\n---\n**Workspace File System:** Use the shared workspace filesystem for working artifacts and coordination.\n- Save drafts, notes, research snapshots, and intermediate outputs in the workspace\n- Read existing workspace files before duplicating work\n- Treat the workspace as a shared artifact layer across agents\n- Keep filenames and folders clear so other agents can reuse your work\n---\n`
-        for (const wf of template.workflows) {
-          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
-          if (!existing.includes('Workspace File System')) {
-            finalOverrides[wf.id] = existing + fsBlock
-          }
-        }
-      }
       if (template.workflows && secretRequirements.length > 0) {
         for (const wf of template.workflows as any[]) {
           let existing = finalOverrides[wf.id] ?? wf.content ?? ''
@@ -513,7 +560,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Apply: {template.name}</h2>
@@ -843,6 +890,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             )}
             <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 px-3 py-2">
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Shared workspace filesystem</div>
+                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  Agents already have access to the shared workspace files for drafts, notes, artifacts, and cross-agent coordination. No extra integration setup is required.
+                </div>
+              </div>
+
+              {githubAvailable && (
               <div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -892,7 +947,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </div>
                 )}
               </div>
+              )}
 
+              {blaxelAvailable && (
               <div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -943,7 +1000,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </div>
                 )}
               </div>
+              )}
 
+              {redisAvailable && (
               <div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -984,7 +1043,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </div>
                 )}
               </div>
+              )}
 
+              {sensoAvailable && (
               <div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -1018,23 +1079,39 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </div>
                 )}
               </div>
+              )}
 
-              <div>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useWorkspaceFs}
-                    onChange={e => setUseWorkspaceFs(e.target.checked)}
-                    className="mt-0.5 rounded"
-                  />
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Workspace File System</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Tell agents to use the shared workspace files for drafts, notes, intermediate outputs, and cross-agent coordination artifacts.
+              {unavailablePartnerOptions.length > 0 && (
+                <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-900/30 p-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowUnavailablePartnerOptions(!showUnavailablePartnerOptions)}
+                    className="flex w-full items-center justify-between text-left"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Other available external context and coordination</div>
+                      <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        These options require partner integration setup in Workspaces Integrations before they can be used here.
+                      </div>
                     </div>
-                  </div>
-                </label>
-              </div>
+                    <span className="text-xs text-gray-400">{showUnavailablePartnerOptions ? '▼' : '▶'}</span>
+                  </button>
+                  {showUnavailablePartnerOptions && (
+                    <div className="mt-3 space-y-2">
+                      {unavailablePartnerOptions.map((partner) => (
+                        <div key={partner.slug} className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
+                          <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{partner.detail}</div>
+                        </div>
+                      ))}
+                      <div className="text-xs text-sky-700 dark:text-sky-300">
+                        Open Workspaces Integrations from the top bar to enable and configure these partner integrations.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           </div>
           )}

@@ -307,6 +307,10 @@ ClawMax supports three dashboard auth modes:
 - `email_otp`
 - `bypass`
 
+If `DASHBOARD_AUTH_MODE` is omitted, ClawMax defaults to:
+
+- `github_oauth`
+
 Use:
 
 - `github_oauth` for normal multi-user or GitHub-based owner access
@@ -376,6 +380,15 @@ OTP_ALLOWED_EMAILS=dev@example.com
 OTP_DEV_MODE=log
 ```
 
+`OTP_DEV_MODE` currently supports only:
+
+- `log`
+
+If `OTP_DEV_MODE` is unset, or set to any other value:
+
+- dev OTP logging is disabled
+- `email_otp` then requires real email delivery such as `RESEND_API_KEY`
+
 In local dev with `OTP_DEV_MODE=log`:
 
 - no live email is sent
@@ -390,8 +403,6 @@ OTP_ALLOWED_EMAILS=developer@example.com
 OTP_DEV_MODE=log
 OTP_EXPIRY_MINUTES=15
 ```
-
-Use `DASHBOARD_AUTH_MODE=hybrid` only if you intentionally want Email OTP and GitHub OAuth enabled together.
 
 ### Bypass Auth
 
