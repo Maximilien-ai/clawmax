@@ -1853,8 +1853,10 @@ SYSTEM_TEST_WS=$(echo "$workspaces_json" | jq -r \
 # cannot force suffixed workflow ids like test-kickoff-2.
 if [ -n "$SYSTEM_TEST_WS" ]; then
   apicurl -X PUT "$API_BASE/api/workspaces/default/activate" > /dev/null 2>&1
-  apicurl -X DELETE "$API_BASE/api/workspaces/$SYSTEM_TEST_WS" \
-    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+  delete_existing_ws_result=$(apicurl -X DELETE "$API_BASE/api/workspaces/$SYSTEM_TEST_WS" 2>/dev/null)
+  if echo "$delete_existing_ws_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+    rm -rf "$SYSTEM_TEST_WS_PATH"
+  fi
 fi
 
 create_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
@@ -2154,6 +2156,7 @@ if [ -n "$SYSTEM_TEST_WS" ] && [ "$SYSTEM_TEST_WS" != "$ORIGINAL_WORKSPACE_ID" ]
   apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
   delete_ws_result=$(apicurl -X DELETE "$API_BASE/api/workspaces/$SYSTEM_TEST_WS" 2>/dev/null)
   if echo "$delete_ws_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+    rm -rf "$SYSTEM_TEST_WS_PATH"
     recreate_ws_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
       -H 'Content-Type: application/json' \
       -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")

@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.6)
+[![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.7)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.6
+## 🔥 What's New in v1.2.7
+
+- **Partner-ready Workspaces Integrations** — the integrations flow now starts with models/providers and then branches into optional partner pages for Senso, Opik, GitHub, Blaxel, and Redis
+- **Partner skills and curated installs** — Skills now surfaces partner-backed skill references, with a curated one-click installer path for Blaxel agent skills
+- **Partner-aware templates** — added new partner showcase templates including Blaxel App Studio, Redis Memory Research Desk, and RAG To Sandbox Launch Team
+- **Container-ready partner metadata** — the runtime image now includes the repo `PARTNERS/` directory so cloud deployments can render the partner integrations UI
+
+## 🔥 Previously in v1.2.6
 
 - **Cloud runtime bootstrap hardening** — the runtime image now installs `openclaw`, initializes `HOME` and `OPENCLAW_WORKSPACE`, and bootstraps a real OpenClaw runtime path on container start
 - **Gateway startup on boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh cloud/on-prem deployments do not rely on manual Doctor repair first
