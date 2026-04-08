@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: April 7, 2026
+> Last updated: April 8, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
@@ -15,16 +15,16 @@
 - [ ] **Workspace auto-switch watch item** — likely fixed via request-local workspace context, but keep tracking until it survives more real multi-workspace/shared-dashboard usage without silent active-workspace drift.
 - [x] **Browser-local secrets for templates, workflows, and skills** — first pass shipped: templates, workflows, and skills can now declare secret requirements and prompt for browser-local runtime inputs like API keys, event slugs, URLs, export paths, and tokens without writing them into workflow markdown or server config by default.
 - [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run.
-- [ ] **Skill assignment page does not refresh new agents immediately** — after creating an agent in a workspace, the Skills page can require a manual refresh before the new agent appears in assignment controls. Fix the stale agent list / invalidation path so skill assignment is usable immediately after agent creation.
-- [ ] **Skill import fallback for missing TypeScript entrypoint** — importing skill repos that have `SKILL.md` and a minimal `index.js` but no `index.ts` should not hard-fail. Support a graceful import path that warns, normalizes the structure, and can generate a barebones `index.ts` when needed.
-- [ ] **Skill discovery follow-through** — move beyond plain lexical/BM25 skill search: add semantic suggestions, “close match” handling similar to templates, and inline Shipables/external-catalog discovery when direct results are weak.
-- [ ] **AI skill creation** — add an AI-assisted skill creation flow analogous to agent/template/workspace generation, optimized for simpler skill scaffolding and iterative refinement.
+- [x] **Skill assignment page does not refresh new agents immediately** — fixed: Skills now refreshes agent assignment targets after agent creation without a manual reload.
+- [x] **Skill import fallback for missing TypeScript entrypoint** — fixed: importing a skill repo with `SKILL.md` plus `index.js` now succeeds with a generated compatibility `index.ts` shim and warning instead of a hard failure.
+- [x] **Skill discovery follow-through** — shipped first pass: Skills search now surfaces close matches and inline Shipables suggestions instead of a dead-end no-results state.
+- [x] **AI skill creation** — shipped first pass: AI-assisted skill creation now supports prompt → draft → refine → create, with missing-section hints based on the skill spec.
 - [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
 - [ ] **OTP log-mode safety follow-through** — once real email OTP delivery is stable in cloud, treat `OTP_DEV_MODE=log` as explicit test/debug-only behavior: add a visible UI warning when enabled, document that production instances should leave it unset, and verify it is disabled on normal customer/demo environments after live debugging is complete.
 - [ ] **Temp chat/runtime resolves duplicate agent IDs against the wrong workspace** — when the same agent id exists across workspaces, temp group/direct chat can resolve runtime/session state from the wrong global OpenClaw agent record, leading to stale models/providers and misleading activity metadata. High-priority post-`v1.2.1` runtime fix. GitHub: `#94`
 - [ ] **Phantom workflow residue after archive/delete + reapply** — reproduce whether archiving/deleting agents in one workspace and then applying the same team/template in a new workspace can surface stale previous workflow/execution artifacts ("phantom workflows"). If reproducible, treat as a high-priority workspace isolation / cleanup bug.
-- [ ] **Template apply group conflict detection and resolution** — when applying multiple templates into one workspace, detect collisions where different teams reuse the same groups/communities (for example shared `Status`) and let the user rename, remap, or accept the conflict explicitly during apply.
-- [ ] **Template apply progress feedback gap** — template apply still has long silent stretches between visible toast/progress updates. Add finer-grained progress reporting for intermediate phases such as config generation, file writes, workflow creation, and post-apply finalization.
+- [x] **Template apply group conflict detection and resolution** — shipped first pass: template apply now detects conflicting groups/communities and agent IDs, supports channel rename-on-apply, and provides direct recovery paths from the blocked Deploy step.
+- [x] **Template apply progress feedback gap** — fixed first pass: template apply now reports intermediate progress through validation, skill setup, generation, write, and refresh phases instead of long silent gaps.
 - [x] **Workflow targeting conflates participants with output channels** — fixed: workflow execution now prefers explicit owner/agents/tags for participants, while groups/communities remain output channels unless no clearer execution target exists.
 - [x] **Workflow participant fan-out is serial, not parallel** — fixed: participants inside one workflow now execute in parallel, so slow agents no longer block later lanes in supposedly parallel team work.
 - [ ] **Gateway-down usage polling and runtime fallback are noisy/confusing** — dashboard repeatedly logs `Gateway WebSocket error: connect ECONNREFUSED 127.0.0.1:18789` when the gateway is unavailable, and the user-facing behavior around fallback/local execution is still unclear. This likely overlaps with the known gateway process-management problem and should be treated as core runtime reliability work.
@@ -92,7 +92,7 @@
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers
-- [ ] **Template editing and AI refinement** — let users start from an existing template, edit/customize it directly, and use AI-assisted editing to add workflows, adjust teams, and iteratively save/refine rather than forcing create-from-scratch.
+- [x] **Template editing and AI refinement** — shipped first pass for organization and agent templates: start from an existing template, edit/refine in-wizard, save as a workspace variant, and for agent templates edit/generate the real `IDENTITY.md` / `SOUL.md` / `TOOLS.md` files.
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
 - [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
@@ -100,9 +100,9 @@
 - [ ] **Bulk import/export for OpenClaw agents** — multiple agents at once
 - [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
 - [ ] **Template breadth publication** — publish additional non-showcase template specs after the selected flows stabilize
-- [ ] **Job search template pack** — agents for job search ops, resume/cover-letter tailoring, company research, application tracking, and interview preparation.
-- [ ] **Robotics template pack** — templates for robotics and edge-AI builders, especially around Qualcomm AI Hub, Arduino OSS workflows, hardware/software integration, and developer education/demo flows.
-- [ ] **Jarvis-style personal operator template** — a richer, more amusing and capable “Jarvis” experience with broad skills coverage, personality, and coordination behavior beyond the current lightweight assistant template.
+- [x] **Job search template pack** — shipped first starter template: `job-search-team`, marked as a suggested/customizable early-idea template.
+- [x] **Robotics template pack** — shipped first starter template: `robotics-build-lab`, positioned as a suggested/customizable starting point for Qualcomm AI Hub / Arduino-oriented work.
+- [x] **Jarvis-style personal operator template** — shipped first starter template: `jarvis-command-desk`, with the expectation that users refine/edit it into their own operator style.
 - [ ] **Demo / research hardening** — re-run high-value template flows end-to-end without manual unblocks and keep runtime mismatches visible
 
 ## Active Product Work
