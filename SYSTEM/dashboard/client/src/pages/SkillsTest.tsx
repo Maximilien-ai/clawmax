@@ -711,9 +711,14 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         {/* Skills Grid */}
         {filteredSkills.length === 0 ? (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 p-12 rounded-lg border text-center">
-              <div className="text-gray-400 text-5xl mb-4">🔍</div>
-              <p className="text-gray-600 dark:text-gray-300">No skills found matching your criteria</p>
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border text-center">
+              <div className="text-gray-400 text-3xl mb-2">🔍</div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">No exact skill matches yet</p>
+              {searchQuery.trim() && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Try a close match below or discover something new from Shipables.
+                </p>
+              )}
             </div>
             {searchQuery.trim() && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

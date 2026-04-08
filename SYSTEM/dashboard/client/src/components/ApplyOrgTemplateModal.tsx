@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets } from '../lib/localSecrets'
@@ -78,6 +78,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
+  const [existingGroupNames, setExistingGroupNames] = useState<string[]>([])
+  const [existingCommunityNames, setExistingCommunityNames] = useState<string[]>([])
+  const [acknowledgedChannelConflicts, setAcknowledgedChannelConflicts] = useState(false)
   // Local field values for controlled inputs — synced to markdown on blur
   const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
@@ -217,6 +220,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
       })
       .catch(() => {})
+    fetch('/api/channels/groups')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const names = Array.isArray(data?.groups) ? data.groups.map((group: any) => group?.name).filter((name: unknown): name is string => typeof name === 'string') : []
+        setExistingGroupNames(names)
+      })
+      .catch(() => {})
+    fetch('/api/channels/communities')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const names = Array.isArray(data?.communities) ? data.communities.map((community: any) => community?.name).filter((name: unknown): name is string => typeof name === 'string') : []
+        setExistingCommunityNames(names)
+      })
+      .catch(() => {})
   }, [])
 
   const partnerIsVisible = (slug: string) => visiblePartners.length === 0 || visiblePartners.includes(slug)
@@ -327,6 +344,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
   const previewId = `${prefix}${exampleAgentId}${suffix}`
+  const channelConflicts = useMemo(() => {
+    const existingGroups = new Set(existingGroupNames)
+    const existingCommunities = new Set(existingCommunityNames)
+    const conflictingGroups = (template.groups || []).map((group) => group.name).filter((name) => existingGroups.has(name))
+    const conflictingCommunities = (template.communities || []).map((community) => community.name).filter((name) => existingCommunities.has(name))
+    return {
+      groups: conflictingGroups,
+      communities: conflictingCommunities,
+      hasAny: conflictingGroups.length > 0 || conflictingCommunities.length > 0,
+    }
+  }, [existingCommunityNames, existingGroupNames, template.communities, template.groups])
 
   async function ensureWorkspaceSkills(skillSpecs: Array<{ name: string; registryName?: string }>) {
     const skillsResp = await fetch('/api/skills')
@@ -358,6 +386,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }
 
   const handleApply = async () => {
+    if (channelConflicts.hasAny && !acknowledgedChannelConflicts) {
+      const message = 'This template reuses existing groups or communities. Review the conflict warning and confirm reuse before applying.'
+      setError(message)
+      showToastError(message)
+      return
+    }
+
     setApplying(true)
     setError(null)
     announceApplyProgress(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
@@ -879,6 +914,48 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               </div>
             </div>
           </div>
+          )}
+
+          {customizeStep === 'team' && channelConflicts.hasAny && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-2">Channel reuse conflict detected</h3>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mb-3">
+                This template will post into existing workspace channels with the same names. That can be fine for agents, but it mixes human-visible conversation and status across teams.
+              </p>
+              <div className="space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                {channelConflicts.groups.length > 0 && (
+                  <div>
+                    <div className="font-medium">Existing groups that will be reused</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {channelConflicts.groups.map((name) => (
+                        <span key={name} className="rounded-full border border-amber-300 dark:border-amber-700 px-2.5 py-1">{name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {channelConflicts.communities.length > 0 && (
+                  <div>
+                    <div className="font-medium">Existing communities that will be reused</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {channelConflicts.communities.map((name) => (
+                        <span key={name} className="rounded-full border border-amber-300 dark:border-amber-700 px-2.5 py-1">{name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <label className="mt-4 flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acknowledgedChannelConflicts}
+                  onChange={(e) => setAcknowledgedChannelConflicts(e.target.checked)}
+                  className="mt-0.5 rounded"
+                />
+                <div className="text-xs text-amber-800 dark:text-amber-300">
+                  Reuse these existing groups/communities for this apply. I understand this may overlap conversations with another team.
+                </div>
+              </label>
+            </div>
           )}
 
           {/* External Context & Coordination */}
@@ -1589,13 +1666,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             </>
           )}
           {wizardStep === 'deploy' && (
-            <button
-              onClick={handleApply}
-              disabled={applying}
-              className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              {channelConflicts.hasAny && !acknowledgedChannelConflicts && (
+                <div className="text-xs text-amber-700 dark:text-amber-300">
+                  Confirm channel reuse above before applying this template.
+                </div>
+              )}
+              <button
+                onClick={handleApply}
+                disabled={applying || (channelConflicts.hasAny && !acknowledgedChannelConflicts)}
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
+              </button>
+            </div>
           )}
         </div>
           </>
