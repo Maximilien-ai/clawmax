@@ -350,31 +350,23 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     }
   }
 
+  function announceApplyProgress(message: string, toast = false) {
+    setApplyProgress(message)
+    if (toast) {
+      showSuccess(message)
+    }
+  }
+
   const handleApply = async () => {
     setApplying(true)
     setError(null)
-    setApplyProgress(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
+    announceApplyProgress(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
 
     try {
-      // Show progress toasts
-      showSuccess(`Creating ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}...`)
-      const steps = [
-        ...(template.communities?.length ? [`Setting up ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}...`] : []),
-        ...(template.groups?.length ? [`Creating ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}...`] : []),
-        ...(template.workflows?.length ? [`Configuring ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}...`] : []),
-      ]
-      let stepIdx = 0
-      const progressInterval = setInterval(() => {
-        if (stepIdx < steps.length) {
-          showSuccess(steps[stepIdx])
-          setApplyProgress(steps[stepIdx])
-          stepIdx++
-        }
-      }, 800)
-
       // Build final workflow overrides — inject GitHub context if enabled
       const finalOverrides = { ...workflowOverrides }
       if (secretRequirements.length > 0) {
+        announceApplyProgress('Checking required browser-local inputs...')
         for (const requirement of secretRequirements) {
           const value = templateSecrets[requirement.key] || ''
           if (requirement.required && !value.trim()) {
@@ -388,6 +380,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
         writeLocalSecrets('template', templateSlug, templateSecrets)
       }
+      announceApplyProgress('Preparing workflow customizations...')
       if (useGithub && githubRepo.trim() && template.workflows) {
         const ghBlock = `\n\n---\n**GitHub Coordination:** Use the repo \`${githubRepo.trim()}\` for all work.\n- Create GitHub issues for tasks and assignments\n- Push drafts and files to branches\n- Open PRs for review\n- Track progress via issue comments\n---\n`
         for (const wf of template.workflows) {
@@ -458,6 +451,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
       }
 
+      announceApplyProgress('Validating template customization...')
       const validationResp = await fetch('/api/templates/organizations/validate-customization', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -482,6 +476,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       }
 
       if (useSenso) {
+        announceApplyProgress('Checking required Senso skills...', true)
         await ensureWorkspaceSkills([
           { name: 'senso-ingest', registryName: 'senso-ai/senso-ingest' },
           { name: 'senso-search', registryName: 'senso-ai/senso-search' },
@@ -489,6 +484,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         ])
       }
 
+      announceApplyProgress(`Writing ${agentsToCreate.length} agent${agentsToCreate.length !== 1 ? 's' : ''}, groups, and workflows...`, true)
       const resp = await fetch('/api/templates/organizations/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -504,7 +500,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       })
 
       const data = await resp.json()
-      clearInterval(progressInterval)
 
       if (resp.ok) {
         const createdAgentIds: string[] = data.agentIds || []
@@ -514,7 +509,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           const githubSkills = ['github', 'gh-issues']
           const sensoSkills = ['senso-ingest', 'senso-search', 'senso-content-gen']
           if (useGithub) {
-            setApplyProgress('Adding GitHub skills...')
+            announceApplyProgress('Adding GitHub skills...', true)
             await fetch('/api/skills/bulk-assign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -522,7 +517,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
             }).catch(() => {})
           } else {
             // Remove github skills if user unchecked (template may have included them)
-            setApplyProgress('Finalizing skills...')
+            announceApplyProgress('Finalizing GitHub skill assignments...')
             await fetch('/api/skills/bulk-assign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -531,14 +526,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           }
 
           if (useSenso) {
-            setApplyProgress('Adding Senso skills...')
+            announceApplyProgress('Adding Senso skills...', true)
             await fetch('/api/skills/bulk-assign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ agentIds: createdAgentIds, addSkills: sensoSkills }),
             }).catch(() => {})
           } else {
-            setApplyProgress('Finalizing skills...')
+            announceApplyProgress('Finalizing Senso skill assignments...')
             await fetch('/api/skills/bulk-assign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -547,6 +542,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           }
         }
 
+        announceApplyProgress('Refreshing workspace state...', true)
         showSuccess(`Template "${template.name}" applied successfully!`)
         setApplyProgress('Done! Refreshing workspace...')
         setTimeout(() => {
