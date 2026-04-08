@@ -43,6 +43,12 @@ interface OrganizationTemplate {
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
   workflows?: Array<{ id: string; name: string }>
+  metadata?: {
+    createdAt?: string
+    updatedAt?: string
+    basedOnSlug?: string
+    basedOnSource?: 'system' | 'workspace' | 'enterprise'
+  }
 }
 
 interface WorkflowTemplate {
@@ -217,6 +223,7 @@ export default function Templates() {
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
   const [showWizard, setShowWizard] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<OrganizationTemplate | null>(null)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -463,10 +470,39 @@ export default function Templates() {
     return rows
   }, [templateRows, sortColumn, sortDirection])
 
+  const sourceRank = React.useCallback((source: TemplateRow['source']) => {
+    if (source === 'workspace') return 0
+    if (source === 'system') return 1
+    return 2
+  }, [])
+
   const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
-  const sortedAgentRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'agent'), [sortedTemplateRows])
-  const sortedOrgRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'organization'), [sortedTemplateRows])
-  const sortedWorkflowRows = React.useMemo(() => sortedTemplateRows.filter(row => row.type === 'workflow'), [sortedTemplateRows])
+  const workspaceTemplateCount = React.useMemo(
+    () => [...agentTemplates, ...orgTemplates].filter((template) => (template.source || 'workspace') === 'workspace').length + workflowTemplates.length,
+    [agentTemplates, orgTemplates, workflowTemplates]
+  )
+  const systemTemplateCount = React.useMemo(
+    () => [...agentTemplates, ...orgTemplates].filter((template) => template.source === 'system').length,
+    [agentTemplates, orgTemplates]
+  )
+  const sortedAgentRows = React.useMemo(
+    () => [...sortedTemplateRows.filter(row => row.type === 'agent')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
+    [sortedTemplateRows, sourceRank]
+  )
+  const sortedOrgRows = React.useMemo(
+    () => [...sortedTemplateRows.filter(row => row.type === 'organization')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
+    [sortedTemplateRows, sourceRank]
+  )
+  const sortedWorkflowRows = React.useMemo(
+    () => [...sortedTemplateRows.filter(row => row.type === 'workflow')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
+    [sortedTemplateRows, sourceRank]
+  )
+  const splitRowsBySource = React.useCallback((rows: TemplateRow[]) => ({
+    workspace: rows.filter((row) => row.source === 'workspace'),
+    other: rows.filter((row) => row.source !== 'workspace'),
+  }), [])
+  const agentRowBuckets = React.useMemo(() => splitRowsBySource(sortedAgentRows), [sortedAgentRows, splitRowsBySource])
+  const orgRowBuckets = React.useMemo(() => splitRowsBySource(sortedOrgRows), [sortedOrgRows, splitRowsBySource])
   const templateSuggestionRows = React.useMemo(() => {
     if (!searchQuery.trim()) return []
     const visibleOrgTemplates = categoryFilter === 'all'
@@ -529,6 +565,15 @@ export default function Templates() {
     if (template.type === 'agent') {
       setApplyingAgentTemplate(template)
     }
+  }
+
+  const openEditForTemplate = (template: Template) => {
+    if (template.type !== 'organization') {
+      showError('Template editing is available for organization templates first.')
+      return
+    }
+    setEditingTemplate(template)
+    setShowWizard(true)
   }
 
   const toggleTemplateSelection = (key: string) => {
@@ -641,6 +686,9 @@ export default function Templates() {
                 </>
               )}
             </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Your templates: {workspaceTemplateCount} · System templates: {systemTemplateCount}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex gap-2">
@@ -902,20 +950,51 @@ export default function Templates() {
                   )}
                 </div>
                 {!collapsedSections.agents && (
-                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredAgentTemplates.map((template, idx) => (
-                      <TemplateCard
-                        key={idx}
-                        template={template}
-                        onDelete={() => handleDelete('agent', template.name)}
-                        onApply={() => openApplyForTemplate(template)}
-                        onClick={() => setSelectedTemplate(template)}
-                        selected={selectedTemplate?.name === template.name}
-                        selectionMode={selectionMode}
-                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                      />
-                    ))}
+                  <div className="space-y-5">
+                    {agentRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {agentRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {agentRowBuckets.workspace.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as AgentTemplate}
+                              onDelete={() => handleDelete('agent', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(agentRowBuckets.workspace.length === 0 || agentRowBuckets.other.length > 0) && agentRowBuckets.other.length > 0 && (
+                      <div>
+                        {agentRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {agentRowBuckets.other.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as AgentTemplate}
+                              onDelete={() => handleDelete('agent', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -943,20 +1022,51 @@ export default function Templates() {
                   )}
                 </div>
                 {!collapsedSections.organizations && (
-                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredOrgTemplates.map((template, idx) => (
-                      <TemplateCard
-                        key={idx}
-                        template={template}
-                        onDelete={() => handleDelete('organization', template.name)}
-                        onApply={() => openApplyForTemplate(template)}
-                        onClick={() => setSelectedTemplate(template)}
-                        selected={selectedTemplate?.name === template.name}
-                        selectionMode={selectionMode}
-                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                      />
-                    ))}
+                  <div className="space-y-5">
+                    {orgRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {orgRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {orgRowBuckets.workspace.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as OrganizationTemplate}
+                              onDelete={() => handleDelete('organization', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(orgRowBuckets.workspace.length === 0 || orgRowBuckets.other.length > 0) && orgRowBuckets.other.length > 0 && (
+                      <div>
+                        {orgRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {orgRowBuckets.other.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as OrganizationTemplate}
+                              onDelete={() => handleDelete('organization', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -1014,20 +1124,50 @@ export default function Templates() {
                   <span className="text-sm font-normal text-gray-400">({sortedAgentRows.length})</span>
                 </button>
                 {!collapsedSections.agents && (
-                  <TemplatesTable
-                    rows={sortedAgentRows}
-                    selectionMode={selectionMode}
-                    selectedTemplateKeys={selectedTemplateKeys}
-                    selectedTemplate={selectedTemplate}
-                    onSort={handleSort}
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggleSelect={toggleTemplateSelection}
-                    onToggleSelectAll={setSelectedTemplateKeys}
-                    onOpenTemplate={setSelectedTemplate}
-                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
-                    onApplyTemplate={openApplyForTemplate}
-                  />
+                  <div className="space-y-5">
+                    {agentRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {agentRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={agentRowBuckets.workspace}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                    {(agentRowBuckets.workspace.length === 0 || agentRowBuckets.other.length > 0) && agentRowBuckets.other.length > 0 && (
+                      <div>
+                        {agentRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={agentRowBuckets.other}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
               </section>
             )}
@@ -1042,20 +1182,50 @@ export default function Templates() {
                   <span className="text-sm font-normal text-gray-400">({sortedOrgRows.length})</span>
                 </button>
                 {!collapsedSections.organizations && (
-                  <TemplatesTable
-                    rows={sortedOrgRows}
-                    selectionMode={selectionMode}
-                    selectedTemplateKeys={selectedTemplateKeys}
-                    selectedTemplate={selectedTemplate}
-                    onSort={handleSort}
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggleSelect={toggleTemplateSelection}
-                    onToggleSelectAll={setSelectedTemplateKeys}
-                    onOpenTemplate={setSelectedTemplate}
-                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
-                    onApplyTemplate={openApplyForTemplate}
-                  />
+                  <div className="space-y-5">
+                    {orgRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {orgRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={orgRowBuckets.workspace}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                    {(orgRowBuckets.workspace.length === 0 || orgRowBuckets.other.length > 0) && orgRowBuckets.other.length > 0 && (
+                      <div>
+                        {orgRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={orgRowBuckets.other}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
               </section>
             )}
@@ -1106,6 +1276,10 @@ export default function Templates() {
             openApplyForTemplate(selectedTemplate)
             setSelectedTemplate(null)
           } : undefined}
+          onRefine={selectedTemplate.type === 'organization' ? () => {
+            openEditForTemplate(selectedTemplate)
+            setSelectedTemplate(null)
+          } : undefined}
           onEdit={selectedTemplate.type === 'workflow' ? () => handleEditWorkflow(selectedTemplate.id) : undefined}
           onInstantiate={selectedTemplate.type === 'workflow' ? () => handleInstantiateWorkflow(selectedTemplate.id, selectedTemplate.name) : undefined}
         />
@@ -1139,18 +1313,34 @@ export default function Templates() {
       {/* Template Wizard */}
       {showWizard && (
         <TemplateWizard
-          onClose={() => setShowWizard(false)}
+          onClose={() => {
+            setShowWizard(false)
+            setEditingTemplate(null)
+          }}
+          initialTemplate={editingTemplate}
           onSave={async (template) => {
             try {
+              const payload = editingTemplate && editingTemplate.type === 'organization'
+                ? {
+                    ...template,
+                    metadata: {
+                      ...(template.metadata || {}),
+                      createdAt: editingTemplate.metadata?.createdAt,
+                      basedOnSlug: editingTemplate.slug,
+                      basedOnSource: editingTemplate.source,
+                    },
+                  }
+                : template
               const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
               const resp = await fetch(`/api/templates/organizations/${slug}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(template),
+                body: JSON.stringify(payload),
               })
               if (resp.ok) {
                 showSuccess(`Template "${template.name}" saved!`)
                 setShowWizard(false)
+                setEditingTemplate(null)
                 fetchTemplates()
               } else {
                 showError('Failed to save template')
@@ -1162,6 +1352,7 @@ export default function Templates() {
           onApply={(template) => {
             setApplyingTemplate(template as OrganizationTemplate)
             setShowWizard(false)
+            setEditingTemplate(null)
           }}
           showSuccess={showSuccess}
           showError={showError}
@@ -1472,11 +1663,12 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
   )
 }
 
-function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onInstantiate }: {
+function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, onEdit, onInstantiate }: {
   template: Template
   onClose: () => void
   onDelete: () => void
   onApply?: () => void
+  onRefine?: () => void
   onEdit?: () => void
   onInstantiate?: () => void
 }) {
@@ -1523,6 +1715,30 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
             <div>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Author</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">{template.author}</p>
+            </div>
+          )}
+
+          {!isWorkflow && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Template Source</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+                {template.source || 'workspace'}
+                {(template as OrganizationTemplate).metadata?.basedOnSlug && (
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-500">
+                    based on {(template as OrganizationTemplate).metadata?.basedOnSource || 'template'}:{' '}
+                    {(template as OrganizationTemplate).metadata?.basedOnSlug}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {!isWorkflow && (template as OrganizationTemplate).metadata?.updatedAt && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Last Changed</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {new Date((template as OrganizationTemplate).metadata!.updatedAt!).toLocaleString()}
+              </p>
             </div>
           )}
 
@@ -1731,6 +1947,14 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onEdit, onI
                 className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm font-medium"
               >
                 ⚡ Apply Template
+              </button>
+            )}
+            {!isWorkflow && onRefine && (
+              <button
+                onClick={onRefine}
+                className="px-4 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors text-sm font-medium"
+              >
+                ✨ Edit & Refine
               </button>
             )}
             {!isWorkflow && template.slug && (

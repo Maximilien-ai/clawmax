@@ -69,6 +69,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSkillActionsMenu, setShowSkillActionsMenu] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
@@ -333,6 +334,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
+  function openImportDialog(source: 'local' | 'github' | 'registry' | 'partner' | 'ai') {
+    setError(null)
+    setImportSource(source)
+    setShowImportDialog(true)
+    setShowSkillActionsMenu(false)
+    if (source !== 'registry') {
+      setRegistryQuery('')
+      setRegistryResults([])
+    }
+  }
+
   async function handleImportSkill() {
     if (!importPath.trim()) {
       setError('Please enter a skill directory path or GitHub URL')
@@ -584,13 +596,87 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
                 Skills Manager
               </h1>
-              <button
-                onClick={() => setShowImportDialog(true)}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                title="Import a custom skill from your local filesystem"
-              >
-                + Import Skill
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSkillActionsMenu(!showSkillActionsMenu)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  title="Create, import, or export skills"
+                >
+                  ✨ Skill Actions <span className="text-xs">▾</span>
+                </button>
+                {showSkillActionsMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSkillActionsMenu(false)} />
+                    <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                      <button
+                        onClick={() => openImportDialog('ai')}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      >
+                        <span className="text-base leading-none">✨</span>
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Create Skill with AI</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Generate, refine, and save a new custom skill.</span>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => openImportDialog('local')}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      >
+                        <span className="text-base leading-none">📁</span>
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import Local Skill</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Bring in a skill from a directory on disk.</span>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => openImportDialog('github')}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      >
+                        <span className="text-base leading-none">🌐</span>
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import from GitHub</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Clone and import a skill from a GitHub repo.</span>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => openImportDialog('registry')}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      >
+                        <span className="text-base leading-none">🚢</span>
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Browse Shipables</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Discover and install skills from the registry.</span>
+                        </span>
+                      </button>
+                      {partnerInstallers.length > 0 && (
+                        <button
+                          onClick={() => openImportDialog('partner')}
+                          className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        >
+                          <span className="text-base leading-none">🤝</span>
+                          <span>
+                            <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Partner Skills</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400">Install or browse skills from integrated partners.</span>
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setShowSkillActionsMenu(false)
+                          showWarning('Skill export is coming soon.')
+                        }}
+                        className="flex w-full items-start gap-3 border-t border-gray-200 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                      >
+                        <span className="text-base leading-none">📦</span>
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Export Skill</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Coming soon. Package a skill for sharing or reuse.</span>
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Searchable Agent Selector */}

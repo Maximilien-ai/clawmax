@@ -137,6 +137,12 @@ export interface OrganizationTemplate {
   communities?: Community[]
   groups?: Group[]
   workflows?: Workflow[]
+  metadata?: {
+    createdAt?: string
+    updatedAt?: string
+    basedOnSlug?: string
+    basedOnSource?: TemplateSource
+  }
 }
 
 export type Template = AgentTemplate | OrganizationTemplate
@@ -721,12 +727,30 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
       return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
     }
 
+    const timestamp = new Date().toISOString()
+    const sanitizedTemplate: Template = template.type === 'organization'
+      ? {
+          ...template,
+          source: undefined,
+          slug: undefined,
+          metadata: {
+            ...(template.metadata || {}),
+            createdAt: template.metadata?.createdAt || timestamp,
+            updatedAt: timestamp,
+          },
+        }
+      : {
+          ...template,
+          source: undefined,
+          slug: undefined,
+        }
+
     // Validate template
-    const validation = validateTemplate(template)
+    const validation = validateTemplate(sanitizedTemplate)
     if (!validation.valid) {
       return { ok: false, error: `Validation failed: ${validation.errors?.join(', ')}` }
     }
-    const templateDir = template.type === 'agent'
+    const templateDir = sanitizedTemplate.type === 'agent'
       ? path.join(getAgentTemplatesDir(), slug)
       : path.join(getOrgTemplatesDir(), slug)
 
@@ -735,11 +759,11 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
 
     // Write template.json
     const templateJsonPath = path.join(templateDir, 'template.json')
-    fs.writeFileSync(templateJsonPath, JSON.stringify(template, null, 2), 'utf-8')
+    fs.writeFileSync(templateJsonPath, JSON.stringify(sanitizedTemplate, null, 2), 'utf-8')
 
     // Also write TEMPLATE.md
     const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
-    fs.writeFileSync(templateMdPath, templateToMarkdown(template), 'utf-8')
+    fs.writeFileSync(templateMdPath, templateToMarkdown(sanitizedTemplate), 'utf-8')
 
     return { ok: true, path: templateDir }
   } catch (err) {

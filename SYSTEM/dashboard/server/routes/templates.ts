@@ -249,6 +249,46 @@ router.delete('/:type/:slug', (req, res) => {
   res.json({ ok: true })
 })
 
+// PUT /api/templates/:type/:slug - Create or update a workspace template
+router.put('/:type/:slug', (req, res) => {
+  try {
+    const { type, slug } = req.params
+    if (type !== 'agents' && type !== 'organizations') {
+      return res.status(400).json({ error: 'Type must be "agents" or "organizations"' })
+    }
+
+    const template = req.body
+    if (!template || typeof template !== 'object') {
+      return res.status(400).json({ error: 'Template body is required' })
+    }
+
+    const templateType = type === 'agents' ? 'agent' : 'organization'
+    if (template.type !== templateType) {
+      return res.status(400).json({ error: `Template body type must be "${templateType}"` })
+    }
+
+    const validation = validateTemplate(template)
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.errors?.[0] || 'Template validation failed', errors: validation.errors })
+    }
+
+    const result = saveTemplate(template)
+    if (!result.ok) {
+      return res.status(500).json({ error: result.error || 'Failed to save template' })
+    }
+
+    const nextSlug = slugify(template.name)
+    if (slug && slug !== nextSlug) {
+      deleteTemplate(templateType, slug)
+    }
+
+    const savedTemplate = getTemplate(templateType, nextSlug)
+    res.json({ ok: true, slug: nextSlug, template: savedTemplate || template })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to save template' })
+  }
+})
+
 // POST /api/templates/validate - Validate a template JSON
 router.post('/validate', (req, res) => {
   const template = req.body

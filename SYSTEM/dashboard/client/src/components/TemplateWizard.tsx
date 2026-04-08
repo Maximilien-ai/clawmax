@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -88,9 +88,131 @@ interface TemplateWizardProps {
   onApply: (template: any) => void
   showSuccess: (msg: string) => void
   showError: (msg: string) => void
+  initialTemplate?: any | null
 }
 
-export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError }: TemplateWizardProps) {
+type FocusableField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+
+function MultiValueInput({
+  values,
+  suggestions,
+  placeholder,
+  onChange,
+  onFocus,
+  onBlur,
+  inputRef,
+}: {
+  values: string[]
+  suggestions: string[]
+  placeholder: string
+  onChange: (next: string[]) => void
+  onFocus?: () => void
+  onBlur?: () => void
+  inputRef?: (el: FocusableField | null) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  const normalizedValues = useMemo(
+    () => new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean)),
+    [values]
+  )
+
+  const filteredSuggestions = useMemo(() => {
+    const q = draft.trim().toLowerCase()
+    return suggestions
+      .filter((suggestion) => suggestion.trim())
+      .filter((suggestion) => !normalizedValues.has(suggestion.trim().toLowerCase()))
+      .filter((suggestion) => !q || suggestion.toLowerCase().includes(q))
+      .slice(0, 8)
+  }, [draft, normalizedValues, suggestions])
+
+  const commitValue = (raw: string) => {
+    const value = raw.trim()
+    if (!value) return
+    if (normalizedValues.has(value.toLowerCase())) {
+      setDraft('')
+      return
+    }
+    onChange([...values, value])
+    setDraft('')
+    setShowSuggestions(true)
+  }
+
+  const removeValue = (value: string) => {
+    onChange(values.filter((entry) => entry !== value))
+  }
+
+  return (
+    <div className="relative">
+      <div className="min-h-[2.5rem] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-2 text-sm focus-within:ring-2 focus-within:ring-purple-500">
+        <div className="flex flex-wrap gap-1.5">
+          {values.map((value) => (
+            <span
+              key={value}
+              className="inline-flex items-center gap-1 rounded-full bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 px-2 py-0.5 text-xs text-purple-700 dark:text-purple-300"
+            >
+              {value}
+              <button
+                type="button"
+                onClick={() => removeValue(value)}
+                className="text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
+                title={`Remove ${value}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              setShowSuggestions(true)
+            }}
+            onFocus={() => {
+              onFocus?.()
+              setShowSuggestions(true)
+            }}
+            onBlur={() => {
+              window.setTimeout(() => setShowSuggestions(false), 120)
+              onBlur?.()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault()
+                commitValue(draft)
+              } else if (e.key === 'Backspace' && !draft && values.length > 0) {
+                e.preventDefault()
+                removeValue(values[values.length - 1])
+              }
+            }}
+            placeholder={values.length === 0 ? placeholder : 'Add another…'}
+            className="min-w-[10rem] flex-1 bg-transparent text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
+          />
+        </div>
+      </div>
+      {showSuggestions && filteredSuggestions.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
+          {filteredSuggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => commitValue(suggestion)}
+              className="block w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError, initialTemplate }: TemplateWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
   const [step, setStep] = useState(0)
@@ -98,10 +220,72 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const [aiGenerating, setAiGenerating] = useState(false)
   const [editingJson, setEditingJson] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
+  const [focusedAgentField, setFocusedAgentField] = useState<string | null>(null)
+  const [focusedCommField, setFocusedCommField] = useState<string | null>(null)
+  const [focusedWorkflowField, setFocusedWorkflowField] = useState<string | null>(null)
+  const [availableSkillNames, setAvailableSkillNames] = useState<string[]>([])
+  const [aiCronLoadingIndex, setAiCronLoadingIndex] = useState<number | null>(null)
+  const [workflowCronHints, setWorkflowCronHints] = useState<Record<number, string>>({})
+  const fieldRefs = useRef<Record<string, FocusableField | null>>({})
 
   const steps = ['Team Type', 'Composition', 'Communication', 'Workflows', 'Preview']
 
   const update = (partial: Partial<WizardState>) => setState(prev => ({ ...prev, ...partial }))
+
+  useEffect(() => {
+    fetch('/api/skills')
+      .then((resp) => (resp.ok ? resp.json() : null))
+      .then((data) => {
+        const skills = Array.isArray(data?.skills) ? data.skills : []
+        setAvailableSkillNames(skills.map((skill: any) => skill.name).filter(Boolean))
+      })
+      .catch(() => setAvailableSkillNames([]))
+  }, [])
+
+  useEffect(() => {
+    if (!initialTemplate) {
+      setState(INITIAL_STATE)
+      setStep(0)
+      return
+    }
+
+    const sourceIsWorkspace = initialTemplate.source === 'workspace'
+    setState({
+      domain: 'custom',
+      teamDescription: initialTemplate.description || '',
+      teamName: sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`,
+      description: initialTemplate.description || '',
+      tags: initialTemplate.tags || [],
+      author: initialTemplate.author || '',
+      agents: (initialTemplate.agents || []).map((a: any) => ({
+        id: a.id,
+        name: a.name || a.id,
+        role: a.role || '',
+        tags: a.tags || [],
+        skills: a.skills || [],
+        count: 1,
+      })),
+      communities: (initialTemplate.communities || []).map((c: any) => ({
+        name: c.name,
+        description: c.description || '',
+      })),
+      groups: (initialTemplate.groups || []).map((g: any) => ({
+        name: g.name,
+        description: g.description || '',
+        community: g.community || '',
+      })),
+      workflows: (initialTemplate.workflows || []).map((w: any) => ({
+        id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
+        name: w.name || '',
+        description: w.description || '',
+        schedule: w.schedule || 'manual',
+        executionMode: w.executionMode || 'managed',
+        targetAgents: w.targeting?.agents || [],
+        content: w.content || '',
+      })),
+    })
+    setStep(1)
+  }, [initialTemplate])
 
   // ---- AI Generate ----
   const handleAiGenerate = async () => {
@@ -264,11 +448,97 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     })
   }
 
+  const handleAiCronForWorkflow = async (idx: number) => {
+    const workflow = state.workflows[idx]
+    if (!workflow?.schedule.trim() || aiCronLoadingIndex !== null) return
+    setAiCronLoadingIndex(idx)
+    setWorkflowCronHints(prev => ({ ...prev, [idx]: '' }))
+    try {
+      const resp = await fetch('/api/workflows/generate-cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: workflow.schedule.trim() }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (data.valid && data.cron) {
+        const workflows = [...state.workflows]
+        workflows[idx] = { ...workflows[idx], schedule: data.cron }
+        update({ workflows })
+        setWorkflowCronHints(prev => ({ ...prev, [idx]: data.humanReadable || data.explanation || 'Cron generated' }))
+      } else {
+        setWorkflowCronHints(prev => ({ ...prev, [idx]: data.explanation || data.error || 'Could not generate a valid cron expression' }))
+      }
+    } catch {
+      setWorkflowCronHints(prev => ({ ...prev, [idx]: 'Failed to connect to AI cron helper' }))
+    } finally {
+      setAiCronLoadingIndex(null)
+    }
+  }
+
   // ---- Styles ----
   const inputCls = 'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500'
   const btnPrimary = 'px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium'
   const btnSecondary = 'px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
   const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
+  const registerFieldRef = (fieldKey: string) => (el: FocusableField | null) => {
+    fieldRefs.current[fieldKey] = el
+  }
+  const focusField = (fieldKey: string) => {
+    const el = fieldRefs.current[fieldKey]
+    if (el) {
+      el.focus()
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }
+  const agentFieldPill = (fieldKey: string, label: string) => (
+    <button
+      type="button"
+      onClick={() => focusField(fieldKey)}
+      className={`rounded-full px-2 py-0.5 border text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+        focusedAgentField === fieldKey
+          ? 'border-purple-300 bg-purple-100 text-purple-700 dark:border-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+          : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 hover:border-purple-200 hover:text-purple-600'
+      }`}
+    >
+      {label}
+    </button>
+  )
+  const commFieldPill = (fieldKey: string, label: string) => (
+    <button
+      type="button"
+      onClick={() => focusField(fieldKey)}
+      className={`rounded-full px-2 py-0.5 border text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+        focusedCommField === fieldKey
+          ? 'border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+          : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 hover:border-blue-200 hover:text-blue-600'
+      }`}
+    >
+      {label}
+    </button>
+  )
+  const workflowFieldPill = (fieldKey: string, label: string) => (
+    <button
+      type="button"
+      onClick={() => focusField(fieldKey)}
+      className={`rounded-full px-2 py-0.5 border text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+        focusedWorkflowField === fieldKey
+          ? 'border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
+          : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 hover:border-amber-200 hover:text-amber-700'
+      }`}
+    >
+      {label}
+    </button>
+  )
+  const availableTagSuggestions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...state.tags,
+          ...state.agents.flatMap((agent) => agent.tags),
+        ].map((tag) => tag.trim()).filter(Boolean))
+      ),
+    [state.tags, state.agents]
+  )
 
   // ---- Render Steps ----
   const renderStep0 = () => (
@@ -351,6 +621,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             type="text"
             value={state.teamName}
             onChange={e => update({ teamName: e.target.value })}
+            ref={registerFieldRef('team-name')}
             placeholder="e.g., Customer Support Team"
             className={inputCls}
           />
@@ -361,6 +632,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             type="text"
             value={state.author}
             onChange={e => update({ author: e.target.value })}
+            ref={registerFieldRef('team-author')}
             placeholder="Your name"
             className={inputCls}
           />
@@ -372,6 +644,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         <textarea
           value={state.description}
           onChange={e => update({ description: e.target.value })}
+          ref={registerFieldRef('team-description')}
           placeholder="What does this team do?"
           rows={2}
           className={inputCls + ' resize-y'}
@@ -379,13 +652,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       </div>
 
       <div className="mb-2">
-        <label className={labelCls}>Tags (comma-separated)</label>
-        <input
-          type="text"
-          value={state.tags.join(', ')}
-          onChange={e => update({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-          placeholder="support, customer-service, sla"
-          className={inputCls}
+        <label className={labelCls}>Tags</label>
+        <MultiValueInput
+          values={state.tags}
+          suggestions={availableTagSuggestions}
+          placeholder="Add team tags..."
+          onChange={(tags) => update({ tags })}
+          inputRef={registerFieldRef('team-tags')}
         />
       </div>
 
@@ -403,38 +676,54 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       <div className="space-y-3 max-h-[40vh] overflow-y-auto">
         {state.agents.map((agent, idx) => (
           <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
+            <div className="mb-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {agentFieldPill(`name-${idx}`, 'Agent Name')}
+              {agentFieldPill(`id-${idx}`, 'Agent ID')}
+              {agentFieldPill(`role-${idx}`, 'Role')}
+              {agentFieldPill(`tags-${idx}`, 'Tags')}
+              {agentFieldPill(`skills-${idx}`, 'Skills')}
+            </div>
             <div className="flex items-start gap-2">
               <div className="flex-1 grid grid-cols-3 gap-2">
                 <div>
                   <input
+                    ref={registerFieldRef(`name-${idx}`)}
                     type="text"
                     value={agent.name}
                     onChange={e => updateAgent(idx, { name: e.target.value })}
+                    onFocus={() => setFocusedAgentField(`name-${idx}`)}
+                    onBlur={() => setFocusedAgentField(current => current === `name-${idx}` ? null : current)}
                     placeholder="Agent name"
                     className={inputCls + ' text-xs'}
                   />
                 </div>
                 <div>
                   <input
+                    ref={registerFieldRef(`id-${idx}`)}
                     type="text"
                     value={agent.id}
                     onChange={e => updateAgent(idx, { id: e.target.value })}
+                    onFocus={() => setFocusedAgentField(`id-${idx}`)}
+                    onBlur={() => setFocusedAgentField(current => current === `id-${idx}` ? null : current)}
                     placeholder="agent-id"
                     className={inputCls + ' text-xs font-mono'}
                   />
                 </div>
                 <div>
                   <input
+                    ref={registerFieldRef(`role-${idx}`)}
                     type="text"
                     value={agent.role}
                     onChange={e => updateAgent(idx, { role: e.target.value })}
+                    onFocus={() => setFocusedAgentField(`role-${idx}`)}
+                    onBlur={() => setFocusedAgentField(current => current === `role-${idx}` ? null : current)}
                     placeholder="Role description"
                     className={inputCls + ' text-xs'}
                   />
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <label className="text-[10px] text-gray-400">×</label>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Count</label>
                 <input
                   type="number"
                   min={1}
@@ -447,19 +736,23 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
               </div>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={agent.tags.join(', ')}
-                onChange={e => updateAgent(idx, { tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-                placeholder="Tags (comma-separated)"
-                className={inputCls + ' text-xs'}
+              <MultiValueInput
+                values={agent.tags}
+                suggestions={availableTagSuggestions}
+                placeholder="Add agent tags..."
+                onChange={(tags) => updateAgent(idx, { tags })}
+                onFocus={() => setFocusedAgentField(`tags-${idx}`)}
+                onBlur={() => setFocusedAgentField(current => current === `tags-${idx}` ? null : current)}
+                inputRef={registerFieldRef(`tags-${idx}`)}
               />
-              <input
-                type="text"
-                value={agent.skills.join(', ')}
-                onChange={e => updateAgent(idx, { skills: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-                placeholder="Skills (comma-separated)"
-                className={inputCls + ' text-xs'}
+              <MultiValueInput
+                values={agent.skills}
+                suggestions={Array.from(new Set([...availableSkillNames, ...state.agents.flatMap((entry) => entry.skills)]))}
+                placeholder="Add skills..."
+                onChange={(skills) => updateAgent(idx, { skills })}
+                onFocus={() => setFocusedAgentField(`skills-${idx}`)}
+                onBlur={() => setFocusedAgentField(current => current === `skills-${idx}` ? null : current)}
+                inputRef={registerFieldRef(`skills-${idx}`)}
               />
             </div>
           </div>
@@ -492,8 +785,14 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         )}
         <div className="space-y-2">
           {state.communities.map((comm, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
+            <div key={idx} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+              <div className="mb-2 flex flex-wrap gap-2">
+                {commFieldPill(`community-name-${idx}`, 'Community Name')}
+                {commFieldPill(`community-description-${idx}`, 'Description')}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] gap-2 items-start">
               <input
+                ref={registerFieldRef(`community-name-${idx}`)}
                 type="text"
                 value={comm.name}
                 onChange={e => {
@@ -501,10 +800,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                   communities[idx] = { ...communities[idx], name: e.target.value }
                   update({ communities })
                 }}
+                onFocus={() => setFocusedCommField(`community-name-${idx}`)}
+                onBlur={() => setFocusedCommField(current => current === `community-name-${idx}` ? null : current)}
                 placeholder="Community name"
                 className={inputCls + ' text-xs flex-1'}
               />
               <input
+                ref={registerFieldRef(`community-description-${idx}`)}
                 type="text"
                 value={comm.description}
                 onChange={e => {
@@ -512,10 +814,18 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                   communities[idx] = { ...communities[idx], description: e.target.value }
                   update({ communities })
                 }}
+                onFocus={() => setFocusedCommField(`community-description-${idx}`)}
+                onBlur={() => setFocusedCommField(current => current === `community-description-${idx}` ? null : current)}
                 placeholder="Description"
                 className={inputCls + ' text-xs flex-1'}
               />
-              <button onClick={() => update({ communities: state.communities.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+              <button
+                onClick={() => update({ communities: state.communities.filter((_, i) => i !== idx) })}
+                className="h-9 px-3 text-red-400 hover:text-red-600 text-xs shrink-0 justify-self-start md:justify-self-auto"
+              >
+                ✕
+              </button>
+            </div>
             </div>
           ))}
         </div>
@@ -534,46 +844,71 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         )}
         <div className="space-y-2">
           {state.groups.map((group, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={group.name}
-                onChange={e => {
-                  const groups = [...state.groups]
-                  groups[idx] = { ...groups[idx], name: e.target.value }
-                  update({ groups })
-                }}
-                placeholder="Group name"
-                className={inputCls + ' text-xs flex-1'}
-              />
-              <input
-                type="text"
-                value={group.description}
-                onChange={e => {
-                  const groups = [...state.groups]
-                  groups[idx] = { ...groups[idx], description: e.target.value }
-                  update({ groups })
-                }}
-                placeholder="Description"
-                className={inputCls + ' text-xs flex-1'}
-              />
-              {state.communities.length > 0 && (
-                <select
-                  value={group.community}
+            <div key={idx} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+              <div className="mb-2 flex flex-wrap gap-2">
+                {commFieldPill(`group-name-${idx}`, 'Group Name')}
+                {state.communities.length > 0 && commFieldPill(`group-community-${idx}`, 'Community')}
+                {commFieldPill(`group-description-${idx}`, 'Description')}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_auto] gap-2 items-start">
+                <input
+                  ref={registerFieldRef(`group-name-${idx}`)}
+                  type="text"
+                  value={group.name}
                   onChange={e => {
                     const groups = [...state.groups]
-                    groups[idx] = { ...groups[idx], community: e.target.value }
+                    groups[idx] = { ...groups[idx], name: e.target.value }
                     update({ groups })
                   }}
-                  className={inputCls + ' text-xs w-36'}
+                  onFocus={() => setFocusedCommField(`group-name-${idx}`)}
+                  onBlur={() => setFocusedCommField(current => current === `group-name-${idx}` ? null : current)}
+                  placeholder="Group name"
+                  className={inputCls + ' text-xs'}
+                />
+                {state.communities.length > 0 ? (
+                  <select
+                    ref={registerFieldRef(`group-community-${idx}`)}
+                    value={group.community}
+                    onChange={e => {
+                      const groups = [...state.groups]
+                      groups[idx] = { ...groups[idx], community: e.target.value }
+                      update({ groups })
+                    }}
+                    onFocus={() => setFocusedCommField(`group-community-${idx}`)}
+                    onBlur={() => setFocusedCommField(current => current === `group-community-${idx}` ? null : current)}
+                    className={inputCls + ' text-xs w-full'}
+                  >
+                    <option value="">No community</option>
+                    {state.communities.map(c => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div />
+                )}
+                <button
+                  onClick={() => update({ groups: state.groups.filter((_, i) => i !== idx) })}
+                  className="h-9 px-3 text-red-400 hover:text-red-600 text-xs shrink-0 justify-self-start md:justify-self-auto"
                 >
-                  <option value="">No community</option>
-                  {state.communities.map(c => (
-                    <option key={c.name} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-              )}
-              <button onClick={() => update({ groups: state.groups.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2">
+                <textarea
+                  ref={registerFieldRef(`group-description-${idx}`)}
+                  value={group.description}
+                  onChange={e => {
+                    const groups = [...state.groups]
+                    groups[idx] = { ...groups[idx], description: e.target.value }
+                    update({ groups })
+                  }}
+                  onFocus={() => setFocusedCommField(`group-description-${idx}`)}
+                  onBlur={() => setFocusedCommField(current => current === `group-description-${idx}` ? null : current)}
+                  placeholder="Description"
+                  rows={2}
+                  className={inputCls + ' text-xs resize-y'}
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -606,9 +941,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       <div className="space-y-3 max-h-[50vh] overflow-y-auto">
         {state.workflows.map((wf, idx) => (
           <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
-            <div className="flex items-start gap-2 mb-2">
-              <div className="flex-1 grid grid-cols-2 gap-2">
+            <div className="mb-2 flex flex-wrap gap-2">
+              {workflowFieldPill(`workflow-name-${idx}`, 'Workflow Name')}
+              {workflowFieldPill(`workflow-schedule-${idx}`, 'Schedule')}
+              {workflowFieldPill(`workflow-mode-${idx}`, 'Mode')}
+              {workflowFieldPill(`workflow-content-${idx}`, 'Content')}
+            </div>
+            <div className="mb-2">
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_auto] gap-2 items-start">
                 <input
+                  ref={registerFieldRef(`workflow-name-${idx}`)}
                   type="text"
                   value={wf.name}
                   onChange={e => {
@@ -620,44 +962,78 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     }
                     update({ workflows })
                   }}
+                  onFocus={() => setFocusedWorkflowField(`workflow-name-${idx}`)}
+                  onBlur={() => setFocusedWorkflowField(current => current === `workflow-name-${idx}` ? null : current)}
                   placeholder="Workflow name"
                   className={inputCls + ' text-xs'}
                 />
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={wf.schedule}
-                    onChange={e => {
-                      const workflows = [...state.workflows]
-                      workflows[idx] = { ...workflows[idx], schedule: e.target.value }
-                      update({ workflows })
-                    }}
-                    placeholder="manual or cron (0 9 * * *)"
-                    className={inputCls + ' text-xs flex-1 font-mono'}
-                  />
-                  <select
-                    value={wf.executionMode}
-                    onChange={e => {
-                      const workflows = [...state.workflows]
-                      workflows[idx] = { ...workflows[idx], executionMode: e.target.value as 'automated' | 'managed' }
-                      update({ workflows })
-                    }}
-                    className={inputCls + ' text-xs w-28'}
-                  >
-                    <option value="managed">Managed</option>
-                    <option value="automated">Automated</option>
-                  </select>
-                </div>
+                <select
+                  ref={registerFieldRef(`workflow-mode-${idx}`)}
+                  value={wf.executionMode}
+                  onChange={e => {
+                    const workflows = [...state.workflows]
+                    workflows[idx] = { ...workflows[idx], executionMode: e.target.value as 'automated' | 'managed' }
+                    update({ workflows })
+                  }}
+                  onFocus={() => setFocusedWorkflowField(`workflow-mode-${idx}`)}
+                  onBlur={() => setFocusedWorkflowField(current => current === `workflow-mode-${idx}` ? null : current)}
+                  className={inputCls + ' text-xs w-full'}
+                >
+                  <option value="managed">Managed</option>
+                  <option value="automated">Automated</option>
+                </select>
+                <button
+                  onClick={() => update({ workflows: state.workflows.filter((_, i) => i !== idx) })}
+                  className="h-9 px-3 text-red-400 hover:text-red-600 text-xs shrink-0 justify-self-start md:justify-self-auto"
+                >
+                  ✕
+                </button>
               </div>
-              <button onClick={() => update({ workflows: state.workflows.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600 text-xs shrink-0 mt-2">✕</button>
+              <div className="mt-2">
+                <input
+                  ref={registerFieldRef(`workflow-schedule-${idx}`)}
+                  type="text"
+                  value={wf.schedule}
+                  onChange={e => {
+                    const workflows = [...state.workflows]
+                    workflows[idx] = { ...workflows[idx], schedule: e.target.value }
+                    update({ workflows })
+                  }}
+                  onFocus={() => setFocusedWorkflowField(`workflow-schedule-${idx}`)}
+                  onBlur={() => setFocusedWorkflowField(current => current === `workflow-schedule-${idx}` ? null : current)}
+                  placeholder='manual, cron, or plain English like "every weekday at 9am"'
+                  className={inputCls + ' text-xs font-mono'}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAiCronForWorkflow(idx)}
+                  disabled={aiCronLoadingIndex !== null || !wf.schedule.trim()}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                >
+                  {aiCronLoadingIndex === idx ? 'Generating cron…' : '✨ Suggest Cron'}
+                </button>
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Enter timing in plain English if you do not know the cron syntax.
+                </span>
+              </div>
+              {workflowCronHints[idx] && (
+                <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  {workflowCronHints[idx]}
+                </div>
+              )}
             </div>
             <textarea
+              ref={registerFieldRef(`workflow-content-${idx}`)}
               value={wf.content}
               onChange={e => {
                 const workflows = [...state.workflows]
                 workflows[idx] = { ...workflows[idx], content: e.target.value }
                 update({ workflows })
               }}
+              onFocus={() => setFocusedWorkflowField(`workflow-content-${idx}`)}
+              onBlur={() => setFocusedWorkflowField(current => current === `workflow-content-${idx}` ? null : current)}
               placeholder="Workflow instructions (markdown)..."
               rows={3}
               className={inputCls + ' text-xs resize-y'}
@@ -844,7 +1220,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         {/* Header with step indicators */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 z-10">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Template Wizard</h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {initialTemplate ? 'Edit Template' : 'Template Wizard'}
+              </h2>
+              {initialTemplate && (
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  Starting from {initialTemplate.name}. Save to create or update a workspace variant.
+                </p>
+              )}
+            </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg" disabled={aiGenerating}>✕</button>
           </div>
           <div className="flex items-center gap-1">
