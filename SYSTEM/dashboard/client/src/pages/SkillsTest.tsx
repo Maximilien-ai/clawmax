@@ -72,6 +72,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   }, [])
 
   useEffect(() => {
+    const handleAgentsUpdated = () => {
+      loadAgents()
+    }
+
+    window.addEventListener('agents-updated', handleAgentsUpdated)
+    return () => window.removeEventListener('agents-updated', handleAgentsUpdated)
+  }, [agentId])
+
+  useEffect(() => {
     fetch('/api/integrations/status')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -249,10 +258,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         setImportPath('')
         setImportSource('local')
         await loadSkills() // Reload skills list
+        if (data.warning) {
+          showWarning(data.warning)
+        }
         // Handle multi-skill import response
         if (data.total && data.total > 1) {
           const failed = data.skills?.filter((s: any) => !s.ok) || []
+          const warnings = data.skills?.filter((s: any) => s.warning).map((s: any) => s.warning) || []
           showSuccess(`Imported ${data.imported}/${data.total} skills`)
+          if (warnings.length > 0) {
+            showWarning(warnings.join(' '))
+          }
           if (failed.length > 0) {
             showToastError(`Failed: ${failed.map((f: any) => f.skillId).join(', ')}`)
           }

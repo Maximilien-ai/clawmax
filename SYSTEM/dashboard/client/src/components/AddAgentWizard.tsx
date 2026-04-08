@@ -413,6 +413,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               setLogs(l => [...l, msg.data])
             } else if (msg.type === 'done') {
               if (msg.data === 'ok') {
+                window.dispatchEvent(new CustomEvent('agents-updated'))
                 setDone(true)
               } else {
                 setProvError(`Setup failed: ${msg.data}`)

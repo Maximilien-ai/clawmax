@@ -294,10 +294,10 @@ router.post('/import', (req, res) => {
         return res.status(400).json({ error: 'No skills found in skills/ directory (each skill needs a SKILL.md)' })
       }
 
-      const results: { skillId: string; ok: boolean; error?: string }[] = []
+      const results: { skillId: string; ok: boolean; error?: string; warning?: string }[] = []
       for (const dir of skillDirs) {
         const result = importWorkspaceSkill(path.join(skillsSubdir, dir))
-        results.push({ skillId: result.skillId || dir, ok: result.success, error: result.error })
+        results.push({ skillId: result.skillId || dir, ok: result.success, error: result.error, warning: result.warning })
       }
 
       const imported = results.filter(r => r.ok)
@@ -317,7 +317,7 @@ router.post('/import', (req, res) => {
       return res.status(400).json({ error: result.error })
     }
 
-    res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1 })
+    res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1, warning: result.warning })
   } catch (err: any) {
     console.error('Error importing skill:', err)
     res.status(500).json({ error: err.message || 'Failed to import skill' })
@@ -394,13 +394,14 @@ router.post('/import-github', async (req, res) => {
           throw new Error('No skills found in skills/ directory (each skill needs a SKILL.md)')
         }
 
-        const results: { skillId: string; ok: boolean; error?: string }[] = []
+        const results: { skillId: string; ok: boolean; error?: string; warning?: string }[] = []
         for (const dir of skillDirs) {
           const result = importWorkspaceSkill(path.join(skillsDir, dir))
           results.push({
             skillId: result.skillId || dir,
             ok: result.success,
             error: result.error,
+            warning: result.warning,
           })
         }
 
@@ -428,7 +429,7 @@ router.post('/import-github', async (req, res) => {
           return res.status(400).json({ error: result.error })
         }
 
-        res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1 })
+        res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1, warning: result.warning })
       }
     } catch (cloneErr: any) {
       // Clean up on error
