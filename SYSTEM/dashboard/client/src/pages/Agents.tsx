@@ -638,7 +638,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       if (result.ok) {
         showSuccess(`Successfully deleted ${result.summary.success} agent${result.summary.success !== 1 ? 's' : ''}`)
-        fetchAgents()
+        fetchAgents(true, true)
         setSelectedAgentIds(new Set())
         setSelectionMode(false)
       } else {
@@ -841,6 +841,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   }, [searchQuery, selectedTags, archiveTab, viewMode])
 
   const totalPages = Math.max(1, Math.ceil(filteredAgents.length / DISPLAY_PAGE_SIZE))
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
   const paginatedAgents = useMemo(() => {
     const start = (currentPage - 1) * DISPLAY_PAGE_SIZE
     return filteredAgents.slice(start, start + DISPLAY_PAGE_SIZE)
@@ -936,10 +939,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             </button>
             <button
               onClick={() => setViewMode('list')}
-              title="Large grid view"
+              title="Large card view"
               className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ☰
+              ▤
             </button>
             <button
               onClick={() => setViewMode('table')}

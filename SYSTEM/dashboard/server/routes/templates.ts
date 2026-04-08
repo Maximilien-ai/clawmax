@@ -22,6 +22,7 @@ import {
 } from '../lib/templates'
 import { listWorkflowTemplates, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL } from '../lib/ai-generator'
+import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
 
 const router = Router()
 
@@ -29,6 +30,86 @@ type CustomizationValidationInput = {
   githubRepo?: string
   useGithub?: boolean
   workflows?: Array<{ id: string; name?: string; content?: string }>
+}
+
+function getOrganizationTemplateConflicts(template: any, options?: {
+  prefix?: string
+  suffix?: string
+  includeBuiltIn?: boolean
+  agentCounts?: Record<string, number>
+}) {
+  const prefix = options?.prefix || ''
+  const suffix = options?.suffix || ''
+  const includeBuiltIn = options?.includeBuiltIn !== false
+  const workspacePath = getWorkspacePath()
+  const existingAgentIds = new Set(listWorkspaceAgents().map((agent) => agent.id))
+
+  const paramAgentIds = new Set((template.parameters || []).map((param: any) => param.agentId))
+  const expandedAgents = (template.agents || []).flatMap((agent: any) => {
+    if (paramAgentIds.has(agent.id)) {
+      const count = options?.agentCounts?.[agent.id] || (template.parameters || []).find((param: any) => param.agentId === agent.id)?.default || 1
+      return Array.from({ length: count }, (_, i) => ({
+        ...agent,
+        id: count === 1 ? agent.id : `${agent.id}${i + 1}`,
+      }))
+    }
+    return [agent]
+  })
+  const agentsToCreate = includeBuiltIn ? expandedAgents : expandedAgents.filter((agent: any) => !(agent.tags || []).includes('built-in'))
+  const agentConflicts = agentsToCreate
+    .map((agent: any) => `${prefix}${agent.id}${suffix}`)
+    .filter((agentId: string) => existingAgentIds.has(agentId))
+
+  const normalize = (value: string) => value.trim().toLowerCase()
+  const referencedGroups = new Set<string>()
+  const referencedCommunities = new Set<string>()
+
+  for (const group of template.groups || []) {
+    if (group.name?.trim()) referencedGroups.add(group.name.trim())
+    if (group.community?.trim()) referencedCommunities.add(group.community.trim())
+  }
+  for (const community of template.communities || []) {
+    if (community.name?.trim()) referencedCommunities.add(community.name.trim())
+  }
+  for (const agent of template.agents || []) {
+    for (const groupName of agent.groups || []) {
+      if (groupName?.trim()) referencedGroups.add(groupName.trim())
+    }
+    for (const communityName of agent.communities || []) {
+      if (communityName?.trim()) referencedCommunities.add(communityName.trim())
+    }
+  }
+  for (const workflow of template.workflows || []) {
+    for (const groupName of workflow.targeting?.groups || []) {
+      if (groupName?.trim()) referencedGroups.add(groupName.trim())
+    }
+    for (const communityName of workflow.targeting?.communities || []) {
+      if (communityName?.trim()) referencedCommunities.add(communityName.trim())
+    }
+  }
+
+  const existingGroupNames = new Set<string>()
+  const existingCommunityNames = new Set<string>()
+  const groupsPath = path.join(workspacePath, 'ORG', 'GROUPS.md')
+  const communitiesPath = path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+  if (fs.existsSync(groupsPath)) {
+    const parsed = parseGroups(fs.readFileSync(groupsPath, 'utf-8'))
+    for (const group of parsed.groups) {
+      if (group.name?.trim()) existingGroupNames.add(normalize(group.name))
+    }
+  }
+  if (fs.existsSync(communitiesPath)) {
+    const parsed = parseGroups(fs.readFileSync(communitiesPath, 'utf-8'))
+    for (const community of parsed.communities) {
+      if (community.name?.trim()) existingCommunityNames.add(normalize(community.name))
+    }
+  }
+
+  return {
+    agentConflicts,
+    groupConflicts: Array.from(referencedGroups).filter((name) => existingGroupNames.has(normalize(name))),
+    communityConflicts: Array.from(referencedCommunities).filter((name) => existingCommunityNames.has(normalize(name))),
+  }
 }
 
 function commandExists(command: string): boolean {
@@ -473,6 +554,32 @@ router.post('/organizations/validate-customization', (req, res) => {
   })
 
   res.status(result.valid ? 200 : 400).json(result)
+})
+
+router.post('/organizations/conflicts', (req, res) => {
+  const { templateSlug, prefix, suffix, includeBuiltIn, agentCounts } = req.body
+  if (!templateSlug || typeof templateSlug !== 'string') {
+    return res.status(400).json({ error: 'templateSlug is required' })
+  }
+
+  const template = getTemplate('organization', templateSlug) as any
+  if (!template) {
+    return res.status(404).json({ error: 'Template not found' })
+  }
+
+  const conflicts = getOrganizationTemplateConflicts(template, {
+    prefix: typeof prefix === 'string' ? prefix : undefined,
+    suffix: typeof suffix === 'string' ? suffix : undefined,
+    includeBuiltIn: includeBuiltIn !== false,
+    agentCounts: agentCounts && typeof agentCounts === 'object' ? agentCounts : undefined,
+  })
+
+  res.json({
+    ok: true,
+    agentConflicts: conflicts.agentConflicts,
+    groupConflicts: conflicts.groupConflicts,
+    communityConflicts: conflicts.communityConflicts,
+  })
 })
 
 router.post('/organizations/import', (req, res) => {

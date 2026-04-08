@@ -1071,6 +1071,19 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     })
   }
 
+  const toggleWorkflowIdsSelection = (workflowIds: string[]) => {
+    if (workflowIds.length === 0) return
+    const allSelected = workflowIds.every(id => selectedWorkflowIds.has(id))
+    setSelectedWorkflowIds(prev => {
+      const next = new Set(prev)
+      for (const id of workflowIds) {
+        if (allSelected) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  }
+
   // Get all unique tags from workflow targeting
   const allTags = React.useMemo(() => {
     const tags = new Set<string>()
@@ -1232,11 +1245,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="flex items-center gap-2">
             <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
-                onClick={() => setViewMode('grid')}
-                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="Grid view"
+                onClick={() => setViewMode('dag')}
+                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                title="DAG view"
               >
-                ⊞
+                ◇
               </button>
               <button
                 onClick={() => setViewMode('list')}
@@ -1246,11 +1259,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 ☰
               </button>
               <button
-                onClick={() => setViewMode('dag')}
-                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="DAG view"
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                title="Grid view"
               >
-                ◇
+                ⊞
               </button>
             </div>
             <button
@@ -1467,6 +1480,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <WorkflowDAG
               workflows={sortedWorkflows}
               selectedId={selectedWorkflow?.id}
+              selectionMode={selectionMode}
+              selectedWorkflowIds={selectedWorkflowIds}
+              onToggleSelect={toggleWorkflowSelection}
               onSelect={(id) => fetchWorkflowDetails(id)}
               editable={dagEditing}
               onAddDependency={async (fromId, toId) => {
@@ -1499,6 +1515,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onEditRun={(id) => {
                 fetchWorkflowDetails(id)
               }}
+              onTogglePipelineSelect={toggleWorkflowIdsSelection}
             />
           </div>
         ) : viewMode === 'grid' ? (

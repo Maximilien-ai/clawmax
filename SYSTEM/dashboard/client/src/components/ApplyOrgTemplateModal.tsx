@@ -80,6 +80,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const [existingGroupNames, setExistingGroupNames] = useState<string[]>([])
   const [existingCommunityNames, setExistingCommunityNames] = useState<string[]>([])
+  const [existingAgentIds, setExistingAgentIds] = useState<string[]>([])
+  const [serverGroupConflicts, setServerGroupConflicts] = useState<string[]>([])
+  const [serverCommunityConflicts, setServerCommunityConflicts] = useState<string[]>([])
+  const [serverAgentConflicts, setServerAgentConflicts] = useState<string[]>([])
   const [acknowledgedChannelConflicts, setAcknowledgedChannelConflicts] = useState(false)
   const [groupRenameSelections, setGroupRenameSelections] = useState<Record<string, boolean>>({})
   const [groupRenameValues, setGroupRenameValues] = useState<Record<string, string>>({})
@@ -127,7 +131,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     }
     if (stored.sensoApiKey?.trim()) {
       setHasSensoApiKey(true)
-      setUseSenso(true)
     }
     if (stored.sensoContextLabel?.trim()) {
       setSensoFolder((current) => {
@@ -138,7 +141,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     }
     if (stored.partnerSecrets?.blaxel?.apiKey?.trim() || stored.partnerValues?.blaxel?.projectId?.trim() || stored.partnerValues?.blaxel?.defaultSandbox?.trim()) {
       if (stored.partnerSecrets?.blaxel?.apiKey?.trim()) setHasBlaxelApiKey(true)
-      setUseBlaxel(true)
     }
     if (stored.partnerValues?.blaxel?.projectId?.trim()) {
       setBlaxelProjectId((current) => current || stored.partnerValues!.blaxel!.projectId!.trim())
@@ -151,7 +153,6 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     }
     if (stored.partnerSecrets?.redis?.apiKey?.trim() || stored.partnerValues?.redis?.url?.trim()) {
       if (stored.partnerSecrets?.redis?.apiKey?.trim()) setHasRedisApiKey(true)
-      setUseRedis(true)
     }
     if (stored.partnerValues?.redis?.url?.trim()) {
       setRedisUrl((current) => current || stored.partnerValues!.redis!.url!.trim())
@@ -203,19 +204,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           })
         }
         if (config.partners?.blaxel?.projectId?.trim()) {
-          setUseBlaxel(true)
           setBlaxelProjectId((current) => current || config.partners.blaxel.projectId.trim())
         }
         if (config.partners?.blaxel?.defaultSandbox?.trim()) {
-          setUseBlaxel(true)
           setBlaxelSandbox((current) => current || config.partners.blaxel.defaultSandbox.trim())
         }
         if (config.partners?.blaxel?.region?.trim()) {
-          setUseBlaxel(true)
           setBlaxelRegion((current) => current || config.partners.blaxel.region.trim())
         }
         if (config.partners?.redis?.url?.trim()) {
-          setUseRedis(true)
           setRedisUrl((current) => current || config.partners.redis.url.trim())
         }
         if (config.partners?.redis?.namespace?.trim()) {
@@ -236,6 +233,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       .then((data) => {
         const names = Array.isArray(data?.communities) ? data.communities.map((community: any) => community?.name).filter((name: unknown): name is string => typeof name === 'string') : []
         setExistingCommunityNames(names)
+      })
+      .catch(() => {})
+    fetch('/api/agents')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const ids = Array.isArray(data?.agents) ? data.agents.map((agent: any) => agent?.id).filter((id: unknown): id is string => typeof id === 'string') : []
+        setExistingAgentIds(ids)
       })
       .catch(() => {})
   }, [])
@@ -307,6 +311,31 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     return counts
   })
 
+  React.useEffect(() => {
+    fetch('/api/templates/organizations/conflicts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateSlug: template.slug || template.name,
+        prefix: prefix || undefined,
+        suffix: suffix || undefined,
+        includeBuiltIn,
+        agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        setServerAgentConflicts(Array.isArray(data?.agentConflicts) ? data.agentConflicts : [])
+        setServerGroupConflicts(Array.isArray(data?.groupConflicts) ? data.groupConflicts : [])
+        setServerCommunityConflicts(Array.isArray(data?.communityConflicts) ? data.communityConflicts : [])
+      })
+      .catch(() => {
+        setServerAgentConflicts([])
+        setServerGroupConflicts([])
+        setServerCommunityConflicts([])
+      })
+  }, [agentCounts, includeBuiltIn, prefix, suffix, template.name, template.slug])
+
   // Fetch available models
   React.useEffect(() => {
     fetchModelsWithByok()
@@ -348,17 +377,68 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
   const previewId = `${prefix}${exampleAgentId}${suffix}`
-  const channelConflicts = useMemo(() => {
-    const existingGroups = new Set(existingGroupNames)
-    const existingCommunities = new Set(existingCommunityNames)
-    const conflictingGroups = (template.groups || []).map((group) => group.name).filter((name) => existingGroups.has(name))
-    const conflictingCommunities = (template.communities || []).map((community) => community.name).filter((name) => existingCommunities.has(name))
-    return {
-      groups: conflictingGroups,
-      communities: conflictingCommunities,
-      hasAny: conflictingGroups.length > 0 || conflictingCommunities.length > 0,
+  const resultingAgentIds = useMemo(
+    () => agentsToCreate.map((agent) => `${prefix}${agent.id}${suffix}`),
+    [agentsToCreate, prefix, suffix]
+  )
+  const agentConflicts = useMemo(() => {
+    const existing = new Set(existingAgentIds)
+    return Array.from(new Set([
+      ...resultingAgentIds.filter((id) => existing.has(id)),
+      ...serverAgentConflicts,
+    ]))
+  }, [existingAgentIds, resultingAgentIds, serverAgentConflicts])
+  const normalizeChannelName = (value: string) => value.trim().toLowerCase()
+  const referencedGroups = useMemo(() => {
+    const names = new Set<string>()
+    for (const group of template.groups || []) {
+      if (group.name?.trim()) names.add(group.name.trim())
     }
-  }, [existingCommunityNames, existingGroupNames, template.communities, template.groups])
+    for (const agent of template.agents || []) {
+      for (const groupName of agent.groups || []) {
+        if (groupName?.trim()) names.add(groupName.trim())
+      }
+    }
+    for (const workflow of template.workflows || []) {
+      for (const groupName of workflow.targeting?.groups || []) {
+        if (groupName?.trim()) names.add(groupName.trim())
+      }
+    }
+    return Array.from(names)
+  }, [template.agents, template.groups, template.workflows])
+  const referencedCommunities = useMemo(() => {
+    const names = new Set<string>()
+    for (const community of template.communities || []) {
+      if (community.name?.trim()) names.add(community.name.trim())
+    }
+    for (const group of template.groups || []) {
+      if (group.community?.trim()) names.add(group.community.trim())
+    }
+    for (const agent of template.agents || []) {
+      for (const communityName of agent.communities || []) {
+        if (communityName?.trim()) names.add(communityName.trim())
+      }
+    }
+    for (const workflow of template.workflows || []) {
+      for (const communityName of workflow.targeting?.communities || []) {
+        if (communityName?.trim()) names.add(communityName.trim())
+      }
+    }
+    return Array.from(names)
+  }, [template.agents, template.communities, template.groups, template.workflows])
+  const channelConflicts = useMemo(() => {
+    const existingGroups = new Set(existingGroupNames.map(normalizeChannelName))
+    const existingCommunities = new Set(existingCommunityNames.map(normalizeChannelName))
+    const conflictingGroups = referencedGroups.filter((name) => existingGroups.has(normalizeChannelName(name)))
+    const conflictingCommunities = referencedCommunities.filter((name) => existingCommunities.has(normalizeChannelName(name)))
+    const groups = Array.from(new Set([...conflictingGroups, ...serverGroupConflicts]))
+    const communities = Array.from(new Set([...conflictingCommunities, ...serverCommunityConflicts]))
+    return {
+      groups,
+      communities,
+      hasAny: groups.length > 0 || communities.length > 0,
+    }
+  }, [existingCommunityNames, existingGroupNames, referencedCommunities, referencedGroups, serverCommunityConflicts, serverGroupConflicts])
 
   const suggestedConflictName = (name: string) => {
     const raw = prefix || suffix ? `${prefix}${name}${suffix}` : `${templateSlug}-${name}`
@@ -387,21 +467,21 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   const conflictResolutionErrors = useMemo(() => {
     const errors: string[] = []
-    const existingGroups = new Set(existingGroupNames)
-    const existingCommunities = new Set(existingCommunityNames)
+    const existingGroups = new Set(existingGroupNames.map(normalizeChannelName))
+    const existingCommunities = new Set(existingCommunityNames.map(normalizeChannelName))
 
     for (const name of channelConflicts.groups) {
       if (!groupRenameSelections[name]) continue
       const next = (groupRenameValues[name] || '').trim()
       if (!next) errors.push(`Group "${name}" rename is empty.`)
-      else if (next !== name && existingGroups.has(next)) errors.push(`Group "${name}" rename still conflicts with existing group "${next}".`)
+      else if (normalizeChannelName(next) !== normalizeChannelName(name) && existingGroups.has(normalizeChannelName(next))) errors.push(`Group "${name}" rename still conflicts with existing group "${next}".`)
     }
 
     for (const name of channelConflicts.communities) {
       if (!communityRenameSelections[name]) continue
       const next = (communityRenameValues[name] || '').trim()
       if (!next) errors.push(`Community "${name}" rename is empty.`)
-      else if (next !== name && existingCommunities.has(next)) errors.push(`Community "${name}" rename still conflicts with existing community "${next}".`)
+      else if (normalizeChannelName(next) !== normalizeChannelName(name) && existingCommunities.has(normalizeChannelName(next))) errors.push(`Community "${name}" rename still conflicts with existing community "${next}".`)
     }
 
     return errors
@@ -437,6 +517,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }
 
   const handleApply = async () => {
+    if (agentConflicts.length > 0) {
+      const message = `Agent ID conflict: ${agentConflicts[0]} already exists. Add a prefix or suffix before applying.`
+      setError(message)
+      showToastError(message)
+      return
+    }
     if (channelConflicts.hasAny && !acknowledgedChannelConflicts) {
       const message = 'This template reuses existing groups or communities. Review the conflict warning and confirm reuse before applying.'
       setError(message)
@@ -972,7 +1058,21 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
               </div>
             </div>
+            {agentConflicts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                Existing agent IDs would conflict: {agentConflicts.join(', ')}. Add a prefix or suffix to create a separate team copy in this workspace.
+              </div>
+            )}
           </div>
+          )}
+
+          {customizeStep === 'team' && agentConflicts.length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-red-900 dark:text-red-200 mb-2">Agent ID conflict detected</h3>
+              <p className="text-xs text-red-800 dark:text-red-300">
+                This template would reuse existing agent IDs in the workspace: {agentConflicts.join(', ')}. Add a prefix or suffix above to create a separate copy.
+              </p>
+            </div>
           )}
 
           {customizeStep === 'team' && channelConflicts.hasAny && (
@@ -1785,19 +1885,51 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           )}
           {wizardStep === 'deploy' && (
             <div className="flex flex-col items-end gap-2">
+              {agentConflicts.length > 0 && (
+                <div className="flex items-center gap-3 text-xs text-red-600 dark:text-red-300">
+                  <span>Resolve agent ID conflicts in the Team step before applying this template.</span>
+                  <button
+                    onClick={() => {
+                      setWizardStep('customize')
+                      setCustomizeStep('team')
+                    }}
+                    className="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                  >
+                    Go to Team
+                  </button>
+                </div>
+              )}
               {channelConflicts.hasAny && !acknowledgedChannelConflicts && (
-                <div className="text-xs text-amber-700 dark:text-amber-300">
-                  Confirm channel reuse above before applying this template.
+                <div className="flex items-center gap-3 text-xs text-amber-700 dark:text-amber-300">
+                  <span>Confirm channel reuse or rename conflicting channels in the Team step before applying this template.</span>
+                  <button
+                    onClick={() => {
+                      setWizardStep('customize')
+                      setCustomizeStep('team')
+                    }}
+                    className="font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200"
+                  >
+                    Go to Team
+                  </button>
                 </div>
               )}
               {conflictResolutionErrors.length > 0 && (
-                <div className="text-xs text-red-600 dark:text-red-300">
-                  Resolve channel rename errors above before applying this template.
+                <div className="flex items-center gap-3 text-xs text-red-600 dark:text-red-300">
+                  <span>Resolve channel rename errors in the Team step before applying this template.</span>
+                  <button
+                    onClick={() => {
+                      setWizardStep('customize')
+                      setCustomizeStep('team')
+                    }}
+                    className="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                  >
+                    Go to Team
+                  </button>
                 </div>
               )}
               <button
                 onClick={handleApply}
-                disabled={applying || (channelConflicts.hasAny && !acknowledgedChannelConflicts) || conflictResolutionErrors.length > 0}
+                disabled={applying || agentConflicts.length > 0 || (channelConflicts.hasAny && !acknowledgedChannelConflicts) || conflictResolutionErrors.length > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}

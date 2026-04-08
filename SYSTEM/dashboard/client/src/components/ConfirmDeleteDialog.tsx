@@ -33,20 +33,20 @@ export function ConfirmDeleteDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[85vh] flex flex-col p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-gray-100">Delete {itemType}</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Are you sure you want to delete <span className="font-semibold">{itemName}</span>?
         </p>
 
         {warningMessage && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded shrink-0">
             <p className="text-sm text-yellow-800">{warningMessage}</p>
           </div>
         )}
 
         {consequences && consequences.length > 0 && (
-          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded dark:border-gray-700 dark:bg-gray-900">
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded dark:border-gray-700 dark:bg-gray-900 overflow-y-auto max-h-[35vh]">
             <p className="text-xs font-semibold text-gray-700 mb-2 dark:text-gray-300">This will affect:</p>
             <div className="text-xs text-gray-600 dark:text-gray-400 space-y-0.5 font-mono">
               {consequences.map((consequence, i) => (

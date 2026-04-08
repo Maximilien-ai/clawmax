@@ -19,9 +19,13 @@ interface WorkflowDAGProps {
   onTrigger?: (workflowId: string) => void
   onEditRun?: (workflowId: string) => void
   selectedId?: string
+  selectionMode?: boolean
+  selectedWorkflowIds?: Set<string>
+  onToggleSelect?: (workflowId: string) => void
   editable?: boolean
   onAddDependency?: (fromId: string, toId: string) => void
   onRemoveDependency?: (fromId: string, toId: string) => void
+  onTogglePipelineSelect?: (workflowIds: string[]) => void
 }
 
 // Split workflows into connected components (separate DAG trees)
@@ -122,7 +126,20 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
   blocked: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
 }
 
-export default function WorkflowDAG({ workflows, onSelect, selectedId, editable, onAddDependency, onRemoveDependency, onTrigger, onEditRun }: WorkflowDAGProps) {
+export default function WorkflowDAG({
+  workflows,
+  onSelect,
+  selectedId,
+  selectionMode,
+  selectedWorkflowIds,
+  onToggleSelect,
+  editable,
+  onAddDependency,
+  onRemoveDependency,
+  onTrigger,
+  onEditRun,
+  onTogglePipelineSelect,
+}: WorkflowDAGProps) {
   const forests = useMemo(() => findForests(workflows), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -283,8 +300,25 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
       <div key={forestIdx}>
         {forestLayouts.length > 1 && (
           <div className="px-4 pt-2 pb-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700 pb-1 mb-0">
-              Pipeline {forestIdx + 1} ({forest.workflows.length} workflows)
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-1 mb-0">
+              {selectionMode && onTogglePipelineSelect ? (
+                <button
+                  onClick={() => onTogglePipelineSelect(forest.workflows.map(workflow => workflow.id))}
+                  className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                    forest.workflows.every(workflow => selectedWorkflowIds?.has(workflow.id))
+                      ? 'text-sky-700 dark:text-sky-300'
+                      : 'text-gray-400 hover:text-sky-600 dark:text-gray-500 dark:hover:text-sky-300'
+                  }`}
+                  title="Select or deselect this entire pipeline"
+                >
+                  {forest.workflows.every(workflow => selectedWorkflowIds?.has(workflow.id)) ? '[✓] ' : '[ ] '}
+                  Pipeline {forestIdx + 1} ({forest.workflows.length} workflows)
+                </button>
+              ) : (
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  Pipeline {forestIdx + 1} ({forest.workflows.length} workflows)
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -322,7 +356,7 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
             {lane.map(wf => {
               const status = wf.status || 'idle'
               const colors = STATUS_COLORS[status] || STATUS_COLORS.idle
-              const isSelected = selectedId === wf.id
+              const isSelected = selectionMode ? selectedWorkflowIds?.has(wf.id) : selectedId === wf.id
 
               return (
                 <div
@@ -360,6 +394,8 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                       onAddDependency?.(connectingFrom, wf.id)
                       setLastAction({ type: 'add', fromId: connectingFrom, toId: wf.id })
                       setConnectingFrom(null)
+                    } else if (selectionMode) {
+                      onToggleSelect?.(wf.id)
                     } else {
                       onSelect?.(wf.id)
                     }
@@ -379,6 +415,11 @@ export default function WorkflowDAG({ workflows, onSelect, selectedId, editable,
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
                     <span className={`text-sm font-medium truncate ${colors.text}`}>{wf.name}</span>
+                    {selectionMode && isSelected && (
+                      <span className="ml-auto text-[10px] font-semibold text-purple-600 dark:text-purple-300">
+                        Selected
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
