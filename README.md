@@ -5,17 +5,21 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.7)
+[![Version](https://img.shields.io/badge/version-1.2.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.8)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.7
+## 🔥 What's New in v1.2.8
 
 - **Partner-ready Workspaces Integrations** — the integrations flow now starts with models/providers and then branches into optional partner pages for Senso, Opik, GitHub, Blaxel, and Redis
 - **Partner skills and curated installs** — Skills now surfaces partner-backed skill references, with a curated one-click installer path for Blaxel agent skills
 - **Partner-aware templates** — added new partner showcase templates including Blaxel App Studio, Redis Memory Research Desk, and RAG To Sandbox Launch Team
 - **Container-ready partner metadata** — the runtime image now includes the repo `PARTNERS/` directory so cloud deployments can render the partner integrations UI
+- **AI skill creation** — Skills now has an AI-first creation flow with iterative refinement and missing-section guidance for `SKILL.md`
+- **Editable workspace template variants** — organization and agent templates can now be refined from built-in templates and saved as workspace-local variants
+- **Agent template file editing** — agent template refinement now includes real `IDENTITY.md`, `SOUL.md`, and `TOOLS.md` editing with validation and AI generation fallback
+- **GitHub partner auth flow** — Workspaces Integrations now supports guided GitHub auth and readiness checks inside the dashboard
 
 ## 🔥 Previously in v1.2.6
 
@@ -92,6 +96,7 @@ Cloud/on-prem runtime note:
 ### Templates
 - **50+ Organization Templates** - Business, technical, personal, science, travel, hobbies, family, events, markets, product research, and launch proposal templates
 - **25 Reusable Agent Templates** - Leadership, engineering, research, events, testing, market, product, competitive, astronomy, and prototype roles that can be reused independently
+- **Editable Workspace Variants** - Start from built-in agent and organization templates, refine them, and save workspace-local variants without overwriting system templates
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **Secrets Step for Secure Inputs** - Templates with secret or runtime-input requirements now get a browser-local `Secrets` step during apply
 - **AI Generate** - Describe a team, AI fills all wizard steps
@@ -113,6 +118,8 @@ Cloud/on-prem runtime note:
 - **Shipables.dev Registry** - Search, browse, and install from 1,000+ skills
 - **Bulk Assignment** - Add skills to multiple agents at once
 - **Custom Skills** - Import from local directory or GitHub
+- **Partner Skills** - Surface partner-backed skill references and curated install actions from Workspaces Integrations
+- **AI Skill Creation** - Generate a new skill scaffold from intent, refine it iteratively, and fill missing `SKILL.md` sections with guidance
 
 ### Notifications
 - **Dynamic Blocker UI** - Approval buttons, choice pills, input fields, delegation picker
@@ -189,7 +196,8 @@ cd clawmax
 cd SYSTEM/dashboard && npm install && cd ../..
 
 # Set up workspace directories
-mkdir -p AGENTS WORKFLOWS GROUPS COMMUNITIES
+mkdir -p WORKSPACES/default/{AGENTS,WORKFLOWS,ORG,TEMPLATES,PARTNERS,SYSTEM}
+mkdir -p WORKSPACES/default/SKILLS/custom
 
 # Configure dashboard-local env
 cp SYSTEM/dashboard/.env.example SYSTEM/dashboard/.env
@@ -220,7 +228,18 @@ OTP_FROM_EMAIL=max@clawmax.ai
 # Local developer OTP flow without live email
 OTP_DEV_MODE=log
 # Latest code is written to .clawmax-otp-dev.json
+
+# Optional partner visibility in Workspaces Integrations
+WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github,blaxel,redis
+
+# Optional extra partner roots
+CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS
 ```
+
+Notes:
+- Built-in partner definitions ship in the repo-level `PARTNERS/` directory.
+- `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
+- If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
 
 ### First Steps
 

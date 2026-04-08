@@ -81,6 +81,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [existingGroupNames, setExistingGroupNames] = useState<string[]>([])
   const [existingCommunityNames, setExistingCommunityNames] = useState<string[]>([])
   const [acknowledgedChannelConflicts, setAcknowledgedChannelConflicts] = useState(false)
+  const [groupRenameSelections, setGroupRenameSelections] = useState<Record<string, boolean>>({})
+  const [groupRenameValues, setGroupRenameValues] = useState<Record<string, string>>({})
+  const [communityRenameSelections, setCommunityRenameSelections] = useState<Record<string, boolean>>({})
+  const [communityRenameValues, setCommunityRenameValues] = useState<Record<string, string>>({})
   // Local field values for controlled inputs — synced to markdown on blur
   const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
@@ -356,6 +360,53 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     }
   }, [existingCommunityNames, existingGroupNames, template.communities, template.groups])
 
+  const suggestedConflictName = (name: string) => {
+    const raw = prefix || suffix ? `${prefix}${name}${suffix}` : `${templateSlug}-${name}`
+    return raw.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  const effectiveGroupRenames = useMemo(
+    () => Object.fromEntries(
+      Object.entries(groupRenameValues)
+        .filter(([name]) => !!groupRenameSelections[name])
+        .map(([name, value]) => [name, value.trim()])
+        .filter(([, value]) => !!value)
+    ),
+    [groupRenameSelections, groupRenameValues]
+  )
+
+  const effectiveCommunityRenames = useMemo(
+    () => Object.fromEntries(
+      Object.entries(communityRenameValues)
+        .filter(([name]) => !!communityRenameSelections[name])
+        .map(([name, value]) => [name, value.trim()])
+        .filter(([, value]) => !!value)
+    ),
+    [communityRenameSelections, communityRenameValues]
+  )
+
+  const conflictResolutionErrors = useMemo(() => {
+    const errors: string[] = []
+    const existingGroups = new Set(existingGroupNames)
+    const existingCommunities = new Set(existingCommunityNames)
+
+    for (const name of channelConflicts.groups) {
+      if (!groupRenameSelections[name]) continue
+      const next = (groupRenameValues[name] || '').trim()
+      if (!next) errors.push(`Group "${name}" rename is empty.`)
+      else if (next !== name && existingGroups.has(next)) errors.push(`Group "${name}" rename still conflicts with existing group "${next}".`)
+    }
+
+    for (const name of channelConflicts.communities) {
+      if (!communityRenameSelections[name]) continue
+      const next = (communityRenameValues[name] || '').trim()
+      if (!next) errors.push(`Community "${name}" rename is empty.`)
+      else if (next !== name && existingCommunities.has(next)) errors.push(`Community "${name}" rename still conflicts with existing community "${next}".`)
+    }
+
+    return errors
+  }, [channelConflicts, communityRenameSelections, communityRenameValues, existingCommunityNames, existingGroupNames, groupRenameSelections, groupRenameValues])
+
   async function ensureWorkspaceSkills(skillSpecs: Array<{ name: string; registryName?: string }>) {
     const skillsResp = await fetch('/api/skills')
     const skillsData = await skillsResp.json()
@@ -388,6 +439,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const handleApply = async () => {
     if (channelConflicts.hasAny && !acknowledgedChannelConflicts) {
       const message = 'This template reuses existing groups or communities. Review the conflict warning and confirm reuse before applying.'
+      setError(message)
+      showToastError(message)
+      return
+    }
+    if (conflictResolutionErrors.length > 0) {
+      const message = conflictResolutionErrors[0]
       setError(message)
       showToastError(message)
       return
@@ -531,6 +588,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           modelOverride: modelOverride || undefined,
           agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
           workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
+          groupRenames: Object.keys(effectiveGroupRenames).length > 0 ? effectiveGroupRenames : undefined,
+          communityRenames: Object.keys(effectiveCommunityRenames).length > 0 ? effectiveCommunityRenames : undefined,
         }),
       })
 
@@ -926,9 +985,36 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 {channelConflicts.groups.length > 0 && (
                   <div>
                     <div className="font-medium">Existing groups that will be reused</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
+                    <div className="mt-2 space-y-2">
                       {channelConflicts.groups.map((name) => (
-                        <span key={name} className="rounded-full border border-amber-300 dark:border-amber-700 px-2.5 py-1">{name}</span>
+                        <div key={name} className="rounded-lg border border-amber-300/70 dark:border-amber-700 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium">{name}</span>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!groupRenameSelections[name]}
+                                onChange={(e) => {
+                                  const checked = e.target.checked
+                                  setGroupRenameSelections((prev) => ({ ...prev, [name]: checked }))
+                                  if (checked && !groupRenameValues[name]) {
+                                    setGroupRenameValues((prev) => ({ ...prev, [name]: suggestedConflictName(name) }))
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                              <span>Rename for this apply</span>
+                            </label>
+                          </div>
+                          {groupRenameSelections[name] && (
+                            <input
+                              type="text"
+                              value={groupRenameValues[name] || ''}
+                              onChange={(e) => setGroupRenameValues((prev) => ({ ...prev, [name]: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') }))}
+                              className="mt-2 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs"
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -936,14 +1022,46 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 {channelConflicts.communities.length > 0 && (
                   <div>
                     <div className="font-medium">Existing communities that will be reused</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
+                    <div className="mt-2 space-y-2">
                       {channelConflicts.communities.map((name) => (
-                        <span key={name} className="rounded-full border border-amber-300 dark:border-amber-700 px-2.5 py-1">{name}</span>
+                        <div key={name} className="rounded-lg border border-amber-300/70 dark:border-amber-700 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium">{name}</span>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!communityRenameSelections[name]}
+                                onChange={(e) => {
+                                  const checked = e.target.checked
+                                  setCommunityRenameSelections((prev) => ({ ...prev, [name]: checked }))
+                                  if (checked && !communityRenameValues[name]) {
+                                    setCommunityRenameValues((prev) => ({ ...prev, [name]: suggestedConflictName(name) }))
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                              <span>Rename for this apply</span>
+                            </label>
+                          </div>
+                          {communityRenameSelections[name] && (
+                            <input
+                              type="text"
+                              value={communityRenameValues[name] || ''}
+                              onChange={(e) => setCommunityRenameValues((prev) => ({ ...prev, [name]: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') }))}
+                              className="mt-2 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs"
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
+              {conflictResolutionErrors.length > 0 && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                  {conflictResolutionErrors[0]}
+                </div>
+              )}
               <label className="mt-4 flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -1672,9 +1790,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   Confirm channel reuse above before applying this template.
                 </div>
               )}
+              {conflictResolutionErrors.length > 0 && (
+                <div className="text-xs text-red-600 dark:text-red-300">
+                  Resolve channel rename errors above before applying this template.
+                </div>
+              )}
               <button
                 onClick={handleApply}
-                disabled={applying || (channelConflicts.hasAny && !acknowledgedChannelConflicts)}
+                disabled={applying || (channelConflicts.hasAny && !acknowledgedChannelConflicts) || conflictResolutionErrors.length > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}

@@ -174,7 +174,7 @@ cat << "EOF"
   Multiagent Orchestration Platform
 EOF
 echo -e "${NC}"
-print_info "ClawMax v1.1.24 Setup"
+print_info "ClawMax v1.2.x Setup"
 echo ""
 
 # Must be in ClawMax directory
@@ -554,10 +554,17 @@ print_header "6. Workspace Configuration"
 WORKSPACE="$CLAWMAX_DIR/WORKSPACES/default"
 
 # Create workspace structure
-for dir in WORKSPACES/default WORKSPACES/default/AGENTS WORKSPACES/default/WORKFLOWS WORKSPACES/default/ORG WORKSPACES/default/TEMPLATES WORKSPACES/default/SKILLS/custom WORKSPACES/default/SYSTEM; do
+for dir in WORKSPACES/default WORKSPACES/default/AGENTS WORKSPACES/default/WORKFLOWS WORKSPACES/default/ORG WORKSPACES/default/TEMPLATES WORKSPACES/default/PARTNERS WORKSPACES/default/SKILLS/custom WORKSPACES/default/SYSTEM; do
   mkdir -p "$CLAWMAX_DIR/$dir"
 done
 print_success "Workspace structure created: $WORKSPACE"
+
+if [ -d "$CLAWMAX_DIR/PARTNERS" ]; then
+  print_success "Built-in partner definitions found"
+else
+  mkdir -p "$CLAWMAX_DIR/PARTNERS"
+  print_warning "Repo PARTNERS/ directory was missing — created an empty directory"
+fi
 
 # OpenClaw config
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
@@ -672,12 +679,19 @@ else
   echo "# SYSTEM_ANTHROPIC_API_KEY=sk-ant-..." >> "$ENV_FILE"
 fi
 
-cat >> "$ENV_FILE" << 'ENVEOF'
+cat >> "$ENV_FILE" << ENVEOF
 
 # Allow system keys for user agent execution (dev convenience)
 ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
 
 # BYOK: users can also provide keys in-browser via the BYOK wizard
+
+# Partner integrations shown in Workspaces Integrations (comma-separated)
+WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
+
+# Extra partner definition roots (optional)
+# Built-in partner definitions ship in repo PARTNERS/
+CLAWMAX_EXTRA_PARTNER_DIRS=$WORKSPACE/PARTNERS
 ENVEOF
 
 # Opik
@@ -887,6 +901,7 @@ fi
 echo -e "  ${BOLD}Configuration:${NC}"
 echo "    Mode:      $MODE_STR"
 echo "    Workspace: $WORKSPACE"
+echo "    Partners:  $CLAWMAX_DIR/PARTNERS"
 echo "    Backend:   http://localhost:3001"
 echo "    Frontend:  http://localhost:5173"
 echo "    .env:      SYSTEM/dashboard/.env"

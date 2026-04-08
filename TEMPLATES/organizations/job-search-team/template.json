@@ -1,0 +1,359 @@
+{
+  "name": "Job Search Team",
+  "emoji": "🎯",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "business",
+  "description": "Proposal template for running an organized job search with role targeting, resume tailoring, outreach support, company research, and interview preparation. Early idea only and intended as a customizable starter.",
+  "author": "ClawMax Team",
+  "tags": [
+    "business",
+    "career",
+    "job-search",
+    "suggested",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "company-researcher",
+      "label": "Number of Company Researchers",
+      "default": 2,
+      "min": 1,
+      "max": 10
+    }
+  ],
+  "communities": [
+    {
+      "name": "Job Search",
+      "description": "Shared coordination space for role targeting, application materials, outreach, and interview preparation.",
+      "tags": [
+        "business",
+        "career",
+        "job-search-team",
+        "job-search"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Roles",
+      "community": "Job Search",
+      "description": "Role targets, positioning, and search direction.",
+      "tags": [
+        "business",
+        "job-search-team",
+        "roles"
+      ]
+    },
+    {
+      "name": "Applications",
+      "community": "Job Search",
+      "description": "Resume tailoring, applications, and submission materials.",
+      "tags": [
+        "business",
+        "job-search-team",
+        "applications"
+      ]
+    },
+    {
+      "name": "Outreach",
+      "community": "Job Search",
+      "description": "Networking messages, recruiter outreach, and follow-up notes.",
+      "tags": [
+        "business",
+        "job-search-team",
+        "outreach"
+      ]
+    },
+    {
+      "name": "Interview Prep",
+      "community": "Job Search",
+      "description": "Interview stories, question prep, and company-specific readiness.",
+      "tags": [
+        "business",
+        "job-search-team",
+        "interview-prep"
+      ]
+    },
+    {
+      "name": "Status",
+      "community": "Job Search",
+      "description": "Current search status, top targets, blockers, and next actions.",
+      "tags": [
+        "business",
+        "job-search-team",
+        "status"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "job-search-lead",
+      "name": "Job Search Lead",
+      "role": "Search lead — keeps the search focused, decides priorities, and synthesizes final recommendations.",
+      "tags": [
+        "lead",
+        "career",
+        "job-search"
+      ],
+      "communities": [
+        "Job Search"
+      ],
+      "groups": [
+        "Roles",
+        "Status"
+      ]
+    },
+    {
+      "id": "resume-writer",
+      "name": "Resume Writer",
+      "role": "Application specialist — tailors resume bullets, summary, and supporting materials to target roles.",
+      "tags": [
+        "career",
+        "resume",
+        "applications"
+      ],
+      "communities": [
+        "Job Search"
+      ],
+      "groups": [
+        "Applications",
+        "Status"
+      ]
+    },
+    {
+      "id": "outreach-coach",
+      "name": "Outreach Coach",
+      "role": "Networking specialist — drafts outreach, recruiter notes, and follow-up sequences that feel personal and concise.",
+      "tags": [
+        "career",
+        "networking",
+        "outreach"
+      ],
+      "communities": [
+        "Job Search"
+      ],
+      "groups": [
+        "Outreach",
+        "Status"
+      ]
+    },
+    {
+      "id": "interview-prep",
+      "name": "Interview Prep",
+      "role": "Interview specialist — prepares stories, question banks, and company-specific mock interview prep.",
+      "tags": [
+        "career",
+        "interview",
+        "prep"
+      ],
+      "communities": [
+        "Job Search"
+      ],
+      "groups": [
+        "Interview Prep",
+        "Status"
+      ]
+    },
+    {
+      "id": "company-researcher",
+      "name": "Company Researcher",
+      "role": "Research specialist — builds company briefs, role fit notes, and target-account context for applications and interviews.",
+      "tags": [
+        "career",
+        "research",
+        "companies"
+      ],
+      "communities": [
+        "Job Search"
+      ],
+      "groups": [
+        "Roles",
+        "Interview Prep"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "job-search-kickoff",
+      "name": "Job Search Kickoff",
+      "description": "Job Search Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "job-search-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "job-search-lead"
+        ]
+      },
+      "content": "# Job Search Kickoff\n\nYou are the Job Search Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Candidate profile:** [background, years of experience, strengths]\n- **Role targets:** [PM, engineer, designer, research, custom]\n- **Level:** [entry, mid, senior, staff, leadership]\n- **Industries or company types:** [AI, robotics, enterprise SaaS, startup, public company, custom]\n- **Geography:** [remote, Bay Area, US, specific city, custom]\n- **Primary outcome:** [role shortlist, tailored resume pack, outreach plan, interview prep]\n\n## Your Tasks\n1. Restate the candidate profile, role targets, and search constraints\n2. Ask Company Researchers for a target-company and role-fit sweep\n3. Ask Resume Writer for the materials strategy and tailoring approach\n4. Ask Outreach Coach for the networking and recruiter plan\n5. Ask Interview Prep for the likely interview tracks and readiness priorities\n6. Post the search plan to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "job-search-kickoff"
+      ]
+    },
+    {
+      "id": "role-targeting-sweep",
+      "name": "Role Targeting Sweep",
+      "description": "Build the strongest role and company shortlist from the candidate goals and background.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "company-researcher",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Roles"
+        ],
+        "tags": [],
+        "agents": [
+          "company-researcher"
+        ]
+      },
+      "content": "# Role Targeting Sweep\n\n1. Review the candidate profile, role targets, and search constraints from kickoff\n2. Identify the strongest role families, company types, and target accounts that fit the background\n3. Call out where the candidate has strong fit versus likely gap areas\n4. Recommend a focused shortlist instead of an over-broad search\n5. Post the role-targeting sweep to Roles and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "job-search-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "role-targeting-sweep"
+      ]
+    },
+    {
+      "id": "resume-tailoring-pack",
+      "name": "Resume Tailoring Pack",
+      "description": "Turn the role targets into better-positioned resume and application materials.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "resume-writer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Applications"
+        ],
+        "tags": [],
+        "agents": [
+          "resume-writer"
+        ]
+      },
+      "content": "# Resume Tailoring Pack\n\n1. Review the role-targeting output and candidate profile from kickoff\n2. Tailor resume framing, summary, and top experience bullets to the strongest target roles\n3. Suggest what to emphasize, what to trim, and where evidence is too weak or generic\n4. Produce a practical application-materials pack the candidate can reuse across the shortlist\n5. Post the resume tailoring pack to Applications and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "role-targeting-sweep"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "resume-tailoring-pack"
+      ]
+    },
+    {
+      "id": "outreach-and-networking-pack",
+      "name": "Outreach And Networking Pack",
+      "description": "Prepare recruiter and networking outreach based on the target roles and companies.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "outreach-coach",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Outreach"
+        ],
+        "tags": [],
+        "agents": [
+          "outreach-coach"
+        ]
+      },
+      "content": "# Outreach And Networking Pack\n\n1. Review the role shortlist and the candidate positioning from kickoff and the role-targeting sweep\n2. Draft concise networking and recruiter messages for different target contexts\n3. Suggest a sensible outreach sequence, follow-up cadence, and list of likely warm-intro paths\n4. Distinguish the strongest outreach bets from lower-yield busywork\n5. Post the outreach pack to Outreach and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "role-targeting-sweep"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "outreach-and-networking-pack"
+      ]
+    },
+    {
+      "id": "interview-prep-brief",
+      "name": "Interview Prep Brief",
+      "description": "Create the interview prep brief, stories, and company-specific readiness guidance.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "interview-prep",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Interview Prep"
+        ],
+        "tags": [],
+        "agents": [
+          "interview-prep",
+          "company-researcher"
+        ]
+      },
+      "content": "# Interview Prep Brief\n\n1. Review the shortlisted roles, target companies, and tailored resume framing\n2. Identify the likely interview loops, question themes, and evaluation criteria for those targets\n3. Draft candidate stories, examples, and prep prompts that fit the search direction\n4. Call out the highest-risk interview gaps and the best ways to close them quickly\n5. Post the interview prep brief to Interview Prep and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "resume-tailoring-pack",
+        "outreach-and-networking-pack"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "interview-prep-brief"
+      ]
+    },
+    {
+      "id": "job-search-synthesis",
+      "name": "Job Search Synthesis",
+      "description": "Final synthesis of the best search direction, materials, outreach, and interview priorities.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "job-search-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "job-search-lead"
+        ]
+      },
+      "content": "# Job Search Synthesis\n\n1. Review the role-targeting, resume, outreach, and interview-prep outputs\n2. Separate the strongest job-search bets from lower-value search activity\n3. Summarize the top target roles and companies, the best application angles, and the most important next actions\n4. Call out missing materials, weak evidence, or unresolved positioning issues that should be fixed before broad outreach\n5. Post the final search brief to Status with links to Roles, Applications, Outreach, and Interview Prep",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "interview-prep-brief"
+      ],
+      "tags": [
+        "workflow",
+        "business",
+        "job-search-team",
+        "job-search-synthesis"
+      ]
+    }
+  ]
+}

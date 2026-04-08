@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { execFileSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
 import {
   listTemplates,
   getTemplate,
@@ -15,6 +17,8 @@ import {
   parseTemplateMd,
   templateToMarkdown,
   saveTemplate,
+  getAgentTemplatesDir,
+  getGlobalAgentTemplatesDir,
 } from '../lib/templates'
 import { listWorkflowTemplates, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL } from '../lib/ai-generator'
@@ -261,6 +265,7 @@ router.put('/:type/:slug', (req, res) => {
     if (!template || typeof template !== 'object') {
       return res.status(400).json({ error: 'Template body is required' })
     }
+    const templateFiles = template.templateFiles
 
     const templateType = type === 'agents' ? 'agent' : 'organization'
     if (template.type !== templateType) {
@@ -277,6 +282,18 @@ router.put('/:type/:slug', (req, res) => {
       return res.status(500).json({ error: result.error || 'Failed to save template' })
     }
 
+    if (templateType === 'agent' && result.path && templateFiles && typeof templateFiles === 'object') {
+      if (typeof templateFiles.identity === 'string') {
+        fs.writeFileSync(path.join(result.path, 'IDENTITY.md'), templateFiles.identity, 'utf-8')
+      }
+      if (typeof templateFiles.soul === 'string') {
+        fs.writeFileSync(path.join(result.path, 'SOUL.md'), templateFiles.soul, 'utf-8')
+      }
+      if (typeof templateFiles.tools === 'string') {
+        fs.writeFileSync(path.join(result.path, 'TOOLS.md'), templateFiles.tools, 'utf-8')
+      }
+    }
+
     const nextSlug = slugify(template.name)
     if (slug && slug !== nextSlug) {
       deleteTemplate(templateType, slug)
@@ -286,6 +303,61 @@ router.put('/:type/:slug', (req, res) => {
     res.json({ ok: true, slug: nextSlug, template: savedTemplate || template })
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to save template' })
+  }
+})
+
+// GET /api/templates/agents/:slug/files - read template config files for editing
+router.get('/agents/:slug/files', (req, res) => {
+  try {
+    const { slug } = req.params
+    const template = getTemplate('agent', slug) as any
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' })
+    }
+
+    const candidateDirs = [
+      path.join(getAgentTemplatesDir(), slug),
+      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'workspace'
+        ? path.join(getAgentTemplatesDir(), template.metadata.basedOnSlug)
+        : null,
+      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'system'
+        ? path.join(getGlobalAgentTemplatesDir(), template.metadata.basedOnSlug)
+        : null,
+      path.join(getGlobalAgentTemplatesDir(), slug),
+    ].filter((dir): dir is string => !!dir && fs.existsSync(dir))
+
+    if (template.source === 'workspace' && (!template.metadata?.basedOnSlug || !template.metadata?.basedOnSource)) {
+      const sourceAgentId = template.agents?.[0]?.id
+      const normalizedName = String(template.name || '').replace(/\s+copy$/i, '').trim().toLowerCase()
+      const systemTemplateMatch = listTemplates('agent').find((entry: any) => {
+        if (entry.source !== 'system' || !entry.slug) return false
+        if (sourceAgentId && entry.agents?.[0]?.id === sourceAgentId) return true
+        return String(entry.name || '').trim().toLowerCase() === normalizedName
+      })
+      if (systemTemplateMatch?.slug) {
+        const inferredDir = path.join(getGlobalAgentTemplatesDir(), systemTemplateMatch.slug)
+        if (fs.existsSync(inferredDir)) {
+          candidateDirs.push(inferredDir)
+        }
+      }
+    }
+
+    const readFile = (name: string) => {
+      for (const dir of candidateDirs) {
+        const filePath = path.join(dir, name)
+        if (!fs.existsSync(filePath)) continue
+        const content = fs.readFileSync(filePath, 'utf-8')
+        if (content.trim()) return content
+      }
+      return ''
+    }
+    res.json({
+      identity: readFile('IDENTITY.md'),
+      soul: readFile('SOUL.md'),
+      tools: readFile('TOOLS.md'),
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to load template files' })
   }
 })
 
@@ -404,7 +476,7 @@ router.post('/organizations/validate-customization', (req, res) => {
 })
 
 router.post('/organizations/import', (req, res) => {
-  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides } = req.body
+  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides, groupRenames, communityRenames } = req.body
 
   if (!templateSlug || typeof templateSlug !== 'string') {
     return res.status(400).json({ error: 'Template slug is required' })
@@ -417,6 +489,8 @@ router.post('/organizations/import', (req, res) => {
     modelOverride: modelOverride || undefined,
     agentCounts: agentCounts || undefined,
     workflowOverrides: workflowOverrides || undefined,
+    groupRenames: groupRenames || undefined,
+    communityRenames: communityRenames || undefined,
   })
 
   if (!result.ok) {

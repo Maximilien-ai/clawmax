@@ -4,6 +4,7 @@ import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import TemplateWizard from '../components/TemplateWizard'
+import AgentTemplateWizard from '../components/AgentTemplateWizard'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 
 interface AgentTemplate {
@@ -26,6 +27,9 @@ interface AgentTemplate {
     aiPrompt?: string
     model?: string
     createdAt?: string
+    updatedAt?: string
+    basedOnSlug?: string
+    basedOnSource?: 'system' | 'workspace' | 'enterprise'
   }
 }
 
@@ -224,6 +228,8 @@ export default function Templates() {
   const [sortColumn, setSortColumn] = useState<TemplateSortColumn>('name')
   const [showWizard, setShowWizard] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<OrganizationTemplate | null>(null)
+  const [showAgentWizard, setShowAgentWizard] = useState(false)
+  const [editingAgentTemplate, setEditingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -568,8 +574,13 @@ export default function Templates() {
   }
 
   const openEditForTemplate = (template: Template) => {
+    if (template.type === 'agent') {
+      setEditingAgentTemplate(template)
+      setShowAgentWizard(true)
+      return
+    }
     if (template.type !== 'organization') {
-      showError('Template editing is available for organization templates first.')
+      showError('Template editing is available for agent and organization templates.')
       return
     }
     setEditingTemplate(template)
@@ -1276,7 +1287,7 @@ export default function Templates() {
             openApplyForTemplate(selectedTemplate)
             setSelectedTemplate(null)
           } : undefined}
-          onRefine={selectedTemplate.type === 'organization' ? () => {
+          onRefine={selectedTemplate.type !== 'workflow' ? () => {
             openEditForTemplate(selectedTemplate)
             setSelectedTemplate(null)
           } : undefined}
@@ -1355,6 +1366,47 @@ export default function Templates() {
             setEditingTemplate(null)
           }}
           showSuccess={showSuccess}
+          showError={showError}
+        />
+      )}
+
+      {showAgentWizard && editingAgentTemplate && (
+        <AgentTemplateWizard
+          initialTemplate={editingAgentTemplate}
+          onClose={() => {
+            setShowAgentWizard(false)
+            setEditingAgentTemplate(null)
+          }}
+          onSave={async (template) => {
+            try {
+              const payload = {
+                ...template,
+                metadata: {
+                  ...(template.metadata || {}),
+                  createdAt: editingAgentTemplate.metadata?.createdAt,
+                  basedOnSlug: editingAgentTemplate.slug,
+                  basedOnSource: editingAgentTemplate.source,
+                },
+              }
+              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const resp = await fetch(`/api/templates/agents/${slug}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              })
+              if (resp.ok) {
+                showSuccess(`Template "${template.name}" saved!`)
+                setShowAgentWizard(false)
+                setEditingAgentTemplate(null)
+                fetchTemplates()
+              } else {
+                const data = await resp.json().catch(() => ({}))
+                showError(data.error || 'Failed to save template')
+              }
+            } catch {
+              showError('Failed to save template')
+            }
+          }}
           showError={showError}
         />
       )}
@@ -1723,21 +1775,21 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Template Source</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">
                 {template.source || 'workspace'}
-                {(template as OrganizationTemplate).metadata?.basedOnSlug && (
+                {((template as OrganizationTemplate).metadata?.basedOnSlug || (template as AgentTemplate).metadata?.basedOnSlug) && (
                   <span className="ml-2 text-xs text-gray-500 dark:text-gray-500">
-                    based on {(template as OrganizationTemplate).metadata?.basedOnSource || 'template'}:{' '}
-                    {(template as OrganizationTemplate).metadata?.basedOnSlug}
+                    based on {((template as OrganizationTemplate).metadata?.basedOnSource || (template as AgentTemplate).metadata?.basedOnSource || 'template')}:{' '}
+                    {((template as OrganizationTemplate).metadata?.basedOnSlug || (template as AgentTemplate).metadata?.basedOnSlug)}
                   </span>
                 )}
               </p>
             </div>
           )}
 
-          {!isWorkflow && (template as OrganizationTemplate).metadata?.updatedAt && (
+          {!isWorkflow && ((template as OrganizationTemplate).metadata?.updatedAt || (template as AgentTemplate).metadata?.updatedAt) && (
             <div>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 dark:text-gray-300">Last Changed</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {new Date((template as OrganizationTemplate).metadata!.updatedAt!).toLocaleString()}
+                {new Date(((template as OrganizationTemplate).metadata?.updatedAt || (template as AgentTemplate).metadata?.updatedAt)!).toLocaleString()}
               </p>
             </div>
           )}
@@ -1935,6 +1987,9 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
               )}
               {template.metadata.createdAt && (
                 <div className="text-sky-600 dark:text-sky-400">Created: {new Date(template.metadata.createdAt).toLocaleDateString()}</div>
+              )}
+              {template.metadata.updatedAt && (
+                <div className="text-sky-600 dark:text-sky-400">Updated: {new Date(template.metadata.updatedAt).toLocaleString()}</div>
               )}
             </div>
           )}

@@ -76,6 +76,9 @@ export interface AgentTemplate {
     aiPrompt?: string
     model?: string
     createdAt?: string
+    updatedAt?: string
+    basedOnSlug?: string
+    basedOnSource?: TemplateSource
   }
 }
 
@@ -743,6 +746,11 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
           ...template,
           source: undefined,
           slug: undefined,
+          metadata: {
+            ...(template.metadata || {}),
+            createdAt: template.metadata?.createdAt || timestamp,
+            updatedAt: timestamp,
+          },
         }
 
     // Validate template
@@ -764,6 +772,26 @@ export function saveTemplate(template: Template): { ok: boolean; path?: string; 
     // Also write TEMPLATE.md
     const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
     fs.writeFileSync(templateMdPath, templateToMarkdown(sanitizedTemplate), 'utf-8')
+
+    if (sanitizedTemplate.type === 'agent' && sanitizedTemplate.metadata?.basedOnSlug) {
+      const sourceSlug = sanitizedTemplate.metadata.basedOnSlug
+      const sourceType = sanitizedTemplate.metadata.basedOnSource || 'system'
+      const sourceDir = sourceType === 'workspace'
+        ? path.join(getAgentTemplatesDir(), sourceSlug)
+        : sourceType === 'enterprise'
+          ? null
+          : path.join(getGlobalAgentTemplatesDir(), sourceSlug)
+      if (sourceDir && fs.existsSync(sourceDir)) {
+        const files = ['SOUL.md', 'TOOLS.md', 'IDENTITY.md', 'GROUPS.md', 'COMMUNITIES.md']
+        for (const file of files) {
+          const srcPath = path.join(sourceDir, file)
+          const dstPath = path.join(templateDir, file)
+          if (fs.existsSync(srcPath) && !fs.existsSync(dstPath)) {
+            fs.copyFileSync(srcPath, dstPath)
+          }
+        }
+      }
+    }
 
     return { ok: true, path: templateDir }
   } catch (err) {
@@ -1427,6 +1455,8 @@ export function importOrganizationTemplate(
     modelOverride?: string
     agentCounts?: Record<string, number>
     workflowOverrides?: Record<string, string>
+    groupRenames?: Record<string, string>
+    communityRenames?: Record<string, string>
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -1450,8 +1480,44 @@ export function importOrganizationTemplate(
       return { ok: false, error: 'Only organization templates can be imported via this endpoint' }
     }
 
+    const adjustedTemplate: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+    const groupRenames = options?.groupRenames || {}
+    const communityRenames = options?.communityRenames || {}
+
+    if (adjustedTemplate.communities) {
+      adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
+        ...community,
+        name: communityRenames[community.name] || community.name,
+      }))
+    }
+
+    if (adjustedTemplate.groups) {
+      adjustedTemplate.groups = adjustedTemplate.groups.map((group) => ({
+        ...group,
+        name: groupRenames[group.name] || group.name,
+        community: group.community ? (communityRenames[group.community] || group.community) : group.community,
+      }))
+    }
+
+    adjustedTemplate.agents = adjustedTemplate.agents.map((agent) => ({
+      ...agent,
+      communities: (agent.communities || []).map((communityName) => communityRenames[communityName] || communityName),
+      groups: (agent.groups || []).map((groupName) => groupRenames[groupName] || groupName),
+    }))
+
+    if (adjustedTemplate.workflows) {
+      adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => ({
+        ...workflow,
+        targeting: {
+          ...workflow.targeting,
+          communities: (workflow.targeting.communities || []).map((communityName) => communityRenames[communityName] || communityName),
+          groups: (workflow.targeting.groups || []).map((groupName) => groupRenames[groupName] || groupName),
+        },
+      }))
+    }
+
     // Validate template
-    const validation = validateTemplate(template)
+    const validation = validateTemplate(adjustedTemplate)
     if (!validation.valid) {
       return { ok: false, error: `Template validation failed: ${validation.errors?.join(', ')}` }
     }
@@ -1462,10 +1528,10 @@ export function importOrganizationTemplate(
     const createdAgents: string[] = []
 
     // Expand parameterized agents based on agentCounts
-    const paramAgentIds = new Set((template as any).parameters?.map((p: any) => p.agentId) || [])
-    const expandedAgents = template.agents.flatMap((agent: any) => {
+    const paramAgentIds = new Set((adjustedTemplate as any).parameters?.map((p: any) => p.agentId) || [])
+    const expandedAgents = adjustedTemplate.agents.flatMap((agent: any) => {
       if (paramAgentIds.has(agent.id) && options?.agentCounts) {
-        const count = options.agentCounts[agent.id] || (template as any).parameters?.find((p: any) => p.agentId === agent.id)?.default || 1
+        const count = options.agentCounts[agent.id] || (adjustedTemplate as any).parameters?.find((p: any) => p.agentId === agent.id)?.default || 1
         return Array.from({ length: count }, (_, i) => ({
           ...agent,
           id: count === 1 ? agent.id : `${agent.id}${i + 1}`,
@@ -1639,7 +1705,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       // Step 2: Create COMMUNITIES.md for agents with community memberships
       // Always attempt creation for every agent that has community assignments,
       // even if the file was already partially copied in Step 1.
-      if (template.communities && template.communities.length > 0) {
+      if (adjustedTemplate.communities && adjustedTemplate.communities.length > 0) {
         for (const templateAgent of agentsToCreate) {
           const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
           const agentCommunities = templateAgent.communities || []
@@ -1653,7 +1719,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
 
               // Build COMMUNITIES.md content — match by name (case-insensitive)
-              const matchedCommunities = template.communities
+              const matchedCommunities = adjustedTemplate.communities
                 .filter(comm => agentCommunities.some((ac: string) => ac.toLowerCase() === comm.name.toLowerCase()))
               const communitiesContent = matchedCommunities
                 .map(comm => {
@@ -1684,7 +1750,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       }
 
       // Step 3: Create GROUPS.md for agents with group memberships
-      if (template.groups && template.groups.length > 0) {
+      if (adjustedTemplate.groups && adjustedTemplate.groups.length > 0) {
         for (const templateAgent of agentsToCreate) {
           const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
           const agentGroups = templateAgent.groups || []
@@ -1697,7 +1763,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               const groupsPath = path.join(agentDir, 'GROUPS.md')
 
               // Build GROUPS.md content — match by name (case-insensitive)
-              const matchedGroups = template.groups
+              const matchedGroups = adjustedTemplate.groups
                 .filter(grp => agentGroups.some((ag: string) => ag.toLowerCase() === grp.name.toLowerCase()))
               const groupsContent = matchedGroups
                 .map(grp => {
@@ -1729,7 +1795,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       }
 
       // Step 4: Update workspace-level ORG/COMMUNITIES.md and ORG/GROUPS.md
-      if (template.communities && template.communities.length > 0) {
+      if (adjustedTemplate.communities && adjustedTemplate.communities.length > 0) {
         const orgDir = path.join(getWorkspacePath(), 'ORG')
         fs.mkdirSync(orgDir, { recursive: true })
 
@@ -1749,7 +1815,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
 
         // Build content for new communities (skip existing ones)
-        const newCommunitiesContent = template.communities
+        const newCommunitiesContent = adjustedTemplate.communities
           .filter(comm => !existingCommunityNames.has(comm.name))
           .map(comm => {
             let content = `### ${comm.name}\n`
@@ -1792,7 +1858,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           console.log('All communities already exist, updating member lists')
           let updatedContent = existingContent
 
-          for (const comm of template.communities) {
+          for (const comm of adjustedTemplate.communities) {
             // Find agents that belong to this community
             const newMembers = agentsToCreate
               .filter(a => (a.communities || []).includes(comm.name))
@@ -1845,7 +1911,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
-      if (template.groups && template.groups.length > 0) {
+      if (adjustedTemplate.groups && adjustedTemplate.groups.length > 0) {
         const orgDir = path.join(getWorkspacePath(), 'ORG')
         fs.mkdirSync(orgDir, { recursive: true })
 
@@ -1865,7 +1931,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
 
         // Build content for new groups (skip existing ones)
-        const newGroupsContent = template.groups
+        const newGroupsContent = adjustedTemplate.groups
           .filter(grp => !existingGroupNames.has(grp.name))
           .map(grp => {
             let content = `### ${grp.name}\n`
@@ -1909,7 +1975,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           console.log('All groups already exist, updating member lists')
           let updatedContent = existingContent
 
-          for (const grp of template.groups) {
+          for (const grp of adjustedTemplate.groups) {
             // Find agents that belong to this group
             const newMembers = agentsToCreate
               .filter(a => (a.groups || []).includes(grp.name))
@@ -1963,12 +2029,12 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       }
 
       // Step 5: Create/update workflows from template
-      if (template.workflows && template.workflows.length > 0) {
+      if (adjustedTemplate.workflows && adjustedTemplate.workflows.length > 0) {
         const existingWorkflows = listWorkflows()
         const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.name, w]))
         const workflowIdMap: Record<string, string> = {}
 
-        for (const wf of template.workflows) {
+        for (const wf of adjustedTemplate.workflows) {
           // Update targeting to use new agent IDs if prefix/suffix was applied
           const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
           const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || dep)
@@ -2063,7 +2129,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               owner,
               targeting: updatedTargeting,
               content: options?.workflowOverrides?.[wf.id] || wf.content || 'Execute workflow tasks.',
-              author: template.author || 'imported',
+              author: adjustedTemplate.author || 'imported',
               dependsOn: mappedDependsOn,
               type: wf.type,
               secretRequirements: (wf as any).secretRequirements,
@@ -2082,7 +2148,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       runOrganizationPostImportSetup({
         createdAgents,
         agentsToCreate,
-        template,
+        template: adjustedTemplate,
         prefix,
         suffix,
         workspacePath: getWorkspacePath(),

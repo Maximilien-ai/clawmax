@@ -1,0 +1,330 @@
+{
+  "name": "Robotics Build Lab",
+  "emoji": "🦾",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "technical",
+  "description": "Proposal template for taking a robotics idea from platform choice and system design through prototyping, integration, and demo readiness. Early idea only and intended as a customizable starter.",
+  "author": "ClawMax Team",
+  "tags": [
+    "technical",
+    "robotics",
+    "embedded",
+    "qualcomm",
+    "arduino",
+    "suggested",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "prototype-builder",
+      "label": "Number of Prototype Builders",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Robotics Lab",
+      "description": "Shared coordination space for robotics platform decisions, system design, implementation, and demo readiness.",
+      "tags": [
+        "technical",
+        "robotics",
+        "robotics-build-lab",
+        "robotics-lab"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Platforms",
+      "community": "Robotics Lab",
+      "description": "Platform selection, hardware constraints, Qualcomm AI Hub fit, and Arduino considerations.",
+      "tags": [
+        "technical",
+        "robotics-build-lab",
+        "platforms"
+      ]
+    },
+    {
+      "name": "Architecture",
+      "community": "Robotics Lab",
+      "description": "System design, control loops, runtime architecture, and integration boundaries.",
+      "tags": [
+        "technical",
+        "robotics-build-lab",
+        "architecture"
+      ]
+    },
+    {
+      "name": "Build",
+      "community": "Robotics Lab",
+      "description": "Prototype implementation, code, firmware, and integration tasks.",
+      "tags": [
+        "technical",
+        "robotics-build-lab",
+        "build"
+      ]
+    },
+    {
+      "name": "Demo",
+      "community": "Robotics Lab",
+      "description": "Demo scenarios, validation, presentation notes, and readiness checks.",
+      "tags": [
+        "technical",
+        "robotics-build-lab",
+        "demo"
+      ]
+    },
+    {
+      "name": "Status",
+      "community": "Robotics Lab",
+      "description": "Current scope, blockers, integration risks, and next milestones.",
+      "tags": [
+        "technical",
+        "robotics-build-lab",
+        "status"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "robotics-lead",
+      "name": "Robotics Lead",
+      "role": "Robotics lead — defines the project goal, keeps the scope coherent, and synthesizes the final build direction.",
+      "tags": [
+        "lead",
+        "robotics",
+        "systems"
+      ],
+      "communities": [
+        "Robotics Lab"
+      ],
+      "groups": [
+        "Architecture",
+        "Status"
+      ]
+    },
+    {
+      "id": "platform-architect",
+      "name": "Platform Architect",
+      "role": "Platform specialist — evaluates robotics hardware/software options, Qualcomm AI Hub paths, Arduino fit, and deployment constraints.",
+      "tags": [
+        "robotics",
+        "platforms",
+        "embedded"
+      ],
+      "communities": [
+        "Robotics Lab"
+      ],
+      "groups": [
+        "Platforms",
+        "Architecture"
+      ]
+    },
+    {
+      "id": "prototype-builder",
+      "name": "Prototype Builder",
+      "role": "Build specialist — turns the chosen architecture into a working prototype plan, implementation tasks, and integration steps.",
+      "tags": [
+        "robotics",
+        "prototype",
+        "build"
+      ],
+      "communities": [
+        "Robotics Lab"
+      ],
+      "groups": [
+        "Build",
+        "Status"
+      ]
+    },
+    {
+      "id": "controls-engineer",
+      "name": "Controls Engineer",
+      "role": "Controls specialist — thinks through sensing, control loops, feedback, runtime timing, and system reliability.",
+      "tags": [
+        "robotics",
+        "controls",
+        "systems"
+      ],
+      "communities": [
+        "Robotics Lab"
+      ],
+      "groups": [
+        "Architecture",
+        "Build"
+      ]
+    },
+    {
+      "id": "demo-operator",
+      "name": "Demo Operator",
+      "role": "Demo specialist — prepares scenario scripts, validation passes, and a clean demo story for the prototype.",
+      "tags": [
+        "robotics",
+        "demo",
+        "validation"
+      ],
+      "communities": [
+        "Robotics Lab"
+      ],
+      "groups": [
+        "Demo",
+        "Status"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "robotics-kickoff",
+      "name": "Robotics Kickoff",
+      "description": "Robotics Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "robotics-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "robotics-lead"
+        ]
+      },
+      "content": "# Robotics Kickoff\n\nYou are the Robotics Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Robotics idea or demo:** [idea]\n- **Primary use case:** [navigation, manipulation, vision, edge inference, custom]\n- **Platform focus:** [Qualcomm AI Hub, Arduino, ROS, custom]\n- **Hardware constraints:** [board, sensors, compute, battery, custom]\n- **Demo goal:** [prototype, benchmark, live demo, technical brief]\n- **Output artifact:** [build plan, architecture brief, prototype tasks, demo script]\n\n## Your Tasks\n1. Restate the robotics idea, platform focus, and demo goal\n2. Ask Platform Architect for the strongest platform and deployment direction\n3. Ask Controls Engineer for the system and control constraints\n4. Ask Prototype Builders for the implementation path\n5. Ask Demo Operator for the demo and validation plan\n6. Post the build plan to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "technical",
+        "robotics-build-lab",
+        "robotics-kickoff"
+      ]
+    },
+    {
+      "id": "platform-fit-review",
+      "name": "Platform Fit Review",
+      "description": "Evaluate the platform path, deployment constraints, and build fit for the robotics goal.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "platform-architect",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Platforms"
+        ],
+        "tags": [],
+        "agents": [
+          "platform-architect"
+        ]
+      },
+      "content": "# Platform Fit Review\n\n1. Review the robotics goal, hardware constraints, and demo requirements from kickoff\n2. Compare the strongest platform options, including Qualcomm AI Hub and Arduino-style paths where relevant\n3. Identify what each option enables, what it constrains, and where the integration risk sits\n4. Recommend the most practical platform direction for the current build horizon\n5. Post the platform fit review to Platforms and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "robotics-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "robotics-build-lab",
+        "platform-fit-review"
+      ]
+    },
+    {
+      "id": "robotics-architecture-pass",
+      "name": "Robotics Architecture Pass",
+      "description": "Turn the selected platform direction into a practical robotics system design.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "controls-engineer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Architecture"
+        ],
+        "tags": [],
+        "agents": [
+          "controls-engineer",
+          "platform-architect"
+        ]
+      },
+      "content": "# Robotics Architecture Pass\n\n1. Review the platform recommendation and demo requirements\n2. Define the major system components, sensing/control path, runtime boundaries, and integration assumptions\n3. Highlight the riskiest timing, control, or deployment constraints before implementation starts\n4. Recommend the simplest architecture that still demonstrates the core value clearly\n5. Post the architecture pass to Architecture and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "platform-fit-review"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "robotics-build-lab",
+        "robotics-architecture-pass"
+      ]
+    },
+    {
+      "id": "prototype-build-plan",
+      "name": "Prototype Build Plan",
+      "description": "Translate the architecture into implementation steps, work breakdown, and prototype milestones.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "prototype-builder",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Build"
+        ],
+        "tags": [],
+        "agents": [
+          "prototype-builder"
+        ]
+      },
+      "content": "# Prototype Build Plan\n\n1. Review the architecture, platform choice, and demo target\n2. Break the prototype into concrete build steps, dependencies, and testable milestones\n3. Distinguish what must be built now from what can remain mocked, simplified, or deferred\n4. Call out integration points that will need early validation to avoid wasting build time\n5. Post the prototype build plan to Build and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "robotics-architecture-pass"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "robotics-build-lab",
+        "prototype-build-plan"
+      ]
+    },
+    {
+      "id": "demo-readiness-brief",
+      "name": "Demo Readiness Brief",
+      "description": "Prepare the prototype for a clean demo, evaluation, and audience-facing explanation.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "demo-operator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Demo"
+        ],
+        "tags": [],
+        "agents": [
+          "demo-operator"
+        ]
+      },
+      "content": "# Demo Readiness Brief\n\n1. Review the selected platform, architecture, and build plan\n2. Define the cleanest demo scenario, success criteria, fallback plan, and audience explanation path\n3. Identify what should be validated before the demo and what should be explicitly called a prototype limitation\n4. Produce the final readiness checklist, operator notes, and demo sequence\n5. Post the demo readiness brief to Demo and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "prototype-build-plan"
+      ],
+      "tags": [
+        "workflow",
+        "technical",
+        "robotics-build-lab",
+        "demo-readiness-brief"
+      ]
+    }
+  ]
+}

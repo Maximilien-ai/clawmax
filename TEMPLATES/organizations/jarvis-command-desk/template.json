@@ -1,0 +1,333 @@
+{
+  "name": "Jarvis Command Desk",
+  "emoji": "🧠",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "personal",
+  "description": "Proposal template for a more ambitious personal command center with planning, comms, research, execution support, and a sharper assistant voice. Early idea only and intended as a customizable starter.",
+  "author": "ClawMax Team",
+  "tags": [
+    "personal",
+    "assistant",
+    "jarvis",
+    "command-desk",
+    "suggested",
+    "proposal",
+    "experimental",
+    "early-idea"
+  ],
+  "parameters": [
+    {
+      "agentId": "operator",
+      "label": "Number of Operators",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "communities": [
+    {
+      "name": "Command Desk",
+      "description": "Shared coordination space for a personal operating system spanning planning, communications, research, and execution support.",
+      "tags": [
+        "personal",
+        "assistant",
+        "jarvis-command-desk",
+        "command-desk"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Priorities",
+      "community": "Command Desk",
+      "description": "Current priorities, mission list, and decisions that need immediate attention.",
+      "tags": [
+        "personal",
+        "jarvis-command-desk",
+        "priorities"
+      ]
+    },
+    {
+      "name": "Comms",
+      "community": "Command Desk",
+      "description": "Inbox triage, responses, outreach drafts, and follow-up coordination.",
+      "tags": [
+        "personal",
+        "jarvis-command-desk",
+        "comms"
+      ]
+    },
+    {
+      "name": "Briefings",
+      "community": "Command Desk",
+      "description": "Meeting prep, topic research, and compact decision briefs.",
+      "tags": [
+        "personal",
+        "jarvis-command-desk",
+        "briefings"
+      ]
+    },
+    {
+      "name": "Execution",
+      "community": "Command Desk",
+      "description": "Action items, delegated work, experiments, and active task support.",
+      "tags": [
+        "personal",
+        "jarvis-command-desk",
+        "execution"
+      ]
+    },
+    {
+      "name": "Status",
+      "community": "Command Desk",
+      "description": "Live status, blockers, next actions, and the short version of what matters now.",
+      "tags": [
+        "personal",
+        "jarvis-command-desk",
+        "status"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "jarvis-lead",
+      "name": "Jarvis Lead",
+      "role": "Command lead — interprets the user's priorities, coordinates the team, and responds with calm competence plus a little bite when appropriate.",
+      "tags": [
+        "lead",
+        "assistant",
+        "command"
+      ],
+      "communities": [
+        "Command Desk"
+      ],
+      "groups": [
+        "Priorities",
+        "Status"
+      ]
+    },
+    {
+      "id": "operator",
+      "name": "Operator",
+      "role": "Execution specialist — turns vague requests into concrete tasks, progress updates, and completed support work.",
+      "tags": [
+        "assistant",
+        "operations",
+        "execution"
+      ],
+      "communities": [
+        "Command Desk"
+      ],
+      "groups": [
+        "Execution",
+        "Status"
+      ]
+    },
+    {
+      "id": "comms-officer",
+      "name": "Comms Officer",
+      "role": "Communications specialist — drafts replies, organizes outreach, and keeps the user's communication queue under control.",
+      "tags": [
+        "assistant",
+        "communications",
+        "inbox"
+      ],
+      "communities": [
+        "Command Desk"
+      ],
+      "groups": [
+        "Comms",
+        "Status"
+      ]
+    },
+    {
+      "id": "briefing-officer",
+      "name": "Briefing Officer",
+      "role": "Briefing specialist — prepares the short, sharp context the user needs before meetings, tasks, or decisions.",
+      "tags": [
+        "assistant",
+        "briefings",
+        "research"
+      ],
+      "communities": [
+        "Command Desk"
+      ],
+      "groups": [
+        "Briefings",
+        "Status"
+      ]
+    },
+    {
+      "id": "scheduler",
+      "name": "Scheduler",
+      "role": "Timing specialist — keeps the user's day realistic, sequences tasks, and resolves calendar pressure sensibly.",
+      "tags": [
+        "assistant",
+        "calendar",
+        "scheduling"
+      ],
+      "communities": [
+        "Command Desk"
+      ],
+      "groups": [
+        "Priorities",
+        "Execution"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "jarvis-kickoff",
+      "name": "Jarvis Kickoff",
+      "description": "Jarvis Kickoff",
+      "schedule": "manual",
+      "type": "once",
+      "owner": "jarvis-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "jarvis-lead"
+        ]
+      },
+      "content": "# Jarvis Kickoff\n\nYou are Jarvis Lead.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Primary mission:** [personal ops, inbox and calendar, founder support, research desk, custom]\n- **Current priorities:** [list]\n- **Time horizon:** [today, this week, this month]\n- **Tone preference:** [dry, sharp, calm, playful, custom]\n- **Decision style:** [brief and decisive, options with tradeoffs, collaborative, custom]\n- **Output artifact:** [daily command brief, operating plan, action queue]\n\n## Your Tasks\n1. Restate the mission, priorities, and operating style\n2. Ask Operator for the immediate execution queue\n3. Ask Comms Officer for the communication load and reply priorities\n4. Ask Briefing Officer for the most important context gaps\n5. Ask Scheduler for timing pressure and calendar risks\n6. Post the command brief to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "tags": [
+        "workflow",
+        "personal",
+        "jarvis-command-desk",
+        "jarvis-kickoff"
+      ]
+    },
+    {
+      "id": "daily-command-brief",
+      "name": "Daily Command Brief",
+      "description": "Produce the compact daily operating brief for the user.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "jarvis-lead",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Priorities",
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "jarvis-lead",
+          "scheduler"
+        ]
+      },
+      "content": "# Daily Command Brief\n\n1. Review the mission, current priorities, time horizon, and new status from the team\n2. Produce the shortest possible operating brief that still tells the user what matters now\n3. Separate urgent decisions, execution items, and things that can wait\n4. Keep the tone competent and lightly sassy rather than overly formal\n5. Post the daily command brief to Priorities and a short status summary to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "jarvis-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "jarvis-command-desk",
+        "daily-command-brief"
+      ]
+    },
+    {
+      "id": "comms-and-follow-ups",
+      "name": "Comms And Follow-ups",
+      "description": "Review communication load and turn it into concrete response or follow-up actions.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "comms-officer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Comms"
+        ],
+        "tags": [],
+        "agents": [
+          "comms-officer"
+        ]
+      },
+      "content": "# Comms And Follow-ups\n\n1. Review the user's communication priorities and current pressure points\n2. Group messages into answer now, draft, delegate, and ignore/later buckets\n3. Draft the clearest responses or follow-up moves for the highest-value threads\n4. Keep the output short, useful, and easy for the user to approve or send\n5. Post the comms and follow-up pack to Comms and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "jarvis-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "jarvis-command-desk",
+        "comms-and-follow-ups"
+      ]
+    },
+    {
+      "id": "briefing-pack",
+      "name": "Briefing Pack",
+      "description": "Prepare concise briefing notes and context for the next decisions or meetings.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "briefing-officer",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Briefings"
+        ],
+        "tags": [],
+        "agents": [
+          "briefing-officer"
+        ]
+      },
+      "content": "# Briefing Pack\n\n1. Review the current mission, priorities, and any pending meetings or decisions\n2. Identify the minimum context the user needs to walk in prepared\n3. Distill people, company, topic, and decision context into a compact briefing format\n4. Highlight what is solid, what is inferred, and what still needs confirmation\n5. Post the briefing pack to Briefings and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "jarvis-kickoff"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "jarvis-command-desk",
+        "briefing-pack"
+      ]
+    },
+    {
+      "id": "execution-queue-refresh",
+      "name": "Execution Queue Refresh",
+      "description": "Keep the live execution queue organized and realistic.",
+      "schedule": "manual",
+      "type": "conditional",
+      "owner": "operator",
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Execution"
+        ],
+        "tags": [],
+        "agents": [
+          "operator",
+          "scheduler"
+        ]
+      },
+      "content": "# Execution Queue Refresh\n\n1. Review the current priorities, constraints, and newly surfaced follow-ups\n2. Turn them into a realistic execution queue with next actions, sequencing, and obvious dependencies\n3. Remove low-value busywork and call out what should be deferred or ignored\n4. Keep the queue useful for a real human rather than perfectly exhaustive\n5. Post the refreshed execution queue to Execution and a short status note to Status",
+      "enabled": true,
+      "executionMode": "managed",
+      "dependsOn": [
+        "daily-command-brief",
+        "comms-and-followups",
+        "briefing-pack"
+      ],
+      "tags": [
+        "workflow",
+        "personal",
+        "jarvis-command-desk",
+        "execution-queue-refresh"
+      ]
+    }
+  ]
+}

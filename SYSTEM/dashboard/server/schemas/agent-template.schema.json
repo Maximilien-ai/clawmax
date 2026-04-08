@@ -51,6 +51,19 @@
         "createdAt": {
           "type": "string",
           "description": "When this template was created (ISO 8601 format)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "When this template was last updated (ISO 8601 format)"
+        },
+        "basedOnSlug": {
+          "type": "string",
+          "description": "Source template slug this workspace variant was based on"
+        },
+        "basedOnSource": {
+          "type": "string",
+          "enum": ["system", "workspace", "enterprise"],
+          "description": "Source template type this workspace variant was based on"
         }
       }
     }
