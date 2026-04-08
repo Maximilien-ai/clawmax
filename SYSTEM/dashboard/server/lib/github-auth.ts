@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken'
 import type { CookieOptions } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { Resend } from 'resend'
 
 // ============================================================================
 // Configuration
@@ -371,23 +372,39 @@ async function sendOtpEmail(email: string, code: string): Promise<void> {
     throw new Error('RESEND_API_KEY is not configured')
   }
 
-  const from = process.env.OTP_FROM_EMAIL || 'max@clawmax.ai'
-  const body = JSON.stringify({
+  const from = (process.env.OTP_FROM_EMAIL || process.env.SIGNUP_FROM_EMAIL || '').trim()
+  if (!from) {
+    throw new Error('Missing OTP_FROM_EMAIL or SIGNUP_FROM_EMAIL')
+  }
+
+  const resend = new Resend(apiKey)
+  const subject = process.env.OTP_EMAIL_SUBJECT || 'Your ClawMax login code'
+  const sendResult = await resend.emails.send({
     from,
     to: [email],
-    subject: process.env.OTP_EMAIL_SUBJECT || 'Your ClawMax login code',
+    subject,
     html: buildOtpEmailHtml(email, code),
     text: buildOtpEmailText(email, code),
   })
 
-  const result = await httpsPost('api.resend.com', '/emails', body, {
-    'Authorization': `Bearer ${apiKey}`,
-  })
-
-  const parsed = JSON.parse(result)
-  if (parsed?.error) {
-    throw new Error(parsed.error.message || 'Failed to send OTP email')
+  if ((sendResult as any)?.error) {
+    const error = (sendResult as any).error
+    const message = typeof error?.message === 'string' ? error.message : 'Failed to send OTP email'
+    console.error('[Auth][OTP] Resend rejected OTP email', {
+      email,
+      from,
+      subject,
+      error,
+    })
+    throw new Error(message)
   }
+
+  console.log('[Auth][OTP] Resend accepted OTP email', {
+    email,
+    from,
+    subject,
+    id: (sendResult as any)?.data?.id || null,
+  })
 }
 
 function verifySessionToken(token: string): SessionPayload | null {

@@ -27,6 +27,7 @@ const envKeys = [
   'OTP_EXPIRY_MINUTES',
   'RESEND_API_KEY',
   'OTP_FROM_EMAIL',
+  'SIGNUP_FROM_EMAIL',
   'OTP_EMAIL_SUBJECT',
   'NODE_ENV',
 ]

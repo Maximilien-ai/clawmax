@@ -360,7 +360,7 @@ Minimum setup in `SYSTEM/dashboard/.env`:
 DASHBOARD_AUTH_MODE=email_otp
 OTP_ALLOWED_EMAILS=you@example.com
 RESEND_API_KEY=your_resend_api_key
-OTP_FROM_EMAIL=max@clawmax.ai
+OTP_FROM_EMAIL=ClawMax <onboarding@your-verified-domain.com>
 OTP_EMAIL_SUBJECT=Your ClawMax login code
 ```
 
@@ -395,6 +395,12 @@ When `OTP_DEV_MODE=log` is enabled:
 - the OTP is logged to the main dashboard server stdout/stderr stream
 - the latest code is written to `.clawmax-otp-dev.json`
 - the login UI shows the path after requesting a code
+
+For real email delivery:
+
+- set `RESEND_API_KEY`
+- set a verified sender in `OTP_FROM_EMAIL`
+- or let OTP fall back to `SIGNUP_FROM_EMAIL` if you intentionally share the sender config with the web app
 
 Recommended local-tool/bootstrap defaults:
 

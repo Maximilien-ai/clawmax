@@ -200,10 +200,11 @@ Use Resend from the dashboard backend.
 Env:
 
 - `RESEND_API_KEY`
-- `OTP_FROM_EMAIL=max@clawmax.ai`
+- `OTP_FROM_EMAIL=ClawMax <onboarding@your-verified-domain.com>`
 
 Optional:
 
+- `SIGNUP_FROM_EMAIL=ClawMax <onboarding@your-verified-domain.com>` as a fallback sender if OTP-specific sender is unset
 - `OTP_EMAIL_SUBJECT=Your ClawMax login code`
 
 Template should be minimal:
