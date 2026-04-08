@@ -1,21 +1,22 @@
 # Backlog
 
-> Last updated: April 3, 2026
+> Last updated: April 7, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
 
-- [ ] **Workspace Integrations redesign for optional partner pages** — preserve current first-class setup for model/API-key capture, then split optional third-party integrations into partner-specific pages selected by instance config and/or env allowlist. Minimum parity to keep: Senso, Opik, and GitHub. New partner targets: Blaxel and Redis.
-- [ ] **Partner definition contract + loader** — add machine-readable partner metadata plus markdown copy/assets so integrations can be externalized into a partner repo later. Proposed direction: `PARTNERS/<slug>/partner.json` + `PARTNERS/<slug>/PARTNER.md` + assets, with optional external roots such as `CLAWMAX_EXTRA_PARTNER_DIRS`.
-- [ ] **Blaxel integration** — add workspace integration capture for Blaxel sandbox credentials/defaults, curated skill-install path, and template-apply hooks so agents can use sandbox compute safely.
-- [ ] **Redis integration** — add workspace integration capture for Redis agent-memory credentials/defaults, curated skill-install path, and template-apply hooks for long-term/short-term memory.
-- [ ] **Curated partner skill installation flow** — support approved partner-provided skill installers as first-class setup actions without opening arbitrary `npx` / npm execution to user-entered commands. Use this for Blaxel first; revisit a broader package/installer model later.
-- [ ] **Partner-aware template apply toggles** — extend the current Senso-style template apply flow so generic templates can enable selected/configured partner integrations like Blaxel and Redis without bespoke template forks.
-- [ ] **Blaxel/Redis template pack** — create at least 2–3 templates per partner plus 1–2 combined templates, starting with sandbox app-builder and Redis-backed memory / RAG flows.
+- [x] **Workspace Integrations redesign for optional partner pages** — shipped first pass: preserved current model/API-key setup, added partner selection plus partner-specific pages, and kept Senso / Opik / GitHub working while exposing Blaxel and Redis through the same flow.
+- [x] **Partner definition contract + loader** — shipped first pass with machine-readable partner metadata plus markdown copy/assets under `PARTNERS/<slug>/partner.json` + `PARTNERS/<slug>/PARTNER.md`, env allowlist support, and optional extra partner roots.
+- [x] **Blaxel integration** — shipped first pass: workspace integration capture, curated skill-install path, validation hook, template/apply defaults, and partner-ready templates for sandbox flows.
+- [x] **Redis integration** — shipped first pass: workspace integration capture, validation/config hooks, template/apply defaults, and partner-ready templates for memory-oriented flows. Keep official skill/install follow-through open separately.
+- [x] **Curated partner skill installation flow** — shipped first pass for approved partner installers, starting with Blaxel, without exposing arbitrary user-entered `npx` execution.
+- [x] **Partner-aware template apply toggles** — generic template apply now supports selected/configured partner integrations like Blaxel and Redis in the current flow.
+- [x] **Blaxel/Redis template pack** — shipped first pass with Blaxel-first, Redis-first, and combined template examples. Keep expansion/polish as follow-through, not blocker work.
 - [ ] **Workspace auto-switch watch item** — likely fixed via request-local workspace context, but keep tracking until it survives more real multi-workspace/shared-dashboard usage without silent active-workspace drift.
 - [x] **Browser-local secrets for templates, workflows, and skills** — first pass shipped: templates, workflows, and skills can now declare secret requirements and prompt for browser-local runtime inputs like API keys, event slugs, URLs, export paths, and tokens without writing them into workflow markdown or server config by default.
 - [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run.
 - [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
+- [ ] **OTP log-mode safety follow-through** — once real email OTP delivery is stable in cloud, treat `OTP_DEV_MODE=log` as explicit test/debug-only behavior: add a visible UI warning when enabled, document that production instances should leave it unset, and verify it is disabled on normal customer/demo environments after live debugging is complete.
 - [ ] **Temp chat/runtime resolves duplicate agent IDs against the wrong workspace** — when the same agent id exists across workspaces, temp group/direct chat can resolve runtime/session state from the wrong global OpenClaw agent record, leading to stale models/providers and misleading activity metadata. High-priority post-`v1.2.1` runtime fix. GitHub: `#94`
 - [ ] **Phantom workflow residue after archive/delete + reapply** — reproduce whether archiving/deleting agents in one workspace and then applying the same team/template in a new workspace can surface stale previous workflow/execution artifacts ("phantom workflows"). If reproducible, treat as a high-priority workspace isolation / cleanup bug.
 - [x] **Workflow targeting conflates participants with output channels** — fixed: workflow execution now prefers explicit owner/agents/tags for participants, while groups/communities remain output channels unless no clearer execution target exists.
@@ -130,12 +131,15 @@
 
 ### UX & Product Polish
 - [x] **First-run onboarding wizard** — added a lightweight top-bar onboarding flow for empty workspaces that routes users into BYOK, agent import, agent creation, and templates.
+- [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos.
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
+- [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
 - [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip when no system/user/BYOK keys are configured
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
 - [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo
+- [ ] **Asset/IP cleanup for login and presentation visuals** — replace Star Wars-like robot elements (for example the R2-D2-style figure visible in current demo/login imagery) with owned or clearly safe ClawMax artwork across login screens and presentation assets to reduce copyright risk before wider external use.
 - [ ] **Top bar online count ignores paused agents** — exclude paused agents from the online count
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
