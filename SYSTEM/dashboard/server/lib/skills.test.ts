@@ -54,6 +54,7 @@ const {
   getAgentSkills,
   setAgentSkills,
   validateSkills,
+  createCustomSkill,
   importWorkspaceSkill,
   deleteWorkspaceSkill,
   getWorkspaceSkillsDir
@@ -431,6 +432,29 @@ This skill only ships index.js.`
   fs.rmSync(tmpDir, { recursive: true, force: true })
 
   console.log('  ✓ index.ts shim generated for index.js-only skill')
+})
+
+// Test 19: createCustomSkill() writes index.ts stub
+test('createCustomSkill() writes index.ts entrypoint for new managed skills', () => {
+  const skillName = 'test-ai-created-skill'
+  const managedSkillDir = path.join(process.env.HOME!, '.openclaw', 'skills', skillName)
+  try { fs.rmSync(managedSkillDir, { recursive: true, force: true }) } catch (e) {}
+
+  const skill = createCustomSkill({
+    name: skillName,
+    description: 'Test AI-created skill',
+    content: '# Test Skill\n\n## Purpose\n\nThis is a test.',
+  })
+
+  assert(skill.name === skillName, 'Created skill should keep requested name')
+  assert(fs.existsSync(path.join(managedSkillDir, 'SKILL.md')), 'SKILL.md should exist')
+  assert(fs.existsSync(path.join(managedSkillDir, 'index.ts')), 'index.ts should exist for created skill')
+
+  const indexContent = fs.readFileSync(path.join(managedSkillDir, 'index.ts'), 'utf-8')
+  assert(indexContent.includes('Auto-generated ClawMax skill entrypoint'), 'index.ts should be the generated stub')
+
+  fs.rmSync(managedSkillDir, { recursive: true, force: true })
+  console.log('  ✓ createCustomSkill writes index.ts stub')
 })
 
 // Summary

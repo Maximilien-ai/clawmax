@@ -472,6 +472,9 @@ ${content}
   const skillPath = path.join(skillDir, 'SKILL.md')
   fs.writeFileSync(skillPath, skillMd, 'utf-8')
 
+  const indexTsPath = path.join(skillDir, 'index.ts')
+  fs.writeFileSync(indexTsPath, `// Auto-generated ClawMax skill entrypoint for ${name}\nexport {}\n`, 'utf-8')
+
   console.log(`✓ Created custom skill: ${name}`)
 
   // Return the created skill

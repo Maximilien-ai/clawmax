@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { extractJsonResponseText, parseJsonResponse } from './ai-generator'
+import { extractJsonResponseText, normalizeGeneratedSkillScaffold, parseJsonResponse } from './ai-generator'
 
 let passed = 0
 let failed = 0
@@ -34,6 +34,18 @@ test('parseJsonResponse returns fallback on invalid json', () => {
   const fallback = { cron: '', explanation: '' }
   const parsed = parseJsonResponse('not json at all', fallback)
   assert.deepStrictEqual(parsed, fallback)
+})
+
+test('normalizeGeneratedSkillScaffold sanitizes skill ids and fills defaults', () => {
+  const normalized = normalizeGeneratedSkillScaffold({
+    name: 'My Fancy Skill!!!',
+    content: '',
+  }, 'help summarize pii docs')
+
+  assert.strictEqual(normalized.name, 'my-fancy-skill')
+  assert.strictEqual(typeof normalized.description, 'string')
+  assert.strictEqual(normalized.emoji, '🛠️')
+  assert(normalized.content.includes('## Purpose'))
 })
 
 console.log('\n========================================')

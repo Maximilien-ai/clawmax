@@ -67,6 +67,21 @@ interface GenerateAgentFilesInput {
   tags: string[]
 }
 
+interface GeneratedSkillScaffold {
+  name: string
+  description: string
+  emoji?: string
+  tags: string[]
+  content: string
+}
+
+const DEFAULT_SKILL_SECTION_ORDER = [
+  '## Purpose',
+  '## When to Use',
+  '## Instructions',
+  '## Examples',
+]
+
 interface GeneratedFiles {
   identity: string
   soul: string
@@ -85,6 +100,46 @@ export function parseJsonResponse<T>(raw: string, fallback: T): T {
     return JSON.parse(extractJsonResponseText(raw)) as T
   } catch {
     return fallback
+  }
+}
+
+export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
+  const normalizedName = (input.name || 'custom-skill')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/--+/g, '-')
+
+  const safeName = normalizedName || 'custom-skill'
+  const safeDescription = (input.description || prompt || 'AI-generated custom skill').trim()
+  const tags = Array.isArray(input.tags) ? input.tags.filter(Boolean).slice(0, 6) : []
+  const content = (input.content || '').trim() || `# ${safeName}
+
+## Purpose
+
+This skill was generated from a natural-language description. Refine the instructions below before relying on it heavily.
+
+## When to Use
+
+Use this skill when the task clearly matches its domain and the extra guidance will save repeated setup or repeated reasoning.
+
+## Instructions
+
+- Follow the user intent carefully
+- Keep outputs concise and actionable
+- Ask for clarification only when blocked by ambiguity
+
+## Examples
+
+- Example use case: adapt this skill to the specific task before relying on it
+`
+
+  return {
+    name: safeName,
+    description: safeDescription,
+    emoji: input.emoji || '🛠️',
+    tags,
+    content,
   }
 }
 
@@ -342,6 +397,65 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
   ])
 
   return { identity, soul, tools }
+}
+
+export async function generateSkillFromNL(description: string, currentDraft?: Partial<GeneratedSkillScaffold>): Promise<GeneratedSkillScaffold> {
+  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('No system API key configured for generation')
+  }
+
+  const isRefinement = !!currentDraft
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'system',
+        content: `You generate compact ClawMax skill scaffolds from natural language.
+
+Return JSON with:
+{
+  "name": "skill-id",
+  "description": "short description",
+  "emoji": "one emoji",
+  "tags": ["tag1", "tag2"],
+  "content": "markdown body for SKILL.md without frontmatter"
+}
+
+Rules:
+- name must be lowercase letters, numbers, dashes, or underscores only
+- keep description under 140 characters
+- content should be practical and concise
+- focus on what the skill does, how it should behave, and what it should avoid
+- structure the skill body with these sections when possible:
+  - ## Purpose
+  - ## When to Use
+  - ## Instructions
+  - ## Examples
+- do not include YAML frontmatter
+- do not mention implementation code unless the user explicitly asks for it
+- if an existing draft is provided, refine it rather than replacing it blindly
+  - preserve good structure where possible
+  - follow the user's requested changes
+  - add missing SKILL.md sections if they are absent and would make the skill clearer
+Respond with JSON only.`
+      },
+      {
+        role: 'user',
+        content: isRefinement
+          ? `Refine this existing skill draft.\n\nUser refinement request:\n${description}\n\nCurrent draft:\n${JSON.stringify(currentDraft, null, 2)}`
+          : description
+      }
+    ],
+    temperature: 0.6,
+    max_tokens: 500,
+  })
+
+  const parsed = parseJsonResponse<Partial<GeneratedSkillScaffold>>(
+    completion.choices[0].message.content || '{}',
+    {}
+  )
+  return normalizeGeneratedSkillScaffold(parsed, description)
 }
 
 interface Message {

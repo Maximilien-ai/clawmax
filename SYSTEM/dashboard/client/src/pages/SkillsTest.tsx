@@ -5,6 +5,8 @@ import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 import { readLocalSecrets, writeLocalSecrets } from '../lib/localSecrets'
+import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -44,8 +46,17 @@ function getSkillMatchScore(skill: OpenClawSkill, query: string): number {
   return score
 }
 
+const SKILL_SPEC_SECTIONS = [
+  '## Purpose',
+  '## When to Use',
+  '## Instructions',
+  '## Examples',
+]
+
 export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
+  const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
@@ -61,7 +72,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
-  const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner'>('local')
+  const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<Array<{ name: string; description?: string; version?: string; downloads?: number }>>([])
   const [registrySearching, setRegistrySearching] = useState(false)
@@ -85,6 +96,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }>>([])
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
+  const [aiSkillPrompt, setAiSkillPrompt] = useState('')
+  const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
+  const [aiSkillGenerating, setAiSkillGenerating] = useState(false)
+  const [aiSkillCreating, setAiSkillCreating] = useState(false)
+  const [generatedSkillDraft, setGeneratedSkillDraft] = useState<null | {
+    name: string
+    description: string
+    emoji?: string
+    tags: string[]
+    content: string
+  }>(null)
   const [viewingSkill, setViewingSkill] = useState<OpenClawSkill | null>(null)
   const [skillContent, setSkillContent] = useState('')
   const [editingSkill, setEditingSkill] = useState(false)
@@ -366,6 +388,77 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
+  async function handleGenerateSkill(refine = false) {
+    const activePrompt = refine ? aiSkillRefinementPrompt.trim() : aiSkillPrompt.trim()
+    if (!activePrompt) {
+      setError(refine ? 'Describe how you want to refine the draft' : 'Describe the skill you want to create')
+      return
+    }
+
+    setAiSkillGenerating(true)
+    setError(null)
+    try {
+      const byok = readStoredByokKeys()
+      const res = await fetch(`${API_BASE}/api/skills/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: activePrompt,
+          currentDraft: refine ? generatedSkillDraft : undefined,
+          byokKeys: {
+            openai: byok.openai,
+            anthropic: byok.anthropic,
+            gemini: byok.geminiApiKey,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.skill) {
+        throw new Error(data.error || 'Failed to generate skill')
+      }
+      setGeneratedSkillDraft(data.skill)
+      if (refine) {
+        setAiSkillRefinementPrompt('')
+        showSuccess(`Refined skill draft: ${data.skill.name}`)
+      } else {
+        showSuccess(`Generated skill draft: ${data.skill.name}`)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate skill')
+    } finally {
+      setAiSkillGenerating(false)
+    }
+  }
+
+  async function handleCreateGeneratedSkill() {
+    if (!generatedSkillDraft) return
+
+    setAiSkillCreating(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(generatedSkillDraft),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.skill) {
+        throw new Error(data.error || 'Failed to create skill')
+      }
+      await loadSkills()
+      setShowImportDialog(false)
+      setImportSource('local')
+      setAiSkillPrompt('')
+      setAiSkillRefinementPrompt('')
+      setGeneratedSkillDraft(null)
+      showSuccess(`Created skill: ${data.skill.name}`)
+    } catch (err: any) {
+      setError(err.message || 'Failed to create skill')
+    } finally {
+      setAiSkillCreating(false)
+    }
+  }
+
   async function openSkillViewer(skill: OpenClawSkill) {
     setViewingSkill(skill)
     setSkillSecrets(readLocalSecrets('skill', skill.name))
@@ -461,6 +554,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     .map((skill) => ({ ...skill, installName: skill.full_name || skill.name }))
     .filter((skill) => !registryInstalledNames.has(skill.installName))
     .slice(0, 5)
+  const missingGeneratedSkillSections = generatedSkillDraft
+    ? SKILL_SPEC_SECTIONS.filter((section) => !generatedSkillDraft.content.includes(section))
+    : []
 
   // Filter agents for searchable dropdown
   const filteredAgents = availableAgents.filter(agent =>
@@ -1076,6 +1172,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     🚀 Shipables Registry
                   </button>
                   <button
+                    onClick={() => setImportSource('ai')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                      importSource === 'ai'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    ✨ AI Create
+                  </button>
+                  <button
                     onClick={() => setImportSource('partner')}
                     className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                       importSource === 'partner'
@@ -1381,6 +1487,109 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
+                {importSource === 'ai' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Describe the skill you want, generate a draft scaffold, then save it as a custom skill you can edit further.
+                    </p>
+
+                    {!aiEnabled && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                        AI creation needs configured system keys or browser-local BYOK keys in Workspaces Integrations.
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+                        Skill prompt
+                      </label>
+                      <textarea
+                        value={aiSkillPrompt}
+                        onChange={(e) => setAiSkillPrompt(e.target.value)}
+                        placeholder="e.g., A skill that helps an agent detect and summarize PII exposure risks in documents, with short actionable outputs and a cautious tone."
+                        rows={5}
+                        className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleGenerateSkill(false)}
+                        disabled={!aiEnabled || aiSkillGenerating || !aiSkillPrompt.trim()}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                      >
+                        {aiSkillGenerating ? 'Generating...' : '✨ Generate Skill Draft'}
+                      </button>
+                    </div>
+
+                    {generatedSkillDraft && (
+                      <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-900/10 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-purple-200 dark:border-purple-800">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-lg">{generatedSkillDraft.emoji || '🛠️'}</span>
+                            <div className="text-sm font-semibold text-purple-900 dark:text-purple-100">{generatedSkillDraft.name}</div>
+                            {generatedSkillDraft.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {generatedSkillDraft.tags.map((tag) => (
+                                  <span key={tag} className="rounded-full border border-purple-200 dark:border-purple-700 px-2 py-0.5 text-[10px] text-purple-700 dark:text-purple-300">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-purple-700 dark:text-purple-300">{generatedSkillDraft.description}</div>
+                        </div>
+                        <div className="p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300 mb-2">Generated skill body</div>
+                          <textarea
+                            value={generatedSkillDraft.content}
+                            onChange={(e) => setGeneratedSkillDraft({ ...generatedSkillDraft, content: e.target.value })}
+                            rows={12}
+                            className="w-full px-3 py-2 border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-mono text-sm focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+                        {missingGeneratedSkillSections.length > 0 && (
+                          <div className="px-4 pb-4">
+                            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-3">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200 mb-2">Suggested missing SKILL.md sections</div>
+                              <div className="flex flex-wrap gap-2">
+                                {missingGeneratedSkillSections.map((section) => (
+                                  <span key={section} className="rounded-full border border-amber-300 dark:border-amber-700 px-2.5 py-1 text-[11px] text-amber-800 dark:text-amber-200">
+                                    {section.replace(/^##\s*/, '')}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                                Refine the draft to add these sections if they would make the skill clearer and easier to reuse.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="px-4 pb-4">
+                          <label className="block text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300 mb-2">Refine this draft</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={aiSkillRefinementPrompt}
+                              onChange={(e) => setAiSkillRefinementPrompt(e.target.value)}
+                              placeholder="e.g., Add missing When to Use and Examples sections, and make the instructions more specific to compliance reviews."
+                              className="flex-1 px-3 py-2 border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500"
+                            />
+                            <button
+                              onClick={() => handleGenerateSkill(true)}
+                              disabled={aiSkillGenerating || !aiSkillRefinementPrompt.trim()}
+                              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                            >
+                              {aiSkillGenerating ? 'Refining...' : 'Refine'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Error Display */}
                 {error && (
                   <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -1390,7 +1599,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               </div>
 
               {/* Actions (for local/github only) */}
-              {importSource !== 'registry' && importSource !== 'partner' && (
+              {importSource !== 'registry' && importSource !== 'partner' && importSource !== 'ai' && (
                 <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
                     <button
                       onClick={handleImportSkill}
@@ -1413,6 +1622,33 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     >
                       Cancel
                     </button>
+                </div>
+              )}
+              {importSource === 'ai' && (
+                <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                  <button
+                    onClick={handleCreateGeneratedSkill}
+                    disabled={aiSkillCreating || !generatedSkillDraft}
+                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                      aiSkillCreating || !generatedSkillDraft
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}
+                  >
+                    {aiSkillCreating ? 'Creating...' : 'Create Skill'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowImportDialog(false)
+                      setAiSkillPrompt('')
+                      setAiSkillRefinementPrompt('')
+                      setGeneratedSkillDraft(null)
+                      setError(null)
+                    }}
+                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
             </div>

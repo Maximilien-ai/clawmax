@@ -12,6 +12,7 @@ import {
   updateSkillContent
 } from '../lib/skills'
 import { getCuratedPartnerInstaller } from '../lib/partner-installs'
+import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
@@ -74,6 +75,30 @@ router.post('/', (req, res) => {
   } catch (err: any) {
     console.error('Error creating skill:', err)
     res.status(400).json({ error: err.message || 'Failed to create skill' })
+  }
+})
+
+// POST /api/skills/generate - AI-generate a custom skill scaffold
+router.post('/generate', async (req, res) => {
+  const { description, currentDraft, byokKeys } = req.body as {
+    description?: string
+    currentDraft?: { name?: string; description?: string; emoji?: string; tags?: string[]; content?: string }
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string }
+  }
+
+  if (!description?.trim()) {
+    return res.status(400).json({ error: 'description is required' })
+  }
+
+  try {
+    setRequestByokKeys(byokKeys)
+    const skill = await generateSkillFromNL(description.trim(), currentDraft)
+    res.json({ ok: true, skill })
+  } catch (err: any) {
+    console.error('AI skill generation error:', err)
+    res.status(500).json({ error: String(err?.message || err) })
+  } finally {
+    setRequestByokKeys(undefined)
   }
 })
 
