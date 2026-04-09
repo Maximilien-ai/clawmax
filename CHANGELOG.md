@@ -2,6 +2,30 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.9] - 2026-04-08
+
+### Fixes — Workflow Apply and Execution
+- **Template Apply Workflow Conflicts** — repeated applies in busy workspaces now detect workflow-name conflicts alongside agent and channel conflicts, support rename-on-apply, and provide direct recovery paths back to the right wizard step from a blocked Deploy state
+- **Same-Agent Concurrent Workflow Locking** — workflows that hit the same agent concurrently no longer fail with `session file locked`; same-agent workflow execution is serialized while different agents still run in parallel
+- **Workflow Pause/Resume First Pass** — workflow controls now surface explicit pause/resume actions in cards, tables, and DAG view using the existing enabled/disabled workflow behavior
+- **DAG Selection Follow-Through** — DAG view now supports proper node/pipeline selection behavior so bulk workflow actions work consistently in the graph view
+
+### Fixes — Metering and Budget Visibility
+- **Fallback Spend Estimation from Tokens** — workspace/activity metering now derives estimated spend from model + token counts when Opik traces lack an explicit `estimated_cost_usd`, fixing misleading `$0.0000` dashboards on real traced usage
+- **Shared Pricing Logic** — Opik tracing and metering aggregation now share the same model-pricing helper so new traces and aggregated traces stay aligned
+- **User-Facing Cost Rounding** — activity, agents, workflows, workspace edit, and shared dashboard cost displays now round to 2 decimals for cleaner budget/readability
+
+### Fixes — Agent and Activity UX
+- **Clickable Agent Detail Files** — recent workspace files and key doc references in the agent detail panel now open directly instead of forcing manual navigation
+- **Activity Type Labels** — generic markdown/file activity now shows readable types like `markdown` and `file` instead of filename stems
+- **Opik Loading/Empty Messaging** — activity metering now explains when Opik data is still being collected or when no traces have appeared yet
+- **Agent Action Popup Anchoring** — agent action menus no longer drift or clip incorrectly in cloud/narrow layouts
+
+### Fixes — Mobile and Responsive UX
+- **Mobile Notifications Sheet** — notifications now use a centered mobile sheet with safe width, backdrop, and internal scrolling instead of an off-screen desktop dropdown
+- **Top Bar Narrow Layout Cleanup** — the top bar now wraps cleanly on smaller screens and hides lower-priority text until there is room
+- **Template Apply Modal Mobile Shell** — apply modal padding/height handling is safer on narrow/mobile screens
+
 ## [v1.2.6] - 2026-04-05
 
 ### Fixes — Cloud Runtime Bootstrap

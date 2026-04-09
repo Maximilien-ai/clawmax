@@ -1457,6 +1457,7 @@ export function importOrganizationTemplate(
     workflowOverrides?: Record<string, string>
     groupRenames?: Record<string, string>
     communityRenames?: Record<string, string>
+    workflowRenames?: Record<string, string>
   }
 ): { ok: boolean; agentIds?: string[]; error?: string } {
   try {
@@ -1483,6 +1484,7 @@ export function importOrganizationTemplate(
     const adjustedTemplate: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
     const groupRenames = options?.groupRenames || {}
     const communityRenames = options?.communityRenames || {}
+    const workflowRenames = options?.workflowRenames || {}
 
     if (adjustedTemplate.communities) {
       adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
@@ -1506,13 +1508,22 @@ export function importOrganizationTemplate(
     }))
 
     if (adjustedTemplate.workflows) {
+      const workflowIdRenames = Object.fromEntries(
+        adjustedTemplate.workflows.map((workflow) => [
+          workflow.id,
+          workflowRenames[workflow.id] ? slugify(workflowRenames[workflow.id]) : workflow.id,
+        ])
+      )
       adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => ({
         ...workflow,
+        id: workflowIdRenames[workflow.id] || workflow.id,
+        name: workflowRenames[workflow.id] || workflow.name,
         targeting: {
           ...workflow.targeting,
           communities: (workflow.targeting.communities || []).map((communityName) => communityRenames[communityName] || communityName),
           groups: (workflow.targeting.groups || []).map((groupName) => groupRenames[groupName] || groupName),
         },
+        dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || dependencyId),
       }))
     }
 

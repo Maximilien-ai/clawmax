@@ -192,7 +192,7 @@ export function WorkspaceEditDialog({
                 />
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>${budgetSpend.toFixed(4)} spent</span>
+                <span>${budgetSpend.toFixed(2)} spent</span>
                 <span>{budgetPct.toFixed(1)}%</span>
               </div>
             </div>

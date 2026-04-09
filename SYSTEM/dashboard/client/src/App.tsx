@@ -504,8 +504,8 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-    <div className="h-9 flex items-center justify-between px-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700">
-      <div className="flex items-center gap-4">
+    <div className="min-h-9 flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700 md:h-9 md:px-5 md:py-0">
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
           onClick={onMobileMenuToggle}
@@ -523,11 +523,11 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         )}
 
         {orgBase && (
-          <span className="text-sm font-bold text-gray-800 dark:text-gray-200 tracking-tight dark:text-gray-200">
+          <span className="hidden md:inline text-sm font-bold text-gray-800 dark:text-gray-200 tracking-tight dark:text-gray-200">
             {orgBase}{orgTld && <span className="text-sky-500 dark:text-sky-400">{orgTld}</span>}
           </span>
         )}
-        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
           <span className="font-mono text-gray-400 dark:text-gray-500 hidden sm:inline">{system?.hostname}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
@@ -551,7 +551,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
         <NotificationCenter
           onNavigateToAgent={onNavigateToAgent}
           onNavigateToWorkflow={onNavigateToWorkflow}
@@ -568,7 +568,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         />
         <ByokWizard />
         {user && !config?.authDisabled && (
-          <div className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
+          <div className="hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
             {user.avatar ? (
               <img src={user.avatar} alt={user.login} className="w-5 h-5 rounded-full shrink-0" />
             ) : (
@@ -607,7 +607,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
             )}
           </button>
         )}
-        <span className="text-xs text-gray-300 dark:text-gray-600 font-mono">{system?.version}</span>
+        <span className="hidden md:inline text-xs text-gray-300 dark:text-gray-600 font-mono">{system?.version}</span>
       </div>
     </div>
   )

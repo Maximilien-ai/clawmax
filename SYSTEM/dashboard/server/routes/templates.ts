@@ -20,7 +20,7 @@ import {
   getAgentTemplatesDir,
   getGlobalAgentTemplatesDir,
 } from '../lib/templates'
-import { listWorkflowTemplates, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
+import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
 
@@ -63,6 +63,7 @@ function getOrganizationTemplateConflicts(template: any, options?: {
   const normalize = (value: string) => value.trim().toLowerCase()
   const referencedGroups = new Set<string>()
   const referencedCommunities = new Set<string>()
+  const referencedWorkflowNames = new Set<string>()
 
   for (const group of template.groups || []) {
     if (group.name?.trim()) referencedGroups.add(group.name.trim())
@@ -80,6 +81,7 @@ function getOrganizationTemplateConflicts(template: any, options?: {
     }
   }
   for (const workflow of template.workflows || []) {
+    if (workflow.name?.trim()) referencedWorkflowNames.add(workflow.name.trim())
     for (const groupName of workflow.targeting?.groups || []) {
       if (groupName?.trim()) referencedGroups.add(groupName.trim())
     }
@@ -90,6 +92,7 @@ function getOrganizationTemplateConflicts(template: any, options?: {
 
   const existingGroupNames = new Set<string>()
   const existingCommunityNames = new Set<string>()
+  const existingWorkflowNames = new Set<string>()
   const groupsPath = path.join(workspacePath, 'ORG', 'GROUPS.md')
   const communitiesPath = path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
   if (fs.existsSync(groupsPath)) {
@@ -104,11 +107,15 @@ function getOrganizationTemplateConflicts(template: any, options?: {
       if (community.name?.trim()) existingCommunityNames.add(normalize(community.name))
     }
   }
+  for (const workflow of listWorkflows()) {
+    if (workflow.name?.trim()) existingWorkflowNames.add(normalize(workflow.name))
+  }
 
   return {
     agentConflicts,
     groupConflicts: Array.from(referencedGroups).filter((name) => existingGroupNames.has(normalize(name))),
     communityConflicts: Array.from(referencedCommunities).filter((name) => existingCommunityNames.has(normalize(name))),
+    workflowConflicts: Array.from(referencedWorkflowNames).filter((name) => existingWorkflowNames.has(normalize(name))),
   }
 }
 
@@ -579,11 +586,12 @@ router.post('/organizations/conflicts', (req, res) => {
     agentConflicts: conflicts.agentConflicts,
     groupConflicts: conflicts.groupConflicts,
     communityConflicts: conflicts.communityConflicts,
+    workflowConflicts: conflicts.workflowConflicts,
   })
 })
 
 router.post('/organizations/import', (req, res) => {
-  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides, groupRenames, communityRenames } = req.body
+  const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides, groupRenames, communityRenames, workflowRenames } = req.body
 
   if (!templateSlug || typeof templateSlug !== 'string') {
     return res.status(400).json({ error: 'Template slug is required' })
@@ -598,6 +606,7 @@ router.post('/organizations/import', (req, res) => {
     workflowOverrides: workflowOverrides || undefined,
     groupRenames: groupRenames || undefined,
     communityRenames: communityRenames || undefined,
+    workflowRenames: workflowRenames || undefined,
   })
 
   if (!result.ok) {

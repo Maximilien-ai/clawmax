@@ -237,7 +237,9 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 max-h-[480px] overflow-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl z-50">
+        <>
+        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed left-1/2 top-16 z-50 flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:absolute md:right-0 md:left-auto md:top-full md:mt-2 md:w-96 md:translate-x-0">
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -270,6 +272,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
           )}
 
           {/* Content */}
+          <div className="max-h-[min(75vh,32rem)] overflow-auto md:max-h-[480px]">
           {activeCount === 0 ? (
             <div className="px-4 py-8 text-center">
               <div className="text-2xl mb-2">✓</div>
@@ -540,7 +543,9 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
               ))}
             </div>
           )}
+          </div>
         </div>
+        </>
       )}
     </div>
   )

@@ -53,20 +53,29 @@ function timeAgo(mins: number): string {
 }
 
 /** Dimmed file source tag shown next to section headers */
-function SourceTag({ file }: { file: string }) {
+function SourceTag({ file, onClick }: { file: string; onClick?: () => void }) {
   return (
-    <span className="ml-2 text-gray-300 font-mono text-xs font-normal normal-case tracking-normal">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`ml-2 font-mono text-xs font-normal normal-case tracking-normal ${
+        onClick
+          ? 'text-sky-500 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300'
+          : 'text-gray-300'
+      }`}
+    >
       · {file}
-    </span>
+    </button>
   )
 }
 
-function Section({ title, source, children }: { title: string; source?: string; children: React.ReactNode }) {
+function Section({ title, source, onSourceClick, children }: { title: string; source?: string; onSourceClick?: () => void; children: React.ReactNode }) {
   return (
     <div>
       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center">
         {title}
-        {source && <SourceTag file={source} />}
+        {source && <SourceTag file={source} onClick={onSourceClick} />}
       </h3>
       {children}
     </div>
@@ -86,6 +95,7 @@ export default function AgentDetailPanel({
   onChat,
   onClone,
   onNavigateToSkills,
+  onNavigateToDoc,
   initialEditCostLimit = false,
 }: {
   agent: Agent
@@ -93,6 +103,7 @@ export default function AgentDetailPanel({
   onChat: () => void
   onClone?: () => void
   onNavigateToSkills?: (agentId: string) => void
+  onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
 }) {
   const { showError, showSuccess } = useToast()
@@ -205,6 +216,11 @@ export default function AgentDetailPanel({
 
   // Derive the relative agent dir path (e.g. AGENTS/max0)
   const relDir = agent.workspacePath.split('/').slice(-2).join('/')
+  const openWorkspaceFile = useCallback((fileName: string) => {
+    if (!onNavigateToDoc) return
+    onNavigateToDoc(`${relDir}/${fileName}`)
+    onClose()
+  }, [onClose, onNavigateToDoc, relDir])
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
@@ -330,7 +346,18 @@ export default function AgentDetailPanel({
                 <ul className="space-y-1">
                   {activity.recentFiles.map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
-                      <span className="font-mono text-gray-700 text-xs dark:text-gray-300">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => openWorkspaceFile(f.name)}
+                        disabled={!onNavigateToDoc}
+                        className={`font-mono text-xs ${
+                          onNavigateToDoc
+                            ? 'text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300'
+                            : 'text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {f.name}
+                      </button>
                       <span className="text-gray-400 text-xs shrink-0 ml-3">{timeAgo(f.ageMins)}</span>
                     </li>
                   ))}
@@ -339,7 +366,11 @@ export default function AgentDetailPanel({
 
               {/* TODOs */}
               {activity.todos && (
-                <Section title="Active TODOs" source="TODOs.md">
+                <Section
+                  title="Active TODOs"
+                  source="TODOs.md"
+                  onSourceClick={onNavigateToDoc ? () => openWorkspaceFile('TODOs.md') : undefined}
+                >
                   <div className="prose prose-sm max-w-none text-gray-700 [&_ul]:pl-4 [&_li]:my-0.5 dark:text-gray-300">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.todos}
@@ -350,7 +381,11 @@ export default function AgentDetailPanel({
 
               {/* Recently completed */}
               {activity.completed && (
-                <Section title="Recently completed" source="COMPLETED.md">
+                <Section
+                  title="Recently completed"
+                  source="COMPLETED.md"
+                  onSourceClick={onNavigateToDoc ? () => openWorkspaceFile('COMPLETED.md') : undefined}
+                >
                   <div className="prose prose-sm max-w-none text-gray-600 [&_ul]:pl-4 [&_li]:my-0.5">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.completed}
@@ -418,7 +453,11 @@ export default function AgentDetailPanel({
 
               {/* Identity snippet */}
               {activity.identity && (
-                <Section title="Identity" source="IDENTITY.md">
+                <Section
+                  title="Identity"
+                  source="IDENTITY.md"
+                  onSourceClick={onNavigateToDoc ? () => openWorkspaceFile('IDENTITY.md') : undefined}
+                >
                   <div className="prose prose-sm max-w-none text-gray-500 [&_p]:my-1">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {activity.identity}

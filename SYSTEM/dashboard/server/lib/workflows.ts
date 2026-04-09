@@ -152,6 +152,27 @@ export function buildWorkflowSessionId(executionId: string, agentId: string): st
   return `workflow-${executionId}-${agentId}`
 }
 
+const workflowAgentLocks = new Map<string, Promise<void>>()
+
+async function withWorkflowAgentLock<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
+  const previous = workflowAgentLocks.get(agentId) || Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  workflowAgentLocks.set(agentId, previous.then(() => current))
+
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+    if (workflowAgentLocks.get(agentId) === current) {
+      workflowAgentLocks.delete(agentId)
+    }
+  }
+}
+
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
 
@@ -908,8 +929,10 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     const integrationDefaults = readWorkspaceIntegrationConfig()
 
-    // Parse structured inputs from workflow content (e.g., **Label:** value)
-    const inputs: Record<string, string> = {}
+    // Persist only explicit workflow/user-provided run inputs.
+    // Workspace integration defaults still flow into runtime context, but should not
+    // appear as editable run inputs on unrelated workflows.
+    const executionInputs: Record<string, string> = {}
     const content = workflow.content || ''
     const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
     let fieldMatch
@@ -917,68 +940,67 @@ export function triggerWorkflow(workflowId: string, options?: {
       const label = fieldMatch[1].trim()
       const value = fieldMatch[2].trim()
       if (value && !value.startsWith('[')) {
-        inputs[label] = value
+        executionInputs[label] = value
       }
-    }
-
-    if (integrationDefaults.githubDefaultRepo && !Object.keys(inputs).some((key) => /github repo/i.test(key))) {
-      inputs['GitHub repo'] = integrationDefaults.githubDefaultRepo
-    }
-    if (integrationDefaults.sensoContextLabel && !Object.keys(inputs).some((key) => /senso context|senso folder|context label/i.test(key))) {
-      inputs['Senso context'] = integrationDefaults.sensoContextLabel
-    }
-    const blaxelDefaults = integrationDefaults.partners?.blaxel || {}
-    if (typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !Object.keys(inputs).some((key) => /blaxel project/i.test(key))) {
-      inputs['Blaxel project'] = blaxelDefaults.projectId.trim()
-    }
-    if (typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !Object.keys(inputs).some((key) => /blaxel sandbox|sandbox/i.test(key))) {
-      inputs['Blaxel sandbox'] = blaxelDefaults.defaultSandbox.trim()
-    }
-    if (typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !Object.keys(inputs).some((key) => /blaxel region|region/i.test(key))) {
-      inputs['Blaxel region'] = blaxelDefaults.region.trim()
-    }
-    const redisDefaults = integrationDefaults.partners?.redis || {}
-    if (typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !Object.keys(inputs).some((key) => /redis url|redis endpoint/i.test(key))) {
-      inputs['Redis URL'] = redisDefaults.url.trim()
-    }
-    if (typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !Object.keys(inputs).some((key) => /redis namespace|namespace/i.test(key))) {
-      inputs['Redis namespace'] = redisDefaults.namespace.trim()
     }
     if (options?.inputs) {
       for (const [key, value] of Object.entries(options.inputs)) {
         if (typeof value === 'string' && value.trim()) {
-          inputs[key] = value.trim()
+          executionInputs[key] = value.trim()
         }
       }
     }
     if (options?.secrets) {
       for (const [key, value] of Object.entries(options.secrets)) {
         if (typeof value === 'string' && value.trim()) {
-          inputs[key] = value.trim()
+          executionInputs[key] = value.trim()
         }
       }
     }
 
+    const blaxelDefaults = integrationDefaults.partners?.blaxel || {}
+    const redisDefaults = integrationDefaults.partners?.redis || {}
+    const workflowSignalsPartner = (partner: 'github' | 'senso' | 'blaxel' | 'redis') => {
+      const text = (workflow.content || '').toLowerCase()
+      const requirements = workflow.secretRequirements || []
+      const requirementText = requirements
+        .map((requirement) => `${requirement.key || ''} ${requirement.label || ''} ${requirement.help || ''}`)
+        .join(' ')
+        .toLowerCase()
+      const haystack = `${text}\n${requirementText}`
+      switch (partner) {
+        case 'github':
+          return /github|repo|pull request|issue\b|gh\b/.test(haystack)
+        case 'senso':
+          return /senso|context label|context folder|shared context/.test(haystack)
+        case 'blaxel':
+          return /blaxel|sandbox|project id|deploy/.test(haystack)
+        case 'redis':
+          return /redis|namespace|memory layer|memory store/.test(haystack)
+        default:
+          return false
+      }
+    }
     const runtimeContextLines: string[] = []
-    if (integrationDefaults.githubDefaultRepo && !content.includes(integrationDefaults.githubDefaultRepo)) {
+    if (workflowSignalsPartner('github') && integrationDefaults.githubDefaultRepo && !content.includes(integrationDefaults.githubDefaultRepo)) {
       runtimeContextLines.push(`- GitHub repo: \`${integrationDefaults.githubDefaultRepo}\``)
     }
-    if (integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
+    if (workflowSignalsPartner('senso') && integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
       runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
     }
-    if (typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !content.includes(blaxelDefaults.projectId.trim())) {
+    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !content.includes(blaxelDefaults.projectId.trim())) {
       runtimeContextLines.push(`- Blaxel project: \`${blaxelDefaults.projectId.trim()}\``)
     }
-    if (typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !content.includes(blaxelDefaults.defaultSandbox.trim())) {
+    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !content.includes(blaxelDefaults.defaultSandbox.trim())) {
       runtimeContextLines.push(`- Blaxel sandbox: \`${blaxelDefaults.defaultSandbox.trim()}\``)
     }
-    if (typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !content.includes(blaxelDefaults.region.trim())) {
+    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !content.includes(blaxelDefaults.region.trim())) {
       runtimeContextLines.push(`- Blaxel region: \`${blaxelDefaults.region.trim()}\``)
     }
-    if (typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !content.includes(redisDefaults.url.trim())) {
+    if (workflowSignalsPartner('redis') && typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !content.includes(redisDefaults.url.trim())) {
       runtimeContextLines.push(`- Redis URL: \`${redisDefaults.url.trim()}\``)
     }
-    if (typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !content.includes(redisDefaults.namespace.trim())) {
+    if (workflowSignalsPartner('redis') && typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !content.includes(redisDefaults.namespace.trim())) {
       runtimeContextLines.push(`- Redis namespace: \`${redisDefaults.namespace.trim()}\``)
     }
     if (workflow.secretRequirements?.length && options?.secrets) {
@@ -1017,7 +1039,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       triggerType: 'manual',
       participants: executionParticipants,
       logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`],
-      inputs: Object.keys(inputs).length > 0 ? inputs : undefined,
+      inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
     }
 
     // Write execution file
@@ -1060,7 +1082,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
 
           // Call agent via CLI
-          const agentResponse = await new Promise<string>((resolve, reject) => {
+          const agentResponse = await withWorkflowAgentLock(participant.agentId, () => new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
@@ -1116,7 +1138,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                 })
               })
             }).catch(reject)
-          })
+          }))
 
           const agentResult = agentResponse as any
           const agentText = agentResult.text || ''

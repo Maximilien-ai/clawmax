@@ -15,7 +15,11 @@ export interface SecretReadinessSummary {
   present: number
   missingRequired: number
   optionalMissing: number
-  status: 'ready' | 'partial' | 'missing'
+  degraded: number
+  missingLabels: string[]
+  degradedLabels: string[]
+  optionalMissingLabels: string[]
+  status: 'ready' | 'degraded' | 'missing'
 }
 
 type SecretScope = 'template' | 'workflow' | 'skill'
@@ -54,13 +58,42 @@ export function summarizeSecretReadiness(
 ): SecretReadinessSummary {
   const total = requirements.length
   const required = requirements.filter((requirement) => requirement.required !== false).length
+  const normalizedValue = (value: string) => value.trim().toLowerCase()
+  const looksPlaceholder = (requirement: SecretRequirement, rawValue: string) => {
+    const value = normalizedValue(rawValue)
+    if (!value) return false
+    if (/^\[[^\]]*\]$/.test(value)) return true
+    if (value === '...' || value === '…' || value === 'changeme' || value === 'replace-me' || value === 'replace_me') return true
+    if (value.startsWith('your-') || value.startsWith('your_')) return true
+    if (value.includes('example')) return true
+    if ((requirement.kind === 'api_key' || requirement.kind === 'token') && value.length < 8) return true
+    if (requirement.kind === 'url') {
+      if (!/^https?:\/\//.test(value) && !/^redis:\/\//.test(value)) return true
+    }
+    return false
+  }
+
   const present = requirements.filter((requirement) => (secrets[requirement.key] || '').trim().length > 0).length
-  const missingRequired = requirements.filter((requirement) => requirement.required !== false && !(secrets[requirement.key] || '').trim()).length
-  const optionalMissing = requirements.filter((requirement) => requirement.required === false && !(secrets[requirement.key] || '').trim()).length
+  const missingRequiredLabels = requirements
+    .filter((requirement) => requirement.required !== false && !(secrets[requirement.key] || '').trim())
+    .map((requirement) => requirement.label)
+  const optionalMissingLabels = requirements
+    .filter((requirement) => requirement.required === false && !(secrets[requirement.key] || '').trim())
+    .map((requirement) => requirement.label)
+  const degradedLabels = requirements
+    .filter((requirement) => {
+      const value = (secrets[requirement.key] || '').trim()
+      return !!value && looksPlaceholder(requirement, value)
+    })
+    .map((requirement) => requirement.label)
+
+  const missingRequired = missingRequiredLabels.length
+  const optionalMissing = optionalMissingLabels.length
+  const degraded = degradedLabels.length
 
   let status: SecretReadinessSummary['status'] = 'ready'
   if (missingRequired > 0) status = 'missing'
-  else if (present < total) status = 'partial'
+  else if (degraded > 0 || optionalMissing > 0) status = 'degraded'
 
   return {
     total,
@@ -68,6 +101,10 @@ export function summarizeSecretReadiness(
     present,
     missingRequired,
     optionalMissing,
+    degraded,
+    missingLabels: missingRequiredLabels,
+    degradedLabels,
+    optionalMissingLabels,
     status,
   }
 }

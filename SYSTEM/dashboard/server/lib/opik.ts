@@ -7,6 +7,7 @@
 import https from 'https'
 import path from 'path'
 import { getWorkspaceManager } from './workspace-manager'
+import { estimateModelCostUsd } from './model-pricing'
 
 let apiKey = ''
 let workspace = ''
@@ -24,22 +25,6 @@ function getWorkspaceId(): string {
       return 'default'
     }
   }
-}
-
-// Estimated cost per 1K tokens (USD)
-const COST_PER_1K: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-6': { input: 0.015, output: 0.075 },
-  'claude-sonnet-4-6': { input: 0.003, output: 0.015 },
-  'claude-haiku-4-5': { input: 0.001, output: 0.005 },
-  'gpt-4o': { input: 0.005, output: 0.015 },
-  'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
-}
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const key = Object.keys(COST_PER_1K).find(k => model.includes(k)) || ''
-  const rates = COST_PER_1K[key]
-  if (!rates) return 0
-  return (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output
 }
 
 /** Generate UUIDv7 (timestamp-based, required by Opik) */
@@ -148,7 +133,7 @@ export function traceAgentChat(
     ? new Date(Date.now() - meta.durationMs).toISOString()
     : now
 
-  const cost = estimateCost(
+  const cost = estimateModelCostUsd(
     meta.model || '',
     meta.inputTokens || 0,
     meta.outputTokens || 0

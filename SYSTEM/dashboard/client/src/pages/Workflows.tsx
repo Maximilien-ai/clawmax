@@ -342,6 +342,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   const selectedWorkflowTargeting = selectedWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
   const executionWorkflowTargeting = executionWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
+  const selectedWorkflowHasEditableInputs = !!selectedWorkflow && (
+    Object.keys(parseStructuredWorkflowInputs(selectedWorkflow.content)).length > 0 ||
+    (selectedWorkflow.secretRequirements || []).length > 0
+  )
 
   useEffect(() => {
     fetchWorkflows()
@@ -377,7 +381,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   function initializeWorkflowRunForm(workflow: WorkflowDetails, lastExecutionInputs?: Record<string, string>) {
     const parsedInputs = parseStructuredWorkflowInputs(workflow.content)
-    setWorkflowRunInputs({ ...parsedInputs, ...(lastExecutionInputs || {}) })
+    const parsedInputKeys = new Set(Object.keys(parsedInputs))
+    const carriedForwardInputs = Object.fromEntries(
+      Object.entries(lastExecutionInputs || {}).filter(([key]) => parsedInputKeys.has(key))
+    )
+    setWorkflowRunInputs({ ...parsedInputs, ...carriedForwardInputs })
     setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
   }
 
@@ -821,14 +829,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
       if (!resp.ok) throw new Error('Failed to update')
 
-      showSuccess(`Workflow ${!currentEnabled ? 'enabled' : 'disabled'}`)
+      showSuccess(`Workflow ${!currentEnabled ? 'resumed' : 'paused'}`)
       fetchWorkflows()
 
       if (selectedWorkflow?.id === id) {
         fetchWorkflowDetails(id)
       }
     } catch (err) {
-      showError('Failed to toggle workflow')
+      showError(`Failed to ${currentEnabled ? 'pause' : 'resume'} workflow`)
     }
   }
 
@@ -981,7 +989,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const handleBulkEnable = async () => {
     const workflowsToEnable = workflows.filter(w => selectedWorkflowIds.has(w.id) && !w.enabled)
     if (workflowsToEnable.length === 0) {
-      showError('No disabled workflows selected')
+      showError('No paused workflows selected')
       return
     }
 
@@ -995,19 +1003,19 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           })
         )
       )
-      showSuccess(`Enabled ${workflowsToEnable.length} workflow${workflowsToEnable.length !== 1 ? 's' : ''}`)
+      showSuccess(`Resumed ${workflowsToEnable.length} workflow${workflowsToEnable.length !== 1 ? 's' : ''}`)
       fetchWorkflows()
       setSelectedWorkflowIds(new Set())
       setSelectionMode(false)
     } catch (err) {
-      showError('Failed to enable workflows')
+      showError('Failed to resume workflows')
     }
   }
 
   const handleBulkDisable = async () => {
     const workflowsToDisable = workflows.filter(w => selectedWorkflowIds.has(w.id) && w.enabled)
     if (workflowsToDisable.length === 0) {
-      showError('No enabled workflows selected')
+      showError('No active workflows selected')
       return
     }
 
@@ -1020,18 +1028,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             body: JSON.stringify({ enabled: false })
           })
           if (!resp.ok) {
-            throw new Error(`Failed to disable ${w.name}`)
+            throw new Error(`Failed to pause ${w.name}`)
           }
           return resp
         })
       )
-      if (responses.length === 0) throw new Error('No workflows disabled')
-      showSuccess(`Disabled ${workflowsToDisable.length} workflow${workflowsToDisable.length !== 1 ? 's' : ''}`)
+      if (responses.length === 0) throw new Error('No workflows paused')
+      showSuccess(`Paused ${workflowsToDisable.length} workflow${workflowsToDisable.length !== 1 ? 's' : ''}`)
       fetchWorkflows()
       setSelectedWorkflowIds(new Set())
       setSelectionMode(false)
     } catch (err) {
-      showError('Failed to disable workflows')
+      showError('Failed to pause workflows')
     }
   }
 
@@ -1484,6 +1492,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               selectedWorkflowIds={selectedWorkflowIds}
               onToggleSelect={toggleWorkflowSelection}
               onSelect={(id) => fetchWorkflowDetails(id)}
+              onToggleEnabled={handleToggleEnabled}
               editable={dagEditing}
               onAddDependency={async (fromId, toId) => {
                 const wf = sortedWorkflows.find(w => w.id === toId)
@@ -1674,12 +1683,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 >
                   ▶ Run Now
                 </button>
-                <button
-                  onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
-                  className="px-3 py-1.5 text-sm font-medium text-amber-700 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
-                >
-                  Edit Run Inputs
-                </button>
+                {selectedWorkflowHasEditableInputs && (
+                  <button
+                    onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
+                    className="px-3 py-1.5 text-sm font-medium text-amber-700 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
+                  >
+                    Edit Run Inputs
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setEditingWorkflow(selectedWorkflow)
@@ -1797,22 +1808,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <div className={`rounded-md border p-3 text-sm ${
                           selectedWorkflowSecretReadiness.status === 'ready'
                             ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                            : selectedWorkflowSecretReadiness.status === 'partial'
+                            : selectedWorkflowSecretReadiness.status === 'degraded'
                               ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
                               : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
                         }`}>
                           <div className="font-medium text-gray-900 dark:text-gray-100">
                             {selectedWorkflowSecretReadiness.status === 'ready'
                               ? 'Workflow secrets ready'
-                              : selectedWorkflowSecretReadiness.status === 'partial'
-                                ? 'Workflow secrets partially configured'
+                              : selectedWorkflowSecretReadiness.status === 'degraded'
+                                ? 'Workflow secrets need attention'
                                 : 'Workflow secrets missing'}
                           </div>
                           <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                             {selectedWorkflowSecretReadiness.present} of {selectedWorkflowSecretReadiness.total} configured
                             {selectedWorkflowSecretReadiness.missingRequired > 0 ? ` · ${selectedWorkflowSecretReadiness.missingRequired} required missing` : ''}
+                            {selectedWorkflowSecretReadiness.degraded > 0 ? ` · ${selectedWorkflowSecretReadiness.degraded} need review` : ''}
                             {selectedWorkflowSecretReadiness.optionalMissing > 0 ? ` · ${selectedWorkflowSecretReadiness.optionalMissing} optional still empty` : ''}
                           </div>
+                          {(selectedWorkflowSecretReadiness.missingLabels.length > 0 || selectedWorkflowSecretReadiness.degradedLabels.length > 0) && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {selectedWorkflowSecretReadiness.missingLabels.length > 0 && (
+                                <div>Missing required: {selectedWorkflowSecretReadiness.missingLabels.join(', ')}</div>
+                              )}
+                              {selectedWorkflowSecretReadiness.degradedLabels.length > 0 && (
+                                <div>Review values: {selectedWorkflowSecretReadiness.degradedLabels.join(', ')}</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className="grid gap-3 md:grid-cols-2">
@@ -2283,22 +2305,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <div className={`rounded-md border p-3 text-sm ${
                   triggeringWorkflowSecretReadiness.status === 'ready'
                     ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                    : triggeringWorkflowSecretReadiness.status === 'partial'
+                    : triggeringWorkflowSecretReadiness.status === 'degraded'
                       ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
                       : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
                 }`}>
                   <div className="font-medium text-gray-900 dark:text-gray-100">
                     {triggeringWorkflowSecretReadiness.status === 'ready'
                       ? 'Ready to run'
-                      : triggeringWorkflowSecretReadiness.status === 'partial'
-                        ? 'Optional inputs still missing'
+                      : triggeringWorkflowSecretReadiness.status === 'degraded'
+                        ? 'Some inputs need attention'
                         : 'Required inputs still missing'}
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                     {triggeringWorkflowSecretReadiness.present} of {triggeringWorkflowSecretReadiness.total} configured
                     {triggeringWorkflowSecretReadiness.missingRequired > 0 ? ` · ${triggeringWorkflowSecretReadiness.missingRequired} required missing` : ''}
+                    {triggeringWorkflowSecretReadiness.degraded > 0 ? ` · ${triggeringWorkflowSecretReadiness.degraded} need review` : ''}
                     {triggeringWorkflowSecretReadiness.optionalMissing > 0 ? ` · ${triggeringWorkflowSecretReadiness.optionalMissing} optional still empty` : ''}
                   </div>
+                  {(triggeringWorkflowSecretReadiness.missingLabels.length > 0 || triggeringWorkflowSecretReadiness.degradedLabels.length > 0) && (
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {triggeringWorkflowSecretReadiness.missingLabels.length > 0 && (
+                        <div>Missing required: {triggeringWorkflowSecretReadiness.missingLabels.join(', ')}</div>
+                      )}
+                      {triggeringWorkflowSecretReadiness.degradedLabels.length > 0 && (
+                        <div>Review values: {triggeringWorkflowSecretReadiness.degradedLabels.join(', ')}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {(triggeringWorkflow.secretRequirements || []).map((requirement) => {
@@ -2531,14 +2564,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             disabled={selectedDisabledCount === 0}
             className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded transition-colors text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Enable
+            ▶ Resume
           </button>
           <button
             onClick={handleBulkDisable}
             disabled={selectedEnabledCount === 0}
             className="px-3 py-1 bg-orange-600 hover:bg-orange-700 rounded transition-colors text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Disable
+            ‖ Pause
           </button>
           <button
             onClick={handleBulkDelete}
@@ -2770,7 +2803,7 @@ function WorkflowsTable({
                     <div className="flex justify-end gap-2">
                       {totalCost > 0 && (
                         <span className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                          ${(totalCost || 0).toFixed(3)}
+                          ${(totalCost || 0).toFixed(2)}
                         </span>
                       )}
                       <button
@@ -2778,9 +2811,11 @@ function WorkflowsTable({
                           e.stopPropagation()
                           onToggleEnabled(workflow.id, workflow.enabled)
                         }}
-                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        disabled={workflow.enabled && !isRunning}
+                        title={workflow.enabled && !isRunning ? 'Pause is only available while the workflow is running' : (workflow.enabled ? 'Pause workflow' : 'Resume workflow')}
+                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {workflow.enabled ? 'Disable' : 'Enable'}
+                        {workflow.enabled ? '‖ Pause' : '▶ Resume'}
                       </button>
                       <button
                         onClick={(e) => {
@@ -2890,7 +2925,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
           {totalCost != null && totalCost > 0 && (
             <>
               <span>·</span>
-              <span className="text-emerald-600 dark:text-emerald-400">${totalCost.toFixed(3)}</span>
+              <span className="text-emerald-600 dark:text-emerald-400">${totalCost.toFixed(2)}</span>
             </>
           )}
         </div>
@@ -2934,7 +2969,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
               onClick={(e) => { e.stopPropagation(); onToggle(workflow.enabled); setShowMenu(false); }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
             >
-              {workflow.enabled ? 'Disable' : 'Enable'}
+              {workflow.enabled ? '‖ Pause' : '▶ Resume'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); setShowMenu(false); }}

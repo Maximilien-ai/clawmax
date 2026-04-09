@@ -5,12 +5,32 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.8)
+[![Version](https://img.shields.io/badge/version-1.2.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.9)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.8
+## 🔥 What's New in v1.2.9
+
+- Workflow apply is safer in busy workspaces:
+  - detects agent, channel, and workflow conflicts
+  - supports rename-on-apply with direct recovery from blocked deploy state
+- Workflow operations are cleaner:
+  - DAG-first workflow view
+  - pipeline selection in DAG mode
+  - pause/resume workflow controls
+  - same-agent concurrent workflow runs no longer fail on session locks
+- Metering and budget views are more trustworthy:
+  - Opik token-only traces now derive estimated spend instead of showing `$0.00`
+  - user-facing cost display is normalized to 2 decimals
+- Agent and activity surfaces are more useful:
+  - agent detail recent workspace files are clickable
+  - activity file types are clearer
+  - Opik loading/empty states are less misleading
+- Mobile polish first pass:
+  - notifications open as a centered mobile sheet
+  - top bar wraps more cleanly on narrow layouts
+  - template apply modal shell is safer on small screens
 
 - **Partner-ready Workspaces Integrations** — the integrations flow now starts with models/providers and then branches into optional partner pages for Senso, Opik, GitHub, Blaxel, and Redis
 - **Partner skills and curated installs** — Skills now surfaces partner-backed skill references, with a curated one-click installer path for Blaxel agent skills

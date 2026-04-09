@@ -581,7 +581,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                   <div
                     className={`w-full rounded-md ${dark ? 'bg-emerald-400/90' : 'bg-emerald-500'}`}
                     style={{ height: `${heightPct}%` }}
-                    title={`${entry.date}: $${entry.estimatedCostUsd.toFixed(4)} across ${entry.traceCount} traces`}
+                    title={`${entry.date}: $${entry.estimatedCostUsd.toFixed(2)} across ${entry.traceCount} traces`}
                   />
                 </div>
                 <div className={`${compact ? 'text-[9px]' : 'text-[10px]'} ${dark ? 'text-slate-500' : 'text-gray-500'}`}>{entry.date.slice(5)}</div>
@@ -653,8 +653,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           <section className={cardClass}>
             <h2 className={`mb-4 ${compact ? 'text-base' : 'text-lg'} font-semibold`}>Costs & Budget</h2>
             <div className={`mb-3 flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-slate-400`}>
-              <span>${budget.currentSpendUsd.toFixed(4)} spent</span>
-              <span>${budget.remainingUsd.toFixed(4)} remaining</span>
+              <span>${budget.currentSpendUsd.toFixed(2)} spent</span>
+              <span>${budget.remainingUsd.toFixed(2)} remaining</span>
             </div>
             <div className="h-3 w-full rounded-full bg-gray-200 dark:bg-slate-800">
               <div className={`h-3 rounded-full ${budgetBarColor}`} style={{ width: `${Math.min(budget.usedPct, 100)}%` }} />
@@ -687,7 +687,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                       <div className="truncate font-medium text-gray-900 dark:text-slate-100">{workflow.workflowName || workflow.workflowId}</div>
                       {!compact && <div className="text-gray-500 dark:text-slate-500">{workflow.totalRuns || 0} runs</div>}
                     </div>
-                    <span className="whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">${workflow.estimatedCostUsd.toFixed(4)}</span>
+                    <span className="whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">${workflow.estimatedCostUsd.toFixed(2)}</span>
                   </div>
                 ))}
                 {payload.costs.metering.byWorkflow.length === 0 && (

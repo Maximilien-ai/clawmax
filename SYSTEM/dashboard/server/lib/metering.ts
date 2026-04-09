@@ -9,6 +9,7 @@ import path from 'path'
 import fs from 'fs'
 import { getWorkspaceManager } from './workspace-manager'
 import { listAgents } from './workspace'
+import { estimateTraceCostUsd } from './model-pricing'
 
 interface TraceData {
   id: string
@@ -66,6 +67,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
 
   for (const trace of traces) {
     const meta = trace.metadata || {}
+    const traceCost = estimateTraceCostUsd(meta)
 
     if (trace.name.startsWith('agent.chat.')) {
       const agentId = meta.agent_id || trace.name.replace('agent.chat.', '')
@@ -85,7 +87,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
       existing.totalInputTokens += meta.tokens_input || 0
       existing.totalOutputTokens += meta.tokens_output || 0
       existing.totalTokens += meta.tokens_total || 0
-      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
+      existing.estimatedCostUsd += traceCost
       existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalCalls - 1)) + (meta.duration_ms || 0)) / existing.totalCalls
       if (!existing.lastActivity || trace.start_time > existing.lastActivity) {
         existing.lastActivity = trace.start_time
@@ -109,7 +111,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
           lastRun: '',
         }
         workflowExisting.totalTokens += meta.tokens_total || 0
-        workflowExisting.estimatedCostUsd += meta.estimated_cost_usd || 0
+        workflowExisting.estimatedCostUsd += traceCost
         if (!workflowExisting.lastRun || trace.start_time > workflowExisting.lastRun) {
           workflowExisting.lastRun = trace.start_time
         }
@@ -129,7 +131,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
 
       existing.totalRuns++
       existing.totalTokens += meta.tokens_total || 0
-      existing.estimatedCostUsd += meta.estimated_cost_usd || 0
+      existing.estimatedCostUsd += traceCost
       existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalRuns - 1)) + (meta.duration_ms || 0)) / existing.totalRuns
       if (!existing.lastRun || trace.start_time > existing.lastRun) {
         existing.lastRun = trace.start_time
@@ -171,7 +173,7 @@ export function buildDailyCostSeries(traces: TraceData[], days = 7): Array<{ dat
     const isoDate = String(trace.start_time || '').slice(0, 10)
     const bucket = buckets.get(isoDate)
     if (!bucket) continue
-    bucket.estimatedCostUsd += Number(trace.metadata?.estimated_cost_usd || 0)
+    bucket.estimatedCostUsd += estimateTraceCostUsd(trace.metadata || {})
     bucket.traceCount += 1
   }
 

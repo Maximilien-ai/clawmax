@@ -18,6 +18,7 @@ interface WorkflowDAGProps {
   onSelect?: (workflowId: string) => void
   onTrigger?: (workflowId: string) => void
   onEditRun?: (workflowId: string) => void
+  onToggleEnabled?: (workflowId: string, enabled: boolean) => void
   selectedId?: string
   selectionMode?: boolean
   selectedWorkflowIds?: Set<string>
@@ -138,6 +139,7 @@ export default function WorkflowDAG({
   onRemoveDependency,
   onTrigger,
   onEditRun,
+  onToggleEnabled,
   onTogglePipelineSelect,
 }: WorkflowDAGProps) {
   const forests = useMemo(() => findForests(workflows), [workflows])
@@ -465,6 +467,15 @@ export default function WorkflowDAG({
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      {onToggleEnabled && status === 'running' && wf.enabled && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onToggleEnabled(wf.id, wf.enabled) }}
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                          title="Pause workflow"
+                        >
+                          ‖
+                        </button>
+                      )}
                       {onEditRun && status !== 'running' && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onEditRun(wf.id) }}

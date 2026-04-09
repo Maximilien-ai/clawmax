@@ -78,12 +78,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
+  const [existingWorkflowNames, setExistingWorkflowNames] = useState<string[]>([])
   const [existingGroupNames, setExistingGroupNames] = useState<string[]>([])
   const [existingCommunityNames, setExistingCommunityNames] = useState<string[]>([])
   const [existingAgentIds, setExistingAgentIds] = useState<string[]>([])
   const [serverGroupConflicts, setServerGroupConflicts] = useState<string[]>([])
   const [serverCommunityConflicts, setServerCommunityConflicts] = useState<string[]>([])
   const [serverAgentConflicts, setServerAgentConflicts] = useState<string[]>([])
+  const [serverWorkflowConflicts, setServerWorkflowConflicts] = useState<string[]>([])
   const [acknowledgedChannelConflicts, setAcknowledgedChannelConflicts] = useState(false)
   const [groupRenameSelections, setGroupRenameSelections] = useState<Record<string, boolean>>({})
   const [groupRenameValues, setGroupRenameValues] = useState<Record<string, string>>({})
@@ -93,6 +95,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [fieldInputs, setFieldInputs] = useState<Record<string, string>>({})
   const [rawEditWorkflows, setRawEditWorkflows] = useState<Set<string>>(new Set())
   const [workflowStep, setWorkflowStep] = useState(0) // Current workflow being customized
+  const [workflowRenameSelections, setWorkflowRenameSelections] = useState<Record<string, boolean>>({})
+  const [workflowRenameValues, setWorkflowRenameValues] = useState<Record<string, string>>({})
   const [customizeStep, setCustomizeStep] = useState<CustomizeStep>('team')
   const [templateSecrets, setTemplateSecrets] = useState<Record<string, string>>({})
   const [prefilledGithubDefault, setPrefilledGithubDefault] = useState(false)
@@ -242,6 +246,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         setExistingAgentIds(ids)
       })
       .catch(() => {})
+    fetch('/api/workflows')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const names = Array.isArray(data?.workflows) ? data.workflows.map((workflow: any) => workflow?.name).filter((name: unknown): name is string => typeof name === 'string') : []
+        setExistingWorkflowNames(names)
+      })
+      .catch(() => {})
   }, [])
 
   const partnerIsVisible = (slug: string) => visiblePartners.length === 0 || visiblePartners.includes(slug)
@@ -328,11 +339,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         setServerAgentConflicts(Array.isArray(data?.agentConflicts) ? data.agentConflicts : [])
         setServerGroupConflicts(Array.isArray(data?.groupConflicts) ? data.groupConflicts : [])
         setServerCommunityConflicts(Array.isArray(data?.communityConflicts) ? data.communityConflicts : [])
+        setServerWorkflowConflicts(Array.isArray(data?.workflowConflicts) ? data.workflowConflicts : [])
       })
       .catch(() => {
         setServerAgentConflicts([])
         setServerGroupConflicts([])
         setServerCommunityConflicts([])
+        setServerWorkflowConflicts([])
       })
   }, [agentCounts, includeBuiltIn, prefix, suffix, template.name, template.slug])
 
@@ -441,9 +454,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }, [existingCommunityNames, existingGroupNames, referencedCommunities, referencedGroups, serverCommunityConflicts, serverGroupConflicts])
 
   const suggestedConflictName = (name: string) => {
-    const raw = prefix || suffix ? `${prefix}${name}${suffix}` : `${templateSlug}-${name}`
-    return raw.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
+    const cleanedTemplateName = template.name?.trim() || templateSlug
+    if (prefix || suffix) {
+      return `${prefix}${name}${suffix}`.trim()
+    }
+    return `${name} - ${cleanedTemplateName}`.trim()
   }
+
+  const workflowConflicts = useMemo(() => {
+    const existing = new Set(existingWorkflowNames.map((name) => name.trim().toLowerCase()))
+    const serverExisting = new Set(serverWorkflowConflicts.map((name) => name.trim().toLowerCase()))
+    return (template.workflows || [])
+      .filter((workflow) => existing.has((workflow.name || '').trim().toLowerCase()) || serverExisting.has((workflow.name || '').trim().toLowerCase()))
+      .map((workflow) => ({ id: workflow.id, name: workflow.name }))
+  }, [existingWorkflowNames, serverWorkflowConflicts, template.workflows])
 
   const effectiveGroupRenames = useMemo(
     () => Object.fromEntries(
@@ -465,10 +489,36 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     [communityRenameSelections, communityRenameValues]
   )
 
+  const effectiveWorkflowRenames = useMemo(
+    () => Object.fromEntries(
+      Object.entries(workflowRenameValues)
+        .filter(([workflowId]) => !!workflowRenameSelections[workflowId])
+        .map(([workflowId, value]) => [workflowId, value.trim()])
+        .filter(([, value]) => !!value)
+    ),
+    [workflowRenameSelections, workflowRenameValues]
+  )
+
+  const unresolvedChannelConflicts = useMemo(() => ({
+    groups: channelConflicts.groups.filter((name) => !effectiveGroupRenames[name]),
+    communities: channelConflicts.communities.filter((name) => !effectiveCommunityRenames[name]),
+  }), [channelConflicts.communities, channelConflicts.groups, effectiveCommunityRenames, effectiveGroupRenames])
+  const hasUnresolvedChannelConflicts = unresolvedChannelConflicts.groups.length > 0 || unresolvedChannelConflicts.communities.length > 0
+  const unresolvedWorkflowConflicts = workflowConflicts.filter((workflow) => !effectiveWorkflowRenames[workflow.id])
+  const hasUnresolvedWorkflowConflicts = unresolvedWorkflowConflicts.length > 0
+  const hasWorkflowRenameErrors = workflowConflicts.some((workflow) => {
+    if (!workflowRenameSelections[workflow.id]) return false
+    const next = (workflowRenameValues[workflow.id] || '').trim()
+    if (!next) return true
+    const existingWorkflows = new Set(existingWorkflowNames.map((name) => normalizeChannelName(name)))
+    return normalizeChannelName(next) !== normalizeChannelName(workflow.name) && existingWorkflows.has(normalizeChannelName(next))
+  })
+
   const conflictResolutionErrors = useMemo(() => {
     const errors: string[] = []
     const existingGroups = new Set(existingGroupNames.map(normalizeChannelName))
     const existingCommunities = new Set(existingCommunityNames.map(normalizeChannelName))
+    const existingWorkflows = new Set(existingWorkflowNames.map((name) => normalizeChannelName(name)))
 
     for (const name of channelConflicts.groups) {
       if (!groupRenameSelections[name]) continue
@@ -484,8 +534,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       else if (normalizeChannelName(next) !== normalizeChannelName(name) && existingCommunities.has(normalizeChannelName(next))) errors.push(`Community "${name}" rename still conflicts with existing community "${next}".`)
     }
 
+    for (const workflow of workflowConflicts) {
+      if (!workflowRenameSelections[workflow.id]) continue
+      const next = (workflowRenameValues[workflow.id] || '').trim()
+      if (!next) errors.push(`Workflow "${workflow.name}" rename is empty.`)
+      else if (normalizeChannelName(next) !== normalizeChannelName(workflow.name) && existingWorkflows.has(normalizeChannelName(next))) errors.push(`Workflow "${workflow.name}" rename still conflicts with existing workflow "${next}".`)
+    }
+
     return errors
-  }, [channelConflicts, communityRenameSelections, communityRenameValues, existingCommunityNames, existingGroupNames, groupRenameSelections, groupRenameValues])
+  }, [channelConflicts, communityRenameSelections, communityRenameValues, existingCommunityNames, existingGroupNames, existingWorkflowNames, groupRenameSelections, groupRenameValues, workflowConflicts, workflowRenameSelections, workflowRenameValues])
 
   async function ensureWorkspaceSkills(skillSpecs: Array<{ name: string; registryName?: string }>) {
     const skillsResp = await fetch('/api/skills')
@@ -523,7 +580,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       showToastError(message)
       return
     }
-    if (channelConflicts.hasAny && !acknowledgedChannelConflicts) {
+    if (hasUnresolvedWorkflowConflicts) {
+      const message = 'This template reuses existing workflow names. Rename the conflicting workflows in the Workflows step before applying.'
+      setError(message)
+      showToastError(message)
+      return
+    }
+    if (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) {
       const message = 'This template reuses existing groups or communities. Review the conflict warning and confirm reuse before applying.'
       setError(message)
       showToastError(message)
@@ -676,6 +739,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
           groupRenames: Object.keys(effectiveGroupRenames).length > 0 ? effectiveGroupRenames : undefined,
           communityRenames: Object.keys(effectiveCommunityRenames).length > 0 ? effectiveCommunityRenames : undefined,
+          workflowRenames: Object.keys(effectiveWorkflowRenames).length > 0 ? effectiveWorkflowRenames : undefined,
         }),
       })
 
@@ -744,8 +808,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="w-full max-w-2xl max-h-[94vh] overflow-y-auto rounded-lg bg-white p-4 shadow-xl dark:bg-gray-800 sm:max-h-[90vh] sm:p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Apply: {template.name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
@@ -837,7 +901,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               <div className={`mb-4 rounded-lg border p-4 ${
                 secretReadiness.status === 'ready'
                   ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                  : secretReadiness.status === 'partial'
+                  : secretReadiness.status === 'degraded'
                     ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
                     : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
               }`}>
@@ -846,25 +910,36 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   <span className={
                     secretReadiness.status === 'ready'
                       ? 'text-green-500'
-                      : secretReadiness.status === 'partial'
+                      : secretReadiness.status === 'degraded'
                         ? 'text-amber-500'
                         : 'text-red-500'
                   }>
-                    {secretReadiness.status === 'ready' ? '✓' : secretReadiness.status === 'partial' ? '⚠' : '✗'}
+                    {secretReadiness.status === 'ready' ? '✓' : secretReadiness.status === 'degraded' ? '⚠' : '✗'}
                   </span>
                   <div>
                     <div className="text-gray-800 dark:text-gray-200 font-medium">
                       {secretReadiness.status === 'ready'
                         ? 'All declared browser-local inputs are ready'
-                        : secretReadiness.status === 'partial'
-                          ? 'Some optional browser-local inputs are still empty'
+                        : secretReadiness.status === 'degraded'
+                          ? 'Some browser-local inputs need attention'
                           : 'Required browser-local inputs are still missing'}
                     </div>
                     <div className="text-gray-500 dark:text-gray-400">
                       {secretReadiness.present} of {secretReadiness.total} configured
                       {secretReadiness.missingRequired > 0 ? ` · ${secretReadiness.missingRequired} required missing` : ''}
+                      {secretReadiness.degraded > 0 ? ` · ${secretReadiness.degraded} need review` : ''}
                       {secretReadiness.optionalMissing > 0 ? ` · ${secretReadiness.optionalMissing} optional still empty` : ''}
                     </div>
+                    {(secretReadiness.missingLabels.length > 0 || secretReadiness.degradedLabels.length > 0) && (
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {secretReadiness.missingLabels.length > 0 && (
+                          <div>Missing required: {secretReadiness.missingLabels.join(', ')}</div>
+                        )}
+                        {secretReadiness.degradedLabels.length > 0 && (
+                          <div>Review values: {secretReadiness.degradedLabels.join(', ')}</div>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Fill these in on the Secrets step. Values stay in this browser and are not written into template markdown or server config.
                     </div>
@@ -1110,7 +1185,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                             <input
                               type="text"
                               value={groupRenameValues[name] || ''}
-                              onChange={(e) => setGroupRenameValues((prev) => ({ ...prev, [name]: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') }))}
+                              onChange={(e) => setGroupRenameValues((prev) => ({ ...prev, [name]: e.target.value }))}
                               className="mt-2 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs"
                             />
                           )}
@@ -1147,7 +1222,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                             <input
                               type="text"
                               value={communityRenameValues[name] || ''}
-                              onChange={(e) => setCommunityRenameValues((prev) => ({ ...prev, [name]: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') }))}
+                              onChange={(e) => setCommunityRenameValues((prev) => ({ ...prev, [name]: e.target.value }))}
                               className="mt-2 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs"
                             />
                           )}
@@ -1162,17 +1237,23 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {conflictResolutionErrors[0]}
                 </div>
               )}
-              <label className="mt-4 flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={acknowledgedChannelConflicts}
-                  onChange={(e) => setAcknowledgedChannelConflicts(e.target.checked)}
-                  className="mt-0.5 rounded"
-                />
-                <div className="text-xs text-amber-800 dark:text-amber-300">
-                  Reuse these existing groups/communities for this apply. I understand this may overlap conversations with another team.
+              {hasUnresolvedChannelConflicts ? (
+                <label className="mt-4 flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acknowledgedChannelConflicts}
+                    onChange={(e) => setAcknowledgedChannelConflicts(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div className="text-xs text-amber-800 dark:text-amber-300">
+                    Reuse these existing groups/communities for this apply. I understand this may overlap conversations with another team.
+                  </div>
+                </label>
+              ) : (
+                <div className="mt-4 text-xs text-emerald-700 dark:text-emerald-300">
+                  All conflicting channels are renamed for this apply. No shared-channel reuse confirmation is needed.
                 </div>
-              </label>
+              )}
             </div>
           )}
 
@@ -1417,6 +1498,56 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
           {/* Customize Workflows — paginated wizard */}
           {customizeStep === 'workflows' && template.workflows && template.workflows.length > 0 && (
+            <div className="space-y-4">
+            {workflowConflicts.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-2">Workflow name conflict detected</h3>
+                <p className="text-xs text-amber-800 dark:text-amber-300 mb-3">
+                  This template would reuse existing workflow names in the workspace. Rename the conflicting workflows for this apply so targets and execution history stay separate.
+                </p>
+                <div className="space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                  {workflowConflicts.map((workflow) => (
+                    <div key={workflow.id} className="rounded-lg border border-amber-300/70 dark:border-amber-700 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium">{workflow.name}</span>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={!!workflowRenameSelections[workflow.id]}
+                            onChange={(e) => {
+                              const checked = e.target.checked
+                              setWorkflowRenameSelections((prev) => ({ ...prev, [workflow.id]: checked }))
+                              if (checked && !workflowRenameValues[workflow.id]) {
+                                setWorkflowRenameValues((prev) => ({ ...prev, [workflow.id]: suggestedConflictName(workflow.name) }))
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span>Rename for this apply</span>
+                        </label>
+                      </div>
+                      {workflowRenameSelections[workflow.id] && (
+                        <input
+                          type="text"
+                          value={workflowRenameValues[workflow.id] || ''}
+                          onChange={(e) => setWorkflowRenameValues((prev) => ({ ...prev, [workflow.id]: e.target.value }))}
+                          className="mt-2 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {hasUnresolvedWorkflowConflicts ? (
+                  <div className="mt-4 text-xs text-amber-800 dark:text-amber-300">
+                    Rename each conflicting workflow above before applying this template.
+                  </div>
+                ) : (
+                  <div className="mt-4 text-xs text-emerald-700 dark:text-emerald-300">
+                    All conflicting workflows are renamed for this apply.
+                  </div>
+                )}
+              </div>
+            )}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -1686,6 +1817,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 )
               })()}
             </div>
+            </div>
           )}
 
           {customizeStep === 'secrets' && (
@@ -1899,7 +2031,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </button>
                 </div>
               )}
-              {channelConflicts.hasAny && !acknowledgedChannelConflicts && (
+              {hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts && (
                 <div className="flex items-center gap-3 text-xs text-amber-700 dark:text-amber-300">
                   <span>Confirm channel reuse or rename conflicting channels in the Team step before applying this template.</span>
                   <button
@@ -1913,23 +2045,49 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </button>
                 </div>
               )}
-              {conflictResolutionErrors.length > 0 && (
-                <div className="flex items-center gap-3 text-xs text-red-600 dark:text-red-300">
-                  <span>Resolve channel rename errors in the Team step before applying this template.</span>
+              {hasUnresolvedWorkflowConflicts && (
+                <div className="flex items-center gap-3 text-xs text-amber-700 dark:text-amber-300">
+                  <span>Rename conflicting workflow names in the Workflows step before applying this template.</span>
                   <button
                     onClick={() => {
                       setWizardStep('customize')
-                      setCustomizeStep('team')
+                      setCustomizeStep('workflows')
                     }}
-                    className="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                    className="font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200"
                   >
-                    Go to Team
+                    Go to Workflows
                   </button>
+                </div>
+              )}
+              {conflictResolutionErrors.length > 0 && (
+                <div className="flex items-center gap-3 text-xs text-red-600 dark:text-red-300">
+                  <span>{hasWorkflowRenameErrors ? 'Resolve workflow rename errors in the Workflows step before applying this template.' : 'Resolve channel rename errors in the Team step before applying this template.'}</span>
+                  {hasWorkflowRenameErrors ? (
+                    <button
+                      onClick={() => {
+                        setWizardStep('customize')
+                        setCustomizeStep('workflows')
+                      }}
+                      className="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                    >
+                      Go to Workflows
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setWizardStep('customize')
+                        setCustomizeStep('team')
+                      }}
+                      className="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                    >
+                      Go to Team
+                    </button>
+                  )}
                 </div>
               )}
               <button
                 onClick={handleApply}
-                disabled={applying || agentConflicts.length > 0 || (channelConflicts.hasAny && !acknowledgedChannelConflicts) || conflictResolutionErrors.length > 0}
+                disabled={applying || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}

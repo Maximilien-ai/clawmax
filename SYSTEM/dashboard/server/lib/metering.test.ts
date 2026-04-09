@@ -5,6 +5,7 @@
  */
 
 import { aggregateWorkspaceMeteringFromTraces, buildDailyCostSeries, summarizeCostWindows } from './metering'
+import { estimateModelCostUsd } from './model-pricing'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -151,6 +152,51 @@ async function run() {
     assert(metering.byWorkflow[0].workflowId === 'test-github', 'Expected workflow id to match')
     assert(Math.abs(metering.byWorkflow[0].estimatedCostUsd - 0.2) < 0.0001, 'Expected workflow cost from agent traces')
     assert(metering.byWorkflow[0].totalRuns === 1, 'Expected workflow runs from workflow traces')
+  })
+
+  await test('aggregateWorkspaceMeteringFromTraces derives cost from tokens when traces lack explicit cost', () => {
+    const expectedFirst = estimateModelCostUsd('openai/gpt-5.4', 10000, 5000)
+    const expectedSecond = estimateModelCostUsd('gpt-4o-mini', 2000, 1000)
+    const metering = aggregateWorkspaceMeteringFromTraces([
+      {
+        id: 'a1',
+        name: 'agent.chat.analysis-lead',
+        start_time: '2026-04-08T19:00:00.000Z',
+        end_time: '2026-04-08T19:00:10.000Z',
+        metadata: {
+          agent_id: 'analysis-lead',
+          workflow_id: 'kickoff',
+          workflow_name: 'Kickoff',
+          tokens_input: 10000,
+          tokens_output: 5000,
+          tokens_total: 15000,
+          duration_ms: 10000,
+          model: 'openai/gpt-5.4',
+        },
+      },
+      {
+        id: 'a2',
+        name: 'agent.chat.writer',
+        start_time: '2026-04-08T19:01:00.000Z',
+        end_time: '2026-04-08T19:01:04.000Z',
+        metadata: {
+          agent_id: 'writer',
+          workflow_id: 'kickoff',
+          workflow_name: 'Kickoff',
+          tokens_input: 2000,
+          tokens_output: 1000,
+          tokens_total: 3000,
+          duration_ms: 4000,
+          model: 'gpt-4o-mini',
+        },
+      },
+    ] as any)
+
+    const expectedTotal = expectedFirst + expectedSecond
+    assert(expectedTotal > 0, 'Expected fallback model pricing to produce non-zero cost')
+    assert(Math.abs(metering.estimatedCostUsd - expectedTotal) < 0.0001, 'Expected workspace total cost from derived model pricing')
+    assert(Math.abs(metering.byWorkflow[0].estimatedCostUsd - expectedTotal) < 0.0001, 'Expected workflow total cost from derived model pricing')
+    assert(metering.byAgent.some((agent) => agent.agentId === 'analysis-lead' && agent.estimatedCostUsd > 0), 'Expected per-agent derived cost')
   })
 
   console.log('\n========================================')

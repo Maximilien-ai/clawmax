@@ -53,7 +53,11 @@ const FILE_TYPES: Record<string, { label: string; cls: string }> = {
 }
 
 function fileType(name: string) {
-  return FILE_TYPES[name] ?? { label: name.replace(/\.md$/, ''), cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }
+  if (FILE_TYPES[name]) return FILE_TYPES[name]
+  if (/\.md$/i.test(name)) {
+    return { label: 'markdown', cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }
+  }
+  return { label: 'file', cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }
 }
 
 function timeAgo(mins: number): string {
@@ -105,6 +109,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [showSystemLogs, setShowSystemLogs] = useState(false)
   const [showDoctor, setShowDoctor] = useState(false)
   const [metering, setMetering] = useState<MeteringData | null>(null)
+  const [meteringLoading, setMeteringLoading] = useState(true)
   const [showMetering, setShowMetering] = useState(true)
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
@@ -149,6 +154,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       .then(r => r.ok ? r.json() : null)
       .then(d => setMetering(isMeteringResponse(d) ? d : EMPTY_METERING))
       .catch(() => setMetering(EMPTY_METERING))
+      .finally(() => setMeteringLoading(false))
     fetch('/api/agents/cost-limits')
       .then(r => r.ok ? r.json() : null)
       .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
@@ -397,9 +403,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
-            <span>${(budget.currentSpendUsd || 0).toFixed(4)} spent</span>
+            <span>${(budget.currentSpendUsd || 0).toFixed(2)} spent</span>
             <span>{(budget.usedPct || 0).toFixed(1)}% used</span>
-            <span>${(budget.remainingUsd || 0).toFixed(4)} remaining</span>
+            <span>${(budget.remainingUsd || 0).toFixed(2)} remaining</span>
           </div>
         </div>
       )}
@@ -411,6 +417,15 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Token Metering</h2>
             <button onClick={() => setShowMetering(false)} className="text-xs text-gray-400 hover:text-gray-600">Hide</button>
           </div>
+          {meteringLoading ? (
+            <div className="mb-4 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
+              Collecting Opik metering data for this workspace…
+            </div>
+          ) : metering.totalTraces === 0 ? (
+            <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              No metering data yet. If Opik is connected, traces can take a little time to appear after agents and workflows start running.
+            </div>
+          ) : null}
           {/* Summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -422,7 +437,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
               <div className="text-xs text-gray-500">Total Tokens</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <div className="text-2xl font-bold text-green-600">${(metering.estimatedCostUsd || 0).toFixed(4)}</div>
+              <div className="text-2xl font-bold text-green-600">${(metering.estimatedCostUsd || 0).toFixed(2)}</div>
               <div className="text-xs text-gray-500">Est. Cost</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -468,9 +483,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
                         <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{((agent.totalTokens || 0) / 1000).toFixed(1)}k</td>
-                        <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(4)}</td>
+                        <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{limit ? `$${limit.toFixed(2)}` : '—'}</td>
-                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{remaining !== null ? `$${remaining.toFixed(4)}` : '—'}</td>
+                        <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{remaining !== null ? `$${remaining.toFixed(2)}` : '—'}</td>
                         <td className="px-3 py-2 text-right">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${budgetTone}`}>
                             {usedPct === null ? 'No limit' : `${Math.min(usedPct, 999).toFixed(0)}%`}
