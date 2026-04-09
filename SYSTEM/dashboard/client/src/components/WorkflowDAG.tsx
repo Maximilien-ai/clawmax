@@ -417,6 +417,28 @@ export default function WorkflowDAG({
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
                     <span className={`text-sm font-medium truncate ${colors.text}`}>{wf.name}</span>
+                    {!selectionMode && onTrigger && status !== 'running' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}
+                        className={`ml-auto inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors ${
+                          status === 'completed'
+                            ? 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'
+                        }`}
+                        title={status === 'completed' ? 'Re-run workflow' : 'Run workflow'}
+                      >
+                        {status === 'completed' ? '↻' : '▶'}
+                      </button>
+                    )}
+                    {!selectionMode && onEditRun && status !== 'running' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onEditRun(wf.id) }}
+                        className="inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                        title="Run with input"
+                      >
+                        ✎
+                      </button>
+                    )}
                     {selectionMode && isSelected && (
                       <span className="ml-auto text-[10px] font-semibold text-purple-600 dark:text-purple-300">
                         Selected
@@ -474,28 +496,6 @@ export default function WorkflowDAG({
                           title="Pause workflow"
                         >
                           ‖
-                        </button>
-                      )}
-                      {onEditRun && status !== 'running' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onEditRun(wf.id) }}
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                          title="Edit run inputs"
-                        >
-                          ✎
-                        </button>
-                      )}
-                      {onTrigger && status !== 'running' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
-                            status === 'completed'
-                              ? 'text-sky-600 hover:bg-sky-100 dark:hover:bg-sky-900/30'
-                              : 'text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
-                          }`}
-                          title={status === 'completed' ? 'Re-run workflow' : 'Start workflow'}
-                        >
-                          {status === 'completed' ? '↻' : '▶'}
                         </button>
                       )}
                     </div>

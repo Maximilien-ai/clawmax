@@ -78,6 +78,8 @@ interface WorkflowExecutionDetails {
   inputs?: Record<string, string>
 }
 
+const RUN_INSTRUCTIONS_KEY = 'Run Instructions'
+
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
 type WorkflowHealthState = 'running' | 'enabled' | 'failed' | 'paused' | 'disabled'
 
@@ -299,6 +301,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [triggeringWorkflow, setTriggeringWorkflow] = useState<Workflow | null>(null)
   const [workflowSecrets, setWorkflowSecrets] = useState<Record<string, string>>({})
   const [workflowRunInputs, setWorkflowRunInputs] = useState<Record<string, string>>({})
+  const [workflowRunInstructions, setWorkflowRunInstructions] = useState('')
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
@@ -386,7 +389,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       Object.entries(lastExecutionInputs || {}).filter(([key]) => parsedInputKeys.has(key))
     )
     setWorkflowRunInputs({ ...parsedInputs, ...carriedForwardInputs })
+    setWorkflowRunInstructions(typeof lastExecutionInputs?.[RUN_INSTRUCTIONS_KEY] === 'string' ? lastExecutionInputs[RUN_INSTRUCTIONS_KEY] : '')
     setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
+  }
+
+  function buildWorkflowExecutionInputs(inputs?: Record<string, string>, runInstructions?: string) {
+    const nextInputs = { ...(inputs || {}) }
+    if (runInstructions?.trim()) {
+      nextInputs[RUN_INSTRUCTIONS_KEY] = runInstructions.trim()
+    }
+    return nextInputs
   }
 
   async function triggerWorkflowWithSecrets(
@@ -413,20 +425,48 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   function startWorkflowTrigger(workflow: Workflow) {
-    if (workflow.secretRequirements && workflow.secretRequirements.length > 0) {
-      setTriggeringWorkflow(workflow)
-      setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
+    const hasSecrets = (workflow.secretRequirements || []).length > 0
+    const workflowDetails = selectedWorkflow && selectedWorkflow.id === workflow.id ? selectedWorkflow : null
+    const hasEditableInputs = workflowDetails
+      ? Object.keys(parseStructuredWorkflowInputs(workflowDetails.content)).length > 0
+      : false
+
+    if (!hasSecrets && !hasEditableInputs) {
+      triggerWorkflowWithSecrets(workflow)
+        .then((data) => {
+          showSuccess(`Triggered ${workflow.id}`)
+          if (data.executionId) {
+            const key = `${workflow.id}:${data.executionId}`
+            setTrackedExecutions(prev => {
+              const next = new Map(prev)
+              next.set(key, {
+                status: 'pending',
+                executionId: data.executionId,
+                workflowName: workflow.name
+              })
+              return next
+            })
+          }
+          fetchWorkflows(true)
+          if (workflowDetails) {
+            setTimeout(() => fetchWorkflowDetails(workflow.id), 2000)
+          }
+        })
+        .catch((err) => {
+          console.error('[Workflow Toast] Failed to trigger workflow:', err)
+          showError(err.message || `Failed to trigger ${workflow.id}`)
+        })
       return
     }
-    triggerWorkflowWithSecrets(workflow)
-      .then(() => {
-        showSuccess(`Triggered ${workflow.id}`)
-        fetchWorkflows(true)
-      })
-      .catch((err) => {
-        console.error('[Workflow Toast] Failed to trigger workflow:', err)
-        showError(err.message || `Failed to trigger ${workflow.id}`)
-      })
+
+    setTriggeringWorkflow(workflow)
+    setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
+    if (workflowDetails) {
+      initializeWorkflowRunForm(workflowDetails)
+    } else {
+      setWorkflowRunInputs({})
+      setWorkflowRunInstructions('')
+    }
   }
 
   async function triggerWorkflowFromDetail(workflow: WorkflowDetails) {
@@ -439,7 +479,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     writeLocalSecrets('workflow', workflow.id, workflowSecrets)
     const data = await triggerWorkflowWithSecrets(workflow, {
-      inputs: workflowRunInputs,
+      inputs: buildWorkflowExecutionInputs(workflowRunInputs, workflowRunInstructions),
       secrets: workflowSecrets,
     })
     showSuccess('Workflow triggered successfully')
@@ -1638,42 +1678,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <div className="flex items-center gap-3">
                 <button
                   onClick={async () => {
-                    // Run immediately without confirmation
                     try {
-                      console.log('[Workflow Toast] Triggering workflow:', selectedWorkflow.id, selectedWorkflow.name)
-                      if (selectedWorkflow.secretRequirements && selectedWorkflow.secretRequirements.length > 0) {
-                        setTriggeringWorkflow(selectedWorkflow)
-                        setWorkflowSecrets(readLocalSecrets('workflow', selectedWorkflow.id))
-                        return
-                      }
-                      const data = await triggerWorkflowWithSecrets(selectedWorkflow)
-                      console.log('[Workflow Toast] Trigger response:', data)
-                      showSuccess('Workflow triggered successfully')
-                      // Track the execution for completion toast
-                      if (data.executionId) {
-                        const key = `${selectedWorkflow.id}:${data.executionId}`
-                        console.log('[Workflow Toast] Adding to tracked executions:', key, {
-                          status: 'pending',
-                          executionId: data.executionId,
-                          workflowName: selectedWorkflow.name
-                        })
-                        setTrackedExecutions(prev => {
-                          const next = new Map(prev)
-                          next.set(key, {
-                            status: 'pending',
-                            executionId: data.executionId,
-                            workflowName: selectedWorkflow.name
-                          })
-                          console.log('[Workflow Toast] trackedExecutions after add:', next.size, Array.from(next.keys()))
-                          return next
-                        })
-                      } else {
-                        console.warn('[Workflow Toast] No executionId in trigger response!')
-                      }
-                      // Refresh executions after 2 seconds
-                      setTimeout(() => {
-                        fetchWorkflowDetails(selectedWorkflow.id)
-                      }, 2000)
+                      startWorkflowTrigger(selectedWorkflow)
                     } catch (err) {
                       console.error('[Workflow Toast] Failed to trigger workflow:', err)
                       showError('Failed to trigger workflow')
@@ -1767,8 +1773,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 )}
               </div>
 
-              {(Object.keys(workflowRunInputs).length > 0 || (selectedWorkflow.secretRequirements || []).length > 0) && (
-                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Run Inputs</h3>
@@ -1801,6 +1806,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       ))}
                     </div>
                   )}
+
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      Run Instructions
+                    </label>
+                    <textarea
+                      value={workflowRunInstructions}
+                      onChange={(e) => setWorkflowRunInstructions(e.target.value)}
+                      rows={4}
+                      placeholder="Add one-off instructions for this run only, like priorities, constraints, budget limits, target audience, or special requests."
+                      className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Only applied to the next run. The saved workflow stays unchanged.
+                    </div>
+                  </div>
 
                   {(selectedWorkflow.secretRequirements || []).length > 0 && (
                     <>
@@ -1902,7 +1923,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     </button>
                   </div>
                 </div>
-              )}
 
               {/* Participants */}
               <div>
@@ -2321,8 +2341,40 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             </div>
             <div className="px-6 py-4 space-y-4">
               <div className="text-sm text-gray-600 dark:text-gray-300">
-                Stored in this browser only. Values are passed to this workflow run without being written into the workflow markdown file.
+                Values here apply only to this run. Secrets stay in this browser, and extra instructions do not modify the saved workflow.
               </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Run Instructions
+                </label>
+                <textarea
+                  value={workflowRunInstructions}
+                  onChange={(e) => setWorkflowRunInstructions(e.target.value)}
+                  rows={4}
+                  placeholder="Add one-off instructions for this run only, like priorities, constraints, target audience, budget limits, or special requests."
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Example: focus on beginner-friendly warm-water sites under $2k and optimize for family travel.
+                </div>
+              </div>
+              {Object.keys(workflowRunInputs).length > 0 && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {Object.entries(workflowRunInputs).map(([label, value]) => (
+                    <div key={label} className="space-y-1.5">
+                      <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {label}
+                      </label>
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [label]: e.target.value }))}
+                        className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               {triggeringWorkflowSecretReadiness && (
                 <div className={`rounded-md border p-3 text-sm ${
                   triggeringWorkflowSecretReadiness.status === 'ready'
@@ -2422,7 +2474,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   const workflow = triggeringWorkflow
                   setTriggeringWorkflow(null)
                   try {
-                    const data = await triggerWorkflowWithSecrets(workflow)
+                    const data = await triggerWorkflowWithSecrets(workflow, {
+                      secrets: workflowSecrets,
+                      inputs: buildWorkflowExecutionInputs(workflowRunInputs, workflowRunInstructions),
+                    })
                     showSuccess('Workflow triggered successfully')
                     if (data.executionId) {
                       const key = `${workflow.id}:${data.executionId}`

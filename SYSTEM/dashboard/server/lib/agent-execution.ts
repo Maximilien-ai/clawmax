@@ -22,11 +22,22 @@ interface AuthProfileFile {
 
 type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
 
-function readOpenClawAgentRecord(agentId: string): OpenClawAgentRecord | null {
+function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: string): OpenClawAgentRecord | null {
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    return (config?.agents?.list || []).find((agent: any) => agent.id === agentId) || null
+    const records = (config?.agents?.list || []).filter((agent: any) => agent.id === agentId)
+    if (records.length === 0) return null
+    if (activeWorkspaceAgentDir) {
+      const exactWorkspaceMatch = records.find((agent: any) => agent.workspace === activeWorkspaceAgentDir)
+      if (exactWorkspaceMatch) return exactWorkspaceMatch
+      const nestedWorkspaceMatch = records.find((agent: any) => {
+        const workspace = String(agent.workspace || '')
+        return workspace && activeWorkspaceAgentDir.startsWith(workspace)
+      })
+      if (nestedWorkspaceMatch) return nestedWorkspaceMatch
+    }
+    return records[0] || null
   } catch {
     return null
   }
@@ -47,8 +58,8 @@ export function resolveAgentExecutionConfig(agentId: string): {
   agentDir?: string
   provider?: ExecutionProvider
 } {
-  const record = readOpenClawAgentRecord(agentId)
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
   const activeWorkspaceIdentityPath = path.join(activeWorkspaceAgentDir, 'IDENTITY.md')
   const hasActiveWorkspaceAgent = fs.existsSync(activeWorkspaceIdentityPath)
 
@@ -171,21 +182,40 @@ export async function withTemporaryAgentAuthProfiles<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   resetSessionsIfModelChanged(agentId, preferredModel)
-
-  if (preferredProvider === 'ollama') {
-    return fn()
+  const execution = resolveAgentExecutionConfig(agentId)
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const hadConfig = fs.existsSync(configPath)
+  const previousConfig = hadConfig ? fs.readFileSync(configPath, 'utf-8') : null
+  const applyModelOverride = (model: string | undefined) => {
+    if (!model || !hadConfig) return
+    let update = updateAgentModelInConfigFile(configPath, agentId, model, {
+      workspacePath: execution.workspace,
+    })
+    if (!update.ok && execution.workspace) {
+      update = updateAgentModelInConfigFile(configPath, agentId, model)
+    }
+    if (!update.ok) {
+      throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
+    }
   }
 
-  const execution = resolveAgentExecutionConfig(agentId)
+  if (preferredProvider === 'ollama') {
+    applyModelOverride(preferredModel)
+    try {
+      return await fn()
+    } finally {
+      if (previousConfig !== null) {
+        fs.writeFileSync(configPath, previousConfig, 'utf-8')
+      }
+    }
+  }
+
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
-  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   fs.mkdirSync(agentDir, { recursive: true })
 
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
-  const hadConfig = fs.existsSync(configPath)
-  const previousConfig = hadConfig ? fs.readFileSync(configPath, 'utf-8') : null
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider
@@ -210,17 +240,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
-  if (effectiveModel && hadConfig) {
-    let update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel, {
-      workspacePath: execution.workspace,
-    })
-    if (!update.ok && execution.workspace) {
-      update = updateAgentModelInConfigFile(configPath, agentId, effectiveModel)
-    }
-    if (!update.ok) {
-      throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
-    }
-  }
+  applyModelOverride(effectiveModel)
 
   try {
     return await fn()

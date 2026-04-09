@@ -126,7 +126,7 @@ function buildSuggestedWorkflows(input: {
       schedule: 'manual',
       executionMode: 'managed' as const,
       dependsOn: [] as string[],
-      content: `# ${titleBase} Kickoff\n\n1. Review the latest request: ${detail}\n2. Clarify goals, deadlines, constraints, and target audience\n3. Assign work across the team and identify blockers\n4. Post a short kickoff plan and owners for each next step`,
+      content: `# ${titleBase} Kickoff\n\n1. Review the latest request: ${detail}\n2. Clarify goals, deadlines, constraints, and target audience\n3. Assign work across the team and identify blockers\n4. Post a short kickoff plan and owners for each next step in the main team group/community\n\n## Output\n- Produce a visible kickoff brief or plan\n- Confirm in the team channels what the team will do next`,
     },
     {
       id: `${workflowPrefix}-execution-review`,
@@ -135,7 +135,7 @@ function buildSuggestedWorkflows(input: {
       schedule: 'manual',
       executionMode: 'managed' as const,
       dependsOn: [`${workflowPrefix}-kickoff`],
-      content: `# ${titleBase} Execution Review\n\n1. Review work completed so far for: ${detail}\n2. Identify what is working, what is blocked, and what needs revision\n3. Re-prioritize tasks, budget, or effort as needed\n4. Post the updated plan and next actions`,
+      content: `# ${titleBase} Execution Review\n\n1. Review work completed so far for: ${detail}\n2. Identify what is working, what is blocked, and what needs revision\n3. Re-prioritize tasks, budget, or effort as needed\n4. Post the updated plan and next actions in the working group/community\n\n## Output\n- Produce a concrete intermediate artifact such as a revised brief, shortlist, recommendation set, draft, or checklist\n- Share a short summary of that artifact in the team channels`,
     },
     {
       id: `${workflowPrefix}-weekly-summary`,
@@ -144,7 +144,7 @@ function buildSuggestedWorkflows(input: {
       schedule: '0 16 * * 5',
       executionMode: 'automated' as const,
       dependsOn: [`${workflowPrefix}-execution-review`],
-      content: `# ${titleBase} Weekly Summary\n\n1. Summarize progress, results, and key decisions for: ${detail}\n2. Capture wins, risks, and open questions\n3. Recommend the top next actions for the next run\n4. Publish a concise summary for stakeholders`,
+      content: `# ${titleBase} Weekly Summary\n\n1. Summarize progress, results, and key decisions for: ${detail}\n2. Capture wins, risks, and open questions\n3. Recommend the top next actions for the next run\n4. Publish a concise summary for stakeholders in the shared channels\n\n## Final Output\n- Produce the final summary, recommendation, or confirmation of delivery for this run\n- State clearly where the final output was posted, saved, or shared`,
     },
   ]
 

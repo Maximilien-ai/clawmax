@@ -279,7 +279,7 @@ test('withTemporaryAgentAuthProfiles updates the matching workspace record when 
   assert(JSON.stringify(restored) === JSON.stringify(before), 'Expected openclaw.json restored after temporary override')
 })
 
-test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama', async () => {
+test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama but still applies a temporary model override', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
@@ -310,8 +310,11 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama'
     const current = fs.readFileSync(authProfilePath, 'utf-8')
     const currentConfig = fs.readFileSync(configPath, 'utf-8')
     assert(current === before, 'Expected auth profiles unchanged for Ollama')
-    assert(currentConfig === beforeConfig, 'Expected openclaw.json unchanged for Ollama')
+    assert(currentConfig.includes('"model": "ollama/qwen2.5:latest"'), 'Expected temporary Ollama model override in openclaw.json')
   })
+
+  const restoredConfig = fs.readFileSync(configPath, 'utf-8')
+  assert(restoredConfig === beforeConfig, 'Expected openclaw.json restored after temporary Ollama override')
 })
 
 test('withTemporaryAgentAuthProfiles resets stale main sessions when the configured model changes', async () => {

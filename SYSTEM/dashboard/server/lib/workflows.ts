@@ -943,6 +943,9 @@ export function triggerWorkflow(workflowId: string, options?: {
         executionInputs[label] = value
       }
     }
+    const runInstructions = typeof options?.inputs?.['Run Instructions'] === 'string'
+      ? options.inputs['Run Instructions'].trim()
+      : ''
     if (options?.inputs) {
       for (const [key, value] of Object.entries(options.inputs)) {
         if (typeof value === 'string' && value.trim()) {
@@ -1025,6 +1028,10 @@ export function triggerWorkflow(workflowId: string, options?: {
       runtimeContextLines.push(`- Current workflow community channel(s): ${(workflow.targeting.communities || []).join(', ')}`)
       runtimeContextLines.push('- ClawMax will post your final response back into the current workflow community channel automatically')
       runtimeContextLines.push('- Do not treat missing external channel plugins or messaging transports as a failure for this workflow unless the workflow explicitly asks you to test those transports')
+    }
+    if (runInstructions) {
+      runtimeContextLines.push(`- Run-specific instructions: ${runInstructions}`)
+      runtimeContextLines.push('- Treat the run-specific instructions as the highest-priority adjustment for this execution only')
     }
     const executionMessage = runtimeContextLines.length > 0
       ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`

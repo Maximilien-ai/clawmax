@@ -584,6 +584,19 @@ A template has:
   - tools: array of tool names (e.g., "gh-issues", "github", "web-search", "code-review")
 - communities: array with name, description, tags
 - groups: array with name, description, community (parent), tags
+- workflows: array of workflow definitions, each with:
+  - id: lowercase kebab-case ID
+  - name: display name
+  - description: what the workflow does
+  - schedule: "manual" or a cron expression
+  - executionMode: "managed" or "automated"
+  - targeting:
+    - agents: array of agent IDs
+    - groups: array of group names
+    - communities: array of community names
+    - tags: array of agent tags
+  - dependsOn: optional array of workflow IDs
+  - content: the detailed instructions agents receive when the workflow runs
 
 Important structure rules:
 - Prefer exactly 1 shared community for the whole team.
@@ -591,6 +604,14 @@ Important structure rules:
 - Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
 - Do not create a community and a group that represent the same concept with different names.
 - If unsure, create 1 community and 3-6 groups.
+
+Important workflow behavior rules:
+- Always create 2-4 workflows for the team unless the prompt explicitly asks for none.
+- Workflows must tell agents to communicate visibly in the target group/community as they work.
+- At least one intermediate workflow should produce a tangible artifact such as a brief, plan, shortlist, report, draft, recommendation, or checklist.
+- The final workflow must produce the final deliverable or an explicit confirmation that the final output was completed and where it was posted/saved.
+- Workflows should use groups for ongoing coordination and communities for broader summaries/announcements.
+- Avoid vague workflow content like "work on the task"; be concrete about what agents should discuss, produce, and publish.
 
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
@@ -696,18 +717,45 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         : (fallbackGroup ? [fallbackGroup] : []),
     }))
 
-    parsed.workflows = (parsed.workflows || []).map((workflow: any) => ({
-      ...workflow,
-      targeting: {
-        communities: workflow.targeting?.communities?.length ? workflow.targeting.communities : (fallbackCommunity ? [fallbackCommunity] : []),
-        groups: workflow.targeting?.groups?.length ? workflow.targeting.groups : (fallbackGroup ? [fallbackGroup] : []),
-        agents: workflow.targeting?.agents || [],
-        tags: Array.from(new Set([
-          ...(Array.isArray(workflow.targeting?.tags) ? workflow.targeting.tags : []),
-          ...inferredTemplateTags.slice(0, 2),
-        ])),
-      },
-    }))
+    parsed.workflows = (parsed.workflows || []).map((workflow: any, idx: number, arr: any[]) => {
+      const workflowCommunityTargets = workflow.targeting?.communities?.length ? workflow.targeting.communities : (fallbackCommunity ? [fallbackCommunity] : [])
+      const workflowGroupTargets = workflow.targeting?.groups?.length ? workflow.targeting.groups : (fallbackGroup ? [fallbackGroup] : [])
+      const collaborationBlock = [
+        '## Coordination',
+        workflowGroupTargets.length > 0
+          ? `- Post progress updates and handoffs in group(s): ${workflowGroupTargets.join(', ')}.`
+          : '- Post progress updates and handoffs in the team group channel.',
+        workflowCommunityTargets.length > 0
+          ? `- Share broader status or stakeholder-facing updates in community(s): ${workflowCommunityTargets.join(', ')}.`
+          : '- Share broader status updates in the main team community.',
+      ].join('\n')
+      const outputBlock = idx === arr.length - 1
+        ? [
+            '## Final Output',
+            '- Produce the final deliverable or explicitly confirm that it was completed.',
+            '- State where the final output was posted, saved, or shared.',
+          ].join('\n')
+        : [
+            '## Output',
+            '- Produce a concrete intermediate artifact such as a brief, draft, shortlist, checklist, report, or recommendation.',
+            '- Post a short summary of that artifact in the target group/community.',
+          ].join('\n')
+      const contentSections = [workflow.content || '', collaborationBlock, outputBlock].filter(Boolean)
+
+      return {
+        ...workflow,
+        targeting: {
+          communities: workflowCommunityTargets,
+          groups: workflowGroupTargets,
+          agents: workflow.targeting?.agents || [],
+          tags: Array.from(new Set([
+            ...(Array.isArray(workflow.targeting?.tags) ? workflow.targeting.tags : []),
+            ...inferredTemplateTags.slice(0, 2),
+          ])),
+        },
+        content: contentSections.join('\n\n'),
+      }
+    })
 
     return parsed
   } catch {

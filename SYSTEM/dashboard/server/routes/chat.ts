@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
+import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayRunning } from '../lib/gateway-rpc'
 import { traceAgentChat } from '../lib/opik'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -143,6 +143,7 @@ router.post('/:id/chat', (req, res) => {
     gemini: byok?.gemini,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
   })
+  executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
   const resolvedAgent = resolveAgentExecutionConfig(id)
   const effectiveSessionId = scopeSessionIdToModel(
     sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace),
@@ -186,7 +187,13 @@ router.post('/:id/chat', (req, res) => {
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
   const useLocal = !isGatewayRunning().running
-  const args = ['agent', '--agent', id, '--session-id', effectiveSessionId, '--message', message, ...(useLocal ? ['--local'] : [])]
+  const args = [
+    'agent',
+    '--agent', id,
+    '--session-id', effectiveSessionId,
+    '--message', message,
+    ...(useLocal ? ['--local'] : []),
+  ]
   console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
 
   let procExited = false
