@@ -6,7 +6,7 @@ import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
-import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets } from '../lib/localSecrets'
+import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 interface AgentTargeting {
   communities: string[]
@@ -1838,6 +1838,28 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         </div>
                       )}
                       <div className="grid gap-3 md:grid-cols-2">
+                        <div className="md:col-span-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              writeSharedSecrets(workflowSecrets, { scope: 'workspace' })
+                              showSuccess('Saved workflow secrets to workspace keys')
+                            }}
+                            className="rounded-md border border-amber-200 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          >
+                            Save to Workspace Keys
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              writeSharedSecrets(workflowSecrets, { scope: 'global' })
+                              showSuccess('Saved workflow secrets to global keys')
+                            }}
+                            className="rounded-md border border-amber-200 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          >
+                            Save to Global Keys
+                          </button>
+                        </div>
                         {(selectedWorkflow.secretRequirements || []).map((requirement) => {
                           const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
                             ? 'password'
@@ -2357,6 +2379,28 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </div>
                 )
               })}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    writeSharedSecrets(workflowSecrets, { scope: 'workspace' })
+                    showSuccess('Saved workflow secrets to workspace keys')
+                  }}
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Save to Workspace Keys
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    writeSharedSecrets(workflowSecrets, { scope: 'global' })
+                    showSuccess('Saved workflow secrets to global keys')
+                  }}
+                  className="rounded-md border border-gray-300 dark:border-gray-600 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Save to Global Keys
+                </button>
+              </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
               <button

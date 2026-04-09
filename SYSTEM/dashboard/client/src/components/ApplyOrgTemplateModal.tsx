@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
-import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets } from '../lib/localSecrets'
+import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 interface TemplateParameter {
   agentId: string
@@ -1826,6 +1826,30 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
               <p className="mb-4 text-xs text-amber-700 dark:text-amber-300">
                 Values entered here are stored in this browser only. Sensitive values are not written into workflow markdown by default.
               </p>
+              {secretRequirements.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      writeSharedSecrets(templateSecrets, { scope: 'workspace' })
+                      showSuccess('Saved template secrets to workspace keys')
+                    }}
+                    className="rounded-md border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                  >
+                    Save to Workspace Keys
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      writeSharedSecrets(templateSecrets, { scope: 'global' })
+                      showSuccess('Saved template secrets to global keys')
+                    }}
+                    className="rounded-md border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                  >
+                    Save to Global Keys
+                  </button>
+                </div>
+              )}
               {secretRequirements.length === 0 ? (
                 <div className="text-sm text-amber-800 dark:text-amber-200">This template does not declare any extra secrets or runtime inputs.</div>
               ) : (

@@ -15,6 +15,7 @@
 - [ ] **Workspace auto-switch watch item** — likely fixed via request-local workspace context, but keep tracking until it survives more real multi-workspace/shared-dashboard usage without silent active-workspace drift.
 - [x] **Browser-local secrets for templates, workflows, and skills** — first pass shipped: templates, workflows, and skills can now declare secret requirements and prompt for browser-local runtime inputs like API keys, event slugs, URLs, export paths, and tokens without writing them into workflow markdown or server config by default.
 - [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run.
+- [ ] **Centralized browser-local keystore for secrets and API keys** — add a first-class browser-local key/value store for reusable secrets/keys across partner integrations, templates, workflows, and skills. Keys should be manageable in one place, prefill matching secret requirements automatically, and still allow per-run/per-workspace overrides.
 - [x] **Skill assignment page does not refresh new agents immediately** — fixed: Skills now refreshes agent assignment targets after agent creation without a manual reload.
 - [x] **Skill import fallback for missing TypeScript entrypoint** — fixed: importing a skill repo with `SKILL.md` plus `index.js` now succeeds with a generated compatibility `index.ts` shim and warning instead of a hard failure.
 - [x] **Skill discovery follow-through** — shipped first pass: Skills search now surfaces close matches and inline Shipables suggestions instead of a dead-end no-results state.
@@ -25,6 +26,7 @@
 - [ ] **Phantom workflow residue after archive/delete + reapply** — reproduce whether archiving/deleting agents in one workspace and then applying the same team/template in a new workspace can surface stale previous workflow/execution artifacts ("phantom workflows"). If reproducible, treat as a high-priority workspace isolation / cleanup bug.
 - [x] **Template apply group conflict detection and resolution** — shipped first pass: template apply now detects conflicting groups/communities and agent IDs, supports channel rename-on-apply, and provides direct recovery paths from the blocked Deploy step.
 - [ ] **Multi-workflow apply conflict follow-through** — repeated applies into the same workspace can still surface intermittent workflow-level collisions or reuse behavior that is not fully detected/resolved during template apply. Capture crisp repros and tighten conflict preflight plus rename/remap behavior for overlapping pipeline/workflow names.
+- [ ] **Workflow run-level override input** — beyond kickoff, allow users to start or restart any workflow with run-scoped instructions/input that apply only to that execution and are passed to all participants without permanently editing the workflow body.
 - [x] **Template apply progress feedback gap** — fixed first pass: template apply now reports intermediate progress through validation, skill setup, generation, write, and refresh phases instead of long silent gaps.
 - [x] **Workflow targeting conflates participants with output channels** — fixed: workflow execution now prefers explicit owner/agents/tags for participants, while groups/communities remain output channels unless no clearer execution target exists.
 - [x] **Workflow participant fan-out is serial, not parallel** — fixed: participants inside one workflow now execute in parallel, so slow agents no longer block later lanes in supposedly parallel team work.
@@ -49,6 +51,7 @@
 - [ ] **Workflow result surfacing in notifications and workspace dashboards** — when a workflow produces a strong final artifact or summary, surface a prominent “latest result” link/card in notifications and the workspace dashboard so users do not have to dig through busy group chat threads to find the outcome. Start with Lu.ma-style synthesis workflows, then generalize to other templates.
 - [ ] **Senso and external artifact result notifications** — file artifacts and GitHub issue/PR links now surface into `Results`, but Senso outputs and other external result types still need first-class notification hooks plus dashboard surfacing so users can see all meaningful agent outputs in one place.
 - [ ] **First-run onboarding wizard follow-through** — the initial wizard should grow from simple route guidance into a richer setup flow: detect BYOK readiness, offer OpenClaw agent import vs. create-team paths, suggest templates by category/use case, and disappear automatically once the workspace is meaningfully initialized.
+- [ ] **Template-guided onboarding** — onboarding should collect lightweight signals like category, focus, and free-form intent, then recommend a short list of best-fit templates using metadata + semantic matching + iterative AI suggestion.
 
 ## Today Focus — April 2, 2026
 
@@ -112,6 +115,7 @@
 - [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
 - [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
+- [ ] **Small-business marketing template pack** — create suggested starter templates for marketing planning and budget allocation across Instagram, Facebook, YouTube, and Google News/Ads, including audience focus, budget planning, and channel prioritization flows. Expect some variants to use uploaded historical data or external API keys.
 - [ ] **Event template customer validation** — get real event-planning feedback on the new proposal templates and decide whether they should stay under `personal`, gain a dedicated category, or expand into more specialized event packs. GitHub: `#95`
 - [ ] **Template AI Generate UI** — wire POST `/api/templates/generate` to the Templates page AI flow
 - [ ] **Template wizard** — create templates from existing agents, workflows, communities, and groups via a multi-step wizard

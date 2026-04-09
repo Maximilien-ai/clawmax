@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useToast } from '../components/Toast'
 import { applyWorkspaceOrder, reorderWorkspaceList, serializeWorkspaceOrder } from '../lib/workspace-order'
+import { setActiveWorkspaceSecretScope } from '../lib/localSecrets'
 
 export interface Workspace {
   id: string
@@ -75,6 +76,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const nextWorkspaces = applyWorkspaceOrder<Workspace>(workspacesData.workspaces || [], getSavedWorkspaceOrder())
         setWorkspaces(nextWorkspaces)
         setActiveWorkspace(activeData.workspace || null)
+        if (activeData.workspace?.id) {
+          setActiveWorkspaceSecretScope(activeData.workspace.id)
+        }
         saveWorkspaceOrder(nextWorkspaces)
       }
     } catch (err) {

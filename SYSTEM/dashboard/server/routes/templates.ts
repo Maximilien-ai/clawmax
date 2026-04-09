@@ -21,7 +21,7 @@ import {
   getGlobalAgentTemplatesDir,
 } from '../lib/templates'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
-import { generateTemplateFromNL } from '../lib/ai-generator'
+import { generateTemplateFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
 
 const router = Router()
@@ -467,17 +467,20 @@ router.post('/validate', (req, res) => {
 
 // POST /api/templates/generate - Generate an organization template from natural language
 router.post('/generate', async (req, res) => {
-  const { description } = req.body
+  const { description, byokKeys } = req.body
   if (!description || typeof description !== 'string') {
     return res.status(400).json({ error: 'description is required' })
   }
 
   try {
+    setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const template = await generateTemplateFromNL(description)
     res.json({ ok: true, template })
   } catch (err: any) {
     console.error('Error generating template:', err)
     res.status(500).json({ error: err.message || 'Failed to generate template' })
+  } finally {
+    setRequestByokKeys(undefined)
   }
 })
 

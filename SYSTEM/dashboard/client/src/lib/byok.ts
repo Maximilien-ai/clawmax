@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'clawmax-byok-preview'
 const DISMISS_KEY = 'clawmax-byok-preview-dismissed'
+const BROWSER_VAULT_UPDATED_EVENT = 'clawmax-browser-vault-updated'
 
 export interface StoredByokKeys {
   openai?: string
@@ -64,6 +65,9 @@ export function readStoredByokKeys(): StoredByokKeys {
 
 export function writeStoredByokKeys(keys: StoredByokKeys) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(keys))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(BROWSER_VAULT_UPDATED_EVENT))
+  }
 }
 
 /** Check if any LLM API keys are available (BYOK, system, or user defaults) */

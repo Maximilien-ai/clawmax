@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { hasAnyLLMKeys } from '../lib/byok'
+import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 // ============================================================================
@@ -292,10 +292,14 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     if (!state.teamDescription.trim()) return
     setAiGenerating(true)
     try {
+      const byok = readStoredByokKeys()
       const resp = await fetch('/api/templates/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: state.teamDescription }),
+        body: JSON.stringify({
+          description: state.teamDescription,
+          byokKeys: (byok.openai || byok.anthropic) ? { openai: byok.openai, anthropic: byok.anthropic } : undefined,
+        }),
       })
       const data = await resp.json()
       if (resp.ok && data.template) {

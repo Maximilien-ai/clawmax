@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 function maskKey(value: string) {
   if (value.length <= 8) return 'configured'
@@ -100,6 +101,19 @@ function buildPartnerConfig(values: PartnerValueMap): Record<string, Record<stri
   )
 }
 
+function mergeProviderKeysIntoSharedSecrets(
+  existing: Record<string, string>,
+  values: { openai: string; anthropic: string; gemini: string; ollamaBaseUrl: string }
+) {
+  return {
+    ...existing,
+    ...(values.openai ? { OPENAI_API_KEY: values.openai } : {}),
+    ...(values.anthropic ? { ANTHROPIC_API_KEY: values.anthropic } : {}),
+    ...(values.gemini ? { GEMINI_API_KEY: values.gemini } : {}),
+    ...(values.ollamaBaseUrl ? { OLLAMA_BASE_URL: values.ollamaBaseUrl } : {}),
+  }
+}
+
 export function ByokWizard() {
   const { user, config } = useAuth()
   const { showSuccess, showInfo, showWarning } = useToast()
@@ -139,20 +153,25 @@ export function ByokWizard() {
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
 
-  const refreshGithubChecks = React.useCallback(async () => {
+  const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true
     setGithubStatusChecking(true)
     try {
       const response = await fetch('/api/integrations/github-status')
       const data = response.ok ? await response.json() : null
       setGithubChecks(Array.isArray(data?.checks) ? data.checks : [])
-      if (data?.ready) {
-        showSuccess('GitHub readiness looks good')
-      } else {
-        showInfo('GitHub readiness checked')
+      if (!silent) {
+        if (data?.ready) {
+          showSuccess('GitHub readiness looks good')
+        } else {
+          showInfo('GitHub readiness checked')
+        }
       }
     } catch {
       setGithubChecks([])
-      showWarning('Could not refresh GitHub readiness')
+      if (!silent) {
+        showWarning('Could not refresh GitHub readiness')
+      }
     } finally {
       setGithubStatusChecking(false)
     }
@@ -160,10 +179,13 @@ export function ByokWizard() {
 
   useEffect(() => {
     const stored = readStoredByokKeys()
-    setOpenaiKey(stored.openai || '')
-    setAnthropicKey(stored.anthropic || '')
-    setGeminiApiKey(stored.geminiApiKey || '')
-    setOllamaBaseUrl(stored.ollamaBaseUrl || defaultOllamaBaseUrl)
+    const sharedWorkspace = readSharedSecrets('workspace')
+    const sharedGlobal = readSharedSecrets('global')
+    const shared = { ...sharedGlobal, ...sharedWorkspace }
+    setOpenaiKey(shared.OPENAI_API_KEY || stored.openai || '')
+    setAnthropicKey(shared.ANTHROPIC_API_KEY || stored.anthropic || '')
+    setGeminiApiKey(shared.GEMINI_API_KEY || stored.geminiApiKey || '')
+    setOllamaBaseUrl(shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || defaultOllamaBaseUrl)
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
     setPreferredModel(stored.preferredModel || '')
     setPartnerSecrets(stored.partnerSecrets || {})
@@ -356,13 +378,36 @@ export function ByokWizard() {
       })
       .then((data) => {
         if (!data) return
-        setIntegrationStatus({
+        const nextStatus = {
           validationAvailable: !!data.validationAvailable,
           validationMode: data.validationMode === 'live' ? 'live' : 'fallback',
           providers: Array.isArray(data.providers) ? data.providers : [],
           notes: Array.isArray(data.notes) ? data.notes : [],
           visiblePartners: Array.isArray(data.visiblePartners) ? data.visiblePartners : [],
           partnerDefinitions: Array.isArray(data.partnerDefinitions) ? data.partnerDefinitions : [],
+        }
+        setIntegrationStatus(nextStatus)
+        const shared = { ...readSharedSecrets('global'), ...readSharedSecrets('workspace') }
+        const partnerDefs = Array.isArray(nextStatus.partnerDefinitions) ? nextStatus.partnerDefinitions : []
+        setPartnerSecrets((current) => {
+          const next = { ...current }
+          for (const partner of partnerDefs) {
+            const mapped = readPartnerValuesFromSharedSecrets(partner.slug, partner.fields?.filter((field) => field.secret), shared)
+            if (Object.keys(mapped).length > 0) {
+              next[partner.slug] = { ...(next[partner.slug] || {}), ...mapped }
+            }
+          }
+          return next
+        })
+        setPartnerValues((current) => {
+          const next = { ...current }
+          for (const partner of partnerDefs) {
+            const mapped = readPartnerValuesFromSharedSecrets(partner.slug, partner.fields?.filter((field) => !field.secret), shared)
+            if (Object.keys(mapped).length > 0) {
+              next[partner.slug] = { ...(next[partner.slug] || {}), ...mapped }
+            }
+          }
+          return next
         })
       })
       .catch(() => setIntegrationStatus({
@@ -374,7 +419,7 @@ export function ByokWizard() {
         partnerDefinitions: [],
       }))
 
-    void refreshGithubChecks()
+    void refreshGithubChecks({ silent: true })
   }, [open, refreshGithubChecks])
 
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
@@ -574,12 +619,18 @@ export function ByokWizard() {
 
     const persistedPartnerValues = buildPartnerConfig(partnerValues)
     const persistedPartnerSecrets = buildPartnerConfig(partnerSecrets)
-
-    writeStoredByokKeys({
+    const providerKeyValues = {
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
-      geminiApiKey: geminiApiKey.trim(),
+      gemini: geminiApiKey.trim(),
       ollamaBaseUrl: ollamaBaseUrl.trim(),
+    }
+
+    writeStoredByokKeys({
+      openai: providerKeyValues.openai,
+      anthropic: providerKeyValues.anthropic,
+      geminiApiKey: providerKeyValues.gemini,
+      ollamaBaseUrl: providerKeyValues.ollamaBaseUrl,
       ollamaDefaultModel: ollamaDefaultModel.trim(),
       sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
       sensoContextLabel: sensoContextLabel.trim(),
@@ -591,6 +642,21 @@ export function ByokWizard() {
       partnerSecrets: persistedPartnerSecrets,
       partnerValues: persistedPartnerValues,
     })
+
+    writeSharedSecrets(
+      mergeProviderKeysIntoSharedSecrets(readSharedSecrets('global'), providerKeyValues),
+      { scope: 'global' }
+    )
+
+    const currentSharedSecrets = readSharedSecrets('global')
+    const nextSharedSecrets = visiblePartnerDefinitions.reduce((acc, partner) => {
+      const combinedValues = {
+        ...(partnerValues[partner.slug] || {}),
+        ...(partnerSecrets[partner.slug] || {}),
+      }
+      return writePartnerValuesToSharedSecrets(partner.slug, partner.fields, acc, combinedValues)
+    }, currentSharedSecrets)
+    writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
     await fetch('/api/integrations/config', {
       method: 'PUT',

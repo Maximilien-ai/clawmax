@@ -54,7 +54,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - **Template DAG and tag audit** — multi-workflow templates now preserve correct dependencies, and every community, group, and workflow now has tags
 - **Shared dashboard readability** — notifications, workflows, and group chats now render markdown cleanly, scroll internally, and attribute workflow spend from agent traces
 - **Astronomy and similar templates behave correctly** — kickoff-first workflows no longer run in parallel by mistake after apply
-- **Browser-local secrets** — template apply, workflow runs, and skill detail views can now surface browser-local secret/input prompts so users can provide API keys, event URLs, slugs, and similar inputs without writing them into workflow markdown or server config
+- **Keys & Secrets browser vault** — a central browser-local keystore now backs reusable provider, partner, template, workflow, and skill secrets, with workspace/global scope and `.env`-style bulk import
 - **Lu.ma Event Analysis Desk** — new Lu.ma analysis template plus starter `luma-event-insights` skill with secure browser-local prompt support for event scope and API key inputs
 
 ## 🔥 Previously in v1.2.4
@@ -98,8 +98,15 @@ Cloud/on-prem runtime note:
 - **GitHub OAuth Login** - GitHub remains the primary general-purpose dashboard login path
 - **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
+- **Keys & Secrets Browser Vault** - A central browser-local vault can capture reusable provider and partner keys once, then prefill matching template, workflow, skill, and integration inputs
 - **Browser-Local Runtime Secrets** - Templates, workflows, and skills can request browser-local secrets like API keys, event slugs, or export paths without persisting them to the server by default
 - **Separated Key Policy** - Dashboard/system actions use `SYSTEM_*` keys; user execution prefers BYOK or `USER_*` keys
+
+Keys & Secrets safety model:
+- Values in `Keys & Secrets` are stored in the current browser only. They are meant to centralize capture and reuse across dashboard forms, not to act as a secure remote secrets manager.
+- ClawMax uses the browser vault to prefill matching inputs for templates, workflows, skills, and visible partner integrations. Users can still override values locally for a specific apply/run/edit flow.
+- Browser-local values are not a substitute for proper server-side or infrastructure secret management. For production cloud/on-prem deployments, keep system/runtime secrets in environment variables, secret stores, or your platform’s native secret manager.
+- If you share a browser profile or machine, treat browser-local vault contents as locally accessible to that profile. Clear or rotate values when changing environments or handing a machine to someone else.
 
 ### Workflows & DAG
 - **Workflow DAG Visualization** - Interactive dependency graph with parallel lanes and connecting lines

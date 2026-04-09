@@ -1,6 +1,6 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-01
+**Last Updated**: 2026-04-08
 **Current Version**: main
 
 ---
@@ -40,6 +40,36 @@ Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, 
 **Status**: Known limitation
 
 SVG bezier curves can pass through nodes when the layout has many parallel workflows at different vertical positions. Planned fix: route lines around node bounding boxes.
+
+---
+
+### 5. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
+**Severity**: Medium
+**Status**: Known issue, defer to Friday hardening
+
+The integration suite can still report:
+
+- `Failed to create system test workspace`
+
+while continuing to activate/apply into `clawmax-system-test`. The rest of the suite may pass, but the run still ends `149/150` because setup is not deterministic enough.
+
+Observed path:
+
+- `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test.sh integration --with-validation`
+
+Likely cause:
+
+- stale on-disk `clawmax-system-test` workspace residue
+- incomplete cleanup/reset between repeated integration runs
+
+Workaround:
+
+- use the current run as informational if this is the only failure
+- clean the system-test workspace directory/state before rerunning when strict green is required
+
+Planned fix:
+
+- tighten system-test workspace setup/cleanup during Friday hardening so repeated runs are deterministic
 
 ---
 

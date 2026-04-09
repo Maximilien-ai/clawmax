@@ -8,6 +8,7 @@ import Organizations from './pages/Organizations'
 import Workflows from './pages/Workflows'
 import Logs from './pages/Logs'
 import { SkillsTest } from './pages/SkillsTest'
+import KeysSecrets from './pages/KeysSecrets'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
@@ -20,7 +21,7 @@ import { ByokWizard } from './components/ByokWizard'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'logs'
+type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'keys' | 'logs'
 
 interface SystemInfo {
   hostname: string
@@ -47,13 +48,14 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   // System tabs below - separated by divider
   { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
+  { id: 'keys', label: 'Keys & Secrets', icon: 'keys' },
   { id: 'logs', label: 'System & Logs', icon: 'logs' },
   { id: 'activity', label: 'Activity', icon: 'activity' },
 ]
 
 // User tabs that can be rearranged (first 5)
 const USER_TABS_COUNT = 5
-const SYSTEM_TABS_ORDER: Page[] = ['templates', 'skills', 'activity', 'logs']
+const SYSTEM_TABS_ORDER: Page[] = ['templates', 'skills', 'keys', 'activity', 'logs']
 
 function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
   if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_NAV_ORDER
@@ -436,6 +438,9 @@ export default function App() {
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
               <SkillsTest initialAgentId={initialSkillsAgent} />
             </div>
+            <div className={`flex-1 overflow-auto ${page === 'keys' ? '' : 'hidden'}`}>
+              <KeysSecrets />
+            </div>
             <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
@@ -630,6 +635,7 @@ function NavItemDraggable({ label, icon, active, badge, onClick, collapsed, onDr
     templates: '📑',
     workflows: '⚙️',
     skills: '🛠️',
+    keys: '🔐',
     comms: '💬',
     activity: '📊',
     docs: '📄',

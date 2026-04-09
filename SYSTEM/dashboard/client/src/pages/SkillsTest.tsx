@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
-import { readLocalSecrets, writeLocalSecrets } from '../lib/localSecrets'
+import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -1123,9 +1123,35 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
               {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
                 <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
-                  <div className="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
-                  <div className="mb-3 text-xs text-amber-700 dark:text-amber-300">
-                    Stored in this browser only. Use these values when this skill needs runtime access to provider-specific inputs.
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
+                      <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                        Stored in this browser only. The central `Keys & Secrets` vault is the source of truth, and these skill values can be promoted there for reuse.
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          writeSharedSecrets(skillSecrets, { scope: 'workspace' })
+                          showSuccess('Saved skill secrets to workspace keys')
+                        }}
+                        className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                      >
+                        Save to Workspace Keys
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          writeSharedSecrets(skillSecrets, { scope: 'global' })
+                          showSuccess('Saved skill secrets to global keys')
+                        }}
+                        className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                      >
+                        Save to Global Keys
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {viewingSkill.secretRequirements.map((requirement) => {
