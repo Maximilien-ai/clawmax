@@ -103,6 +103,10 @@ export function parseJsonResponse<T>(raw: string, fallback: T): T {
   }
 }
 
+function slugifyGeneratedTemplateValue(value: string, fallback = 'workflow'): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback
+}
+
 export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
   const normalizedName = (input.name || 'custom-skill')
     .toLowerCase()
@@ -635,12 +639,19 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ...(text.includes('ad') || text.includes('ads') ? ['ads'] : []),
       ...(text.includes('marketing') ? ['marketing'] : []),
     ]))
-    const inferredAgentTags = inferredTemplateTags.slice(0, 3)
+    const fallbackPrimaryTag = slugifyGeneratedTemplateValue(
+      inferredTemplateTags[0]
+      || String(parsed.name || description || 'team').split(/[^a-z0-9]+/i).find(Boolean)
+      || 'team',
+      'team'
+    )
+    const inferredAgentTags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags])).slice(0, 3)
 
-    parsed.tags = inferredTemplateTags
+    parsed.tags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags]))
     parsed.agents = (parsed.agents || []).map((agent: any) => ({
       ...agent,
       tags: Array.from(new Set([
+        fallbackPrimaryTag,
         ...(Array.isArray(agent.tags) ? agent.tags : []),
         ...inferredAgentTags,
       ])),
@@ -717,9 +728,70 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         : (fallbackGroup ? [fallbackGroup] : []),
     }))
 
-    parsed.workflows = (parsed.workflows || []).map((workflow: any, idx: number, arr: any[]) => {
+    const baseWorkflowTags = inferredTemplateTags.slice(0, 2)
+    let sourceWorkflows = Array.isArray(parsed.workflows) ? parsed.workflows : []
+    if (sourceWorkflows.length === 0) {
+      sourceWorkflows = [
+        {
+          id: `${slugifyGeneratedTemplateValue(normalizedTeamName || 'team')}-kickoff`,
+          name: `${normalizedTeamName || 'Team'} Kickoff`,
+          description: 'Start a new run with goals, constraints, and priorities.',
+          schedule: 'manual',
+          executionMode: 'managed',
+          targeting: {
+            agents: [],
+            groups: fallbackGroup ? [fallbackGroup] : [],
+            communities: fallbackCommunity ? [fallbackCommunity] : [],
+            tags: baseWorkflowTags,
+          },
+          dependsOn: [],
+          content: 'Review the request, clarify goals and constraints, assign work, and publish a kickoff plan.',
+        },
+        {
+          id: `${slugifyGeneratedTemplateValue(normalizedTeamName || 'team')}-execution-review`,
+          name: `${normalizedTeamName || 'Team'} Execution Review`,
+          description: 'Review progress, unblock work, and refine the plan.',
+          schedule: 'manual',
+          executionMode: 'managed',
+          targeting: {
+            agents: [],
+            groups: fallbackGroup ? [fallbackGroup] : [],
+            communities: fallbackCommunity ? [fallbackCommunity] : [],
+            tags: baseWorkflowTags,
+          },
+          dependsOn: [`${slugifyGeneratedTemplateValue(normalizedTeamName || 'team')}-kickoff`],
+          content: 'Review progress, identify blockers, refine next actions, and share an intermediate artifact.',
+        },
+        {
+          id: `${slugifyGeneratedTemplateValue(normalizedTeamName || 'team')}-final-output`,
+          name: `${normalizedTeamName || 'Team'} Final Output`,
+          description: 'Deliver the final output or confirm completion.',
+          schedule: 'manual',
+          executionMode: 'managed',
+          targeting: {
+            agents: [],
+            groups: fallbackGroup ? [fallbackGroup] : [],
+            communities: fallbackCommunity ? [fallbackCommunity] : [],
+            tags: baseWorkflowTags,
+          },
+          dependsOn: [`${slugifyGeneratedTemplateValue(normalizedTeamName || 'team')}-execution-review`],
+          content: 'Deliver the final output and clearly confirm where it was posted or saved.',
+        },
+      ]
+    }
+
+    const kickoffPattern = /\bkickoff|start|intake|brief|request\b/i
+    const finalPattern = /\bfinal|summary|deliver|delivery|publish|report|closeout|wrap[- ]?up\b/i
+    const kickoffWorkflow = sourceWorkflows.find((workflow: any) => kickoffPattern.test(`${workflow.name || ''} ${workflow.description || ''}`)) || sourceWorkflows[0]
+    const finalWorkflow = sourceWorkflows.find((workflow: any) => workflow !== kickoffWorkflow && finalPattern.test(`${workflow.name || ''} ${workflow.description || ''}`)) || sourceWorkflows[sourceWorkflows.length - 1]
+    const middleWorkflows = sourceWorkflows.filter((workflow: any) => workflow !== kickoffWorkflow && workflow !== finalWorkflow)
+    const orderedWorkflows = [kickoffWorkflow, ...middleWorkflows, finalWorkflow].filter(Boolean)
+
+    parsed.workflows = orderedWorkflows.map((workflow: any, idx: number, arr: any[]) => {
       const workflowCommunityTargets = workflow.targeting?.communities?.length ? workflow.targeting.communities : (fallbackCommunity ? [fallbackCommunity] : [])
       const workflowGroupTargets = workflow.targeting?.groups?.length ? workflow.targeting.groups : (fallbackGroup ? [fallbackGroup] : [])
+      const isKickoff = idx === 0
+      const isFinal = idx === arr.length - 1
       const collaborationBlock = [
         '## Coordination',
         workflowGroupTargets.length > 0
@@ -729,7 +801,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
           ? `- Share broader status or stakeholder-facing updates in community(s): ${workflowCommunityTargets.join(', ')}.`
           : '- Share broader status updates in the main team community.',
       ].join('\n')
-      const outputBlock = idx === arr.length - 1
+      const outputBlock = isFinal
         ? [
             '## Final Output',
             '- Produce the final deliverable or explicitly confirm that it was completed.',
@@ -740,19 +812,54 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
             '- Produce a concrete intermediate artifact such as a brief, draft, shortlist, checklist, report, or recommendation.',
             '- Post a short summary of that artifact in the target group/community.',
           ].join('\n')
-      const contentSections = [workflow.content || '', collaborationBlock, outputBlock].filter(Boolean)
+      const kickoffBlock = isKickoff
+        ? [
+            '## Kickoff',
+            '- Clarify goals, constraints, timing, and success criteria for this run.',
+            '- Assign initial work across the team and publish the kickoff plan in the team channels.',
+          ].join('\n')
+        : ''
+      const contentSections = [workflow.content || '', kickoffBlock, collaborationBlock, outputBlock].filter(Boolean)
+      const normalizedId = workflow.id || slugifyGeneratedTemplateValue(
+        isKickoff
+          ? `${normalizedTeamName || 'team'} kickoff`
+          : isFinal
+            ? `${normalizedTeamName || 'team'} final output`
+            : `${normalizedTeamName || 'team'} step ${idx + 1}`,
+        'workflow'
+      )
+      const normalizedName = workflow.name || (
+        isKickoff
+          ? `${normalizedTeamName || 'Team'} Kickoff`
+          : isFinal
+            ? `${normalizedTeamName || 'Team'} Final Output`
+            : `${normalizedTeamName || 'Team'} Step ${idx + 1}`
+      )
+      const inferredDependsOn = idx === 0
+        ? []
+        : [arr[idx - 1].id || slugifyGeneratedTemplateValue(arr[idx - 1].name || `${normalizedTeamName || 'team'} step ${idx}`, 'workflow')]
 
       return {
         ...workflow,
+        id: normalizedId,
+        name: normalizedName,
+        description: workflow.description || (
+          isKickoff
+            ? 'Start a new run with goals, priorities, and constraints.'
+            : isFinal
+              ? 'Deliver the final output or confirm completion.'
+              : 'Execute the next stage of work and share progress.'
+        ),
         targeting: {
           communities: workflowCommunityTargets,
           groups: workflowGroupTargets,
           agents: workflow.targeting?.agents || [],
           tags: Array.from(new Set([
             ...(Array.isArray(workflow.targeting?.tags) ? workflow.targeting.tags : []),
-            ...inferredTemplateTags.slice(0, 2),
+            ...baseWorkflowTags,
           ])),
         },
+        dependsOn: Array.isArray(workflow.dependsOn) && workflow.dependsOn.length > 0 ? workflow.dependsOn : inferredDependsOn,
         content: contentSections.join('\n\n'),
       }
     })

@@ -38,6 +38,8 @@ interface WizardWorkflow {
   schedule: string
   executionMode: 'automated' | 'managed'
   targetAgents: string[]
+  targetCommunities?: string[]
+  targetGroups?: string[]
   tags?: string[]
   dependsOn?: string[]
   content: string
@@ -109,6 +111,8 @@ function buildSuggestedWorkflows(input: {
   teamDescription: string
   workflowGoal: string
   agentIds: string[]
+  targetCommunity?: string
+  targetGroup?: string
   tags?: string[]
 }): WizardWorkflow[] {
   const goal = (input.workflowGoal || input.teamDescription || input.teamName || 'team operations').trim()
@@ -155,6 +159,8 @@ function buildSuggestedWorkflows(input: {
     schedule: workflow.schedule,
     executionMode: workflow.executionMode,
     targetAgents,
+    targetCommunities: input.targetCommunity ? [input.targetCommunity] : [],
+    targetGroups: input.targetGroup ? [input.targetGroup] : [],
     tags: targetTags,
     dependsOn: workflow.dependsOn,
     content: workflow.content,
@@ -390,6 +396,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
         targetAgents: w.targeting?.agents || [],
+        targetCommunities: w.targeting?.communities || [],
+        targetGroups: w.targeting?.groups || [],
         tags: w.targeting?.tags || [],
         dependsOn: w.dependsOn || [],
         content: w.content || '',
@@ -454,6 +462,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             schedule: w.schedule || 'manual',
             executionMode: w.executionMode || 'managed',
             targetAgents: w.targeting?.agents || [],
+            targetCommunities: w.targeting?.communities || [],
+            targetGroups: w.targeting?.groups || [],
             tags: w.targeting?.tags || [],
             dependsOn: w.dependsOn || [],
             content: w.content || '',
@@ -526,8 +536,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         enabled: true,
         executionMode: w.executionMode,
         targeting: {
-          communities: [],
-          groups: [],
+          communities: w.targetCommunities || [],
+          groups: w.targetGroups || [],
           tags: w.tags || [],
           agents: w.targetAgents,
         },
@@ -1173,6 +1183,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     teamDescription: state.teamDescription,
                     workflowGoal: workflowGoalPrompt,
                     agentIds: state.agents.map((agent) => agent.id).filter(Boolean),
+                    targetCommunity: state.communities[0]?.name,
+                    targetGroup: state.groups[0]?.name,
                     tags: state.tags,
                   }),
                 })

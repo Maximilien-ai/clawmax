@@ -314,8 +314,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   })
   useEffect(() => { localStorage.setItem('workflows-view-mode', viewMode) }, [viewMode])
   const [dagEditing, setDagEditing] = useState(false)
-  const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('name')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortColumn, setSortColumn] = useState<WorkflowSortColumn>('updated')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [executionsPage, setExecutionsPage] = useState(1)
   const executionsPerPage = 5
   const [showArchivedModal, setShowArchivedModal] = useState(false)
