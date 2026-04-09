@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
+import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 
 interface GroupEntry {
   name: string
@@ -69,6 +70,8 @@ function secAgo(ts: number): string {
 export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, initialOpenChatName, onClearInitialGroupName, onClearInitialOpenChatName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; initialOpenChatName?: string; onClearInitialGroupName?: () => void; onClearInitialOpenChatName?: () => void; isActive?: boolean } = {}) {
   const { showSuccess } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
+  const [workspaceCommunities, setWorkspaceCommunities] = useState<GroupEntry[]>([])
+  const [workspaceGroups, setWorkspaceGroups] = useState<GroupEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -92,6 +95,13 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [chatPanelChannel, setChatPanelChannel] = useState<Channel | null>(null)
   const [highlightedChannel, setHighlightedChannel] = useState<string | null>(null)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [deleteDialog, setDeleteDialog] = useState<{
+    itemName: string
+    itemType: string
+    warningMessage?: string
+    consequences?: string[]
+    onConfirm: () => Promise<void> | void
+  } | null>(null)
 
   const markChannelSeen = useCallback((channel: Channel) => {
     const key = `${channel.type}:${channel.name}`
@@ -114,9 +124,18 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [markChannelSeen])
 
   const fetchAgents = useCallback(() => {
-    fetch('/api/agents')
-      .then(r => r.json())
-      .then(d => { setAgents(d.agents || []); setLoading(false); setLastRefreshed(Date.now()) })
+    Promise.all([
+      fetch('/api/agents').then(r => r.ok ? r.json() : { agents: [] }),
+      fetch('/api/communities').then(r => r.ok ? r.json() : { communities: [] }),
+      fetch('/api/groups').then(r => r.ok ? r.json() : { groups: [] }),
+    ])
+      .then(([agentsData, communitiesData, groupsData]) => {
+        setAgents(agentsData.agents || [])
+        setWorkspaceCommunities(communitiesData.communities || [])
+        setWorkspaceGroups(groupsData.groups || [])
+        setLoading(false)
+        setLastRefreshed(Date.now())
+      })
       .catch(() => setLoading(false))
   }, [])
 
@@ -184,28 +203,75 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }
 
   const handleDeleteChannel = async (channel: Channel) => {
-    try {
-      const endpoint = channel.type === 'community'
-        ? `/api/communities/${encodeURIComponent(channel.name)}`
-        : `/api/groups/${encodeURIComponent(channel.name)}`
+    setDeleteDialog({
+      itemName: channel.name,
+      itemType: channel.type === 'community' ? 'Community' : 'Group',
+      warningMessage: channel.type === 'community'
+        ? 'Deleting a community removes its shared coordination surface for the workspace.'
+        : 'Deleting a group removes its shared conversation and workflow targeting surface for the workspace.',
+      consequences: [
+        channel.description ? `${channel.name}: ${channel.description}` : `${channel.name}`,
+        `${channel.members.length} member${channel.members.length !== 1 ? 's' : ''} currently linked`,
+        channel.community ? `Belongs to community: ${channel.community}` : null,
+        channel.tags.length > 0 ? `Tags: ${channel.tags.join(', ')}` : null,
+        channel.channels.length > 0 ? `Channels: ${channel.channels.join(', ')}` : null,
+      ].filter((item): item is string => Boolean(item)),
+      onConfirm: async () => {
+        try {
+          const endpoint = channel.type === 'community'
+            ? `/api/communities/${encodeURIComponent(channel.name)}`
+            : `/api/groups/${encodeURIComponent(channel.name)}`
 
-      const response = await fetch(endpoint, { method: 'DELETE' })
+          const response = await fetch(endpoint, { method: 'DELETE' })
 
-      if (!response.ok) {
-        throw new Error(`Failed to delete ${channel.type}`)
-      }
+          if (!response.ok) {
+            throw new Error(`Failed to delete ${channel.type}`)
+          }
 
-      showSuccess(`${channel.type === 'community' ? 'Community' : 'Group'} "${channel.name}" deleted`)
-      fetchAgents() // Refresh to show updated list
-    } catch (err) {
-      console.error(`Failed to delete ${channel.type}:`, err)
-    }
+          showSuccess(`${channel.type === 'community' ? 'Community' : 'Group'} "${channel.name}" deleted`)
+          setDeleteDialog(null)
+          fetchAgents()
+        } catch (err) {
+          console.error(`Failed to delete ${channel.type}:`, err)
+        }
+      },
+    })
   }
 
   // Build channels list from agents (exclude archived agents from channels)
   const allChannels = useMemo(() => {
     const channelMap = new Map<string, Channel>()
     const activeAgents = (agents || []).filter(a => !a.archived)
+
+    for (const community of workspaceCommunities) {
+      const key = `community:${community.name}`
+      if (!channelMap.has(key)) {
+        channelMap.set(key, {
+          name: community.name,
+          description: community.description,
+          tags: community.tags || [],
+          type: 'community',
+          community: null,
+          channels: community.channels || [],
+          members: [],
+        })
+      }
+    }
+
+    for (const group of workspaceGroups) {
+      const key = `group:${group.name}`
+      if (!channelMap.has(key)) {
+        channelMap.set(key, {
+          name: group.name,
+          description: group.description,
+          tags: group.tags || [],
+          channels: group.channels || [],
+          type: 'group',
+          community: group.community,
+          members: [],
+        })
+      }
+    }
 
     // Add communities
     for (const agent of activeAgents) {
@@ -246,7 +312,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     }
 
     return Array.from(channelMap.values())
-  }, [agents])
+  }, [agents, workspaceCommunities, workspaceGroups])
 
   useEffect(() => {
     if (!initialOpenChatName || !isActive || loading || allChannels.length === 0) return
@@ -413,27 +479,37 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     if (selectedChannelKeys.size === 0) return
 
     const channelsToDelete = sortedChannels.filter(channel => selectedChannelKeys.has(`${channel.type}:${channel.name}`))
-    if (!confirm(`Delete ${channelsToDelete.length} channel${channelsToDelete.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
-      return
-    }
+    setDeleteDialog({
+      itemName: `${channelsToDelete.length} channels`,
+      itemType: 'Channels',
+      warningMessage: 'Deleting channels removes their workspace-level conversation surfaces and any workflow targeting references that depend on them.',
+      consequences: channelsToDelete.map(channel => {
+        const typeLabel = channel.type === 'community' ? 'Community' : 'Group'
+        const memberInfo = `${channel.members.length} member${channel.members.length !== 1 ? 's' : ''}`
+        const communityInfo = channel.community ? ` · ${channel.community}` : ''
+        return `${typeLabel}: ${channel.name} · ${memberInfo}${communityInfo}`
+      }),
+      onConfirm: async () => {
+        try {
+          await Promise.all(channelsToDelete.map(channel => {
+            const endpoint = channel.type === 'community'
+              ? `/api/communities/${encodeURIComponent(channel.name)}`
+              : `/api/groups/${encodeURIComponent(channel.name)}`
+            return fetch(endpoint, { method: 'DELETE' }).then(response => {
+              if (!response.ok) throw new Error(`Failed to delete ${channel.name}`)
+            })
+          }))
 
-    try {
-      await Promise.all(channelsToDelete.map(channel => {
-        const endpoint = channel.type === 'community'
-          ? `/api/communities/${encodeURIComponent(channel.name)}`
-          : `/api/groups/${encodeURIComponent(channel.name)}`
-        return fetch(endpoint, { method: 'DELETE' }).then(response => {
-          if (!response.ok) throw new Error(`Failed to delete ${channel.name}`)
-        })
-      }))
-
-      showSuccess(`Deleted ${channelsToDelete.length} channel${channelsToDelete.length !== 1 ? 's' : ''}`)
-      setSelectedChannelKeys(new Set())
-      setSelectionMode(false)
-      fetchAgents()
-    } catch (err) {
-      console.error('Bulk delete failed:', err)
-    }
+          showSuccess(`Deleted ${channelsToDelete.length} channel${channelsToDelete.length !== 1 ? 's' : ''}`)
+          setDeleteDialog(null)
+          setSelectedChannelKeys(new Set())
+          setSelectionMode(false)
+          fetchAgents()
+        } catch (err) {
+          console.error('Bulk delete failed:', err)
+        }
+      },
+    })
   }
 
   return (
@@ -839,6 +915,18 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             console.error('Failed to update members:', err)
           }
         }}
+      />
+    )}
+
+    {deleteDialog && (
+      <ConfirmDeleteDialog
+        isOpen={true}
+        itemName={deleteDialog.itemName}
+        itemType={deleteDialog.itemType}
+        warningMessage={deleteDialog.warningMessage}
+        consequences={deleteDialog.consequences}
+        onConfirm={deleteDialog.onConfirm}
+        onCancel={() => setDeleteDialog(null)}
       />
     )}
   </>

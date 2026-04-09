@@ -42,43 +42,50 @@ interface NavItem {
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: 'robot' },
   { id: 'workflows', label: 'Workflows', icon: 'workflows' },
-  { id: 'communication', label: 'Communication', icon: 'comms' },
+  { id: 'communication', label: 'Communications', icon: 'comms' },
   { id: 'organizations', label: 'Organization', icon: 'org' },
   { id: 'docs', label: 'Documents', icon: 'docs' },
   // System tabs below - separated by divider
-  { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'skills', label: 'Skills', icon: 'skills' },
+  { id: 'templates', label: 'Templates', icon: 'templates' },
   { id: 'keys', label: 'Keys & Secrets', icon: 'keys' },
+  { id: 'activity', label: 'Activity & Budget', icon: 'activity' },
   { id: 'logs', label: 'System & Logs', icon: 'logs' },
-  { id: 'activity', label: 'Activity', icon: 'activity' },
 ]
 
 // User tabs that can be rearranged (first 5)
 const USER_TABS_COUNT = 5
-const SYSTEM_TABS_ORDER: Page[] = ['templates', 'skills', 'keys', 'activity', 'logs']
+const CREATION_TABS_ORDER: Page[] = ['skills', 'templates']
+const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
+const SYSTEM_TABS_ORDER: Page[] = [...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
 
 function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
   if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_NAV_ORDER
 
   const byId = new Map(DEFAULT_NAV_ORDER.map(item => [item.id, item]))
-  const userTabs = saved.filter((item): item is NavItem => Boolean(item?.id && byId.has(item.id) && !SYSTEM_TABS_ORDER.includes(item.id)))
-  const uniqueUserTabs: NavItem[] = []
+  const defaultUserIds = DEFAULT_NAV_ORDER.slice(0, USER_TABS_COUNT).map(item => item.id)
+  const defaultSystemIds = DEFAULT_NAV_ORDER.slice(USER_TABS_COUNT).map(item => item.id)
+  const uniqueSavedIds: Page[] = []
   const seen = new Set<Page>()
 
-  for (const item of userTabs) {
-    if (seen.has(item.id)) continue
+  for (const item of saved) {
+    if (!item?.id || !byId.has(item.id) || seen.has(item.id)) continue
     seen.add(item.id)
-    uniqueUserTabs.push(byId.get(item.id)!)
+    uniqueSavedIds.push(item.id)
   }
 
-  for (const item of DEFAULT_NAV_ORDER.slice(0, USER_TABS_COUNT)) {
-    if (!seen.has(item.id)) uniqueUserTabs.push(item)
+  const savedUserIds = uniqueSavedIds.filter(id => defaultUserIds.includes(id))
+  const savedSystemIds = uniqueSavedIds.filter(id => defaultSystemIds.includes(id))
+
+  for (const id of defaultUserIds) {
+    if (!savedUserIds.includes(id)) savedUserIds.push(id)
   }
 
-  return [
-    ...uniqueUserTabs.slice(0, USER_TABS_COUNT),
-    ...SYSTEM_TABS_ORDER.map(id => byId.get(id)!).filter(Boolean),
-  ]
+  for (const id of defaultSystemIds) {
+    if (!savedSystemIds.includes(id)) savedSystemIds.push(id)
+  }
+
+  return [...savedUserIds, ...savedSystemIds].map(id => byId.get(id)!).filter(Boolean)
 }
 
 /** Sidebar user badge with avatar and logout */
@@ -273,6 +280,16 @@ export default function App() {
     // Prevent dragging across the separator
     if (draggedNavIndex < USER_TABS_COUNT && index >= USER_TABS_COUNT) return
     if (draggedNavIndex >= USER_TABS_COUNT && index < USER_TABS_COUNT) return
+    if (
+      draggedNavIndex >= USER_TABS_COUNT &&
+      index >= USER_TABS_COUNT
+    ) {
+      const draggedId = navOrder[draggedNavIndex]?.id
+      const targetId = navOrder[index]?.id
+      const draggedInCreation = draggedId ? CREATION_TABS_ORDER.includes(draggedId) : false
+      const targetInCreation = targetId ? CREATION_TABS_ORDER.includes(targetId) : false
+      if (draggedInCreation !== targetInCreation) return
+    }
 
     const newOrder = [...navOrder]
     const [removed] = newOrder.splice(draggedNavIndex, 1)
@@ -348,12 +365,12 @@ export default function App() {
                       setMobileNavOpen(false)
                     }}
                     collapsed={navCollapsed}
-                    onDragStart={index < USER_TABS_COUNT ? () => handleNavDragStart(index) : undefined}
-                    onDragOver={index < USER_TABS_COUNT ? (e) => handleNavDragOver(e, index) : undefined}
-                    onDragEnd={index < USER_TABS_COUNT ? handleNavDragEnd : undefined}
+                    onDragStart={() => handleNavDragStart(index)}
+                    onDragOver={(e) => handleNavDragOver(e, index)}
+                    onDragEnd={handleNavDragEnd}
                   />
                   {/* Dividers between major sidebar sections */}
-                  {(index === USER_TABS_COUNT - 1 || item.id === 'skills') && (
+                  {(index === USER_TABS_COUNT - 1 || navOrder[index + 1]?.id === OPERATIONS_TABS_ORDER[0]) && (
                     <div className="my-2 mx-3 border-t border-gray-700"></div>
                   )}
                 </React.Fragment>

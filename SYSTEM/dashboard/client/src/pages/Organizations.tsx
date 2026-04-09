@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface GroupEntry {
   name: string
@@ -62,7 +63,12 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
+function getOrgMetaStorageKey(workspaceId?: string | null) {
+  return `org-meta:${workspaceId || 'default'}`
+}
+
 export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToGroup, initialCommunityName, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void, onNavigateToGroup?: (groupName: string) => void, initialCommunityName?: string, initialGroupName?: string }) {
+  const { activeWorkspace } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
@@ -78,9 +84,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
-  const [orgName, setOrgName] = useState('Maximilien.ai')
-  const [orgDescription, setOrgDescription] = useState('First ClawMax organization')
+  const [orgName, setOrgName] = useState('Workspace Org')
+  const [orgDescription, setOrgDescription] = useState('Describe this workspace organization')
   const [editingOrg, setEditingOrg] = useState(false)
+  const [orgDraftName, setOrgDraftName] = useState('')
+  const [orgDraftDescription, setOrgDraftDescription] = useState('')
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [newCommunityName, setNewCommunityName] = useState('')
@@ -101,6 +109,43 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  useEffect(() => {
+    const suggestedName = activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org'
+    let nextName = suggestedName
+    let nextDescription = 'Describe this workspace organization'
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(getOrgMetaStorageKey(activeWorkspace?.id))
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          if (typeof parsed?.name === 'string' && parsed.name.trim()) nextName = parsed.name.trim()
+          if (typeof parsed?.description === 'string' && parsed.description.trim()) nextDescription = parsed.description.trim()
+        } catch {}
+      }
+    }
+
+    setOrgName(nextName)
+    setOrgDescription(nextDescription)
+    setOrgDraftName(nextName)
+    setOrgDraftDescription(nextDescription)
+  }, [activeWorkspace?.id, activeWorkspace?.name])
+
+  const saveOrgMeta = () => {
+    const nextName = orgDraftName.trim() || (activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org')
+    const nextDescription = orgDraftDescription.trim() || 'Describe this workspace organization'
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(getOrgMetaStorageKey(activeWorkspace?.id), JSON.stringify({
+        name: nextName,
+        description: nextDescription,
+      }))
+    }
+    setOrgName(nextName)
+    setOrgDescription(nextDescription)
+    setEditingOrg(false)
+    showToast('Organization details updated', 'success')
   }
 
   const fetchData = useCallback(async () => {
@@ -628,9 +673,25 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">🏢</span>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{orgName}</h2>
+                  {editingOrg ? (
+                    <input
+                      type="text"
+                      value={orgDraftName}
+                      onChange={(e) => setOrgDraftName(e.target.value)}
+                      className="min-w-0 flex-1 px-3 py-1.5 border border-sky-300 dark:border-sky-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-600 text-sm font-bold bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      placeholder={activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org'}
+                    />
+                  ) : (
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{orgName}</h2>
+                  )}
                   <button
-                    onClick={() => setEditingOrg(!editingOrg)}
+                    onClick={() => {
+                      if (editingOrg) {
+                        saveOrgMeta()
+                      } else {
+                        setEditingOrg(true)
+                      }
+                    }}
                     className="text-sm text-sky-600 hover:text-sky-800 ml-2"
                   >
                     {editingOrg ? '✓ Done' : '✏️ Edit'}
@@ -638,8 +699,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 </div>
                 {editingOrg ? (
                   <textarea
-                    value={orgDescription}
-                    onChange={(e) => setOrgDescription(e.target.value)}
+                    value={orgDraftDescription}
+                    onChange={(e) => setOrgDraftDescription(e.target.value)}
                     className="w-full px-3 py-2 border border-sky-300 dark:border-sky-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     rows={2}
                     placeholder="Describe your organization..."

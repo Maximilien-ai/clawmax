@@ -238,8 +238,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
       {/* Dropdown */}
       {open && (
         <>
-        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
-        <div className="fixed left-1/2 top-16 z-50 flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:absolute md:right-0 md:left-auto md:top-full md:mt-2 md:w-96 md:translate-x-0">
+        <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed left-1/2 top-16 z-[80] flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:absolute md:right-0 md:left-auto md:top-full md:mt-2 md:w-96 md:translate-x-0">
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">

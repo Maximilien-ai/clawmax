@@ -599,7 +599,88 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
   const jsonStr = extractJsonResponseText(raw)
 
   try {
-    return JSON.parse(jsonStr)
+    const parsed = JSON.parse(jsonStr)
+    const text = description.toLowerCase()
+    const inferredTemplateTags = Array.from(new Set([
+      ...(Array.isArray(parsed.tags) ? parsed.tags : []),
+      ...(text.includes('meta') ? ['meta'] : []),
+      ...(text.includes('ad') || text.includes('ads') ? ['ads'] : []),
+      ...(text.includes('marketing') ? ['marketing'] : []),
+    ]))
+    const inferredAgentTags = inferredTemplateTags.slice(0, 3)
+
+    parsed.tags = inferredTemplateTags
+    parsed.agents = (parsed.agents || []).map((agent: any) => ({
+      ...agent,
+      tags: Array.from(new Set([
+        ...(Array.isArray(agent.tags) ? agent.tags : []),
+        ...inferredAgentTags,
+      ])),
+    }))
+
+    if (!Array.isArray(parsed.communities) || parsed.communities.length === 0) {
+      parsed.communities = [
+        {
+          name: parsed.name || 'Team',
+          description: `Shared coordination space for ${(parsed.name || 'this team').trim()}`,
+          tags: inferredTemplateTags.slice(0, 2),
+        },
+      ]
+    }
+
+    if (!Array.isArray(parsed.groups) || parsed.groups.length === 0) {
+      parsed.groups = [
+        {
+          name: 'Status',
+          description: 'Shared status updates, handoffs, and coordination',
+          community: parsed.communities[0]?.name,
+          tags: inferredTemplateTags.slice(0, 2),
+        },
+      ]
+    }
+
+    parsed.groups = (parsed.groups || []).map((group: any) => ({
+      ...group,
+      tags: Array.from(new Set([
+        ...(Array.isArray(group.tags) ? group.tags : []),
+        ...inferredTemplateTags.slice(0, 2),
+      ])),
+    }))
+
+    parsed.communities = (parsed.communities || []).map((community: any) => ({
+      ...community,
+      tags: Array.from(new Set([
+        ...(Array.isArray(community.tags) ? community.tags : []),
+        ...inferredTemplateTags.slice(0, 2),
+      ])),
+    }))
+
+    const fallbackCommunity = parsed.communities[0]?.name
+    const fallbackGroup = parsed.groups[0]?.name
+    parsed.agents = (parsed.agents || []).map((agent: any) => ({
+      ...agent,
+      communities: Array.isArray(agent.communities) && agent.communities.length > 0
+        ? agent.communities
+        : (fallbackCommunity ? [fallbackCommunity] : []),
+      groups: Array.isArray(agent.groups) && agent.groups.length > 0
+        ? agent.groups
+        : (fallbackGroup ? [fallbackGroup] : []),
+    }))
+
+    parsed.workflows = (parsed.workflows || []).map((workflow: any) => ({
+      ...workflow,
+      targeting: {
+        communities: workflow.targeting?.communities?.length ? workflow.targeting.communities : (fallbackCommunity ? [fallbackCommunity] : []),
+        groups: workflow.targeting?.groups?.length ? workflow.targeting.groups : (fallbackGroup ? [fallbackGroup] : []),
+        agents: workflow.targeting?.agents || [],
+        tags: Array.from(new Set([
+          ...(Array.isArray(workflow.targeting?.tags) ? workflow.targeting.tags : []),
+          ...inferredTemplateTags.slice(0, 2),
+        ])),
+      },
+    }))
+
+    return parsed
   } catch {
     throw new Error(`Generated output is not valid JSON: ${jsonStr.slice(0, 200)}`)
   }

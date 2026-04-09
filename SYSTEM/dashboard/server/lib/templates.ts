@@ -141,6 +141,7 @@ export interface OrganizationTemplate {
   groups?: Group[]
   workflows?: Workflow[]
   metadata?: {
+    aiPrompt?: string
     createdAt?: string
     updatedAt?: string
     basedOnSlug?: string
@@ -485,6 +486,7 @@ export function parseTemplateMd(content: string): Template | null {
 
     if (data.category) template.category = data.category
     if (data.parameters) template.parameters = data.parameters
+    if (data.aiPrompt) template.metadata = { ...(template.metadata || {}), aiPrompt: data.aiPrompt }
 
     // v1 legacy: all data in frontmatter
     if (data.communities) template.communities = data.communities
@@ -602,6 +604,77 @@ function parseTemplateMdBody(body: string): {
     }
   }
 
+  // Parse ## Workflows — verbose blocks written by templateToMarkdown
+  if (sections['workflows']) {
+    const blocks = sections['workflows']
+      .split(/\n(?=###\s+)/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+
+    for (const block of blocks) {
+      const lines = block.split('\n')
+      const header = lines[0]?.match(/^###\s+(.+)$/)
+      if (!header) continue
+
+      const workflow: any = {
+        name: header[1].trim(),
+        id: slugify(header[1].trim()),
+        schedule: 'manual',
+        executionMode: 'managed',
+        targeting: {
+          communities: [],
+          groups: [],
+          tags: [],
+          agents: [],
+        },
+        content: '',
+      }
+
+      let contentStart = lines.length
+      for (let i = 1; i < lines.length; i++) {
+        const trimmed = lines[i].trim()
+        if (!trimmed.startsWith('- **')) {
+          contentStart = i
+          break
+        }
+
+        const desc = trimmed.match(/^- \*\*Description:\*\*\s*(.+)$/)
+        if (desc) {
+          workflow.description = desc[1].trim()
+          continue
+        }
+
+        const schedule = trimmed.match(/^- \*\*Schedule:\*\*\s*(.+)$/)
+        if (schedule) {
+          workflow.schedule = schedule[1].trim()
+          continue
+        }
+
+        const mode = trimmed.match(/^- \*\*Mode:\*\*\s*([^(]+?)(?:\s*\(.*\))?$/)
+        if (mode) {
+          const normalizedMode = mode[1].trim()
+          workflow.executionMode = normalizedMode === 'automated' ? 'automated' : 'managed'
+          continue
+        }
+
+        const targets = trimmed.match(/^- \*\*Targets:\*\*\s*(.+)$/)
+        if (targets) {
+          for (const segment of targets[1].split(';').map((part) => part.trim())) {
+            const [label, rawValues] = segment.split(':').map((part) => part.trim())
+            const values = (rawValues || '').split(',').map((value) => value.trim()).filter(Boolean)
+            if (label === 'agents') workflow.targeting.agents = values
+            if (label === 'groups') workflow.targeting.groups = values
+            if (label === 'communities') workflow.targeting.communities = values
+            if (label === 'tags') workflow.targeting.tags = values
+          }
+        }
+      }
+
+      workflow.content = lines.slice(contentStart).join('\n').trim()
+      result.workflows.push(workflow)
+    }
+  }
+
   return result
 }
 
@@ -623,6 +696,7 @@ export function templateToMarkdown(template: Template): string {
   if (t.author) fm.author = t.author
   if (t.tags?.length) fm.tags = t.tags
   if (t.parameters?.length) fm.parameters = t.parameters
+  if (t.metadata?.aiPrompt) fm.aiPrompt = t.metadata.aiPrompt
 
   lines.push(matter.stringify('', fm).trim())
   lines.push('')

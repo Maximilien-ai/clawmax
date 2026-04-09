@@ -427,9 +427,17 @@ export function deleteGroup(type: 'community' | 'group', name: string): boolean 
       const line = lines[i]
       const trimmed = line.trim()
 
-      // Check if we're entering a new entry section
-      if (trimmed.startsWith('###')) {
-        const entryName = trimmed.replace(/^###\s+/, '').trim()
+      // Check if we're entering a new entry section.
+      // Support both legacy "## Name" and current "### Name" entry headers.
+      const entryHeaderMatch = trimmed.match(/^###\s+(.+)$/) || trimmed.match(/^##\s+(.+)$/)
+      if (entryHeaderMatch) {
+        const entryName = entryHeaderMatch[1].trim()
+
+        // Skip top-level section headers like "## Groups" / "## Communities"
+        if (/^(groups|communities)$/i.test(entryName)) {
+          newLines.push(line)
+          continue
+        }
 
         // If we were in target entry, mark end
         if (inTargetEntry && entryName !== name) {

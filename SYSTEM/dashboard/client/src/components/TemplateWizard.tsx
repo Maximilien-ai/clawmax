@@ -13,18 +13,22 @@ interface WizardAgent {
   role: string
   tags: string[]
   skills: string[]
+  communities?: string[]
+  groups?: string[]
   count: number // how many instances (for scalable roles)
 }
 
 interface WizardCommunity {
   name: string
   description: string
+  tags?: string[]
 }
 
 interface WizardGroup {
   name: string
   description: string
   community: string
+  tags?: string[]
 }
 
 interface WizardWorkflow {
@@ -34,6 +38,7 @@ interface WizardWorkflow {
   schedule: string
   executionMode: 'automated' | 'managed'
   targetAgents: string[]
+  tags?: string[]
   dependsOn?: string[]
   content: string
 }
@@ -104,11 +109,13 @@ function buildSuggestedWorkflows(input: {
   teamDescription: string
   workflowGoal: string
   agentIds: string[]
+  tags?: string[]
 }): WizardWorkflow[] {
   const goal = (input.workflowGoal || input.teamDescription || input.teamName || 'team operations').trim()
   const targetAgents = input.agentIds.slice(0, 4)
   const titleBase = input.teamName.trim() || 'Team'
   const detail = goal.endsWith('.') ? goal.slice(0, -1) : goal
+  const targetTags = (input.tags || []).slice(0, 2)
 
   const suggestions = [
     {
@@ -147,9 +154,34 @@ function buildSuggestedWorkflows(input: {
     schedule: workflow.schedule,
     executionMode: workflow.executionMode,
     targetAgents,
+    tags: targetTags,
     dependsOn: workflow.dependsOn,
     content: workflow.content,
   }))
+}
+
+function getSkillSuggestionScore(
+  skill: { name?: string; description?: string; tags?: string[] },
+  context: string
+): number {
+  const normalizedContext = context.trim().toLowerCase()
+  if (!normalizedContext) return 0
+
+  const tokens = normalizedContext.split(/[^a-z0-9]+/).filter(Boolean)
+  const name = (skill.name || '').toLowerCase()
+  const description = (skill.description || '').toLowerCase()
+  const tags = (skill.tags || []).map((tag) => tag.toLowerCase())
+
+  let score = 0
+  for (const token of tokens) {
+    if (token.length < 3) continue
+    if (name === token) score += 50
+    if (name.includes(token)) score += 18
+    if (description.includes(token)) score += 8
+    if (tags.some((tag) => tag.includes(token))) score += 12
+  }
+
+  return score
 }
 
 function MultiValueInput({
@@ -282,6 +314,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const [focusedAgentField, setFocusedAgentField] = useState<string | null>(null)
   const [focusedCommField, setFocusedCommField] = useState<string | null>(null)
   const [focusedWorkflowField, setFocusedWorkflowField] = useState<string | null>(null)
+  const [availableSkills, setAvailableSkills] = useState<Array<{ name: string; description?: string; tags?: string[] }>>([])
   const [availableSkillNames, setAvailableSkillNames] = useState<string[]>([])
   const [aiCronLoadingIndex, setAiCronLoadingIndex] = useState<number | null>(null)
   const [workflowCronHints, setWorkflowCronHints] = useState<Record<number, string>>({})
@@ -297,9 +330,20 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       .then((resp) => (resp.ok ? resp.json() : null))
       .then((data) => {
         const skills = Array.isArray(data?.skills) ? data.skills : []
-        setAvailableSkillNames(skills.map((skill: any) => skill.name).filter(Boolean))
+        const normalized = skills
+          .map((skill: any) => ({
+            name: skill.name,
+            description: skill.description || '',
+            tags: Array.isArray(skill.tags) ? skill.tags : [],
+          }))
+          .filter((skill: any) => skill.name)
+        setAvailableSkills(normalized)
+        setAvailableSkillNames(normalized.map((skill: any) => skill.name))
       })
-      .catch(() => setAvailableSkillNames([]))
+      .catch(() => {
+        setAvailableSkills([])
+        setAvailableSkillNames([])
+      })
   }, [])
 
   useEffect(() => {
@@ -312,7 +356,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     const sourceIsWorkspace = initialTemplate.source === 'workspace'
     setState({
       domain: 'custom',
-      teamDescription: initialTemplate.description || '',
+      teamDescription: initialTemplate.metadata?.aiPrompt || initialTemplate.description || '',
       teamName: sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`,
       description: initialTemplate.description || '',
       tags: initialTemplate.tags || [],
@@ -323,16 +367,20 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         role: a.role || '',
         tags: a.tags || [],
         skills: a.skills || [],
+        communities: a.communities || [],
+        groups: a.groups || [],
         count: 1,
       })),
       communities: (initialTemplate.communities || []).map((c: any) => ({
         name: c.name,
         description: c.description || '',
+        tags: c.tags || [],
       })),
       groups: (initialTemplate.groups || []).map((g: any) => ({
         name: g.name,
         description: g.description || '',
         community: g.community || '',
+        tags: g.tags || [],
       })),
       workflows: (initialTemplate.workflows || []).map((w: any) => ({
         id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
@@ -341,6 +389,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
         targetAgents: w.targeting?.agents || [],
+        tags: w.targeting?.tags || [],
         dependsOn: w.dependsOn || [],
         content: w.content || '',
       })),
@@ -382,16 +431,20 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             role: a.role || '',
             tags: a.tags || [],
             skills: a.skills || [],
+            communities: a.communities || [],
+            groups: a.groups || [],
             count: 1,
           })),
           communities: (t.communities || []).map((c: any) => ({
             name: c.name,
             description: c.description || '',
+            tags: c.tags || [],
           })),
           groups: (t.groups || []).map((g: any) => ({
             name: g.name,
             description: g.description || '',
             community: g.community || (t.communities?.[0]?.name || ''),
+            tags: g.tags || [],
           })),
           workflows: (t.workflows || []).map((w: any) => ({
             id: w.id || slugify(w.name || 'workflow'),
@@ -400,6 +453,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             schedule: w.schedule || 'manual',
             executionMode: w.executionMode || 'managed',
             targetAgents: w.targeting?.agents || [],
+            tags: w.targeting?.tags || [],
             dependsOn: w.dependsOn || [],
             content: w.content || '',
           })),
@@ -427,6 +481,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           role: agent.role,
           tags: agent.tags,
           skills: agent.skills.length > 0 ? agent.skills : undefined,
+          communities: agent.communities && agent.communities.length > 0 ? agent.communities : undefined,
+          groups: agent.groups && agent.groups.length > 0 ? agent.groups : undefined,
         })
       } else {
         for (let i = 1; i <= agent.count; i++) {
@@ -436,6 +492,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             role: agent.role,
             tags: agent.tags,
             skills: agent.skills.length > 0 ? agent.skills : undefined,
+            communities: agent.communities && agent.communities.length > 0 ? agent.communities : undefined,
+            groups: agent.groups && agent.groups.length > 0 ? agent.groups : undefined,
           })
         }
       }
@@ -448,12 +506,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       description: state.description,
       author: state.author || 'ClawMax AI',
       tags: state.tags,
+      metadata: {
+        aiPrompt: state.teamDescription || undefined,
+      },
       agents: expandedAgents,
       communities: state.communities.length > 0 ? state.communities : undefined,
       groups: state.groups.length > 0 ? state.groups.map(g => ({
         name: g.name,
         description: g.description,
         community: g.community || undefined,
+        tags: g.tags,
       })) : undefined,
       workflows: state.workflows.length > 0 ? state.workflows.map(w => ({
         id: w.id,
@@ -465,7 +527,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         targeting: {
           communities: [],
           groups: [],
-          tags: [],
+          tags: w.tags || [],
           agents: w.targetAgents,
         },
         dependsOn: w.dependsOn,
@@ -477,7 +539,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   // ---- Helpers ----
   const addAgent = () => {
     update({
-      agents: [...state.agents, { id: '', name: '', role: '', tags: [], skills: [], count: 1 }],
+      agents: [...state.agents, { id: '', name: '', role: '', tags: [], skills: [], communities: [], groups: [], count: 1 }],
     })
   }
 
@@ -497,13 +559,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
 
   const addCommunity = () => {
     update({
-      communities: [...state.communities, { name: '', description: '' }],
+      communities: [...state.communities, { name: '', description: '', tags: [] }],
     })
   }
 
   const addGroup = () => {
     update({
-      groups: [...state.groups, { name: '', description: '', community: state.communities[0]?.name || '' }],
+      groups: [...state.groups, { name: '', description: '', community: state.communities[0]?.name || '', tags: [] }],
     })
   }
 
@@ -516,6 +578,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: 'manual',
         executionMode: 'managed',
         targetAgents: [],
+        tags: [],
         dependsOn: [],
         content: '',
       }],
@@ -612,6 +675,32 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         ].map((tag) => tag.trim()).filter(Boolean))
       ),
     [state.tags, state.agents]
+  )
+
+  const suggestedSkillsByAgent = useMemo(
+    () =>
+      state.agents.map((agent) => {
+        const context = [
+          state.teamName,
+          state.teamDescription,
+          state.description,
+          ...state.tags,
+          agent.name,
+          agent.role,
+          ...agent.tags,
+        ].join(' ')
+
+        return availableSkills
+          .map((skill) => ({
+            name: skill.name,
+            score: getSkillSuggestionScore(skill, context),
+          }))
+          .filter((entry) => entry.score > 0 && !agent.skills.includes(entry.name))
+          .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+          .slice(0, 5)
+          .map((entry) => entry.name)
+      }),
+    [availableSkills, state.agents, state.description, state.tags, state.teamDescription, state.teamName]
   )
 
   // ---- Render Steps ----
@@ -819,15 +908,36 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 onBlur={() => setFocusedAgentField(current => current === `tags-${idx}` ? null : current)}
                 inputRef={registerFieldRef(`tags-${idx}`)}
               />
-              <MultiValueInput
-                values={agent.skills}
-                suggestions={Array.from(new Set([...availableSkillNames, ...state.agents.flatMap((entry) => entry.skills)]))}
-                placeholder="Add skills..."
-                onChange={(skills) => updateAgent(idx, { skills })}
-                onFocus={() => setFocusedAgentField(`skills-${idx}`)}
-                onBlur={() => setFocusedAgentField(current => current === `skills-${idx}` ? null : current)}
-                inputRef={registerFieldRef(`skills-${idx}`)}
-              />
+              <div>
+                {suggestedSkillsByAgent[idx]?.length > 0 && (
+                  <div className="mb-1.5">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                      Suggested Skills
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {suggestedSkillsByAgent[idx].map((skillName) => (
+                        <button
+                          key={skillName}
+                          type="button"
+                          onClick={() => updateAgent(idx, { skills: [...agent.skills, skillName] })}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 transition-colors hover:border-sky-300 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                        >
+                          + {skillName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <MultiValueInput
+                  values={agent.skills}
+                  suggestions={Array.from(new Set([...availableSkillNames, ...state.agents.flatMap((entry) => entry.skills)]))}
+                  placeholder="Search and add skills..."
+                  onChange={(skills) => updateAgent(idx, { skills })}
+                  onFocus={() => setFocusedAgentField(`skills-${idx}`)}
+                  onBlur={() => setFocusedAgentField(current => current === `skills-${idx}` ? null : current)}
+                  inputRef={registerFieldRef(`skills-${idx}`)}
+                />
+              </div>
             </div>
           </div>
         ))}
@@ -1001,6 +1111,34 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     <div>
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Workflows</h3>
 
+      {state.teamDescription.trim() && (
+        <div className="mb-4 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50/70 dark:bg-purple-900/20 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300">AI Prompt</div>
+              <p className="mt-1 text-sm text-purple-900 dark:text-purple-100">{state.teamDescription}</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={handleAiGenerate}
+                disabled={aiGenerating || !aiEnabled}
+                className={btnSecondary}
+              >
+                {aiGenerating ? 'Generating…' : 'Regenerate'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className={btnSecondary}
+              >
+                Refine Prompt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-500">Define recurring or one-time workflows for this team.</p>
         <button onClick={addWorkflow} className="text-xs text-purple-600 hover:text-purple-700 font-medium">+ Add Workflow</button>
@@ -1034,6 +1172,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     teamDescription: state.teamDescription,
                     workflowGoal: workflowGoalPrompt,
                     agentIds: state.agents.map((agent) => agent.id).filter(Boolean),
+                    tags: state.tags,
                   }),
                 })
               }
@@ -1120,17 +1259,21 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 />
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAiCronForWorkflow(idx)}
-                  disabled={aiCronLoadingIndex !== null || !wf.schedule.trim()}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
-                >
-                  {aiCronLoadingIndex === idx ? 'Generating cron…' : '✨ Suggest Cron'}
-                </button>
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                  Enter timing in plain English if you do not know the cron syntax.
-                </span>
+                {wf.schedule.trim().toLowerCase() !== 'manual' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleAiCronForWorkflow(idx)}
+                      disabled={aiCronLoadingIndex !== null || !wf.schedule.trim()}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                    >
+                      {aiCronLoadingIndex === idx ? 'Generating cron…' : '✨ Suggest Cron'}
+                    </button>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Enter timing in plain English if you do not know the cron syntax.
+                    </span>
+                  </>
+                )}
               </div>
               {workflowCronHints[idx] && (
                 <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
@@ -1193,10 +1336,10 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                       tags: a.tags || [], skills: a.skills || [], count: 1,
                     })),
                     communities: (parsed.communities || []).map((c: any) => ({
-                      name: c.name, description: c.description || '',
+                      name: c.name, description: c.description || '', tags: c.tags || [],
                     })),
                     groups: (parsed.groups || []).map((g: any) => ({
-                      name: g.name, description: g.description || '', community: g.community || '',
+                      name: g.name, description: g.description || '', community: g.community || '', tags: g.tags || [],
                     })),
                   })
                   setEditingJson(false)
@@ -1223,6 +1366,34 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           />
         ) : (
           <>
+            {state.teamDescription.trim() && (
+              <div className="mb-4 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50/70 dark:bg-purple-900/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300">AI Prompt</div>
+                    <p className="mt-1 text-sm text-purple-900 dark:text-purple-100">{state.teamDescription}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAiGenerate}
+                      disabled={aiGenerating || !aiEnabled}
+                      className={btnSecondary}
+                    >
+                      {aiGenerating ? 'Generating…' : 'Regenerate'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      className={btnSecondary}
+                    >
+                      Refine Prompt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Template header */}
             <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
               <h4 className="text-sm font-bold text-purple-900 dark:text-purple-200">{state.teamName || 'Untitled Team'}</h4>
@@ -1252,6 +1423,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                       <span className="font-mono text-purple-600 dark:text-purple-400 shrink-0">{a.id}</span>
                       <span className="text-gray-400">—</span>
                       <span className="text-gray-700 dark:text-gray-300 truncate">{a.role}</span>
+                      {a.tags?.length > 0 && (
+                        <span className="text-gray-400 shrink-0">[{a.tags.join(', ')}]</span>
+                      )}
                       {a.skills?.length > 0 && (
                         <span className="text-gray-400 shrink-0">({a.skills.join(', ')})</span>
                       )}
@@ -1269,11 +1443,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                   {(template.communities || []).map((c: any, i: number) => (
                     <div key={`c-${i}`} className="py-1 px-2 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
                       Community: {c.name}
+                      {c.tags?.length > 0 && <span className="text-blue-500"> [{c.tags.join(', ')}]</span>}
                     </div>
                   ))}
                   {(template.groups || []).map((g: any, i: number) => (
                     <div key={`g-${i}`} className="py-1 px-2 rounded bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
                       Group: {g.name} {g.community && <span className="text-green-500">({g.community})</span>}
+                      {g.tags?.length > 0 && <span className="text-green-500"> [{g.tags.join(', ')}]</span>}
                     </div>
                   ))}
                 </div>
@@ -1291,6 +1467,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                       <span className="font-medium">{w.name}</span>
                       <span className="font-mono text-orange-500">{w.schedule}</span>
                       <span className="text-orange-400">{w.executionMode}</span>
+                      {w.targeting?.tags?.length > 0 && (
+                        <span className="text-orange-500">[{w.targeting.tags.join(', ')}]</span>
+                      )}
                       {w.dependsOn?.length > 0 && (
                         <span className="text-orange-400">depends on {w.dependsOn.join(', ')}</span>
                       )}

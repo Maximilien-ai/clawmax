@@ -43,6 +43,35 @@ const FALLBACK_MODELS = [
 
 type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
 type CustomizeStep = 'team' | 'context' | 'secrets' | 'workflows' | 'agents'
+type PrereqState = {
+  ready: boolean
+  checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>
+  expectations?: Array<{ id: string; label: string; status: string; message: string }>
+  summary: { pass: number; fail: number; warn: number }
+}
+
+function normalizePrereqs(raw: any): PrereqState {
+  const checks = Array.isArray(raw?.checks) ? raw.checks : []
+  const expectations = Array.isArray(raw?.expectations) ? raw.expectations : []
+  const summary = raw?.summary && typeof raw.summary === 'object'
+    ? {
+        pass: Number(raw.summary.pass) || 0,
+        fail: Number(raw.summary.fail) || 0,
+        warn: Number(raw.summary.warn) || 0,
+      }
+    : {
+        pass: checks.filter((check: any) => check?.status === 'pass').length,
+        fail: checks.filter((check: any) => check?.status === 'fail').length,
+        warn: checks.filter((check: any) => check?.status === 'warn').length,
+      }
+
+  return {
+    ready: Boolean(raw?.ready ?? summary.fail === 0),
+    checks,
+    expectations,
+    summary,
+  }
+}
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
@@ -106,6 +135,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [validatingRepo, setValidatingRepo] = useState<string | null>(null)
 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const [resolvedTemplateSlug, setResolvedTemplateSlug] = useState(template.slug || templateSlug)
+  const [resolvingTemplateSlug, setResolvingTemplateSlug] = useState(!template.slug)
   const secretRequirements = template.secretRequirements || []
   const secretReadiness = summarizeSecretReadiness(secretRequirements, templateSecrets)
   const customizeSteps: Array<{ id: CustomizeStep; label: string }> = [
@@ -117,8 +148,35 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   ]
 
   // Prerequisites check
-  const [prereqs, setPrereqs] = useState<{ ready: boolean; checks: Array<{ id: string; label: string; status: string; message: string; fixHint?: string; category: string }>; expectations?: Array<{ id: string; label: string; status: string; message: string }>; summary: { pass: number; fail: number; warn: number } } | null>(null)
+  const [prereqs, setPrereqs] = useState<PrereqState | null>(null)
   const [prereqsLoading, setPrereqsLoading] = useState(true)
+
+  React.useEffect(() => {
+    if (template.slug) {
+      setResolvedTemplateSlug(template.slug)
+      setResolvingTemplateSlug(false)
+      return
+    }
+
+    setResolvingTemplateSlug(true)
+    fetch(`/api/templates/organizations/${templateSlug}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(template),
+    })
+      .then(async (resp) => {
+        const data = await resp.json().catch(() => ({}))
+        if (!resp.ok) {
+          throw new Error(data?.error || 'Failed to prepare template for apply')
+        }
+        setResolvedTemplateSlug(templateSlug)
+      })
+      .catch((err: any) => {
+        setError(err?.message || 'Failed to prepare template for apply')
+        showToastError(err?.message || 'Failed to prepare template for apply')
+      })
+      .finally(() => setResolvingTemplateSlug(false))
+  }, [template, template.slug, templateSlug, showToastError])
 
   React.useEffect(() => {
     setTemplateSecrets(readLocalSecrets('template', templateSlug))
@@ -287,12 +345,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   ].filter((item): item is { slug: string; name: string; detail: string } => !!item)
 
   React.useEffect(() => {
+    if (!resolvedTemplateSlug || resolvingTemplateSlug) {
+      return
+    }
     setPrereqsLoading(true)
     fetch('/api/templates/organizations/prereqs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        templateSlug: template.slug || template.name,
+        templateSlug: resolvedTemplateSlug,
         useGithub,
         githubRepo,
         useSenso,
@@ -306,10 +367,41 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         redisNamespace,
       }),
     })
-      .then(r => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          return normalizePrereqs({
+            ready: false,
+            checks: [
+              {
+                id: 'prereqs-request',
+                label: 'Prerequisites check',
+                status: 'fail',
+                message: data?.error || 'Failed to load readiness checks',
+                category: 'infrastructure',
+              },
+            ],
+          })
+        }
+        return normalizePrereqs(data)
+      })
       .then(data => { setPrereqs(data); setPrereqsLoading(false) })
-      .catch(() => setPrereqsLoading(false))
-  }, [template.slug, template.name, useGithub, githubRepo, useSenso, sensoFolder, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace])
+      .catch(() => {
+        setPrereqs(normalizePrereqs({
+          ready: false,
+          checks: [
+            {
+              id: 'prereqs-request',
+              label: 'Prerequisites check',
+              status: 'fail',
+              message: 'Failed to load readiness checks',
+              category: 'infrastructure',
+            },
+          ],
+        }))
+        setPrereqsLoading(false)
+      })
+  }, [resolvedTemplateSlug, resolvingTemplateSlug, useGithub, githubRepo, useSenso, sensoFolder, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace])
 
   // Agent count parameters — initialize from template defaults
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>(() => {
@@ -697,7 +789,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateSlug,
+          templateSlug: resolvedTemplateSlug,
           githubRepo: githubRepo.trim() || undefined,
           useGithub,
           workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
@@ -730,7 +822,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateSlug,
+          templateSlug: resolvedTemplateSlug,
           prefix: prefix || undefined,
           suffix: suffix || undefined,
           includeBuiltIn,
@@ -861,7 +953,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         {wizardStep === 'prereqs' && (
           <div className="space-y-3 mb-4">
         {/* Prerequisites check */}
-        {prereqsLoading ? (
+        {resolvingTemplateSlug ? (
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
+            Preparing template for apply...
+          </div>
+        ) : prereqsLoading ? (
           <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
             Checking readiness...
           </div>
