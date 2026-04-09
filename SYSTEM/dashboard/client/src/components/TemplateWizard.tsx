@@ -116,11 +116,12 @@ function buildSuggestedWorkflows(input: {
   const titleBase = input.teamName.trim() || 'Team'
   const detail = goal.endsWith('.') ? goal.slice(0, -1) : goal
   const targetTags = (input.tags || []).slice(0, 2)
+  const workflowPrefix = slugify(titleBase)
 
   const suggestions = [
     {
-      id: 'team-kickoff',
-      name: 'Team Kickoff',
+      id: `${workflowPrefix}-kickoff`,
+      name: `${titleBase} Kickoff`,
       description: 'Start a new run with goals, constraints, and priorities.',
       schedule: 'manual',
       executionMode: 'managed' as const,
@@ -128,21 +129,21 @@ function buildSuggestedWorkflows(input: {
       content: `# ${titleBase} Kickoff\n\n1. Review the latest request: ${detail}\n2. Clarify goals, deadlines, constraints, and target audience\n3. Assign work across the team and identify blockers\n4. Post a short kickoff plan and owners for each next step`,
     },
     {
-      id: 'execution-review',
-      name: 'Execution Review',
+      id: `${workflowPrefix}-execution-review`,
+      name: `${titleBase} Execution Review`,
       description: 'Review current work, adjust priorities, and unblock execution.',
       schedule: 'manual',
       executionMode: 'managed' as const,
-      dependsOn: ['team-kickoff'],
+      dependsOn: [`${workflowPrefix}-kickoff`],
       content: `# ${titleBase} Execution Review\n\n1. Review work completed so far for: ${detail}\n2. Identify what is working, what is blocked, and what needs revision\n3. Re-prioritize tasks, budget, or effort as needed\n4. Post the updated plan and next actions`,
     },
     {
-      id: 'weekly-summary',
-      name: 'Weekly Summary',
+      id: `${workflowPrefix}-weekly-summary`,
+      name: `${titleBase} Weekly Summary`,
       description: 'Summarize outputs, decisions, and next recommendations.',
       schedule: '0 16 * * 5',
       executionMode: 'automated' as const,
-      dependsOn: ['execution-review'],
+      dependsOn: [`${workflowPrefix}-execution-review`],
       content: `# ${titleBase} Weekly Summary\n\n1. Summarize progress, results, and key decisions for: ${detail}\n2. Capture wins, risks, and open questions\n3. Recommend the top next actions for the next run\n4. Publish a concise summary for stakeholders`,
     },
   ]

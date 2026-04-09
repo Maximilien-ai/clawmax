@@ -512,6 +512,29 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     })
   }
 
+  const selectVisibleChannelsByType = (type: ChannelType) => {
+    const visibleKeys = sortedChannels
+      .filter(channel => channel.type === type)
+      .map(channel => `${channel.type}:${channel.name}`)
+    setSelectedChannelKeys(new Set(visibleKeys))
+  }
+
+  const toggleVisibleChannelsByType = (type: ChannelType) => {
+    const visibleKeys = sortedChannels
+      .filter(channel => channel.type === type)
+      .map(channel => `${channel.type}:${channel.name}`)
+    const allSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedChannelKeys.has(key))
+    setSelectedChannelKeys(prev => {
+      const next = new Set(prev)
+      if (allSelected) {
+        visibleKeys.forEach((key) => next.delete(key))
+      } else {
+        visibleKeys.forEach((key) => next.add(key))
+      }
+      return next
+    })
+  }
+
   return (
     <>
     <div className="flex-1 flex h-full">
@@ -574,18 +597,20 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
           </button>
           {selectionMode && (
-            <button
-              onClick={() => {
-                if (selectedChannelKeys.size === sortedChannels.length) {
-                  setSelectedChannelKeys(new Set())
-                } else {
-                  setSelectedChannelKeys(new Set(sortedChannels.map(channel => `${channel.type}:${channel.name}`)))
-                }
-              }}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-            >
-              {selectedChannelKeys.size === sortedChannels.length ? 'Deselect All' : 'Select All'}
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  if (selectedChannelKeys.size === sortedChannels.length) {
+                    setSelectedChannelKeys(new Set())
+                  } else {
+                    setSelectedChannelKeys(new Set(sortedChannels.map(channel => `${channel.type}:${channel.name}`)))
+                  }
+                }}
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                {selectedChannelKeys.size === sortedChannels.length ? 'Deselect All' : 'Select All'}
+              </button>
+            </>
           )}
           {selectionMode && selectedChannelKeys.size > 0 && (
             <button
@@ -771,34 +796,102 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         <div className="space-y-6">
           {communities.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1 dark:text-gray-300">
-                Communities
-                <span className="ml-2 text-xs font-normal text-gray-400">
-                  {communities.length} channel{communities.length !== 1 ? 's' : ''}
-                </span>
-              </h2>
+              <div className="flex items-center mb-3 px-1">
+                {selectionMode && (
+                  <button
+                    onClick={() => toggleVisibleChannelsByType('community')}
+                    className="mr-2 text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                    title="Select visible communities"
+                  >
+                    {sortedCommunities.length > 0 && sortedCommunities.every(channel => selectedChannelKeys.has(`community:${channel.name}`)) ? '✓' : '□'}
+                  </button>
+                )}
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-300">
+                  Communities
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    {communities.length} channel{communities.length !== 1 ? 's' : ''}
+                  </span>
+                </h2>
+              </div>
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedCommunities.map(channel => (
-                  <ChannelGridCard key={`community-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`community:${channel.name}`] || 0} />
+                  <ChannelGridCard
+                    key={`community-${channel.name}`}
+                    channel={channel}
+                    selectedTags={selectedTags}
+                    selectedAgents={selectedAgents}
+                    selectionMode={selectionMode}
+                    isSelected={selectedChannelKeys.has(`community:${channel.name}`)}
+                    onToggleSelect={() => toggleChannelSelection(channel)}
+                    onManageTags={() => setTagManageTarget(channel)}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onOpenChat={() => openChat(channel)}
+                    onDelete={() => handleDeleteChannel(channel)}
+                    unreadCount={unreadCounts[`community:${channel.name}`] || 0}
+                  />
                 ))}
               </div>
             </div>
           )}
           {groups.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1 dark:text-gray-300">
-                Groups
-                <span className="ml-2 text-xs font-normal text-gray-400">
-                  {groups.length} channel{groups.length !== 1 ? 's' : ''}
-                </span>
-              </h2>
+              <div className="flex items-center mb-3 px-1">
+                {selectionMode && (
+                  <button
+                    onClick={() => toggleVisibleChannelsByType('group')}
+                    className="mr-2 text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                    title="Select visible groups"
+                  >
+                    {sortedGroups.length > 0 && sortedGroups.every(channel => selectedChannelKeys.has(`group:${channel.name}`)) ? '✓' : '□'}
+                  </button>
+                )}
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-300">
+                  Groups
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    {groups.length} channel{groups.length !== 1 ? 's' : ''}
+                  </span>
+                </h2>
+              </div>
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedGroups.map(channel => (
-                  <ChannelGridCard key={`group-${channel.name}`} channel={channel} selectedTags={selectedTags} selectedAgents={selectedAgents} onManageTags={() => setTagManageTarget(channel)} onNavigateToAgent={onNavigateToAgent} onOpenChat={() => openChat(channel)} onDelete={() => handleDeleteChannel(channel)} unreadCount={unreadCounts[`group:${channel.name}`] || 0} />
+                  <ChannelGridCard
+                    key={`group-${channel.name}`}
+                    channel={channel}
+                    selectedTags={selectedTags}
+                    selectedAgents={selectedAgents}
+                    selectionMode={selectionMode}
+                    isSelected={selectedChannelKeys.has(`group:${channel.name}`)}
+                    onToggleSelect={() => toggleChannelSelection(channel)}
+                    onManageTags={() => setTagManageTarget(channel)}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onOpenChat={() => openChat(channel)}
+                    onDelete={() => handleDeleteChannel(channel)}
+                    unreadCount={unreadCounts[`group:${channel.name}`] || 0}
+                  />
                 ))}
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {selectionMode && selectedChannelKeys.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 z-40 max-w-[calc(100vw-2rem)] overflow-x-auto">
+          <div className="font-medium whitespace-nowrap">
+            {selectedChannelKeys.size} channel{selectedChannelKeys.size !== 1 ? 's' : ''} selected
+          </div>
+          <button
+            onClick={() => setSelectedChannelKeys(new Set())}
+            className="px-3 py-1 bg-blue-700 hover:bg-blue-800 rounded transition-colors text-sm whitespace-nowrap"
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleBulkDeleteChannels}
+            className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded transition-colors text-sm whitespace-nowrap"
+          >
+            Delete
+          </button>
         </div>
       )}
       </div>
@@ -1948,7 +2041,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode, isSelected, onToggleSelect, onManageTags, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; selectionMode: boolean; isSelected: boolean; onToggleSelect: () => void; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community'
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
@@ -1964,7 +2057,20 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
   }
 
   return (
-    <div className={`rounded-lg border-2 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${typeColor}`}>
+    <div className={`rounded-lg border-2 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer relative ${isSelected ? 'ring-2 ring-sky-300 border-sky-500' : typeColor}`}>
+      {selectionMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+          className={`absolute top-2 right-2 z-10 w-6 h-6 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+            isSelected
+              ? 'bg-sky-600 border-sky-600 text-white'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
+          }`}
+          title={isSelected ? 'Deselect channel' : 'Select channel'}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
+      )}
       <div className="flex items-center gap-1.5 mb-2">
         <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
         <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
@@ -1976,6 +2082,10 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, onManageTags, 
         <button
           onClick={(e) => {
             e.stopPropagation()
+            if (selectionMode) {
+              onToggleSelect()
+              return
+            }
             onOpenChat?.()
           }}
           className="shrink-0 text-sky-600 hover:text-sky-700 hover:bg-white dark:bg-gray-800/50 rounded p-1 transition-colors"

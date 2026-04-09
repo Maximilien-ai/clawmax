@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: April 8, 2026
+> Last updated: April 9, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
@@ -36,6 +36,7 @@
 - [ ] **Replace ad hoc Docker OpenClaw packaging with a cleaner canonical install path** — current cloud stabilization uses an in-image build/package path for the pinned OpenClaw runtime. After cloud is healthy, replace that with a more explicit release artifact or canonical upstream distribution flow so runtime packaging is easier to reason about and less fragile.
 - [ ] **Plan and test OpenClaw upgrade to latest after cloud runtime stabilizes** — once the pinned runtime path is healthy in cloud, schedule a deliberate upgrade pass from the current tested OpenClaw ref to latest, with explicit validation for gateway startup, agent creation, skills loading, and workflow execution.
 - [ ] **Audit additional runtime tool packaging for built-in skills** — after cloud runtime stabilizes, review whether the base image should also package `bash`, `zip`, `unzip`, `tar`, `gzip`, and `file`/`less` for common agent skill flows without over-expanding image size.
+- [ ] **Dangerous skill review and guardrails** — during security review, study known dangerous-skill patterns (for example [gricha/dangerous-skills](https://github.com/gricha/dangerous-skills)) and also review higher-quality public skill repos (for example `getsentry/skills`) to separate good patterns from risky ones; add guardrails so imported or AI-created skills cannot quietly introduce obviously dangerous behavior without explicit user review and warnings.
 - [ ] **Cloud agent runtime still needs live validation after image rebuild** — fixture responses should be gone, but cloud must still be rechecked end-to-end after the rebuilt image lands: one agent chat, Skills page, Doctor output, and `openclaw --version`.
 - [ ] **Cloud Skills page can be empty even when workspace has agents** — live cloud audit confirmed `~/.openclaw/openclaw.json` is missing while workspace agent files exist under `/workspace/AGENTS`, so skill discovery has no real runtime registration state to read.
 - [ ] **Cloud logs pane still churns on reconnecting** — the logs/Doctor surface still shows repeated reconnect behavior on cloud instances, which makes diagnosis noisy and likely reflects unresolved websocket/log-stream stability issues.
@@ -151,7 +152,7 @@
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
 - [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip when no system/user/BYOK keys are configured
-- [ ] **Template wizard cron helper should ignore `manual` schedules** — `✨ Suggest Cron` should be hidden or disabled when a workflow schedule is already `manual`, instead of surfacing misleading missing-key errors.
+- [x] **Template wizard cron helper should ignore `manual` schedules** — fixed: `✨ Suggest Cron` is hidden when a workflow is already `manual`, so the wizard no longer shows misleading missing-key errors in that case.
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
 - [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo

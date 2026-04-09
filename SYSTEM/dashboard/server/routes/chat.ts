@@ -2,6 +2,8 @@ import { Router } from 'express'
 import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
+import fs from 'fs'
+import path from 'path'
 import { getAgentGatewayConfig, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayRunning } from '../lib/gateway-rpc'
 import { traceAgentChat } from '../lib/opik'
@@ -22,6 +24,34 @@ function extractJson(text: string): string {
     return text.slice(start, end + 1)
   }
   return ''
+}
+
+function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
+  let stamp = 'chat'
+  const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
+  if (identityPath && fs.existsSync(identityPath)) {
+    try {
+      stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
+    } catch {}
+  }
+  return `dashboard-${agentId}-${stamp}-chat`
+}
+
+function persistDashboardChatSession(agentId: string, sessionId: string) {
+  try {
+    const sessionsDir = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
+    const sessionsPath = path.join(sessionsDir, 'sessions.json')
+    if (!fs.existsSync(sessionsDir)) {
+      fs.mkdirSync(sessionsDir, { recursive: true })
+    }
+    const sessions = fs.existsSync(sessionsPath)
+      ? JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+      : {}
+    sessions[`agent:${agentId}:dashboard-chat`] = { sessionId, updatedAt: Date.now() }
+    fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
+  } catch (err) {
+    console.warn(`[Chat Route] Failed to persist dashboard chat session for ${agentId}:`, err)
+  }
 }
 
 /**
@@ -114,7 +144,10 @@ router.post('/:id/chat', (req, res) => {
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
   })
   const resolvedAgent = resolveAgentExecutionConfig(id)
-  const effectiveSessionId = scopeSessionIdToModel(sessionId || `dashboard-${id}-chat`, resolvedAgent.model)
+  const effectiveSessionId = scopeSessionIdToModel(
+    sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace),
+    resolvedAgent.model
+  )
 
   // Validate API keys exist before starting chat
   const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
@@ -205,6 +238,8 @@ router.post('/:id/chat', (req, res) => {
             sessionId: effectiveSessionId,
           })
         }
+
+        persistDashboardChatSession(id, effectiveSessionId)
 
         if (!normalizedText && code !== 0) {
           send('error', stderrOutput.slice(0, 300) || 'Agent failed. Check that API keys are configured.')

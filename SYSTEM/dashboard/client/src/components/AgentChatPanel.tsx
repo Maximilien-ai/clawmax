@@ -137,8 +137,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sessionId] = useState<string>(`dashboard-${agentId}-chat`)
+  const [sessionId] = useState<string>(() => `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
+  const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
   const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
   const [forwardingTo, setForwardingTo] = useState<string | null>(null)
@@ -303,6 +304,24 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
     setGatewayAvailable(false)
     setError('No API keys available. Add keys via BYOK or configure server environment.')
+  }
+
+  async function resetAgentSession() {
+    try {
+      setResettingSession(true)
+      setError(null)
+      const resp = await fetch(`/api/agents/${agentId}/reset-session`, { method: 'POST' })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`)
+      setMessages([])
+      setInputHistory([])
+      setHistoryIndex(-1)
+      setShowClearConfirm(false)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to reset agent session')
+    } finally {
+      setResettingSession(false)
+    }
   }
 
   function toggleVoiceInput() {
@@ -633,6 +652,18 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             <p className="text-xs text-gray-400 mt-0.5">Real-time streaming via gateway</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={resetAgentSession}
+              disabled={resettingSession}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                resettingSession
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              title="Reset the agent runtime session for a completely fresh chat"
+            >
+              ↺ Reset Session
+            </button>
             <button
               onClick={() => { fetchArchives(); setShowArchives(true); }}
               disabled={archives.length === 0}

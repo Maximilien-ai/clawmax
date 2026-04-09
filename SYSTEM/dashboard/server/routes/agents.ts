@@ -80,6 +80,14 @@ function resetAgentRuntimeForModelChange(agentId: string) {
   }
 }
 
+function resetAgentRuntimeSessions(agentId: string) {
+  const HOME = process.env.HOME || ''
+  const reset = resetAgentSessionsForModelChange(HOME, agentId)
+  if (!reset.ok) {
+    throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
+  }
+}
+
 /**
  * Register a new agent via Gateway RPC
  *
@@ -1524,6 +1532,21 @@ router.post('/resume', (req, res) => {
   res.json({ paused: Array.from(paused) })
 })
 
+router.post('/:id/reset-session', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  try {
+    resetAgentRuntimeSessions(id)
+    res.json({ ok: true, agentId: id })
+  } catch (err: any) {
+    console.error('Failed to reset agent session:', err)
+    res.status(500).json({ error: err?.message || 'Failed to reset agent session' })
+  }
+})
+
 // POST /api/agents/bulk-model — change model for multiple agents
 router.post('/bulk-model', async (req, res) => {
   const { agentIds, model } = req.body as { agentIds?: string[]; model?: string }
@@ -1821,8 +1844,6 @@ router.get('/:id/chat/messages', async (req, res) => {
   }
 
   const sessionKey = `agent:${id}:dashboard-chat`
-  const mainSessionKey = `agent:${id}:main`
-
   try {
     const HOME = process.env.HOME || ''
     const sessionsIndexPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
@@ -1835,20 +1856,17 @@ router.get('/:id/chat/messages', async (req, res) => {
     // Read sessions index
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
 
-    // Find the session entry — try dashboard-chat first, fall back to main session
+    // Find the dashboard chat session entry only.
     let actualSessionId: string | null = null
 
     if (sessionsIndex[sessionKey]?.sessionId) {
       actualSessionId = sessionsIndex[sessionKey].sessionId
-    } else if (sessionsIndex[mainSessionKey]?.sessionId) {
-      // Fall back to main session (CLI creates sessions under main key)
-      actualSessionId = sessionsIndex[mainSessionKey].sessionId
     } else {
       // Search through all entries
       for (const [key, entry] of Object.entries(sessionsIndex)) {
         if (typeof entry === 'object' && entry !== null) {
           const e = entry as any
-          if (e.sessionId === sessionKey || key.includes(id)) {
+          if (key === sessionKey || e.sessionId === sessionKey) {
             actualSessionId = e.sessionId
             break
           }
@@ -1908,8 +1926,6 @@ router.delete('/:id/chat/messages', async (req, res) => {
   }
 
   const sessionKey = `agent:${id}:dashboard-chat`
-  const mainSessionKey = `agent:${id}:main`
-
   try {
     const HOME = process.env.HOME || ''
     const sessionsDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions')
@@ -1922,11 +1938,9 @@ router.delete('/:id/chat/messages', async (req, res) => {
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
     let actualSessionId: string | null = null
 
-    // Try dashboard-chat first, fall back to main session
+    // Clear the dashboard chat session only.
     if (sessionsIndex[sessionKey]?.sessionId) {
       actualSessionId = sessionsIndex[sessionKey].sessionId
-    } else if (sessionsIndex[mainSessionKey]?.sessionId) {
-      actualSessionId = sessionsIndex[mainSessionKey].sessionId
     }
 
     if (!actualSessionId) {

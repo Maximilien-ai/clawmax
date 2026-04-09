@@ -585,6 +585,13 @@ A template has:
 - communities: array with name, description, tags
 - groups: array with name, description, community (parent), tags
 
+Important structure rules:
+- Prefer exactly 1 shared community for the whole team.
+- Use groups, not communities, for sub-teams or work lanes.
+- Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
+- Do not create a community and a group that represent the same concept with different names.
+- If unsure, create 1 community and 3-6 groups.
+
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
       {
@@ -628,6 +635,25 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ]
     }
 
+    const normalizedTeamName = String(parsed.name || 'Team').trim()
+    const allowMultipleCommunities =
+      (parsed.groups || []).length >= 7 ||
+      /\b(platform|ops|operations|customer|client|external|internal|partner|community-facing|field team|back office)\b/i.test(description)
+
+    if (Array.isArray(parsed.communities) && parsed.communities.length > 1 && !allowMultipleCommunities) {
+      parsed.communities = [
+        {
+          ...parsed.communities[0],
+          name: normalizedTeamName || parsed.communities[0]?.name || 'Team',
+          description: parsed.communities[0]?.description || `Shared coordination space for ${normalizedTeamName || 'this team'}`,
+          tags: Array.from(new Set([
+            ...(Array.isArray(parsed.communities[0]?.tags) ? parsed.communities[0].tags : []),
+            ...inferredTemplateTags.slice(0, 2),
+          ])),
+        },
+      ]
+    }
+
     if (!Array.isArray(parsed.groups) || parsed.groups.length === 0) {
       parsed.groups = [
         {
@@ -639,8 +665,11 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ]
     }
 
+    const primaryCommunityName = parsed.communities[0]?.name
+
     parsed.groups = (parsed.groups || []).map((group: any) => ({
       ...group,
+      community: primaryCommunityName || group.community,
       tags: Array.from(new Set([
         ...(Array.isArray(group.tags) ? group.tags : []),
         ...inferredTemplateTags.slice(0, 2),

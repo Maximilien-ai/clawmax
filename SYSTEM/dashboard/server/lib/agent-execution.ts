@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { createHash } from 'crypto'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { updateAgentModelInConfigFile } from './agent-model'
@@ -80,12 +81,19 @@ export function resolveAgentExecutionConfig(agentId: string): {
 }
 
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
-  if (!model) return sessionId
+  const MAX_SESSION_KEY_LENGTH = 48
   const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  const modelToken = model.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
-  if (!modelToken) return safeBase || 'chat'
+  const modelToken = (model || '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
   const base = safeBase || 'chat'
-  return `${base}-${modelToken}`.slice(0, 80)
+  const combined = modelToken ? `${base}-${modelToken}` : base
+
+  if (combined.length <= MAX_SESSION_KEY_LENGTH) {
+    return combined
+  }
+
+  const hash = createHash('sha1').update(combined).digest('hex').slice(0, 8)
+  const trimmedBase = base.slice(0, Math.max(8, MAX_SESSION_KEY_LENGTH - hash.length - 1))
+  return `${trimmedBase}-${hash}`.slice(0, MAX_SESSION_KEY_LENGTH)
 }
 
 function normalizeSessionModel(model?: string): string | undefined {

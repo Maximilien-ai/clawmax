@@ -9,6 +9,7 @@ import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
+import { resetAgentSessionsForModelChange } from './agent-model'
 
 // Template storage paths (dynamic functions)
 
@@ -36,6 +37,55 @@ export function getAgentTemplatesDir(): string {
 
 export function getOrgTemplatesDir(): string {
   return path.join(getTemplatesDir(), 'organizations')
+}
+
+function scaffoldAgentMemory(agentId: string) {
+  const agentDir = path.join(getAgentsDir(), agentId)
+  fs.mkdirSync(agentDir, { recursive: true })
+
+  const memoryDir = path.join(agentDir, 'memory')
+  fs.mkdirSync(memoryDir, { recursive: true })
+
+  const memoryIndexPath = path.join(agentDir, 'MEMORY.md')
+  if (!fs.existsSync(memoryIndexPath)) {
+    fs.writeFileSync(
+      memoryIndexPath,
+      `# MEMORY.md\n\nUse this file as the index for long-term notes. Daily notes live in \`memory/YYYY-MM-DD.md\`.\n`,
+      'utf-8'
+    )
+  }
+
+  const dates = [0, 1].map((offset) => {
+    const d = new Date()
+    d.setDate(d.getDate() - offset)
+    return d.toISOString().slice(0, 10)
+  })
+
+  for (const date of dates) {
+    const dailyPath = path.join(memoryDir, `${date}.md`)
+    if (!fs.existsSync(dailyPath)) {
+      fs.writeFileSync(dailyPath, `# ${date}\n\nNo notes yet.\n`, 'utf-8')
+    }
+  }
+}
+
+function initializeTemplateCreatedAgent(agentId: string) {
+  scaffoldAgentMemory(agentId)
+  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  if (!reset.ok) {
+    throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
+  }
+}
+
+function normalizeTagList(tags?: string[]): string[] {
+  if (!Array.isArray(tags)) return []
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => slugify(String(tag || '').trim()))
+        .filter(Boolean)
+    )
+  )
 }
 
 // Ensure template directories exist
@@ -1238,6 +1288,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       }
     }
 
+    initializeTemplateCreatedAgent(targetAgentId)
+
     return { ok: true, agentId: targetAgentId }
   } catch (err) {
     return { ok: false, error: String(err) }
@@ -1564,6 +1616,7 @@ export function importOrganizationTemplate(
       adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
         ...community,
         name: communityRenames[community.name] || community.name,
+        tags: normalizeTagList((community as any).tags),
       }))
     }
 
@@ -1572,32 +1625,67 @@ export function importOrganizationTemplate(
         ...group,
         name: groupRenames[group.name] || group.name,
         community: group.community ? (communityRenames[group.community] || group.community) : group.community,
+        tags: normalizeTagList((group as any).tags),
       }))
     }
 
     adjustedTemplate.agents = adjustedTemplate.agents.map((agent) => ({
       ...agent,
+      tags: normalizeTagList(agent.tags),
       communities: (agent.communities || []).map((communityName) => communityRenames[communityName] || communityName),
       groups: (agent.groups || []).map((groupName) => groupRenames[groupName] || groupName),
     }))
 
     if (adjustedTemplate.workflows) {
+      const templateWorkflowPrefix = slugify(adjustedTemplate.name || templateSlug)
+      const starterWorkflowNames = new Map<string, string>([
+        ['team kickoff', `${adjustedTemplate.name} Kickoff`],
+        ['execution review', `${adjustedTemplate.name} Execution Review`],
+        ['weekly summary', `${adjustedTemplate.name} Weekly Summary`],
+      ])
+      const starterWorkflowIds = new Map<string, string>([
+        ['team-kickoff', `${templateWorkflowPrefix}-kickoff`],
+        ['execution-review', `${templateWorkflowPrefix}-execution-review`],
+        ['weekly-summary', `${templateWorkflowPrefix}-weekly-summary`],
+      ])
+      const legacyWorkflowIdMap: Record<string, string> = {}
+
+      adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => {
+        const originalId = workflow.id
+        const normalizedName = workflow.name.trim().toLowerCase()
+        const normalizedId = workflow.id.trim().toLowerCase()
+        const nextId = starterWorkflowIds.get(normalizedId) || workflow.id
+        legacyWorkflowIdMap[originalId] = nextId
+        return {
+          ...workflow,
+          name: starterWorkflowNames.get(normalizedName) || workflow.name,
+          id: nextId,
+        }
+      })
+
       const workflowIdRenames = Object.fromEntries(
-        adjustedTemplate.workflows.map((workflow) => [
-          workflow.id,
-          workflowRenames[workflow.id] ? slugify(workflowRenames[workflow.id]) : workflow.id,
-        ])
+        adjustedTemplate.workflows.map((workflow) => {
+          const originalId = Object.keys(legacyWorkflowIdMap).find((key) => legacyWorkflowIdMap[key] === workflow.id) || workflow.id
+          const renamedId = workflowRenames[originalId] || workflowRenames[workflow.id]
+          return [
+            originalId,
+            renamedId ? slugify(renamedId) : workflow.id,
+          ]
+        })
       )
       adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => ({
         ...workflow,
-        id: workflowIdRenames[workflow.id] || workflow.id,
-        name: workflowRenames[workflow.id] || workflow.name,
+        id: workflowIdRenames[Object.keys(legacyWorkflowIdMap).find((key) => legacyWorkflowIdMap[key] === workflow.id) || workflow.id] || workflow.id,
+        name: workflowRenames[workflow.id]
+          || workflowRenames[Object.keys(legacyWorkflowIdMap).find((key) => legacyWorkflowIdMap[key] === workflow.id) || workflow.id]
+          || workflow.name,
         targeting: {
           ...workflow.targeting,
           communities: (workflow.targeting.communities || []).map((communityName) => communityRenames[communityName] || communityName),
           groups: (workflow.targeting.groups || []).map((groupName) => groupRenames[groupName] || groupName),
+          tags: normalizeTagList(workflow.targeting?.tags),
         },
-        dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || dependencyId),
+        dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || legacyWorkflowIdMap[dependencyId] || dependencyId),
       }))
     }
 
@@ -1785,6 +1873,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
 
         createdAgents.push(targetAgentId)
+        initializeTemplateCreatedAgent(targetAgentId)
       }
 
       // Step 2: Create COMMUNITIES.md for agents with community memberships
