@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 
 type Step = 'welcome' | 'setup' | 'build' | 'templates'
+type TemplateCandidate = {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  tags?: string[]
+}
 
 interface OnboardingWizardProps {
   visible: boolean
@@ -15,6 +23,10 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
   const [step, setStep] = useState<Step>('welcome')
   const [usesOpenClaw, setUsesOpenClaw] = useState<boolean | null>(null)
   const [buildPath, setBuildPath] = useState<'single' | 'team' | null>(null)
+  const [templateCategory, setTemplateCategory] = useState('business')
+  const [templateFocus, setTemplateFocus] = useState('')
+  const [templateGoal, setTemplateGoal] = useState('')
+  const [templateCandidates, setTemplateCandidates] = useState<TemplateCandidate[]>([])
 
   useEffect(() => {
     if (!visible) {
@@ -27,12 +39,55 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
     localStorage.setItem(key, 'true')
   }, [visible])
 
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/templates/organizations')
+      .then((res) => (res.ok ? res.json() : { templates: [] }))
+      .then((data) => {
+        const templates = Array.isArray(data?.templates) ? data.templates : []
+        setTemplateCandidates(
+          templates.map((template: any) => ({
+            id: template.slug || template.id || template.name,
+            name: template.name || template.slug || 'Template',
+            description: template.description || '',
+            category: template.category || '',
+            tags: template.tags || [],
+          }))
+        )
+      })
+      .catch(() => setTemplateCandidates([]))
+  }, [open])
+
   const recommendation = useMemo(() => {
     if (usesOpenClaw === true) return 'Import your current agents first, then apply templates later if you want a faster starting point.'
     if (buildPath === 'single') return 'Start with one agent, validate the model and workflow behavior, then expand into a team.'
     if (buildPath === 'team') return 'Templates are the fastest path because they give you a kickoff, analysis lanes, and a final output flow immediately.'
     return 'Set BYOK first if you have not done it yet so system flows and AI-assisted setup can run cleanly.'
   }, [buildPath, usesOpenClaw])
+
+  const recommendedTemplates = useMemo(() => {
+    const query = [templateCategory, templateFocus, templateGoal].filter(Boolean).join(' ').trim()
+    if (!query) return []
+    const suggestions = getDiscoverySuggestions(
+      query,
+      templateCandidates.map((template) => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        category: template.category,
+        tags: template.tags,
+        keywords: template.tags || [],
+      })),
+      4
+    )
+    return suggestions
+      .map((suggestion) => {
+        const template = templateCandidates.find((candidate) => candidate.id === suggestion.id)
+        if (!template) return null
+        return { ...template, reasons: suggestion.reasons }
+      })
+      .filter(Boolean) as Array<TemplateCandidate & { reasons: string[] }>
+  }, [templateCandidates, templateCategory, templateFocus, templateGoal])
 
   if (!visible) return null
 
@@ -189,19 +244,67 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
                   </p>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Business</div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Research, analysis, growth, marketing.</div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Category</label>
+                    <select
+                      value={templateCategory}
+                      onChange={(e) => setTemplateCategory(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="business">Business</option>
+                      <option value="technical">Technical</option>
+                      <option value="events">Events</option>
+                      <option value="research">Research</option>
+                      <option value="marketing">Marketing</option>
+                      <option value="personal">Personal</option>
+                    </select>
                   </div>
-                  <div className="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Technical</div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Code, evaluation, engineering workflows.</div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Focus</label>
+                    <input
+                      type="text"
+                      value={templateFocus}
+                      onChange={(e) => setTemplateFocus(e.target.value)}
+                      placeholder="e.g. growth, content, robotics"
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    />
                   </div>
-                  <div className="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Events</div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Lu.ma-style kickoff to synthesis flows.</div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 dark:text-gray-100">Goal</label>
+                    <input
+                      type="text"
+                      value={templateGoal}
+                      onChange={(e) => setTemplateGoal(e.target.value)}
+                      placeholder="What are you trying to accomplish?"
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    />
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Suggested Starters</div>
+                  {recommendedTemplates.length === 0 ? (
+                    <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-200">
+                      Add a focus or goal and ClawMax will suggest templates to start from.
+                    </p>
+                  ) : (
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {recommendedTemplates.map((template) => (
+                        <div key={template.id} className="rounded-xl border border-emerald-200/70 dark:border-emerald-800 bg-white/80 dark:bg-gray-900/30 p-4">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.name}</div>
+                          <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{template.description || 'Suggested starter template'}</div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {template.reasons.map((reason) => (
+                              <span key={`${template.id}-${reason}`} className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                {reason}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
