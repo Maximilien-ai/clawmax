@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
+import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
 
 // ============================================================================
@@ -33,6 +34,7 @@ interface WizardWorkflow {
   schedule: string
   executionMode: 'automated' | 'managed'
   targetAgents: string[]
+  dependsOn?: string[]
   content: string
 }
 
@@ -92,6 +94,63 @@ interface TemplateWizardProps {
 }
 
 type FocusableField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'workflow'
+}
+
+function buildSuggestedWorkflows(input: {
+  teamName: string
+  teamDescription: string
+  workflowGoal: string
+  agentIds: string[]
+}): WizardWorkflow[] {
+  const goal = (input.workflowGoal || input.teamDescription || input.teamName || 'team operations').trim()
+  const targetAgents = input.agentIds.slice(0, 4)
+  const titleBase = input.teamName.trim() || 'Team'
+  const detail = goal.endsWith('.') ? goal.slice(0, -1) : goal
+
+  const suggestions = [
+    {
+      id: 'team-kickoff',
+      name: 'Team Kickoff',
+      description: 'Start a new run with goals, constraints, and priorities.',
+      schedule: 'manual',
+      executionMode: 'managed' as const,
+      dependsOn: [] as string[],
+      content: `# ${titleBase} Kickoff\n\n1. Review the latest request: ${detail}\n2. Clarify goals, deadlines, constraints, and target audience\n3. Assign work across the team and identify blockers\n4. Post a short kickoff plan and owners for each next step`,
+    },
+    {
+      id: 'execution-review',
+      name: 'Execution Review',
+      description: 'Review current work, adjust priorities, and unblock execution.',
+      schedule: 'manual',
+      executionMode: 'managed' as const,
+      dependsOn: ['team-kickoff'],
+      content: `# ${titleBase} Execution Review\n\n1. Review work completed so far for: ${detail}\n2. Identify what is working, what is blocked, and what needs revision\n3. Re-prioritize tasks, budget, or effort as needed\n4. Post the updated plan and next actions`,
+    },
+    {
+      id: 'weekly-summary',
+      name: 'Weekly Summary',
+      description: 'Summarize outputs, decisions, and next recommendations.',
+      schedule: '0 16 * * 5',
+      executionMode: 'automated' as const,
+      dependsOn: ['execution-review'],
+      content: `# ${titleBase} Weekly Summary\n\n1. Summarize progress, results, and key decisions for: ${detail}\n2. Capture wins, risks, and open questions\n3. Recommend the top next actions for the next run\n4. Publish a concise summary for stakeholders`,
+    },
+  ]
+
+  return suggestions.map((workflow) => ({
+    id: workflow.id || slugify(workflow.name),
+    name: workflow.name,
+    description: workflow.description,
+    schedule: workflow.schedule,
+    executionMode: workflow.executionMode,
+    targetAgents,
+    dependsOn: workflow.dependsOn,
+    content: workflow.content,
+  }))
+}
 
 function MultiValueInput({
   values,
@@ -226,6 +285,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const [availableSkillNames, setAvailableSkillNames] = useState<string[]>([])
   const [aiCronLoadingIndex, setAiCronLoadingIndex] = useState<number | null>(null)
   const [workflowCronHints, setWorkflowCronHints] = useState<Record<number, string>>({})
+  const [workflowGoalPrompt, setWorkflowGoalPrompt] = useState('')
   const fieldRefs = useRef<Record<string, FocusableField | null>>({})
 
   const steps = ['Team Type', 'Composition', 'Communication', 'Workflows', 'Preview']
@@ -281,6 +341,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
         targetAgents: w.targeting?.agents || [],
+        dependsOn: w.dependsOn || [],
         content: w.content || '',
       })),
     })
@@ -293,12 +354,18 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     setAiGenerating(true)
     try {
       const byok = readStoredByokKeys()
+      const shared = {
+        ...readSharedSecrets('global'),
+        ...readSharedSecrets('workspace'),
+      }
+      const openai = (shared.OPENAI_API_KEY || byok.openai || '').trim()
+      const anthropic = (shared.ANTHROPIC_API_KEY || byok.anthropic || '').trim()
       const resp = await fetch('/api/templates/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: state.teamDescription,
-          byokKeys: (byok.openai || byok.anthropic) ? { openai: byok.openai, anthropic: byok.anthropic } : undefined,
+          byokKeys: (openai || anthropic) ? { openai, anthropic } : undefined,
         }),
       })
       const data = await resp.json()
@@ -327,16 +394,17 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             community: g.community || (t.communities?.[0]?.name || ''),
           })),
           workflows: (t.workflows || []).map((w: any) => ({
-            id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
+            id: w.id || slugify(w.name || 'workflow'),
             name: w.name || '',
             description: w.description || '',
             schedule: w.schedule || 'manual',
             executionMode: w.executionMode || 'managed',
             targetAgents: w.targeting?.agents || [],
+            dependsOn: w.dependsOn || [],
             content: w.content || '',
           })),
         })
-        setStep(4) // jump to preview
+        setStep((t.workflows || []).length > 0 ? 4 : 3)
       } else {
         showError(data.error || 'Failed to generate template')
       }
@@ -400,6 +468,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           tags: [],
           agents: w.targetAgents,
         },
+        dependsOn: w.dependsOn,
         content: w.content,
       })) : undefined,
     }
@@ -447,6 +516,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: 'manual',
         executionMode: 'managed',
         targetAgents: [],
+        dependsOn: [],
         content: '',
       }],
     })
@@ -937,8 +1007,48 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       </div>
 
       {state.workflows.length === 0 && (
-        <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-          No workflows yet. Optional — you can add workflows later from the Workflows page.
+        <div className="rounded-lg border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-900/20 p-4">
+          <div className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            No workflows yet
+          </div>
+          <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+            AI created the team, but not the repeatable process. Add starter workflows now so the team knows how to operate.
+          </p>
+          <div className="mt-3">
+            <label className={labelCls}>What should this team do each run?</label>
+            <textarea
+              value={workflowGoalPrompt}
+              onChange={(e) => setWorkflowGoalPrompt(e.target.value)}
+              placeholder='e.g., Review Meta ads performance, shift budget, propose new creative tests, and send a weekly summary'
+              rows={3}
+              className={inputCls + ' resize-y'}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  workflows: buildSuggestedWorkflows({
+                    teamName: state.teamName,
+                    teamDescription: state.teamDescription,
+                    workflowGoal: workflowGoalPrompt,
+                    agentIds: state.agents.map((agent) => agent.id).filter(Boolean),
+                  }),
+                })
+              }
+              className={btnPrimary}
+            >
+              ✨ Add Suggested Workflows
+            </button>
+            <button
+              type="button"
+              onClick={addWorkflow}
+              className={btnSecondary}
+            >
+              + Add Manually
+            </button>
+          </div>
         </div>
       )}
 
@@ -962,7 +1072,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     workflows[idx] = {
                       ...workflows[idx],
                       name: e.target.value,
-                      id: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+                      id: slugify(e.target.value),
                     }
                     update({ workflows })
                   }}
@@ -1177,9 +1287,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 <div className="space-y-1 text-xs">
                   {(template.workflows || []).map((w: any, i: number) => (
                     <div key={i} className="py-1 px-2 rounded bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 flex items-center gap-2">
+                      <span className="text-orange-500">⚡</span>
                       <span className="font-medium">{w.name}</span>
                       <span className="font-mono text-orange-500">{w.schedule}</span>
                       <span className="text-orange-400">{w.executionMode}</span>
+                      {w.dependsOn?.length > 0 && (
+                        <span className="text-orange-400">depends on {w.dependsOn.join(', ')}</span>
+                      )}
+                      <span className="rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
+                        Suggested
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1219,7 +1336,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
 
   // ---- Main Render ----
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !aiGenerating && onClose()}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header with step indicators */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 z-10">

@@ -400,10 +400,7 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
 }
 
 export async function generateSkillFromNL(description: string, currentDraft?: Partial<GeneratedSkillScaffold>): Promise<GeneratedSkillScaffold> {
-  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('No system API key configured for generation')
-  }
+  getAvailableProvider(_requestByokKeys)
 
   const isRefinement = !!currentDraft
   const completion = await getSystemOpenAiClient().chat.completions.create({
@@ -510,10 +507,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
  * Generate a workflow definition from natural language description.
  */
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
-  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('No system API key configured for generation')
-  }
+  getAvailableProvider(_requestByokKeys)
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
@@ -563,10 +557,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
  * Generate an organization template from natural language description.
  */
 export async function generateTemplateFromNL(description: string): Promise<any> {
-  const apiKey = resolveSystemExecutionProviderKeys().openai || resolveSystemExecutionProviderKeys().anthropic
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('No system API key configured for generation')
-  }
+  getAvailableProvider(_requestByokKeys)
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),

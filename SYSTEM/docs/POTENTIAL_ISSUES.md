@@ -23,3 +23,19 @@
   - templates applied
   - whether failures are agent, workflow, group/community, or execution conflicts
 
+- **Agent voice replies / TTS playback in chat are not production-ready**
+  Deferred after experimentation because the playback fix caused instability in Chrome and was not reliable enough to keep live.
+  Context from the attempted approach:
+  - target behavior was to make Jarvis-style `speak your name` replies playable inline in the dashboard
+  - the assistant currently emits local temp-file references like `MEDIA:/tmp/openclaw/...mp3` and "Listen here" links
+  - attempted files were:
+    - `SYSTEM/dashboard/client/src/components/AgentChatPanel.tsx`
+    - `SYSTEM/dashboard/server/routes/chat.ts`
+  - attempted fixes included:
+    - serving `/tmp/openclaw` audio through a protected dashboard route
+    - converting `MEDIA:/tmp/openclaw/...` and related audio links into inline `<audio>` players
+    - hardening chat-history loading to avoid indefinite spinner states
+  - observed issues:
+    - Chrome chat panel instability / hangs
+    - playback still inconsistent across browsers
+  Resume later from this design direction, but keep the current system on the simpler non-inline-link behavior until the media path is made robust.

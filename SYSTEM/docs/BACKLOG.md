@@ -151,6 +151,7 @@
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
 - [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip when no system/user/BYOK keys are configured
+- [ ] **Template wizard cron helper should ignore `manual` schedules** — `✨ Suggest Cron` should be hidden or disabled when a workflow schedule is already `manual`, instead of surfacing misleading missing-key errors.
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
 - [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo
@@ -160,6 +161,8 @@
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
 ### Skills
+- [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page.
+- [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place.
 - [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
 - [ ] **Imported Shipables skills emoji/metadata** — imported skills should preserve richer registry metadata
 - [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page
