@@ -210,6 +210,21 @@ export default function App() {
     return () => clearInterval(t)
   }, [])
 
+  useEffect(() => {
+    const handleNavigate = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: Page; doctor?: boolean }>).detail
+      if (detail?.page) {
+        setPage(detail.page)
+      }
+      if (detail?.doctor) {
+        window.dispatchEvent(new CustomEvent('open-doctor'))
+      }
+    }
+
+    window.addEventListener('navigate-to-page', handleNavigate as EventListener)
+    return () => window.removeEventListener('navigate-to-page', handleNavigate as EventListener)
+  }, [])
+
   // Poll for running workflows count
   useEffect(() => {
     const checkRunningWorkflows = async () => {

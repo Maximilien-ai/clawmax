@@ -365,7 +365,7 @@ router.put('/:type/:slug', (req, res) => {
       return res.status(400).json({ error: validation.errors?.[0] || 'Template validation failed', errors: validation.errors })
     }
 
-    const result = saveTemplate(template)
+    const result = saveTemplate(template, { existingSlug: slug })
     if (!result.ok) {
       return res.status(500).json({ error: result.error || 'Failed to save template' })
     }

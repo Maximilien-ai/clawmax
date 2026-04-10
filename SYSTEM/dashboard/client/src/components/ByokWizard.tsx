@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
@@ -152,6 +152,8 @@ export function ByokWizard() {
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
+  const preferredModelRef = useRef<HTMLSelectElement | null>(null)
+  const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -192,6 +194,21 @@ export function ByokWizard() {
     setPartnerValues(stored.partnerValues || {})
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
     setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ step?: Step; focus?: string }>).detail || {}
+      setOpen(true)
+      setStep(detail.step || 'models')
+      if (detail.focus === 'preferred-model') {
+        setHighlightPreferredModel(true)
+        window.setTimeout(() => preferredModelRef.current?.focus(), 50)
+        window.setTimeout(() => setHighlightPreferredModel(false), 2500)
+      }
+    }
+    window.addEventListener('open-workspaces-integrations', handleOpen as EventListener)
+    return () => window.removeEventListener('open-workspaces-integrations', handleOpen as EventListener)
   }, [])
 
   useEffect(() => {
@@ -678,6 +695,7 @@ export function ByokWizard() {
     setDismissed(false)
     setOpen(false)
     setStep('models')
+    window.dispatchEvent(new CustomEvent('integrations-saved'))
     showSuccess('Workspace integrations saved. Provider secrets stay local; workspace defaults now persist for this workspace.')
   }
 
@@ -1129,9 +1147,9 @@ export function ByokWizard() {
                   </div>
 
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
-                      <select value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <select ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
                         {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -1162,6 +1180,11 @@ export function ByokWizard() {
                         )}
                       </select>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates. Discovered provider models appear here automatically when available.</p>
+                      {highlightPreferredModel && (
+                        <div className="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
+                          Set this once for shared background execution in this workspace.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -48,6 +48,27 @@ export default function Logs() {
   const eventSourceRef = useRef<EventSource | null>(null)
   const pausedLogsBufferRef = useRef<LogEntry[]>([])
 
+  useEffect(() => {
+    const handleOpenDoctor = async () => {
+      setDoctorResults(null)
+      setShowDoctor(true)
+      try {
+        const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: false }) })
+        const data = await resp.json().catch(() => ({}))
+        setDoctorResults(normalizeDoctorResults(resp.ok ? data : {
+          ...data,
+          healthy: false,
+          message: data?.error || data?.message || `Doctor failed (${resp.status})`,
+        }))
+      } catch {
+        setDoctorResults(normalizeDoctorResults(null))
+      }
+    }
+
+    window.addEventListener('open-doctor', handleOpenDoctor)
+    return () => window.removeEventListener('open-doctor', handleOpenDoctor)
+  }, [])
+
   const runtimeHint = logs.find(log => log.raw.includes('missing dist/entry.(m)js'))
     ? 'OpenClaw is present but not built in this runtime image. Rebuild the image from the canonical Dockerfile with the pinned OpenClaw build stage.'
     : logs.find(log => log.raw.includes('openclaw fixture'))
@@ -298,10 +319,10 @@ export default function Logs() {
               ))}
               {doctorResults.healthy && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
               {doctorResults.message && doctorResults.results.length === 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">{doctorResults.message}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap break-words">{doctorResults.message}</div>
               )}
               {doctorResults.message && doctorResults.results.length > 0 && (
-                <div className="text-xs text-amber-700 dark:text-amber-300">{doctorResults.message}</div>
+                <div className="text-xs text-amber-700 dark:text-amber-300 whitespace-pre-wrap break-words">{doctorResults.message}</div>
               )}
             </div>
           )}

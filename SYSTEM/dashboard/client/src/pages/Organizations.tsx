@@ -102,6 +102,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     name: string
     consequences: string[]
   } | null>(null)
+  const [finalDeleteDialog, setFinalDeleteDialog] = useState<{
+    type: 'community'
+    name: string
+    consequences: string[]
+  } | null>(null)
   const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
   const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -172,6 +177,18 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
   useEffect(() => {
     fetchData()
+  }, [fetchData])
+
+  useEffect(() => {
+    const handleWorkspaceUpdate = () => fetchData()
+    window.addEventListener('channels-updated', handleWorkspaceUpdate)
+    window.addEventListener('agents-updated', handleWorkspaceUpdate)
+    window.addEventListener('workflows-updated', handleWorkspaceUpdate)
+    return () => {
+      window.removeEventListener('channels-updated', handleWorkspaceUpdate)
+      window.removeEventListener('agents-updated', handleWorkspaceUpdate)
+      window.removeEventListener('workflows-updated', handleWorkspaceUpdate)
+    }
   }, [fetchData])
 
   // Build communities and groups from workspace + agents (exclude archived agents)
@@ -457,7 +474,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         setNewCommunityName('')
         setNewCommunityDesc('')
         showToast(`Community "${newCommunityName}" created successfully`, 'success')
-        // Refresh data without page reload
+        window.dispatchEvent(new CustomEvent('channels-updated'))
         fetchData()
       } else {
         showToast('Failed to create community', 'error')
@@ -495,7 +512,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         setNewGroupDesc('')
         setNewGroupCommunity('')
         showToast(`Group "${newGroupName}" created successfully`, 'success')
-        // Refresh data without page reload
+        window.dispatchEvent(new CustomEvent('channels-updated'))
         fetchData()
       } else {
         showToast('Failed to create group', 'error')
@@ -529,6 +546,21 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       })
     }
 
+    const impactedWorkflows = Array.from(new Set([
+      ...(communityWorkflows.get(communityName) || []).map(w => w.name),
+      ...groups
+        .filter(g => g.community === communityName)
+        .flatMap(g => (groupWorkflows.get(g.name) || []).map(w => w.name)),
+    ]))
+    if (impactedWorkflows.length > 0) {
+      consequences.push(`${impactedWorkflows.length} workflow${impactedWorkflows.length !== 1 ? 's' : ''} will also be deleted`)
+      impactedWorkflows.slice(0, 8).forEach(name => {
+        consequences.push(`  • ${name}`)
+      })
+    }
+
+    consequences.push('Cascade delete removes linked groups, member agents, and related workflows for this community')
+
     setDeleteDialog({ type: 'community', name: communityName, consequences })
   }
 
@@ -558,7 +590,15 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     if (!deleteDialog) return
 
     const { type, name } = deleteDialog
-    const endpoint = type === 'community' ? `/api/communities/${encodeURIComponent(name)}` : `/api/groups/${encodeURIComponent(name)}`
+    if (type === 'community') {
+      setFinalDeleteDialog({ type, name, consequences: deleteDialog.consequences })
+      setDeleteDialog(null)
+      return
+    }
+
+    const endpoint = type === 'community'
+      ? `/api/communities/${encodeURIComponent(name)}?cascade=1`
+      : `/api/groups/${encodeURIComponent(name)}`
 
     try {
       const response = await fetch(endpoint, {
@@ -568,9 +608,49 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       if (response.ok) {
         showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
         setDeleteDialog(null)
+        window.dispatchEvent(new CustomEvent('channels-updated'))
+        window.dispatchEvent(new CustomEvent('agents-updated'))
+        window.dispatchEvent(new CustomEvent('workflows-updated'))
         fetchData()
       } else {
         showToast(`Failed to delete ${type}`, 'error')
+      }
+    } catch (err) {
+      console.error(`Error deleting ${type}:`, err)
+      showToast(`Failed to delete ${type}`, 'error')
+    }
+  }
+
+  const confirmFinalDelete = async () => {
+    if (!finalDeleteDialog) return
+
+    const { type, name } = finalDeleteDialog
+    const endpoint = `/api/communities/${encodeURIComponent(name)}?cascade=1`
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
+        setFinalDeleteDialog(null)
+        window.dispatchEvent(new CustomEvent('channels-updated'))
+        window.dispatchEvent(new CustomEvent('agents-updated'))
+        window.dispatchEvent(new CustomEvent('workflows-updated'))
+        fetchData()
+      } else {
+        const error = await response.json().catch(() => ({}))
+        const remaining = error?.remaining
+        const detail = remaining
+          ? [
+              remaining.community ? `community ${remaining.community}` : null,
+              Array.isArray(remaining.groups) && remaining.groups.length > 0 ? `${remaining.groups.length} groups` : null,
+              Array.isArray(remaining.agents) && remaining.agents.length > 0 ? `${remaining.agents.length} agents` : null,
+              Array.isArray(remaining.workflows) && remaining.workflows.length > 0 ? `${remaining.workflows.length} workflows` : null,
+            ].filter(Boolean).join(', ')
+          : null
+        showToast(detail ? `Cascade delete incomplete: ${detail} remain` : `Failed to delete ${type}`, 'error')
       }
     } catch (err) {
       console.error(`Error deleting ${type}:`, err)
@@ -1279,6 +1359,16 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         consequences={deleteDialog?.consequences}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteDialog(null)}
+      />
+
+      <ConfirmDeleteDialog
+        isOpen={finalDeleteDialog !== null}
+        itemName={finalDeleteDialog?.name || ''}
+        itemType="Final Warning"
+        warningMessage="This is a cascading delete. It will remove the community and all linked groups, member agents, and related workflows. This action is intended for full teardown, not cleanup."
+        consequences={finalDeleteDialog?.consequences}
+        onConfirm={confirmFinalDelete}
+        onCancel={() => setFinalDeleteDialog(null)}
       />
 
       {/* Rename Community Modal */}

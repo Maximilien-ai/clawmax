@@ -1859,6 +1859,12 @@ if [ -n "$SYSTEM_TEST_WS" ]; then
   fi
 fi
 
+# Also clean stale on-disk residue even if the workspace registry no longer has
+# an entry for the system-test workspace. Hidden files here can make create fail.
+if [ -d "$SYSTEM_TEST_WS_PATH" ]; then
+  rm -rf "$SYSTEM_TEST_WS_PATH"
+fi
+
 create_result=$(apicurl -X POST "$API_BASE/api/workspaces" \
   -H 'Content-Type: application/json' \
   -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")

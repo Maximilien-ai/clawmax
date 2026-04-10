@@ -85,6 +85,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
+  const [memberCountFilter, setMemberCountFilter] = useState<'all' | 'zero' | 'one' | 'multi'>('all')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedChannelKeys, setSelectedChannelKeys] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<ChannelSortColumn>('name')
@@ -142,6 +143,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   useEffect(() => {
     fetchAgents()
     const t = setInterval(fetchAgents, 30000)
+    const handleWorkspaceUpdate = () => fetchAgents()
+    window.addEventListener('channels-updated', handleWorkspaceUpdate)
+    window.addEventListener('agents-updated', handleWorkspaceUpdate)
+    window.addEventListener('workflows-updated', handleWorkspaceUpdate)
 
     // Poll message counts for unread indicators
     const checkUnread = () => {
@@ -161,7 +166,13 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     checkUnread()
     const unreadInterval = setInterval(checkUnread, 5000)
 
-    return () => { clearInterval(t); clearInterval(unreadInterval) }
+    return () => {
+      clearInterval(t)
+      clearInterval(unreadInterval)
+      window.removeEventListener('channels-updated', handleWorkspaceUpdate)
+      window.removeEventListener('agents-updated', handleWorkspaceUpdate)
+      window.removeEventListener('workflows-updated', handleWorkspaceUpdate)
+    }
   }, [fetchAgents])
 
   useEffect(() => {
@@ -406,8 +417,16 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       filtered = filtered.filter(ch => ch.members.some(m => selectedAgents.has(m.id)))
     }
 
+    if (memberCountFilter === 'zero') {
+      filtered = filtered.filter(ch => ch.members.length === 0)
+    } else if (memberCountFilter === 'one') {
+      filtered = filtered.filter(ch => ch.members.length === 1)
+    } else if (memberCountFilter === 'multi') {
+      filtered = filtered.filter(ch => ch.members.length >= 2)
+    }
+
     return filtered
-  }, [allChannels, selectedTags, selectedAgents, searchQuery])
+  }, [allChannels, selectedTags, selectedAgents, memberCountFilter, searchQuery])
 
   const communities = useMemo(() => filteredChannels.filter(ch => ch.type === 'community'), [filteredChannels])
   const groups = useMemo(() => filteredChannels.filter(ch => ch.type === 'group'), [filteredChannels])
@@ -545,10 +564,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Communication</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Communications</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
             {filteredChannels.length} channel{filteredChannels.length !== 1 ? 's' : ''}
-            {(selectedTags.size > 0 || selectedAgents.size > 0) && <span className="text-gray-300">({allChannels.length} total)</span>}
+            {(selectedTags.size > 0 || selectedAgents.size > 0 || memberCountFilter !== 'all') && <span className="text-gray-300">({allChannels.length} total)</span>}
             <span className="text-gray-300">·</span>
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refreshes every 30s" />
             refreshed {refreshedLabel}
@@ -743,6 +762,27 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               <span className="text-xs text-gray-400">+{allAgentIds.length - 10} more</span>
             )}
           </div>
+          <div className="flex items-center gap-2 flex-wrap mt-3">
+            <span className="text-xs text-gray-400 font-medium">Filter by membership:</span>
+            {[
+              ['all', 'All'],
+              ['zero', '0 members'],
+              ['one', '1 member'],
+              ['multi', '2+ members'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setMemberCountFilter(value as 'all' | 'zero' | 'one' | 'multi')}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  memberCountFilter === value
+                    ? 'bg-violet-600 text-white border border-violet-600'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-violet-300 hover:text-violet-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -765,7 +805,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           <span className="text-4xl mb-4">🔍</span>
           <p className="text-sm">No channels match the selected filters</p>
           <button
-            onClick={() => { setSelectedTags(new Set()); setSelectedAgents(new Set()); }}
+            onClick={() => { setSelectedTags(new Set()); setSelectedAgents(new Set()); setMemberCountFilter('all') }}
             className="text-xs mt-2 text-sky-600 hover:text-sky-800 font-medium"
           >
             Clear filters

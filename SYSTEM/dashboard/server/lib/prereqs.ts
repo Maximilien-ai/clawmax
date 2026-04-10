@@ -239,8 +239,8 @@ export function checkTemplatePrereqs(template: {
       id: 'execution-path',
       label: 'Execution Model Path',
       status: 'warn',
-      message: 'No server-side or workspace-default execution path configured — browser BYOK may still work for template apply and manual runs',
-      fixHint: 'Configure a preferred model in Workspaces Integrations or add provider keys to SYSTEM/dashboard/.env',
+      message: 'No shared execution model is configured yet — browser keys can still work for apply and manual runs',
+      fixHint: 'Set a preferred model in Workspaces Integrations if you want shared background execution too',
       category: 'keys'
     })
   }

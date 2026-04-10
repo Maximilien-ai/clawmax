@@ -90,7 +90,9 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const seenNotificationIds = useRef<Set<string>>(new Set())
+  const [desktopAnchor, setDesktopAnchor] = useState<{ top: number; right: number } | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -151,6 +153,27 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    const updateAnchor = () => {
+      if (!buttonRef.current) return
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDesktopAnchor({
+        top: rect.bottom + 8,
+        right: Math.max(window.innerWidth - rect.right, 12),
+      })
+    }
+
+    updateAnchor()
+    window.addEventListener('resize', updateAnchor)
+    window.addEventListener('scroll', updateAnchor, true)
+    return () => {
+      window.removeEventListener('resize', updateAnchor)
+      window.removeEventListener('scroll', updateAnchor, true)
+    }
   }, [open])
 
   const handleDismiss = async (id: string) => {
@@ -221,6 +244,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
     <div className="relative" ref={dropdownRef}>
       {/* Bell button */}
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         className="relative text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors p-1"
         title={activeCount > 0 ? `${activeCount} notification${activeCount !== 1 ? 's' : ''}` : 'No notifications'}
@@ -239,7 +263,10 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
       {open && (
         <>
         <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
-        <div className="fixed left-1/2 top-16 z-[80] flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:absolute md:right-0 md:left-auto md:top-full md:mt-2 md:w-96 md:translate-x-0">
+        <div
+          className="fixed left-1/2 top-16 z-[90] flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:left-auto md:w-96 md:translate-x-0"
+          style={desktopAnchor ? { top: desktopAnchor.top, right: desktopAnchor.right } : undefined}
+        >
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">

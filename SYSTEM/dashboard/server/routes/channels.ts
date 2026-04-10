@@ -2,11 +2,11 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents } from '../lib/workspace'
+import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents, deleteAgent } from '../lib/workspace'
 import { userExecutionEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages, directMessageKey, type Message } from '../lib/messages'
 import { normalizeChatMessage } from '../lib/chat-normalization'
-import { listWorkflows, resolveParticipants } from '../lib/workflows'
+import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
@@ -141,7 +141,114 @@ router.post('/groups', (req, res) => {
 // Delete a community
 router.delete('/communities/:name', (req, res) => {
   const { name } = req.params
-  const success = deleteGroup('community', decodeURIComponent(name))
+  const communityName = decodeURIComponent(name)
+  const cascade = req.query.cascade === '1' || req.query.cascade === 'true' || req.query.cascade === 'all'
+
+  if (cascade) {
+    try {
+      const allAgents = listAgents().filter((agent: any) => !agent.archived)
+      const parsedGroupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+      const parsedGroups = fs.existsSync(parsedGroupsPath)
+        ? parseGroupsWithMembers(fs.readFileSync(parsedGroupsPath, 'utf-8')).groups
+        : []
+      const communityGroups = parsedGroups.filter((group) => group.community === communityName)
+      const groupNames = new Set(communityGroups.map((group) => group.name))
+      const agents = allAgents.filter((agent) =>
+        (agent.communities || []).some((community: any) => community?.name === communityName)
+        || (agent.groups || []).some((group: any) => groupNames.has(group?.name))
+      )
+      const agentIds = new Set(agents.map((agent) => agent.id))
+
+      const workflowsToDelete = listWorkflows().filter((workflow) => {
+        const targetsCommunity = (workflow.targeting?.communities || []).includes(communityName)
+        const targetsGroup = (workflow.targeting?.groups || []).some((group) => groupNames.has(group))
+        const targetsAgent = (workflow.targeting?.agents || []).some((agentId) => agentIds.has(agentId))
+        const participantMatch = resolveParticipants(workflow, allAgents as any[]).some((participant) => agentIds.has(participant.agentId))
+        return targetsCommunity || targetsGroup || targetsAgent || participantMatch
+      })
+
+      const workflowResults = workflowsToDelete.map((workflow) => ({ workflowId: workflow.id, result: deleteWorkflow(workflow.id) }))
+      const groupResults = communityGroups.map((group) => ({ groupName: group.name, deleted: deleteGroup('group', group.name) }))
+      const agentResults = agents.map((agent) => ({ agentId: agent.id, result: deleteAgent(agent.id, false, false) }))
+      const communityDeleted = deleteGroup('community', communityName)
+
+      if (!communityDeleted) {
+        res.status(404).json({ ok: false, error: 'Community not found' })
+        return
+      }
+
+      const workflowFailures = workflowResults.filter((item) => !item.result.success).map((item) => item.workflowId)
+      const groupFailures = groupResults.filter((item) => !item.deleted).map((item) => item.groupName)
+      const agentFailures = agentResults.filter((item) => item.result.errors.length > 0).map((item) => ({
+        agentId: item.agentId,
+        errors: item.result.errors,
+      }))
+
+      const remainingCommunitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+      const remainingGroupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+      const remainingCommunities = fs.existsSync(remainingCommunitiesPath)
+        ? parseGroupsWithMembers(fs.readFileSync(remainingCommunitiesPath, 'utf-8')).communities
+        : []
+      const remainingGroups = fs.existsSync(remainingGroupsPath)
+        ? parseGroupsWithMembers(fs.readFileSync(remainingGroupsPath, 'utf-8')).groups
+        : []
+      const remainingCommunity = remainingCommunities.some((community) => community.name === communityName)
+      const remainingGroupsForCommunity = remainingGroups.filter((group) => group.community === communityName).map((group) => group.name)
+      const remainingAgents = listAgents()
+        .filter((agent) => agentIds.has(agent.id))
+        .map((agent) => agent.id)
+      const remainingWorkflows = listWorkflows()
+        .filter((workflow) => workflowsToDelete.some((candidate) => candidate.id === workflow.id))
+        .map((workflow) => workflow.id)
+
+      const hadVerificationFailure =
+        remainingCommunity ||
+        remainingGroupsForCommunity.length > 0 ||
+        remainingAgents.length > 0 ||
+        remainingWorkflows.length > 0
+
+      const ok =
+        workflowFailures.length === 0 &&
+        groupFailures.length === 0 &&
+        agentFailures.length === 0 &&
+        !hadVerificationFailure
+
+      const payload = {
+        ok,
+        cascade: true,
+        deleted: {
+          community: communityName,
+          groups: groupResults.filter((item) => item.deleted).map((item) => item.groupName),
+          agents: agentResults.map((item) => item.agentId),
+          workflows: workflowResults.filter((item) => item.result.success).map((item) => item.workflowId),
+        },
+        failures: {
+          groups: groupFailures,
+          agents: agentFailures,
+          workflows: workflowFailures,
+        },
+        remaining: {
+          community: remainingCommunity ? communityName : null,
+          groups: remainingGroupsForCommunity,
+          agents: remainingAgents,
+          workflows: remainingWorkflows,
+        },
+      }
+
+      if (!ok) {
+        res.status(409).json(payload)
+        return
+      }
+
+      res.json(payload)
+      return
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message || 'Failed to cascade delete community' })
+      return
+    }
+  }
+
+  const success = deleteGroup('community', communityName)
 
   if (success) {
     res.json({ ok: true })

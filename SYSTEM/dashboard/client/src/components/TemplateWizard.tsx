@@ -37,12 +37,29 @@ interface WizardWorkflow {
   description: string
   schedule: string
   executionMode: 'automated' | 'managed'
+  scaling?: 'singleton' | 'parallel'
+  parallelism?: number
   targetAgents: string[]
   targetCommunities?: string[]
   targetGroups?: string[]
   tags?: string[]
   dependsOn?: string[]
   content: string
+}
+
+interface WorkflowFormField {
+  label: string
+  type: 'text' | 'checkbox' | 'select'
+  options: string[]
+  defaultValue: string
+}
+
+interface WizardTeamParameter {
+  agentId: string
+  label: string
+  default: number
+  min: number
+  max: number
 }
 
 interface WizardState {
@@ -60,6 +77,9 @@ interface WizardState {
 
   // Step 4: Workflows
   workflows: WizardWorkflow[]
+
+  // Optional scalable team-size controls
+  parameters: WizardTeamParameter[]
 
   // Metadata
   description: string
@@ -82,6 +102,7 @@ const INITIAL_STATE: WizardState = {
   communities: [],
   groups: [],
   workflows: [],
+  parameters: [],
   description: '',
   tags: [],
   author: '',
@@ -104,6 +125,20 @@ type FocusableField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'workflow'
+}
+
+function extractRunInputSections(content: string) {
+  if (!content) return ''
+  const runInputs = content.match(/## Run Inputs[\s\S]*?(?=\n## |\s*$)/)?.[0] || ''
+  const inputNotes = content.match(/## Input Notes[\s\S]*?(?=\n## |\s*$)/)?.[0] || ''
+  return [runInputs.trim(), inputNotes.trim()].filter(Boolean).join('\n\n')
+}
+
+function stripRunInputSections(content: string) {
+  return (content || '')
+    .replace(/\n?## Run Inputs[\s\S]*?(?=\n## |\s*$)/g, '')
+    .replace(/\n?## Input Notes[\s\S]*?(?=\n## |\s*$)/g, '')
+    .trim()
 }
 
 function buildSuggestedWorkflows(input: {
@@ -129,6 +164,8 @@ function buildSuggestedWorkflows(input: {
       description: 'Start a new run with goals, constraints, and priorities.',
       schedule: 'manual',
       executionMode: 'managed' as const,
+      scaling: 'singleton' as const,
+      parallelism: 1,
       dependsOn: [] as string[],
       content: `# ${titleBase} Kickoff\n\n1. Review the latest request: ${detail}\n2. Clarify goals, deadlines, constraints, and target audience\n3. Assign work across the team and identify blockers\n4. Post a short kickoff plan and owners for each next step in the main team group/community\n\n## Output\n- Produce a visible kickoff brief or plan\n- Confirm in the team channels what the team will do next`,
     },
@@ -138,6 +175,8 @@ function buildSuggestedWorkflows(input: {
       description: 'Review current work, adjust priorities, and unblock execution.',
       schedule: 'manual',
       executionMode: 'managed' as const,
+      scaling: 'parallel' as const,
+      parallelism: 3,
       dependsOn: [`${workflowPrefix}-kickoff`],
       content: `# ${titleBase} Execution Review\n\n1. Review work completed so far for: ${detail}\n2. Identify what is working, what is blocked, and what needs revision\n3. Re-prioritize tasks, budget, or effort as needed\n4. Post the updated plan and next actions in the working group/community\n\n## Output\n- Produce a concrete intermediate artifact such as a revised brief, shortlist, recommendation set, draft, or checklist\n- Share a short summary of that artifact in the team channels`,
     },
@@ -147,6 +186,8 @@ function buildSuggestedWorkflows(input: {
       description: 'Summarize outputs, decisions, and next recommendations.',
       schedule: '0 16 * * 5',
       executionMode: 'automated' as const,
+      scaling: 'singleton' as const,
+      parallelism: 1,
       dependsOn: [`${workflowPrefix}-execution-review`],
       content: `# ${titleBase} Weekly Summary\n\n1. Summarize progress, results, and key decisions for: ${detail}\n2. Capture wins, risks, and open questions\n3. Recommend the top next actions for the next run\n4. Publish a concise summary for stakeholders in the shared channels\n\n## Final Output\n- Produce the final summary, recommendation, or confirmation of delivery for this run\n- State clearly where the final output was posted, saved, or shared`,
     },
@@ -158,6 +199,8 @@ function buildSuggestedWorkflows(input: {
     description: workflow.description,
     schedule: workflow.schedule,
     executionMode: workflow.executionMode,
+    scaling: workflow.scaling,
+    parallelism: workflow.parallelism,
     targetAgents,
     targetCommunities: input.targetCommunity ? [input.targetCommunity] : [],
     targetGroups: input.targetGroup ? [input.targetGroup] : [],
@@ -326,6 +369,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const [aiCronLoadingIndex, setAiCronLoadingIndex] = useState<number | null>(null)
   const [workflowCronHints, setWorkflowCronHints] = useState<Record<number, string>>({})
   const [workflowGoalPrompt, setWorkflowGoalPrompt] = useState('')
+  const [showFullPrompt, setShowFullPrompt] = useState(false)
+  const [editingPrompt, setEditingPrompt] = useState(false)
+  const [promptDraft, setPromptDraft] = useState('')
+  const [aiSuggestedName, setAiSuggestedName] = useState<string | null>(null)
+  const [aiPreservedWorkflowInputs, setAiPreservedWorkflowInputs] = useState<string[]>([])
+  const [formBuilderWorkflowIndex, setFormBuilderWorkflowIndex] = useState<number | null>(null)
+  const [workflowFormFields, setWorkflowFormFields] = useState<WorkflowFormField[]>([])
   const fieldRefs = useRef<Record<string, FocusableField | null>>({})
 
   const steps = ['Team Type', 'Composition', 'Communication', 'Workflows', 'Preview']
@@ -357,6 +407,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     if (!initialTemplate) {
       setState(INITIAL_STATE)
       setStep(0)
+      setAiSuggestedName(null)
       return
     }
 
@@ -395,12 +446,21 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         description: w.description || '',
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
+        scaling: w.scaling || undefined,
+        parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
         targetAgents: w.targeting?.agents || [],
         targetCommunities: w.targeting?.communities || [],
         targetGroups: w.targeting?.groups || [],
         tags: w.targeting?.tags || [],
         dependsOn: w.dependsOn || [],
         content: w.content || '',
+      })),
+      parameters: (initialTemplate.parameters || []).map((p: any) => ({
+        agentId: p.agentId,
+        label: p.label || p.agentId,
+        default: typeof p.default === 'number' ? p.default : 2,
+        min: typeof p.min === 'number' ? p.min : 1,
+        max: typeof p.max === 'number' ? p.max : 10,
       })),
     })
     setStep(1)
@@ -429,8 +489,38 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       const data = await resp.json()
       if (resp.ok && data.template) {
         const t = data.template
+        const preservedTeamName = state.teamName.trim()
+        const preservedInputs: string[] = []
+        const mergedWorkflows = (t.workflows || []).map((w: any, idx: number) => {
+          const currentWorkflow = state.workflows[idx]
+          const currentInputSections = currentWorkflow ? extractRunInputSections(currentWorkflow.content || '') : ''
+          const generatedInputSections = extractRunInputSections(w.content || '')
+          const mergedContent = currentInputSections && (!generatedInputSections || currentInputSections !== generatedInputSections)
+            ? [stripRunInputSections(w.content || ''), currentInputSections].filter(Boolean).join('\n\n')
+            : (w.content || '')
+          if (currentInputSections && mergedContent !== (w.content || '')) {
+            preservedInputs.push(currentWorkflow?.name || w.name || `Workflow ${idx + 1}`)
+          }
+          return {
+            id: w.id || slugify(w.name || 'workflow'),
+            name: w.name || '',
+            description: w.description || '',
+            schedule: w.schedule || 'manual',
+            executionMode: w.executionMode || 'managed',
+            scaling: w.scaling || undefined,
+            parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
+            targetAgents: w.targeting?.agents || [],
+            targetCommunities: w.targeting?.communities || [],
+            targetGroups: w.targeting?.groups || [],
+            tags: w.targeting?.tags || [],
+            dependsOn: w.dependsOn || [],
+            content: mergedContent,
+          }
+        })
+        setAiSuggestedName(t.name && preservedTeamName && t.name !== preservedTeamName ? t.name : null)
+        setAiPreservedWorkflowInputs(Array.from(new Set(preservedInputs)))
         update({
-          teamName: t.name || '',
+          teamName: preservedTeamName || t.name || '',
           description: t.description || '',
           tags: t.tags || [],
           author: t.author || 'ClawMax AI',
@@ -455,18 +545,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             community: g.community || (t.communities?.[0]?.name || ''),
             tags: g.tags || [],
           })),
-          workflows: (t.workflows || []).map((w: any) => ({
-            id: w.id || slugify(w.name || 'workflow'),
-            name: w.name || '',
-            description: w.description || '',
-            schedule: w.schedule || 'manual',
-            executionMode: w.executionMode || 'managed',
-            targetAgents: w.targeting?.agents || [],
-            targetCommunities: w.targeting?.communities || [],
-            targetGroups: w.targeting?.groups || [],
-            tags: w.targeting?.tags || [],
-            dependsOn: w.dependsOn || [],
-            content: w.content || '',
+          workflows: mergedWorkflows,
+          parameters: (t.parameters || []).map((p: any) => ({
+            agentId: p.agentId,
+            label: p.label || p.agentId,
+            default: typeof p.default === 'number' ? p.default : 2,
+            min: typeof p.min === 'number' ? p.min : 1,
+            max: typeof p.max === 'number' ? p.max : 10,
           })),
         })
         setStep((t.workflows || []).length > 0 ? 4 : 3)
@@ -517,6 +602,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       description: state.description,
       author: state.author || 'ClawMax AI',
       tags: state.tags,
+      parameters: state.parameters.length > 0 ? state.parameters : undefined,
       metadata: {
         aiPrompt: state.teamDescription || undefined,
       },
@@ -535,6 +621,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule,
         enabled: true,
         executionMode: w.executionMode,
+        scaling: w.scaling,
+        parallelism: w.parallelism,
         targeting: {
           communities: w.targetCommunities || [],
           groups: w.targetGroups || [],
@@ -566,6 +654,60 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
 
   const removeAgent = (idx: number) => {
     update({ agents: state.agents.filter((_, i) => i !== idx) })
+  }
+
+  const buildWorkflowInputBlock = (fields: WorkflowFormField[]) => {
+    if (fields.length === 0) return ''
+    const lines = fields.map((field) => {
+      const trimmedLabel = field.label.trim() || 'Input'
+      const trimmedDefault = field.defaultValue.trim() || (field.type === 'checkbox' ? 'false' : '')
+      return `- **${trimmedLabel}:** ${trimmedDefault}`
+    })
+    const notes = fields
+      .filter((field) => field.type !== 'text')
+      .map((field) => {
+        const base = `- ${field.label.trim()}: ${field.type}`
+        return field.type === 'select' && field.options.length > 0
+          ? `${base} (${field.options.join(', ')})`
+          : base
+      })
+    return [
+      '## Run Inputs',
+      ...lines,
+      notes.length > 0 ? '' : null,
+      notes.length > 0 ? '## Input Notes' : null,
+      ...notes,
+    ].filter(Boolean).join('\n')
+  }
+
+  const openWorkflowFormBuilder = (idx: number) => {
+    const workflow = state.workflows[idx]
+    const content = workflow?.content || ''
+    const existingFields = Array.from(content.matchAll(/^- \*\*(.+?):\*\*\s+(.+)$/gm)).map((match) => ({
+      label: match[1]?.trim() || '',
+      type: 'text' as const,
+      options: [] as string[],
+      defaultValue: match[2]?.trim() || '',
+    }))
+    setWorkflowFormFields(existingFields.length > 0 ? existingFields : [
+      { label: 'Request', type: 'text', options: [], defaultValue: '' },
+    ])
+    setFormBuilderWorkflowIndex(idx)
+  }
+
+  const applyWorkflowFormBuilder = () => {
+    if (formBuilderWorkflowIndex === null) return
+    const workflows = [...state.workflows]
+    const workflow = workflows[formBuilderWorkflowIndex]
+    const inputBlock = buildWorkflowInputBlock(workflowFormFields.filter((field) => field.label.trim()))
+    const stripped = (workflow.content || '').replace(/\n?## Run Inputs[\s\S]*?(?=\n## |\s*$)/, '').replace(/\n?## Input Notes[\s\S]*?(?=\n## |\s*$)/, '').trim()
+    workflows[formBuilderWorkflowIndex] = {
+      ...workflow,
+      content: [stripped, inputBlock].filter(Boolean).join('\n\n'),
+    }
+    update({ workflows })
+    setFormBuilderWorkflowIndex(null)
+    setWorkflowFormFields([])
   }
 
   const addCommunity = () => {
@@ -677,6 +819,67 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       {label}
     </button>
   )
+  const renderPromptSummary = () => {
+    const prompt = state.teamDescription.trim()
+    if (!prompt) return null
+    const preview = prompt.length > 280 ? `${prompt.slice(0, 280).trim()}…` : prompt
+    return (
+      <div className="mb-4 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50/70 dark:bg-purple-900/20 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300">AI Prompt</div>
+            <pre className="mt-1 whitespace-pre-wrap break-words text-sm text-purple-900 dark:text-purple-100 font-sans">{preview}</pre>
+            {prompt.length > preview.length && (
+              <button
+                type="button"
+                onClick={() => setShowFullPrompt(true)}
+                className="mt-2 text-xs font-medium text-purple-700 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200"
+              >
+                View Full Prompt
+              </button>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setPromptDraft(state.teamDescription)
+                setEditingPrompt(true)
+              }}
+              className={btnSecondary}
+            >
+              Edit Prompt
+            </button>
+            <button
+              type="button"
+              onClick={handleAiGenerate}
+              disabled={aiGenerating || !aiEnabled}
+              className={btnSecondary}
+            >
+              {aiGenerating ? 'Generating…' : 'Regenerate'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep(0)}
+              className={btnSecondary}
+            >
+              Refine Prompt
+            </button>
+          </div>
+        </div>
+        {aiSuggestedName && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+            AI suggested renaming this template to <span className="font-semibold">{aiSuggestedName}</span>, but your current name was preserved.
+          </div>
+        )}
+        {aiPreservedWorkflowInputs.length > 0 && (
+          <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
+            Preserved your custom workflow inputs for: <span className="font-semibold">{aiPreservedWorkflowInputs.join(', ')}</span>.
+          </div>
+        )}
+      </div>
+    )
+  }
   const availableTagSuggestions = useMemo(
     () =>
       Array.from(
@@ -746,6 +949,18 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           rows={3}
           className={inputCls + ' resize-y'}
         />
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setPromptDraft(state.teamDescription)
+              setEditingPrompt(true)
+            }}
+            className={btnSecondary}
+          >
+            Open Full Editor
+          </button>
+        </div>
       </div>
 
       {DOMAIN_PRESETS[state.domain]?.examples.length > 0 && (
@@ -1122,33 +1337,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     <div>
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Workflows</h3>
 
-      {state.teamDescription.trim() && (
-        <div className="mb-4 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50/70 dark:bg-purple-900/20 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300">AI Prompt</div>
-              <p className="mt-1 text-sm text-purple-900 dark:text-purple-100">{state.teamDescription}</p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={handleAiGenerate}
-                disabled={aiGenerating || !aiEnabled}
-                className={btnSecondary}
-              >
-                {aiGenerating ? 'Generating…' : 'Regenerate'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(0)}
-                className={btnSecondary}
-              >
-                Refine Prompt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderPromptSummary()}
 
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-500">Define recurring or one-time workflows for this team.</p>
@@ -1255,6 +1444,29 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                   ✕
                 </button>
               </div>
+              {wf.scaling === 'parallel' && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 dark:border-sky-900/50 dark:bg-sky-900/20">
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                    Parallel
+                  </span>
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Lanes</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={10}
+                    value={wf.parallelism || 3}
+                    onChange={e => {
+                      const workflows = [...state.workflows]
+                      workflows[idx] = { ...workflows[idx], parallelism: Math.min(10, Math.max(2, Number(e.target.value) || 2)) }
+                      update({ workflows })
+                    }}
+                    className={inputCls + ' text-xs w-20'}
+                  />
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Default is 3. Use 2-3 for most cases.
+                  </span>
+                </div>
+              )}
               <div className="mt-2">
                 <input
                   ref={registerFieldRef(`workflow-schedule-${idx}`)}
@@ -1272,6 +1484,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 />
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openWorkflowFormBuilder(idx)}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                >
+                  Form Builder
+                </button>
                 {wf.schedule.trim().toLowerCase() !== 'manual' && (
                   <>
                     <button
@@ -1379,33 +1598,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           />
         ) : (
           <>
-            {state.teamDescription.trim() && (
-              <div className="mb-4 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50/70 dark:bg-purple-900/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300">AI Prompt</div>
-                    <p className="mt-1 text-sm text-purple-900 dark:text-purple-100">{state.teamDescription}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={handleAiGenerate}
-                      disabled={aiGenerating || !aiEnabled}
-                      className={btnSecondary}
-                    >
-                      {aiGenerating ? 'Generating…' : 'Regenerate'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStep(0)}
-                      className={btnSecondary}
-                    >
-                      Refine Prompt
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {renderPromptSummary()}
 
             {/* Template header */}
             <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
@@ -1448,6 +1641,25 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
               </div>
             )}
 
+            {template.parameters?.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">Team Size</h4>
+                <div className="space-y-1 text-xs">
+                  {template.parameters.map((param: any, i: number) => (
+                    <div key={i} className="py-1 px-2 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                      <span className="font-medium">{param.label || param.agentId}</span>
+                      <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                        x{Math.max(1, Number(param.default) || 1)}
+                      </span>
+                      <span className="text-emerald-500">
+                        ({param.min || 1}-{param.max || 10})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Communities & Groups */}
             {(communityCount > 0 || groupCount > 0) && (
               <div className="mb-4">
@@ -1480,6 +1692,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                       <span className="font-medium">{w.name}</span>
                       <span className="font-mono text-orange-500">{w.schedule}</span>
                       <span className="text-orange-400">{w.executionMode}</span>
+                      {w.scaling && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          w.scaling === 'parallel'
+                            ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                        }`}>
+                          {w.scaling === 'parallel' ? `Parallel x${Math.min(10, Math.max(2, Number(w.parallelism) || 3))}` : 'Singleton'}
+                        </span>
+                      )}
                       {w.targeting?.tags?.length > 0 && (
                         <span className="text-orange-500">[{w.targeting.tags.join(', ')}]</span>
                       )}
@@ -1582,6 +1803,149 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           {step === 4 && renderStep4()}
         </div>
       </div>
+      {showFullPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowFullPrompt(false)}>
+          <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Full AI Prompt</h3>
+              <button onClick={() => setShowFullPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400">✕</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+              <pre className="whitespace-pre-wrap break-words text-sm text-gray-900 dark:text-gray-100 font-sans">{state.teamDescription}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+      {editingPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setEditingPrompt(false)}>
+          <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit AI Prompt</h3>
+              <button onClick={() => setEditingPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400">✕</button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <textarea
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+                rows={14}
+                className={inputCls + ' resize-y font-sans'}
+              />
+              <div className="flex justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    update({ teamDescription: promptDraft })
+                    setEditingPrompt(false)
+                  }}
+                  className={btnSecondary}
+                >
+                  Save
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPrompt(false)}
+                    className={btnSecondary}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      update({ teamDescription: promptDraft })
+                      setEditingPrompt(false)
+                      window.setTimeout(() => {
+                        void handleAiGenerate()
+                      }, 0)
+                    }}
+                    disabled={aiGenerating || !aiEnabled || !promptDraft.trim()}
+                    className={btnPrimary}
+                  >
+                    {aiGenerating ? 'Generating…' : 'Save & Regenerate'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {formBuilderWorkflowIndex !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setFormBuilderWorkflowIndex(null)}>
+          <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workflow Form Builder</h3>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Generate a `Run Inputs` section for this workflow. Current runtime will render these as editable inputs.</p>
+              </div>
+              <button onClick={() => setFormBuilderWorkflowIndex(null)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400">✕</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-3">
+              {workflowFormFields.map((field, idx) => (
+                <div key={idx} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_10rem_auto] gap-2 items-start">
+                    <input
+                      type="text"
+                      value={field.label}
+                      onChange={(e) => setWorkflowFormFields((prev) => prev.map((entry, i) => i === idx ? { ...entry, label: e.target.value } : entry))}
+                      placeholder="Field name"
+                      className={inputCls + ' text-xs'}
+                    />
+                    <select
+                      value={field.type}
+                      onChange={(e) => setWorkflowFormFields((prev) => prev.map((entry, i) => i === idx ? { ...entry, type: e.target.value as WorkflowFormField['type'] } : entry))}
+                      className={inputCls + ' text-xs'}
+                    >
+                      <option value="text">Text</option>
+                      <option value="checkbox">Checkbox</option>
+                      <option value="select">Selection</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowFormFields((prev) => prev.filter((_, i) => i !== idx))}
+                      className="h-9 px-3 text-red-400 hover:text-red-600 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={field.defaultValue}
+                      onChange={(e) => setWorkflowFormFields((prev) => prev.map((entry, i) => i === idx ? { ...entry, defaultValue: e.target.value } : entry))}
+                      placeholder={field.type === 'checkbox' ? 'false' : 'Default value / placeholder'}
+                      className={inputCls + ' text-xs'}
+                    />
+                    {field.type === 'select' ? (
+                      <input
+                        type="text"
+                        value={field.options.join(', ')}
+                        onChange={(e) => setWorkflowFormFields((prev) => prev.map((entry, i) => i === idx ? { ...entry, options: e.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : entry))}
+                        placeholder="Possible values, comma-separated"
+                        className={inputCls + ' text-xs'}
+                      />
+                    ) : (
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center px-2">
+                        {field.type === 'checkbox' ? 'Stored as true/false in the generated markdown.' : 'Rendered as a text input in the current run UI.'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setWorkflowFormFields((prev) => [...prev, { label: '', type: 'text', options: [], defaultValue: '' }])}
+                className={btnSecondary}
+              >
+                + Add Input Field
+              </button>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 px-5 py-4">
+              <button type="button" onClick={() => setFormBuilderWorkflowIndex(null)} className={btnSecondary}>Cancel</button>
+              <button type="button" onClick={applyWorkflowFormBuilder} className={btnPrimary}>Insert Run Inputs</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

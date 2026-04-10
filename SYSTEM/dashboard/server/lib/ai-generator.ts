@@ -107,6 +107,142 @@ function slugifyGeneratedTemplateValue(value: string, fallback = 'workflow'): st
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback
 }
 
+function humanizeGeneratedChannelName(value: string, fallback = 'Team'): string {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return fallback
+  if (/[A-Z]/.test(trimmed) || /\s/.test(trimmed)) return trimmed
+  return trimmed
+    .replace(/[-_]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function extractPromptUrls(text: string): string[] {
+  return Array.from(new Set((text.match(/https?:\/\/[^\s)]+/g) || []).map((url) => url.trim())))
+}
+
+function summarizePromptExamples(text: string): string[] {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const summaries: string[] = []
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (/^#{1,6}\s+/.test(line)) {
+      const heading = line.replace(/^#{1,6}\s+/, '').trim()
+      if (/example|camera|lens|part|sample|reference/i.test(heading)) {
+        const next = lines.slice(i + 1, i + 5).find((candidate) => candidate && !candidate.startsWith('#'))
+        summaries.push(next ? `${heading}: ${next}` : heading)
+      }
+      continue
+    }
+    if (/^grade:|^\$|^\w.*\b(condition|working order|ready for use|cosmetic)\b/i.test(line)) {
+      summaries.push(line)
+    }
+  }
+  return Array.from(new Set(summaries)).slice(0, 8)
+}
+
+function inferStyleGuidanceFromPrompt(text: string): string[] {
+  const guidance: string[] = []
+  if (/\bmatch(?:es|ing)?\b.*\bformat\b|\bstyle\b/i.test(text)) guidance.push('Match the style, structure, and tone of the provided examples.')
+  if (/\b500 words\b|\bno more than\b/i.test(text)) guidance.push('Keep the final output concise and within any length limits mentioned in the prompt.')
+  if (/\baccurate\b|\bcorroborat(?:e|ion)\b/i.test(text)) guidance.push('Use the provided evidence, notes, and examples to stay accurate and grounded.')
+  if (/\balternatives?\b.*\bhuman\b/i.test(text)) guidance.push('If confidence is low, present alternatives and flag them clearly for human review.')
+  return guidance
+}
+
+function promptImpliesScaling(text: string): boolean {
+  return /\b(collection|multiple|many|batch|catalog|lots of|set of|images|photos|posts|items|products|assets)\b/i.test(text)
+}
+
+function roleImpliesScalableLane(role: string, agentId: string): boolean {
+  const value = `${role} ${agentId}`.toLowerCase()
+  return /\b(writer|selector|reviewer|analyst|researcher|specialist|editor|creator|curator|planner)\b/.test(value)
+}
+
+function buildScalableTeamParameters(agents: any[], shouldScale: boolean) {
+  if (!shouldScale || !Array.isArray(agents) || agents.length < 2) return []
+
+  const usedLabels = new Set<string>()
+  return agents
+    .filter((agent: any) => roleImpliesScalableLane(String(agent?.role || ''), String(agent?.id || '')))
+    .slice(0, 3)
+    .map((agent: any) => {
+      const cleanedRole = String(agent?.role || agent?.id || 'Agent')
+        .replace(/\bSpecialist\b/gi, '')
+        .replace(/\bCoordinator\b/gi, '')
+        .trim()
+      let label = `Number of ${cleanedRole || humanizeGeneratedChannelName(String(agent?.id || 'agents'), 'Agents')}s`
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (!label || usedLabels.has(label.toLowerCase())) {
+        label = `Number of ${humanizeGeneratedChannelName(String(agent?.id || 'agents'), 'Agents')}`
+      }
+      usedLabels.add(label.toLowerCase())
+      return {
+        agentId: String(agent.id),
+        label,
+        default: 2,
+        min: 1,
+        max: 10,
+      }
+    })
+}
+
+function buildExampleAwarePromptContext(description: string): string {
+  const urls = extractPromptUrls(description)
+  const examples = summarizePromptExamples(description)
+  const styleGuidance = inferStyleGuidanceFromPrompt(description)
+  const sections: string[] = []
+
+  if (urls.length > 0) {
+    sections.push(`Reference URLs provided by the user:\n${urls.map((url) => `- ${url}`).join('\n')}`)
+  }
+
+  if (examples.length > 0) {
+    sections.push(`Example snippets and reference cues from the prompt:\n${examples.map((example) => `- ${example}`).join('\n')}`)
+  }
+
+  if (styleGuidance.length > 0) {
+    sections.push(`Style and quality guidance inferred from the prompt:\n${styleGuidance.map((item) => `- ${item}`).join('\n')}`)
+  }
+
+  if (promptImpliesScaling(description)) {
+    sections.push('The prompt implies potentially many assets/items/posts, so the middle workflow stages should support scalable or parallel work where appropriate while kickoff and finalization remain singleton steps.')
+  }
+
+  return sections.join('\n\n')
+}
+
+function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?: boolean; isFinal?: boolean }): string {
+  if (options?.finalOnly && !options?.isFinal) return ''
+
+  const urls = extractPromptUrls(description).slice(0, 3)
+  const examples = summarizePromptExamples(description).slice(0, 4)
+  const styleGuidance = inferStyleGuidanceFromPrompt(description).slice(0, 3)
+  if (urls.length === 0 && examples.length === 0 && styleGuidance.length === 0) return ''
+
+  const lines: string[] = ['## References']
+  if (urls.length > 0) {
+    lines.push('- Use these source examples/URLs directly when matching format and tone:')
+    for (const url of urls) lines.push(`  - ${url}`)
+  }
+  if (examples.length > 0) {
+    lines.push('- Preserve these example cues from the original prompt:')
+    for (const example of examples) lines.push(`  - ${example}`)
+  }
+  if (styleGuidance.length > 0) {
+    lines.push('- Apply this style guidance while producing the output:')
+    for (const item of styleGuidance) lines.push(`  - ${item}`)
+  }
+  return lines.join('\n')
+}
+
 export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
   const normalizedName = (input.name || 'custom-skill')
     .toLowerCase()
@@ -562,6 +698,8 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
  */
 export async function generateTemplateFromNL(description: string): Promise<any> {
   getAvailableProvider(_requestByokKeys)
+  const promptContext = buildExampleAwarePromptContext(description)
+  const shouldScaleMiddleWork = promptImpliesScaling(description)
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
@@ -611,17 +749,22 @@ Important structure rules:
 
 Important workflow behavior rules:
 - Always create 2-4 workflows for the team unless the prompt explicitly asks for none.
+- Kickoff must be the first workflow and should be a singleton step.
+- The final workflow must be the last workflow and should be a singleton step.
+- When the prompt implies many items/images/posts/assets, make at least one middle workflow explicitly scalable or parallelizable.
 - Workflows must tell agents to communicate visibly in the target group/community as they work.
 - At least one intermediate workflow should produce a tangible artifact such as a brief, plan, shortlist, report, draft, recommendation, or checklist.
 - The final workflow must produce the final deliverable or an explicit confirmation that the final output was completed and where it was posted/saved.
 - Workflows should use groups for ongoing coordination and communities for broader summaries/announcements.
 - Avoid vague workflow content like "work on the task"; be concrete about what agents should discuss, produce, and publish.
+- When the user provides examples, URLs, formats, or style references, preserve and use them explicitly in agent responsibilities and workflow content.
+- If the prompt includes sample outputs or product pages, tell the team to refer back to them and match the requested style.
 
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
       {
         role: 'user',
-        content: description
+        content: promptContext ? `${description}\n\n## Preserved Reference Context\n${promptContext}` : description
       }
     ],
     temperature: 0.7,
@@ -708,6 +851,43 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ])),
     }))
 
+    const communityRenameMap = new Map<string, string>()
+    const seenCommunityNames = new Set<string>()
+    parsed.communities = (parsed.communities || []).map((community: any, idx: number) => {
+      const originalName = String(community?.name || '').trim()
+      let nextName = humanizeGeneratedChannelName(originalName, idx === 0 ? normalizedTeamName || 'Team' : `Community ${idx + 1}`)
+      if (seenCommunityNames.has(nextName.toLowerCase())) {
+        nextName = originalName || nextName
+      }
+      seenCommunityNames.add(nextName.toLowerCase())
+      if (originalName && nextName !== originalName) {
+        communityRenameMap.set(originalName, nextName)
+      }
+      return {
+        ...community,
+        name: nextName,
+      }
+    })
+
+    const groupRenameMap = new Map<string, string>()
+    const seenGroupNames = new Set<string>()
+    parsed.groups = (parsed.groups || []).map((group: any, idx: number) => {
+      const originalName = String(group?.name || '').trim()
+      let nextName = humanizeGeneratedChannelName(originalName, `Group ${idx + 1}`)
+      if (seenGroupNames.has(nextName.toLowerCase())) {
+        nextName = originalName || nextName
+      }
+      seenGroupNames.add(nextName.toLowerCase())
+      if (originalName && nextName !== originalName) {
+        groupRenameMap.set(originalName, nextName)
+      }
+      return {
+        ...group,
+        name: nextName,
+        community: group.community ? (communityRenameMap.get(group.community) || group.community) : group.community,
+      }
+    })
+
     parsed.communities = (parsed.communities || []).map((community: any) => ({
       ...community,
       tags: Array.from(new Set([
@@ -721,10 +901,10 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     parsed.agents = (parsed.agents || []).map((agent: any) => ({
       ...agent,
       communities: Array.isArray(agent.communities) && agent.communities.length > 0
-        ? agent.communities
+        ? agent.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
         : (fallbackCommunity ? [fallbackCommunity] : []),
       groups: Array.isArray(agent.groups) && agent.groups.length > 0
-        ? agent.groups
+        ? agent.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
         : (fallbackGroup ? [fallbackGroup] : []),
     }))
 
@@ -788,10 +968,15 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     const orderedWorkflows = [kickoffWorkflow, ...middleWorkflows, finalWorkflow].filter(Boolean)
 
     parsed.workflows = orderedWorkflows.map((workflow: any, idx: number, arr: any[]) => {
-      const workflowCommunityTargets = workflow.targeting?.communities?.length ? workflow.targeting.communities : (fallbackCommunity ? [fallbackCommunity] : [])
-      const workflowGroupTargets = workflow.targeting?.groups?.length ? workflow.targeting.groups : (fallbackGroup ? [fallbackGroup] : [])
+      const workflowCommunityTargets = workflow.targeting?.communities?.length
+        ? workflow.targeting.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
+        : (fallbackCommunity ? [fallbackCommunity] : [])
+      const workflowGroupTargets = workflow.targeting?.groups?.length
+        ? workflow.targeting.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
+        : (fallbackGroup ? [fallbackGroup] : [])
       const isKickoff = idx === 0
       const isFinal = idx === arr.length - 1
+      const isMiddle = !isKickoff && !isFinal
       const collaborationBlock = [
         '## Coordination',
         workflowGroupTargets.length > 0
@@ -819,7 +1004,19 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
             '- Assign initial work across the team and publish the kickoff plan in the team channels.',
           ].join('\n')
         : ''
+      const scalingBlock = shouldScaleMiddleWork && isMiddle
+        ? [
+            '## Scaling',
+            '- This stage should support many items/assets/posts in parallel where appropriate.',
+            '- Split the work into batches or parallel lanes, keep progress visible in the working group, and consolidate the best results for the next step.',
+          ].join('\n')
+        : ''
+      const referenceBlock = promptContext
+        ? buildWorkflowReferenceBlock(description, { finalOnly: false, isFinal })
+        : ''
       const contentSections = [workflow.content || '', kickoffBlock, collaborationBlock, outputBlock].filter(Boolean)
+      if (scalingBlock) contentSections.splice(Math.max(contentSections.length - 1, 1), 0, scalingBlock)
+      if (referenceBlock) contentSections.splice(Math.max(contentSections.length - 1, 1), 0, referenceBlock)
       const normalizedId = workflow.id || slugifyGeneratedTemplateValue(
         isKickoff
           ? `${normalizedTeamName || 'team'} kickoff`
@@ -843,12 +1040,18 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         ...workflow,
         id: normalizedId,
         name: normalizedName,
+        scaling: isMiddle && shouldScaleMiddleWork ? 'parallel' : 'singleton',
+        parallelism: isMiddle && shouldScaleMiddleWork
+          ? Math.min(10, Math.max(2, Number(workflow.parallelism) || 3))
+          : 1,
         description: workflow.description || (
           isKickoff
             ? 'Start a new run with goals, priorities, and constraints.'
             : isFinal
               ? 'Deliver the final output or confirm completion.'
-              : 'Execute the next stage of work and share progress.'
+              : shouldScaleMiddleWork
+                ? 'Execute the next stage of work, scale across multiple items in parallel where useful, and share progress.'
+                : 'Execute the next stage of work and share progress.'
         ),
         targeting: {
           communities: workflowCommunityTargets,
@@ -863,6 +1066,10 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         content: contentSections.join('\n\n'),
       }
     })
+
+    if (!Array.isArray(parsed.parameters) || parsed.parameters.length === 0) {
+      parsed.parameters = buildScalableTeamParameters(parsed.agents || [], shouldScaleMiddleWork)
+    }
 
     return parsed
   } catch {

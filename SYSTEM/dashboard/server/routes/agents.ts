@@ -1,5 +1,5 @@
 import express, { Router } from 'express'
-import { spawn } from 'child_process'
+import { execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
@@ -631,12 +631,13 @@ router.post('/provision', (req, res) => {
 router.post('/doctor', async (req, res) => {
   const { fix = false, probe = false } = req.body || {}
   const results: Array<{ id: string; checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> }> = []
+  const platformChecks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> = []
 
   // Check if openclaw CLI is available
   let hasOpenclawCli = false
   let platformMessage: string | undefined
+  let gatewayFixOutput: string | undefined
   try {
-    const { execSync } = require('child_process')
     execSync('which openclaw', { stdio: 'pipe' })
     const versionText = String(execSync('openclaw --version', { stdio: 'pipe', env: safeEnv() }) || '').trim()
     if (versionText.includes('openclaw fixture')) {
@@ -653,6 +654,35 @@ router.post('/doctor', async (req, res) => {
 
   const gatewayStatus = isGatewayRunning()
   const gatewayRunning = gatewayStatus.running
+  let effectiveGatewayRunning = gatewayRunning
+
+  if (gatewayRunning) {
+    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+  } else if (fix && hasOpenclawCli) {
+    try {
+      const restartOutput = String(execSync('openclaw gateway restart', { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
+      gatewayFixOutput = restartOutput || 'Gateway restart command completed with no output.'
+      const restartedStatus = isGatewayRunning()
+      effectiveGatewayRunning = restartedStatus.running
+      if (restartedStatus.running) {
+        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+      } else {
+        platformChecks.push({ check: 'gateway', status: 'warn', message: `Gateway restart command ran but gateway is still not running on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+      }
+    } catch (err: any) {
+      const reason = String(err?.stderr || err?.stdout || err?.message || '').trim().split('\n')[0] || 'gateway restart failed'
+      gatewayFixOutput = String(err?.stderr || err?.stdout || err?.message || '').trim()
+      platformChecks.push({ check: 'gateway', status: 'warn', message: `Gateway restart failed: ${reason}` })
+    }
+  } else {
+    platformChecks.push({
+      check: 'gateway',
+      status: hasOpenclawCli ? 'warn' : 'fail',
+      message: hasOpenclawCli
+        ? `Gateway not running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`
+        : 'Gateway not running and openclaw CLI is unavailable for auto-fix',
+    })
+  }
 
   // Read registered agents from openclaw.json
   const registeredIds = new Set<string>()
@@ -677,10 +707,16 @@ router.post('/doctor', async (req, res) => {
   } catch {
     res.json({
       results,
-      platform: { cli: hasOpenclawCli, gateway: gatewayRunning, gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort() },
-      summary: { total: 0, pass: 0, fail: 0, warn: 0, fixed: 0 },
-      healthy: true,
-      message: 'No agents directory found'
+      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort() },
+      summary: {
+        total: platformChecks.length,
+        pass: platformChecks.filter(c => c.status === 'pass').length,
+        fail: platformChecks.filter(c => c.status === 'fail').length,
+        warn: platformChecks.filter(c => c.status === 'warn').length,
+        fixed: platformChecks.filter(c => c.status === 'fixed').length,
+      },
+      healthy: platformChecks.every(c => c.status === 'pass' || c.status === 'fixed'),
+      message: [platformMessage, gatewayFixOutput].filter(Boolean).join('\n\n') || 'No agents directory found'
     })
     return
   }
@@ -779,7 +815,7 @@ router.post('/doctor', async (req, res) => {
   }
 
   // Summary
-  const allChecks = results.flatMap(r => r.checks)
+  const allChecks = [...platformChecks, ...results.flatMap(r => r.checks)]
   const pass = allChecks.filter(c => c.status === 'pass').length
   const fail = allChecks.filter(c => c.status === 'fail').length
   const warn = allChecks.filter(c => c.status === 'warn').length
@@ -789,12 +825,12 @@ router.post('/doctor', async (req, res) => {
     results,
     platform: {
       cli: hasOpenclawCli,
-      gateway: gatewayRunning,
-      gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort(),
+      gateway: effectiveGatewayRunning,
+      gatewayPort: (effectiveGatewayRunning ? isGatewayRunning().port : gatewayStatus.port) ?? getConfiguredGatewayPort(),
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,
-    message: platformMessage,
+    message: [platformMessage, gatewayFixOutput].filter(Boolean).join('\n\n') || undefined,
   })
 })
 

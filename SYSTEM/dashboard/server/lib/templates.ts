@@ -165,6 +165,8 @@ export interface Workflow {
   schedule: string
   enabled: boolean
   executionMode: 'automated' | 'managed'
+  scaling?: 'singleton' | 'parallel'
+  parallelism?: number
   dependsOn?: string[]
   type?: 'once' | 'recurring' | 'conditional'
   targeting: {
@@ -186,6 +188,13 @@ export interface OrganizationTemplate {
   description?: string
   author?: string
   tags?: string[]
+  parameters?: Array<{
+    agentId: string
+    label: string
+    default: number
+    min: number
+    max: number
+  }>
   agents: OrganizationTemplateAgent[]
   communities?: Community[]
   groups?: Group[]
@@ -245,6 +254,55 @@ function collectTemplateDirsFromRoot(root: string, type: 'agent' | 'organization
   }
 
   return results
+}
+
+function normalizeTemplateForUse(template: Template): Template {
+  if (template.type !== 'organization') return template
+
+  return {
+    ...template,
+    workflows: (template.workflows || []).map((workflow) => {
+      const inferredOwner = workflow.executionMode === 'managed'
+        ? ((workflow as any).owner || workflow.targeting?.agents?.[0] || undefined)
+        : (workflow as any).owner
+      const normalizedId = slugify(workflow.name || workflow.id || 'workflow')
+
+      return {
+        ...workflow,
+        id: normalizedId,
+        owner: inferredOwner,
+      }
+    }),
+  }
+}
+
+function bumpPatchVersion(version?: string): string {
+  const match = String(version || '1.0.0').match(/^(\d+)\.(\d+)\.(\d+)$/)
+  if (!match) return '1.0.1'
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  const patch = Number(match[3]) + 1
+  return `${major}.${minor}.${patch}`
+}
+
+function snapshotExistingTemplateVersion(templateDir: string, version?: string): void {
+  if (!fs.existsSync(templateDir)) return
+
+  const jsonPath = path.join(templateDir, 'template.json')
+  const mdPath = path.join(templateDir, 'TEMPLATE.md')
+  if (!fs.existsSync(jsonPath) && !fs.existsSync(mdPath)) return
+
+  const versionLabel = (version || 'unknown').replace(/[^a-z0-9._-]+/gi, '-')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const historyDir = path.join(templateDir, '.versions', `${stamp}-v${versionLabel}`)
+  fs.mkdirSync(historyDir, { recursive: true })
+
+  if (fs.existsSync(jsonPath)) {
+    fs.copyFileSync(jsonPath, path.join(historyDir, 'template.json'))
+  }
+  if (fs.existsSync(mdPath)) {
+    fs.copyFileSync(mdPath, path.join(historyDir, 'TEMPLATE.md'))
+  }
 }
 
 function runOrganizationPostImportSetup(args: {
@@ -746,7 +804,6 @@ export function templateToMarkdown(template: Template): string {
   if (t.author) fm.author = t.author
   if (t.tags?.length) fm.tags = t.tags
   if (t.parameters?.length) fm.parameters = t.parameters
-  if (t.metadata?.aiPrompt) fm.aiPrompt = t.metadata.aiPrompt
 
   lines.push(matter.stringify('', fm).trim())
   lines.push('')
@@ -754,6 +811,13 @@ export function templateToMarkdown(template: Template): string {
   // Description
   if (t.description) {
     lines.push(t.description)
+    lines.push('')
+  }
+
+  if (t.metadata?.aiPrompt) {
+    lines.push('## AI Prompt')
+    lines.push('')
+    lines.push(String(t.metadata.aiPrompt))
     lines.push('')
   }
 
@@ -825,7 +889,7 @@ function readTemplateFromDir(dir: string): Template | null {
   const jsonPath = path.join(dir, 'template.json')
   if (fs.existsSync(jsonPath)) {
     try {
-      return JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
+      return normalizeTemplateForUse(JSON.parse(fs.readFileSync(jsonPath, 'utf-8')))
     } catch {}
   }
 
@@ -833,7 +897,8 @@ function readTemplateFromDir(dir: string): Template | null {
   const mdPath = path.join(dir, 'TEMPLATE.md')
   if (fs.existsSync(mdPath)) {
     try {
-      return parseTemplateMd(fs.readFileSync(mdPath, 'utf-8'))
+      const parsed = parseTemplateMd(fs.readFileSync(mdPath, 'utf-8'))
+      return parsed ? normalizeTemplateForUse(parsed) : null
     } catch {}
   }
 
@@ -843,63 +908,78 @@ function readTemplateFromDir(dir: string): Template | null {
 /**
  * Save template to filesystem
  */
-export function saveTemplate(template: Template): { ok: boolean; path?: string; error?: string } {
+export function saveTemplate(
+  template: Template,
+  options?: { existingSlug?: string }
+): { ok: boolean; path?: string; error?: string } {
   try {
     ensureTemplateDirs()
 
     // Check reserved names
     const slug = slugify(template.name)
+    const existingSlug = options?.existingSlug?.trim()
     const RESERVED_SLUGS = ['clawmax-system-test', 'system-test']
     if (RESERVED_SLUGS.includes(slug)) {
       return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
     }
 
     const timestamp = new Date().toISOString()
+    const currentTemplateDir = template.type === 'agent'
+      ? path.join(getAgentTemplatesDir(), existingSlug || slug)
+      : path.join(getOrgTemplatesDir(), existingSlug || slug)
+    const templateDir = template.type === 'agent'
+      ? path.join(getAgentTemplatesDir(), slug)
+      : path.join(getOrgTemplatesDir(), slug)
+    const existingTemplate = fs.existsSync(currentTemplateDir) ? readTemplateFromDir(currentTemplateDir) : null
+    const nextVersion = existingTemplate ? bumpPatchVersion(existingTemplate.version) : (template.version || '1.0.0')
     const sanitizedTemplate: Template = template.type === 'organization'
       ? {
           ...template,
+          version: nextVersion,
           source: undefined,
           slug: undefined,
           metadata: {
             ...(template.metadata || {}),
-            createdAt: template.metadata?.createdAt || timestamp,
+            createdAt: template.metadata?.createdAt || existingTemplate?.metadata?.createdAt || timestamp,
             updatedAt: timestamp,
           },
         }
       : {
           ...template,
+          version: nextVersion,
           source: undefined,
           slug: undefined,
           metadata: {
             ...(template.metadata || {}),
-            createdAt: template.metadata?.createdAt || timestamp,
+            createdAt: template.metadata?.createdAt || existingTemplate?.metadata?.createdAt || timestamp,
             updatedAt: timestamp,
           },
         }
 
     // Validate template
-    const validation = validateTemplate(sanitizedTemplate)
+    const normalizedTemplate = normalizeTemplateForUse(sanitizedTemplate)
+    const validation = validateTemplate(normalizedTemplate)
     if (!validation.valid) {
       return { ok: false, error: `Validation failed: ${validation.errors?.join(', ')}` }
     }
-    const templateDir = sanitizedTemplate.type === 'agent'
-      ? path.join(getAgentTemplatesDir(), slug)
-      : path.join(getOrgTemplatesDir(), slug)
-
     // Create template directory
     fs.mkdirSync(templateDir, { recursive: true })
 
+    if (existingTemplate) {
+      snapshotExistingTemplateVersion(currentTemplateDir, existingTemplate.version)
+    }
+
     // Write template.json
     const templateJsonPath = path.join(templateDir, 'template.json')
-    fs.writeFileSync(templateJsonPath, JSON.stringify(sanitizedTemplate, null, 2), 'utf-8')
+    fs.writeFileSync(templateJsonPath, JSON.stringify(normalizedTemplate, null, 2), 'utf-8')
 
     // Also write TEMPLATE.md
     const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
-    fs.writeFileSync(templateMdPath, templateToMarkdown(sanitizedTemplate), 'utf-8')
+    fs.writeFileSync(templateMdPath, templateToMarkdown(normalizedTemplate), 'utf-8')
 
-    if (sanitizedTemplate.type === 'agent' && sanitizedTemplate.metadata?.basedOnSlug) {
-      const sourceSlug = sanitizedTemplate.metadata.basedOnSlug
-      const sourceType = sanitizedTemplate.metadata.basedOnSource || 'system'
+    if (normalizedTemplate.type === 'agent' && normalizedTemplate.metadata?.basedOnSlug) {
+      const sourceSlug = normalizedTemplate.metadata.basedOnSlug
+      const sourceType = normalizedTemplate.metadata.basedOnSource || 'system'
       const sourceDir = sourceType === 'workspace'
         ? path.join(getAgentTemplatesDir(), sourceSlug)
         : sourceType === 'enterprise'

@@ -46,7 +46,7 @@ interface OrganizationTemplate {
   agents: Array<{ id: string; role: string; tags?: string[] }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
-  workflows?: Array<{ id: string; name: string }>
+  workflows?: Array<{ id: string; name: string; scaling?: 'singleton' | 'parallel'; parallelism?: number }>
   metadata?: {
     createdAt?: string
     updatedAt?: string
@@ -1342,7 +1342,7 @@ export default function Templates() {
                     },
                   }
                 : template
-              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const slug = editingTemplate?.slug || template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
               const resp = await fetch(`/api/templates/organizations/${slug}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -1388,7 +1388,7 @@ export default function Templates() {
                   basedOnSource: editingAgentTemplate.source,
                 },
               }
-              const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+              const slug = editingAgentTemplate?.slug || template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
               const resp = await fetch(`/api/templates/agents/${slug}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },

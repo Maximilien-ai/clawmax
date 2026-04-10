@@ -78,6 +78,13 @@ interface WorkflowExecutionDetails {
   inputs?: Record<string, string>
 }
 
+interface StructuredWorkflowInputField {
+  label: string
+  defaultValue: string
+  type: 'text' | 'checkbox' | 'select'
+  options: string[]
+}
+
 const RUN_INSTRUCTIONS_KEY = 'Run Instructions'
 
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
@@ -103,19 +110,50 @@ function stripFrontmatter(content?: string | null): string {
   return content.trim()
 }
 
-function parseStructuredWorkflowInputs(content?: string | null): Record<string, string> {
-  if (typeof content !== 'string' || !content.trim()) return {}
-  const inputs: Record<string, string> = {}
+function parseStructuredWorkflowInputFields(content?: string | null): StructuredWorkflowInputField[] {
+  if (typeof content !== 'string' || !content.trim()) return []
+  const valueByLabel = new Map<string, string>()
+  const typeByLabel = new Map<string, { type: StructuredWorkflowInputField['type']; options: string[] }>()
+
   const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
   let match: RegExpExecArray | null
   while ((match = fieldRegex.exec(content)) !== null) {
     const label = match[1]?.trim()
     const value = match[2]?.trim()
     if (label && value && !value.startsWith('[')) {
-      inputs[label] = value
+      valueByLabel.set(label, value)
     }
   }
-  return inputs
+
+  const notesSectionMatch = content.match(/## Input Notes\s*([\s\S]*?)(?=\n## |\s*$)/)
+  if (notesSectionMatch?.[1]) {
+    const noteRegex = /^-\s+(.+?):\s+(text|checkbox|select)(?:\s+\((.+)\))?$/gim
+    let noteMatch: RegExpExecArray | null
+    while ((noteMatch = noteRegex.exec(notesSectionMatch[1])) !== null) {
+      const label = noteMatch[1]?.trim()
+      const rawType = (noteMatch[2] || 'text').toLowerCase() as StructuredWorkflowInputField['type']
+      const options = (noteMatch[3] || '').split(',').map((value) => value.trim()).filter(Boolean)
+      if (label) {
+        typeByLabel.set(label, { type: rawType, options })
+      }
+    }
+  }
+
+  return Array.from(valueByLabel.entries()).map(([label, defaultValue]) => {
+    const metadata = typeByLabel.get(label)
+    return {
+      label,
+      defaultValue,
+      type: metadata?.type || 'text',
+      options: metadata?.options || [],
+    }
+  })
+}
+
+function parseStructuredWorkflowInputs(content?: string | null): Record<string, string> {
+  return Object.fromEntries(
+    parseStructuredWorkflowInputFields(content).map((field) => [field.label, field.defaultValue])
+  )
 }
 
 function formatNextRun(nextRunAt?: string | null): string {
@@ -301,6 +339,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [triggeringWorkflow, setTriggeringWorkflow] = useState<Workflow | null>(null)
   const [workflowSecrets, setWorkflowSecrets] = useState<Record<string, string>>({})
   const [workflowRunInputs, setWorkflowRunInputs] = useState<Record<string, string>>({})
+  const [workflowRunInputFields, setWorkflowRunInputFields] = useState<StructuredWorkflowInputField[]>([])
   const [workflowRunInstructions, setWorkflowRunInstructions] = useState('')
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
@@ -383,11 +422,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }, [selectedWorkflow])
 
   function initializeWorkflowRunForm(workflow: WorkflowDetails, lastExecutionInputs?: Record<string, string>) {
-    const parsedInputs = parseStructuredWorkflowInputs(workflow.content)
-    const parsedInputKeys = new Set(Object.keys(parsedInputs))
+    const parsedFields = parseStructuredWorkflowInputFields(workflow.content)
+    const parsedInputs = Object.fromEntries(parsedFields.map((field) => [field.label, field.defaultValue]))
+    const parsedInputKeys = new Set(parsedFields.map((field) => field.label))
     const carriedForwardInputs = Object.fromEntries(
       Object.entries(lastExecutionInputs || {}).filter(([key]) => parsedInputKeys.has(key))
     )
+    setWorkflowRunInputFields(parsedFields)
     setWorkflowRunInputs({ ...parsedInputs, ...carriedForwardInputs })
     setWorkflowRunInstructions(typeof lastExecutionInputs?.[RUN_INSTRUCTIONS_KEY] === 'string' ? lastExecutionInputs[RUN_INSTRUCTIONS_KEY] : '')
     setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
@@ -424,9 +465,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     return data
   }
 
-  function startWorkflowTrigger(workflow: Workflow) {
+  async function startWorkflowTrigger(workflow: Workflow) {
     const hasSecrets = (workflow.secretRequirements || []).length > 0
-    const workflowDetails = selectedWorkflow && selectedWorkflow.id === workflow.id ? selectedWorkflow : null
+    let workflowDetails = selectedWorkflow && selectedWorkflow.id === workflow.id ? selectedWorkflow : null
+
+    if (!workflowDetails) {
+      try {
+        const workflowResp = await fetch(`/api/workflows/${workflow.id}`)
+        if (workflowResp.ok) {
+          workflowDetails = await workflowResp.json()
+        }
+      } catch {
+        // Ignore and fall back below.
+      }
+    }
+
     const hasEditableInputs = workflowDetails
       ? Object.keys(parseStructuredWorkflowInputs(workflowDetails.content)).length > 0
       : false
@@ -463,10 +516,60 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     setWorkflowSecrets(readLocalSecrets('workflow', workflow.id))
     if (workflowDetails) {
       initializeWorkflowRunForm(workflowDetails)
+      setSelectedWorkflow(workflowDetails)
     } else {
       setWorkflowRunInputs({})
       setWorkflowRunInstructions('')
     }
+  }
+
+  function renderWorkflowRunInputField(field: StructuredWorkflowInputField) {
+    const value = workflowRunInputs[field.label] ?? field.defaultValue ?? ''
+    if (field.type === 'checkbox') {
+      const checked = value === 'true'
+      return (
+        <label key={field.label} className="flex items-center gap-2 rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.checked ? 'true' : 'false' }))}
+            className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+          />
+          <span>{field.label}</span>
+        </label>
+      )
+    }
+    if (field.type === 'select' && field.options.length > 0) {
+      return (
+        <div key={field.label} className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+            {field.label}
+          </label>
+          <select
+            value={value}
+            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.value }))}
+            className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            {field.options.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+      )
+    }
+    return (
+      <div key={field.label} className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+          {field.label}
+        </label>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.value }))}
+          className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+        />
+      </div>
+    )
   }
 
   async function triggerWorkflowFromDetail(workflow: WorkflowDetails) {
@@ -1789,21 +1892,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     </button>
                   </div>
 
-                  {Object.keys(workflowRunInputs).length > 0 && (
+                  {workflowRunInputFields.length > 0 && (
                     <div className="grid gap-3 md:grid-cols-2">
-                      {Object.entries(workflowRunInputs).map(([label, value]) => (
-                        <div key={label} className="space-y-1.5">
-                          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {label}
-                          </label>
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [label]: e.target.value }))}
-                            className="w-full rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                          />
-                        </div>
-                      ))}
+                      {workflowRunInputFields.map((field) => renderWorkflowRunInputField(field))}
                     </div>
                   )}
 
@@ -2358,21 +2449,56 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   Example: focus on beginner-friendly warm-water sites under $2k and optimize for family travel.
                 </div>
               </div>
-              {Object.keys(workflowRunInputs).length > 0 && (
+              {workflowRunInputFields.length > 0 && (
                 <div className="grid gap-3 md:grid-cols-2">
-                  {Object.entries(workflowRunInputs).map(([label, value]) => (
-                    <div key={label} className="space-y-1.5">
-                      <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {label}
-                      </label>
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [label]: e.target.value }))}
-                        className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      />
-                    </div>
-                  ))}
+                  {workflowRunInputFields.map((field) => {
+                    const value = workflowRunInputs[field.label] ?? field.defaultValue ?? ''
+                    if (field.type === 'checkbox') {
+                      const checked = value === 'true'
+                      return (
+                        <label key={field.label} className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.checked ? 'true' : 'false' }))}
+                            className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                          />
+                          <span>{field.label}</span>
+                        </label>
+                      )
+                    }
+                    if (field.type === 'select' && field.options.length > 0) {
+                      return (
+                        <div key={field.label} className="space-y-1.5">
+                          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {field.label}
+                          </label>
+                          <select
+                            value={value}
+                            onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.value }))}
+                            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          >
+                            {field.options.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={field.label} className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {field.label}
+                        </label>
+                        <input
+                          type="text"
+                          value={value}
+                          onChange={(e) => setWorkflowRunInputs((prev) => ({ ...prev, [field.label]: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               )}
               {triggeringWorkflowSecretReadiness && (

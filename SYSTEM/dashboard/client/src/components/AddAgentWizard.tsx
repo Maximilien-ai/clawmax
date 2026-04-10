@@ -432,6 +432,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     }
   }
 
+  async function createAgentNowFromAI() {
+    setStep(5)
+    await provision()
+  }
+
   // Config preview JSON
   const preview = {
     name: form.name || suggested?.id || '…',
@@ -740,6 +745,27 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                   >
                     Start over
                   </button>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      onClick={createAgentNowFromAI}
+                      disabled={provisioning || validatingProvision}
+                      className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
+                        provisioning || validatingProvision
+                          ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      {provisioning ? 'Creating…' : validatingProvision ? 'Validating…' : 'Create Agent'}
+                    </button>
+                    <button
+                      onClick={() => setStep(3)}
+                      disabled={provisioning || validatingProvision}
+                      className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Review & Continue
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

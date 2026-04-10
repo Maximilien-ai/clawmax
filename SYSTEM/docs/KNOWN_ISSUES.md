@@ -73,6 +73,39 @@ Planned fix:
 
 ---
 
+### 6. Integration system-test artifacts can bleed into the personal workspace
+**Severity**: High
+**Status**: Known issue, needs workspace-isolation + cleanup hardening
+
+After running:
+
+- `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test.sh integration --with-validation`
+
+the `clawmax-system-test` organization/community/group artifacts can appear in the personal workspace UI, even though the test suite is supposed to isolate and clean up its own workspace.
+
+Observed symptoms:
+
+- system-test organization/groups/communities show up while viewing the personal workspace
+- the test workspace does not fully clean up its org/community artifacts after the run
+- manual deletion is sometimes required before real user testing can continue cleanly
+
+Likely cause:
+
+- workspace isolation is incomplete for ORG/COMMUNITIES/GROUPS reads
+- and/or the integration suite does not fully remove system-test channel/org artifacts on teardown
+
+Workaround:
+
+- manually delete the leaked system-test communities/groups before continuing personal-workspace testing
+- prefer a clean manual workspace baseline after the integration suite if template/apply testing is next
+
+Planned fix:
+
+- harden system-test teardown so communities/groups/org artifacts are removed deterministically
+- verify all organization/channel reads are scoped strictly to the active workspace
+
+---
+
 ## Resolved Recently (v1.1.16–v1.1.20)
 
 - **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
