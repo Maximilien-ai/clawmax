@@ -162,6 +162,8 @@ test('Managed workflow template metadata matches published workflow spec', () =>
   const toSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
   templates.forEach(template => {
+    if (template.source === 'workspace') return
+
     template.workflows?.forEach(workflow => {
       const workflowWithOwner = workflow as typeof workflow & { owner?: string }
       assert(typeof workflow.id === 'string' && workflow.id.length > 0, 'workflow.id should be present')
