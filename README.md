@@ -5,12 +5,34 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.9)
+[![Version](https://img.shields.io/badge/version-1.2.10-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.10)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.9
+## 🔥 What's New in v1.2.10
+
+- AI template generation is much more complete:
+  - preserves user-pinned template names on regenerate
+  - preserves custom kickoff/run-input blocks during refine/regenerate
+  - uses examples/URLs from long prompts more explicitly in workflow content
+  - infers kickoff → middle → final workflow structure more reliably
+  - exposes workflow scaling and team-size controls for scalable templates
+- Multi-template apply is much safer in real workspaces:
+  - newly applied agents register reliably in `openclaw.json`
+  - repeated applies detect more workflow conflicts before import
+  - broken legacy workflow dependency aliases are normalized on import
+  - preferred-model setup is reachable directly from apply prereq warnings
+- Template/runtime UX is tighter:
+  - workflow run inputs support typed fields
+  - prompt editing is easier from the wizard flow
+  - experienced users can create AI-generated agents immediately after generation
+- Template library quality improved:
+  - another batch of org templates was canonicalized for kickoff/final structure
+  - normalized templates now carry explicit workflow `scaling` / `parallelism`
+  - the public `maximilien-ai/templates` schema/validator now understand those fields
+
+## 🔥 Previously in v1.2.9
 
 - Workflow apply is safer in busy workspaces:
   - detects agent, channel, and workflow conflicts

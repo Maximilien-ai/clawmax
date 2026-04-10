@@ -2,6 +2,27 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.2.10] - 2026-04-10
+
+### Features — AI Template Quality
+- **Example-Aware AI Generation** — long prompts with examples, URLs, and style references now flow into generated workflow content more explicitly instead of being flattened into generic instructions
+- **Workflow Structure Follow-Through** — AI-generated templates now preserve kickoff-first, middle-work, and final-output structure more reliably, with scaling metadata where the prompt implies batch work
+- **Prompt and Input Preservation** — template regenerate/refine now preserves user-pinned names and custom workflow input blocks rather than overwriting them on every AI pass
+- **Typed Workflow Run Inputs** — workflow run forms now support typed text, checkbox, and select inputs derived from generated `Run Inputs` metadata
+
+### Fixes — Template Apply and Multi-Template Workspaces
+- **Agent Registration Reliability** — agents created through template apply now register in the active workspace `openclaw.json` path more reliably, preventing immediate “agent not found” runtime failures after apply
+- **Workflow Conflict Hardening** — repeated applies now detect more workflow-level conflicts before import, including workflow id/name overlap and dependency alias collisions
+- **Legacy Dependency Alias Normalization** — organization template import now normalizes broken legacy dependency ids like `kickoff` or `team-kickoff` to the actual workflow ids present in the applied template
+- **Preferred Model Recovery Path** — template apply prereqs now link directly into preferred-model setup so users can resolve missing shared execution defaults without leaving the flow blind
+
+### Fixes — Template Library and Validation
+- **Canonicalized Organization Templates** — another batch of built-in org templates was normalized for explicit kickoff/final structure and workflow scaling metadata
+- **Scaling Metadata Validation** — normalized templates and template validation now align on `scaling` / `parallelism` limits, and the public templates repo schema/validator was updated accordingly
+
+### Quality
+- **Integration + Template Validation Gate** — validated locally with `npm run typecheck`, `./SYSTEM/test.sh integration --with-validation`, and repeated manual apply/run/delete checks across Camera West, dive, meal-planning, and travel-photography flows
+
 ## [v1.2.9] - 2026-04-08
 
 ### Fixes — Workflow Apply and Execution
