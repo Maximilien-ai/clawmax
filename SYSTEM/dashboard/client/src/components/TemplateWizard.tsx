@@ -963,6 +963,31 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         </div>
       </div>
 
+      {!aiEnabled && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+          <div className="font-medium">AI generation needs a configured model key first</div>
+          <div className="mt-1 text-xs opacity-90">
+            Add browser keys in Workspaces Integrations or Keys & Secrets, then pick a preferred model if you want shared defaults.
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-white text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+            >
+              Open Workspaces Integrations
+            </button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-white text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+            >
+              Open Keys & Secrets
+            </button>
+          </div>
+        </div>
+      )}
+
       {DOMAIN_PRESETS[state.domain]?.examples.length > 0 && (
         <div className="mb-4">
           <p className="text-xs text-gray-400 mb-2">Quick examples:</p>
@@ -987,9 +1012,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             onClick={handleAiGenerate}
             disabled={aiGenerating || !state.teamDescription.trim() || !aiEnabled}
             className="px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-gray-600 dark:disabled:to-gray-700 disabled:cursor-not-allowed transition-all font-medium"
-            title={!aiEnabled ? 'Configure API keys (BYOK) to enable AI generation' : ''}
+            title={!aiEnabled ? 'Configure browser keys and a preferred model to enable AI generation' : ''}
           >
-            {aiGenerating ? 'Generating...' : !aiEnabled ? 'AI Generate (no keys)' : '✨ AI Generate All'}
+            {aiGenerating ? 'Generating...' : !aiEnabled ? 'AI Generate (set up keys first)' : '✨ AI Generate All'}
           </button>
           <button onClick={() => setStep(1)} className={btnPrimary}>
             Manual Setup →

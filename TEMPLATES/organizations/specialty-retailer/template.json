@@ -155,7 +155,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "specialty-retailer-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the store team and set business priorities",
       "schedule": "manual",
@@ -181,8 +181,10 @@
         "workflow",
         "business",
         "specialty-retailer",
-        "team-kickoff"
-      ]
+        "specialty-retailer-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "product-curation",
@@ -201,7 +203,7 @@
       },
       "content": "# Weekly Product Curation\n\n1. Buyer: review new product submissions and supplier catalogs\n2. Evaluate each product against brand fit, margin targets, and customer demand\n3. Owner: approve or reject proposed additions to the catalog\n4. Update product database with new items and discontinuations\n5. Post catalog changes summary to Status group",
       "dependsOn": [
-        "team-kickoff"
+        "specialty-retailer-kickoff"
       ],
       "type": "recurring",
       "owner": "owner",
@@ -210,7 +212,9 @@
         "business",
         "specialty-retailer",
         "product-curation"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "pricing-review",
@@ -229,7 +233,7 @@
       },
       "content": "# Daily Pricing Review\n\n1. Check competitor pricing for key products\n2. Calculate current margins against target thresholds\n3. Flag items below minimum margin or significantly above market\n4. Recommend price adjustments with justification\n5. Post pricing summary to Status group",
       "dependsOn": [
-        "team-kickoff"
+        "specialty-retailer-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -237,7 +241,9 @@
         "business",
         "specialty-retailer",
         "pricing-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "customer-follow-up",
@@ -258,7 +264,7 @@
       },
       "content": "# Customer Follow-up Cycle\n\n1. Check for pending customer inquiries and respond within SLA\n2. Process any return or exchange requests\n3. Review recent customer feedback for product or service issues\n4. Update FAQ if common questions are emerging\n5. Flag any escalations to the owner",
       "dependsOn": [
-        "team-kickoff"
+        "specialty-retailer-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -266,6 +272,42 @@
         "business",
         "specialty-retailer",
         "customer-follow-up"
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
+    },
+    {
+      "id": "specialty-retailer-brief",
+      "name": "Retail Operations Brief",
+      "description": "Produce the final operating recommendation and visible output.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "scaling": "singleton",
+      "parallelism": 1,
+      "targeting": {
+        "communities": [],
+        "groups": [
+          "Status"
+        ],
+        "tags": [],
+        "agents": [
+          "owner"
+        ]
+      },
+      "content": "# Retail Operations Brief\n\n1. Synthesize the curation, pricing, and customer-care recommendations into one operating brief\n2. Produce the chosen output artifact such as a catalog update, pricing sheet, or customer-care action list\n3. Highlight the highest-priority supplier, merchandising, and service actions\n4. Post the final brief and artifact links to Status",
+      "dependsOn": [
+        "product-curation",
+        "pricing-review",
+        "customer-follow-up"
+      ],
+      "type": "conditional",
+      "owner": "owner",
+      "tags": [
+        "workflow",
+        "business",
+        "specialty-retailer",
+        "specialty-retailer-brief"
       ]
     }
   ]

@@ -159,7 +159,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "marketing-team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the marketing team and set campaign goals",
       "schedule": "manual",
@@ -185,11 +185,13 @@
         "workflow",
         "business",
         "marketing-team",
-        "team-kickoff"
-      ]
+        "marketing-team-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
-      "id": "content-calendar",
+      "id": "marketing-content-calendar",
       "name": "Content Calendar",
       "description": "Weekly editorial planning and content assignment",
       "schedule": "0 9 * * 1",
@@ -205,7 +207,7 @@
       },
       "content": "# Weekly Content Calendar\n\n1. Marketing lead: review this week's content themes and business priorities\n2. SEO analyst: share top keyword opportunities and trending topics\n3. Assign blog posts, emails, and social content to writers with deadlines\n4. Content writers: confirm assignments and flag any research needs\n5. Post finalized calendar to Content group",
       "dependsOn": [
-        "team-kickoff"
+        "marketing-team-kickoff"
       ],
       "type": "recurring",
       "owner": "marketing-lead",
@@ -213,11 +215,13 @@
         "workflow",
         "business",
         "marketing-team",
-        "content-calendar"
-      ]
+        "marketing-content-calendar"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
-      "id": "campaign-review",
+      "id": "marketing-campaign-review",
       "name": "Campaign Review",
       "description": "Daily performance check across marketing channels",
       "schedule": "0 10 * * *",
@@ -233,18 +237,20 @@
       },
       "content": "# Daily Campaign Review\n\n1. Pull metrics from all active campaigns (email opens, click rates, conversions)\n2. Social manager: report engagement metrics (likes, shares, comments, reach)\n3. SEO analyst: check ranking changes for target keywords\n4. Flag any campaigns underperforming vs benchmarks\n5. Post daily performance snapshot to Status group",
       "dependsOn": [
-        "content-calendar"
+        "marketing-content-calendar"
       ],
       "type": "recurring",
       "tags": [
         "workflow",
         "business",
         "marketing-team",
-        "campaign-review"
-      ]
+        "marketing-campaign-review"
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
-      "id": "analytics-report",
+      "id": "marketing-analytics-report",
       "name": "Analytics Report",
       "description": "Weekly marketing performance analysis and insights",
       "schedule": "0 14 * * 5",
@@ -260,7 +266,7 @@
       },
       "content": "# Weekly Analytics Report\n\n1. Compile week-over-week metrics: traffic, leads, conversions, revenue attribution\n2. Analyze top-performing content and channels\n3. Identify underperforming campaigns with recommendations\n4. SEO analyst: report on organic search trends and ranking progress\n5. Marketing lead: post insights summary and adjust next week's strategy",
       "dependsOn": [
-        "campaign-review"
+        "marketing-campaign-review"
       ],
       "type": "recurring",
       "owner": "marketing-lead",
@@ -268,8 +274,10 @@
         "workflow",
         "business",
         "marketing-team",
-        "analytics-report"
-      ]
+        "marketing-analytics-report"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ],
   "category": "business"

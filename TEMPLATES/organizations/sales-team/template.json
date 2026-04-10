@@ -164,7 +164,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "sales-team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the sales team and set targets",
       "schedule": "manual",
@@ -190,8 +190,10 @@
         "workflow",
         "business",
         "sales-team",
-        "team-kickoff"
-      ]
+        "sales-team-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "pipeline-review",
@@ -210,7 +212,7 @@
       },
       "content": "# Daily Pipeline Review\n\n1. Sales ops: pull current pipeline snapshot — total value, stage distribution, aging deals\n2. Each AE: report on top 3 deals — stage, next steps, blockers\n3. Flag any deals stuck in the same stage for 7+ days\n4. Sales lead: review forecast accuracy vs last week\n5. Post summary to Status group",
       "dependsOn": [
-        "team-kickoff"
+        "sales-team-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -218,7 +220,9 @@
         "business",
         "sales-team",
         "pipeline-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "lead-qualification",
@@ -237,7 +241,7 @@
       },
       "content": "# Lead Qualification Cycle\n\n1. SDRs: review new inbound leads since last cycle\n2. Score each lead against ICP criteria (company size, industry, tech stack)\n3. For qualified leads: draft personalized outreach and schedule in sequence\n4. For hot leads (demo requests, pricing pages): immediately route to an AE\n5. Update lead status and log qualification notes",
       "dependsOn": [
-        "team-kickoff"
+        "sales-team-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -245,7 +249,9 @@
         "business",
         "sales-team",
         "lead-qualification"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "deal-forecast",
@@ -274,7 +280,9 @@
         "business",
         "sales-team",
         "deal-forecast"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ],
   "category": "business"

@@ -20,11 +20,15 @@ Already shipped in this sprint:
 - workflow run-level input overrides first slice
 - communications bulk actions parity
 - runtime/model enforcement fixes in direct chat and workflow paths
+- example-aware AI template generation
+- scalable workflow structure in AI-generated templates
+- workflow input authoring with typed runtime inputs
+- template apply hardening for workflow/agent conflicts and preferred-model guidance
+- initial organization-template audit and canonicalization pass
 
 Still open and important:
-- example-aware AI template generation
-- scalable middle workflows in AI-generated templates
 - template feedback / ratings first slice
+- broader system-template audit and cleanup beyond the first normalized batch
 - partner/template experimentation with Blaxel and Redis
 - Sunday hardening, polish, and release prep
 
@@ -95,10 +99,9 @@ Definition of done:
 
 ### Must Finish
 
-1. example-aware AI generation
-2. scalable workflow generation follow-through
-3. workflow input authoring follow-through
-4. template feedback / ratings first slice if time remains after 1-3
+1. finish template-library audit/canonicalization for the highest-value system templates
+2. template feedback / ratings first slice if time remains
+3. partner/template hackathon prep
 
 ### Concrete Work
 
@@ -106,12 +109,14 @@ Definition of done:
 - extract and preserve example blocks / URLs from the user prompt
 - explicitly instruct the generator to imitate style/format when examples are present
 - ensure example-heavy prompts do not get flattened into generic team/workflow output
+- status: shipped in first pass; keep validating against long prompts and patching edge cases
 
 2. finish workflow quality
 - kickoff always first
 - middle steps can be serial or parallel depending on prompt
 - final step produces output or explicit completion confirmation
 - if a workflow should scale, make that explicit in content/instructions
+- status: shipped in first pass; now audit older templates for parity
 
 3. finish workflow input story
 - prompt editor available at start and later steps
@@ -121,6 +126,7 @@ Definition of done:
   - checkbox
   - select
 - kickoff workflow should be the first place this feels solid
+- status: shipped in first pass; keep refining apply/edit UX
 
 4. if time remains
 - template feedback / ratings first slice
@@ -130,6 +136,7 @@ Definition of done:
 - one long example-heavy prompt produces a credible editable template
 - generated workflow structure is correct
 - kickoff has useful inputs
+- multi-template apply in one workspace does not silently cross-wire pipelines
 - one meaningful template feedback loop exists or is very close
 
 ## Saturday: Partner Hackathon

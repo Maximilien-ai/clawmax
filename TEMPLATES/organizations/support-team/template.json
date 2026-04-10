@@ -157,7 +157,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "support-team-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the support team and set SLA targets",
       "schedule": "manual",
@@ -183,8 +183,10 @@
         "workflow",
         "business",
         "support-team",
-        "team-kickoff"
-      ]
+        "support-team-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "ticket-triage",
@@ -203,7 +205,7 @@
       },
       "content": "# Ticket Triage Cycle\n\n1. Define the intake buckets, priority rules, and assignment logic for the current ticket source\n2. Identify the queues or issue labels the frontline team should own first\n3. Flag which ticket classes should route directly to escalation\n4. Produce a triage checklist the team can reuse on every cycle\n5. Post the triage plan and open risks to Triage group",
       "dependsOn": [
-        "team-kickoff"
+        "support-team-kickoff"
       ],
       "type": "conditional",
       "owner": "support-agent",
@@ -212,7 +214,9 @@
         "business",
         "support-team",
         "ticket-triage"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "sla-monitoring",
@@ -231,7 +235,7 @@
       },
       "content": "# SLA Monitoring\n\n1. Translate the chosen SLA targets into a simple operating scoreboard\n2. Define which tickets count as at-risk and what triggers escalation\n3. Highlight the metrics the support lead should watch daily\n4. Recommend a short status summary format for the team and stakeholders\n5. Post the SLA monitoring framework to Status group",
       "dependsOn": [
-        "team-kickoff"
+        "support-team-kickoff"
       ],
       "type": "conditional",
       "owner": "support-lead",
@@ -240,7 +244,9 @@
         "business",
         "support-team",
         "sla-monitoring"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "knowledge-base-updates",
@@ -271,7 +277,9 @@
         "business",
         "support-team",
         "knowledge-base-updates"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "support-operations-brief",
@@ -303,7 +311,9 @@
         "business",
         "support-team",
         "support-operations-brief"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ],
   "category": "business"

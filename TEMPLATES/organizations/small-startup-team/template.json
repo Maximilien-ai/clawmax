@@ -208,7 +208,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "small-startup-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the startup team",
       "schedule": "manual",
@@ -234,8 +234,10 @@
         "workflow",
         "business",
         "small-startup-team",
-        "team-kickoff"
-      ]
+        "small-startup-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "daily-standup",
@@ -254,7 +256,7 @@
       },
       "content": "# Daily Standup\n\nProvide your standup update:\n\n### 1. Yesterday\n- What did you complete?\n\n### 2. Today\n- What are your top priorities?\n\n### 3. Blockers\n- Anything blocking your work?\n\nKeep it concise (3-5 bullet points total).",
       "dependsOn": [
-        "team-kickoff"
+        "small-startup-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -262,7 +264,9 @@
         "business",
         "small-startup-team",
         "daily-standup"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "status-check",
@@ -281,7 +285,7 @@
       },
       "content": "# Status Check\n\nProvide a brief status pulse:\n\n1. **Current task**: What are you working on right now?\n2. **Progress**: On track or any delays?\n3. **Need help?**: Anything you need from the team?\n\nKeep it to 2-3 sentences.",
       "dependsOn": [
-        "team-kickoff"
+        "small-startup-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -289,7 +293,9 @@
         "business",
         "small-startup-team",
         "status-check"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "issue-triage",
@@ -308,7 +314,7 @@
       },
       "content": "# Issue Triage\n\nReview the GitHub repository for new and unresolved issues:\n\n## Tasks\n1. **New issues** (last 24 hours): Add labels (bug/feature/docs/question), assign if obvious owner, request clarification if unclear\n2. **Unassigned issues**: Assign to appropriate team member based on expertise\n3. **Stale issues** (no activity 7+ days): Comment asking for update\n4. **Duplicate issues**: Mark as duplicate with link to original\n\n## Output\n- Summary of issues triaged (new, assigned, stale, closed)\n- Any issues that need leadership attention\n- Post summary to Status group",
       "dependsOn": [
-        "team-kickoff"
+        "small-startup-kickoff"
       ],
       "type": "recurring",
       "tags": [
@@ -316,7 +322,9 @@
         "business",
         "small-startup-team",
         "issue-triage"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "pr-review",
@@ -343,7 +351,9 @@
         "business",
         "small-startup-team",
         "pr-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "coding-sprint",
@@ -370,7 +380,9 @@
         "business",
         "small-startup-team",
         "coding-sprint"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "pr-merge",

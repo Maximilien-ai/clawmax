@@ -101,7 +101,13 @@ router.post('/generate', async (req, res) => {
     res.json({ ok: true, workflow })
   } catch (err: any) {
     console.error('Error generating workflow:', err)
-    res.status(500).json({ error: err.message || 'Failed to generate workflow' })
+    const message = err?.message || 'Failed to generate workflow'
+    if (/No API key configured/i.test(message)) {
+      return res.status(400).json({
+        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+      })
+    }
+    res.status(500).json({ error: message })
   }
 })
 

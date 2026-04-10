@@ -165,7 +165,9 @@
         "hobbies",
         "photography-studio",
         "photo-project-kickoff"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "shoot-review",
@@ -197,7 +199,9 @@
         "hobbies",
         "photography-studio",
         "shoot-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "shoot-plan",
@@ -227,7 +231,9 @@
         "hobbies",
         "photography-studio",
         "shoot-plan"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "portfolio-direction",
@@ -257,7 +263,9 @@
         "hobbies",
         "photography-studio",
         "portfolio-direction"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "photo-project-brief",
@@ -289,7 +297,9 @@
         "hobbies",
         "photography-studio",
         "photo-project-brief"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ]
 }

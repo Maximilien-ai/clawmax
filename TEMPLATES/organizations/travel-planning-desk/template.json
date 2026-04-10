@@ -166,7 +166,9 @@
         "travel",
         "travel-planning-desk",
         "trip-kickoff"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "itinerary-build",
@@ -196,7 +198,9 @@
         "travel",
         "travel-planning-desk",
         "itinerary-build"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "logistics-check",
@@ -226,7 +230,9 @@
         "travel",
         "travel-planning-desk",
         "logistics-check"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "memory-plan",
@@ -256,7 +262,9 @@
         "travel",
         "travel-planning-desk",
         "memory-plan"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "trip-brief",
@@ -288,7 +296,9 @@
         "travel",
         "travel-planning-desk",
         "trip-brief"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ]
 }

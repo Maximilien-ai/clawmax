@@ -307,7 +307,13 @@ router.post('/generate', async (req, res) => {
     })
   } catch (err) {
     console.error('AI generation error:', err)
-    res.status(500).json({ error: String(err) })
+    const message = String(err)
+    if (/No API key configured/i.test(message)) {
+      return res.status(400).json({
+        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+      })
+    }
+    res.status(500).json({ error: message })
   } finally {
     const { setRequestByokKeys } = require('../lib/ai-generator')
     setRequestByokKeys(undefined)

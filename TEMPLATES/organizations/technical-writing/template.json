@@ -164,7 +164,7 @@
   ],
   "workflows": [
     {
-      "id": "team-kickoff",
+      "id": "technical-writing-kickoff",
       "name": "Team Kickoff",
       "description": "Initialize the writing team and set editorial direction",
       "schedule": "manual",
@@ -190,11 +190,13 @@
         "workflow",
         "personal",
         "technical-writing",
-        "team-kickoff"
-      ]
+        "technical-writing-kickoff"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
-      "id": "outline-review",
+      "id": "technical-writing-outline-review",
       "name": "Outline Review",
       "description": "Review and approve content outlines before writing begins",
       "schedule": "manual",
@@ -212,7 +214,7 @@
       },
       "content": "# Outline Review\n\n1. Writers: submit proposed outlines with target audience, scope, and key sections\n2. Editor: review outline structure and alignment with content goals\n3. Check for overlap with existing published content\n4. Provide feedback on scope, depth, and approach\n5. Approve outline and set deadline for first draft",
       "dependsOn": [
-        "team-kickoff"
+        "technical-writing-kickoff"
       ],
       "type": "recurring",
       "owner": "editor",
@@ -220,11 +222,13 @@
         "workflow",
         "personal",
         "technical-writing",
-        "outline-review"
-      ]
+        "technical-writing-outline-review"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
-      "id": "draft-writing",
+      "id": "technical-writing-draft-writing",
       "name": "Draft Writing",
       "description": "Daily writing check-in and draft progress tracking",
       "schedule": "0 10 * * *",
@@ -240,18 +244,20 @@
       },
       "content": "# Daily Draft Progress\n\n1. Each writer: post progress update on assigned drafts\n2. Flag any blockers (missing source material, unclear requirements)\n3. For completed drafts: move to Review group for fact-checking\n4. Editor: review pipeline and adjust priorities if needed\n5. Post content pipeline status to Status group",
       "dependsOn": [
-        "outline-review"
+        "technical-writing-outline-review"
       ],
       "type": "recurring",
       "tags": [
         "workflow",
         "personal",
         "technical-writing",
-        "draft-writing"
-      ]
+        "technical-writing-draft-writing"
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
-      "id": "fact-check",
+      "id": "technical-writing-fact-check",
       "name": "Fact Check",
       "description": "Technical review and fact-checking of completed drafts",
       "schedule": "manual",
@@ -269,7 +275,7 @@
       },
       "content": "# Fact Check & Technical Review\n\n1. Read the draft thoroughly for technical accuracy\n2. Test all code examples, commands, and API calls\n3. Verify facts, statistics, and external references\n4. Check for consistency with style guide and terminology\n5. Submit review with corrections, suggestions, and approval status",
       "dependsOn": [
-        "draft-writing"
+        "technical-writing-draft-writing"
       ],
       "type": "recurring",
       "owner": "reviewer",
@@ -277,11 +283,13 @@
         "workflow",
         "personal",
         "technical-writing",
-        "fact-check"
-      ]
+        "technical-writing-fact-check"
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
-      "id": "publish",
+      "id": "technical-writing-publish",
       "name": "Publish",
       "description": "Format and publish approved content",
       "schedule": "manual",
@@ -299,7 +307,7 @@
       },
       "content": "# Content Publishing\n\n1. Take approved, reviewed content from the Review group\n2. Format for the target platform (docs site, blog, wiki)\n3. Add SEO metadata: title, description, keywords, open graph tags\n4. Publish and verify the live page renders correctly\n5. Post publication confirmation with link to Status group",
       "dependsOn": [
-        "fact-check"
+        "technical-writing-fact-check"
       ],
       "type": "conditional",
       "owner": "publisher",
@@ -307,8 +315,10 @@
         "workflow",
         "personal",
         "technical-writing",
-        "publish"
-      ]
+        "technical-writing-publish"
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ],
   "category": "personal"

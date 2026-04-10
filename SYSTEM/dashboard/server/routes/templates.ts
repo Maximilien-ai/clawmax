@@ -64,6 +64,9 @@ function getOrganizationTemplateConflicts(template: any, options?: {
   const referencedGroups = new Set<string>()
   const referencedCommunities = new Set<string>()
   const referencedWorkflowNames = new Set<string>()
+  const referencedWorkflowIds = new Set<string>()
+  const workflowConflictNames = new Set<string>()
+  const templateWorkflowIds = new Set<string>()
 
   for (const group of template.groups || []) {
     if (group.name?.trim()) referencedGroups.add(group.name.trim())
@@ -81,6 +84,10 @@ function getOrganizationTemplateConflicts(template: any, options?: {
     }
   }
   for (const workflow of template.workflows || []) {
+    if (workflow.id?.trim()) {
+      referencedWorkflowIds.add(workflow.id.trim())
+      templateWorkflowIds.add(workflow.id.trim())
+    }
     if (workflow.name?.trim()) referencedWorkflowNames.add(workflow.name.trim())
     for (const groupName of workflow.targeting?.groups || []) {
       if (groupName?.trim()) referencedGroups.add(groupName.trim())
@@ -93,6 +100,7 @@ function getOrganizationTemplateConflicts(template: any, options?: {
   const existingGroupNames = new Set<string>()
   const existingCommunityNames = new Set<string>()
   const existingWorkflowNames = new Set<string>()
+  const existingWorkflowIds = new Set<string>()
   const groupsPath = path.join(workspacePath, 'ORG', 'GROUPS.md')
   const communitiesPath = path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
   if (fs.existsSync(groupsPath)) {
@@ -109,13 +117,35 @@ function getOrganizationTemplateConflicts(template: any, options?: {
   }
   for (const workflow of listWorkflows()) {
     if (workflow.name?.trim()) existingWorkflowNames.add(normalize(workflow.name))
+    if (workflow.id?.trim()) existingWorkflowIds.add(workflow.id.trim())
+  }
+
+  for (const workflow of template.workflows || []) {
+    const workflowName = workflow.name?.trim()
+    const workflowId = workflow.id?.trim()
+    if (workflowName && existingWorkflowNames.has(normalize(workflowName))) {
+      workflowConflictNames.add(workflowName)
+      continue
+    }
+    if (workflowId && existingWorkflowIds.has(workflowId)) {
+      workflowConflictNames.add(workflowName || workflowId)
+      continue
+    }
+    for (const dependency of workflow.dependsOn || []) {
+      const dep = String(dependency || '').trim()
+      if (!dep) continue
+      if (!templateWorkflowIds.has(dep) && existingWorkflowIds.has(dep)) {
+        workflowConflictNames.add(workflowName || workflowId || dep)
+        break
+      }
+    }
   }
 
   return {
     agentConflicts,
     groupConflicts: Array.from(referencedGroups).filter((name) => existingGroupNames.has(normalize(name))),
     communityConflicts: Array.from(referencedCommunities).filter((name) => existingCommunityNames.has(normalize(name))),
-    workflowConflicts: Array.from(referencedWorkflowNames).filter((name) => existingWorkflowNames.has(normalize(name))),
+    workflowConflicts: Array.from(workflowConflictNames),
   }
 }
 
@@ -478,7 +508,13 @@ router.post('/generate', async (req, res) => {
     res.json({ ok: true, template })
   } catch (err: any) {
     console.error('Error generating template:', err)
-    res.status(500).json({ error: err.message || 'Failed to generate template' })
+    const message = err?.message || 'Failed to generate template'
+    if (/No API key configured/i.test(message)) {
+      return res.status(400).json({
+        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+      })
+    }
+    res.status(500).json({ error: message })
   } finally {
     setRequestByokKeys(undefined)
   }

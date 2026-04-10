@@ -223,7 +223,9 @@
         "personal",
         "conference-ops-hub",
         "conference-kickoff"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "track-planning-review",
@@ -253,7 +255,9 @@
         "personal",
         "conference-ops-hub",
         "track-planning-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "speaker-ops-review",
@@ -283,7 +287,9 @@
         "personal",
         "conference-ops-hub",
         "speaker-ops-review"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "capacity-and-venue-plan",
@@ -313,7 +319,9 @@
         "personal",
         "conference-ops-hub",
         "capacity-and-venue-plan"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "sponsor-readiness-check",
@@ -343,7 +351,9 @@
         "personal",
         "conference-ops-hub",
         "sponsor-readiness-check"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "conference-follow-up",
@@ -373,7 +383,9 @@
         "personal",
         "conference-ops-hub",
         "conference-follow-up"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ]
 }

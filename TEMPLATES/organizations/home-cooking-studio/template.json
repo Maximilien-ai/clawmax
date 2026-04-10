@@ -156,7 +156,9 @@
         "hobbies",
         "home-cooking-studio",
         "cooking-kickoff"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     },
     {
       "id": "recipe-retro",
@@ -186,7 +188,9 @@
         "hobbies",
         "home-cooking-studio",
         "recipe-retro"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "menu-build",
@@ -216,7 +220,9 @@
         "hobbies",
         "home-cooking-studio",
         "menu-build"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "prep-plan",
@@ -246,7 +252,9 @@
         "hobbies",
         "home-cooking-studio",
         "prep-plan"
-      ]
+      ],
+      "scaling": "parallel",
+      "parallelism": 2
     },
     {
       "id": "cooking-session-brief",
@@ -278,7 +286,9 @@
         "hobbies",
         "home-cooking-studio",
         "cooking-session-brief"
-      ]
+      ],
+      "scaling": "singleton",
+      "parallelism": 1
     }
   ]
 }

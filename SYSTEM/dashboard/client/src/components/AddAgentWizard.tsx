@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys, fetchModelsWithByok } from '../lib/byok'
+import { readStoredByokKeys, fetchModelsWithByok, hasAnyLLMKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 const PREDEFINED_TAGS = [
@@ -46,6 +46,8 @@ interface ValidationResult {
 }
 
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
+  const { config } = useAuth()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -671,6 +673,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Optionally use AI to generate your agent's personality files (IDENTITY, SOUL, TOOLS). Skip this step to clone or create from scratch.
               </p>
+              {!aiEnabled && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                  <div className="font-medium">AI generation needs a configured model key first</div>
+                  <div className="mt-1 text-xs opacity-90">
+                    You can still create agents manually, but AI generation and AI-assisted runs need browser keys or a shared preferred model.
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Describe your agent <span className="text-gray-400">(optional)</span></label>
                 <textarea
@@ -684,16 +694,17 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
               <button
                 onClick={generateWithAI}
-                disabled={!form.aiDescription.trim() || generating || !!generatedFiles}
+                disabled={!form.aiDescription.trim() || generating || !!generatedFiles || !aiEnabled}
                 className={`w-full px-4 py-2 text-sm rounded font-medium transition-colors ${
                   generating || !!generatedFiles
                     ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                    : !form.aiDescription.trim()
+                    : !form.aiDescription.trim() || !aiEnabled
                     ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                     : 'bg-sky-600 text-white hover:bg-sky-700'
                 }`}
+                title={!aiEnabled ? 'Configure browser keys and a preferred model to enable AI generation' : ''}
               >
-                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : 'Generate with AI'}
+                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : 'Generate with AI'}
               </button>
 
               {genError && (

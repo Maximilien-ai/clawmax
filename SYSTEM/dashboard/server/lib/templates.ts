@@ -10,6 +10,7 @@ import { listWorkflows, createWorkflow } from './workflows'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange } from './agent-model'
+import { safeEnv } from './safe-env'
 
 // Template storage paths (dynamic functions)
 
@@ -86,6 +87,32 @@ function normalizeTagList(tags?: string[]): string[] {
         .filter(Boolean)
     )
   )
+}
+
+function buildWorkflowDependencyAliasMap(workflows: Workflow[]): Record<string, string> {
+  const aliasMap: Record<string, string> = {}
+
+  for (const workflow of workflows || []) {
+    const id = String(workflow.id || '').trim()
+    const name = String(workflow.name || '').trim()
+    if (!id) continue
+
+    aliasMap[id] = id
+    if (name) {
+      aliasMap[slugify(name)] = id
+    }
+
+    const combined = `${id} ${name}`.toLowerCase()
+    if (combined.includes('kickoff')) {
+      aliasMap.kickoff = id
+      aliasMap['team-kickoff'] = id
+    }
+    if (combined.includes('final') || combined.includes('summary') || combined.includes('brief') || combined.includes('publish')) {
+      aliasMap.final = id
+    }
+  }
+
+  return aliasMap
 }
 
 // Ensure template directories exist
@@ -317,38 +344,51 @@ function runOrganizationPostImportSetup(args: {
 }) {
   const { createdAgents, agentsToCreate, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
 
-  setTimeout(() => {
-    // Registering agents and stamping runtime metadata can be slow.
-    // Keep these non-fatal steps out of the request path.
-    for (const agentId of createdAgents) {
-      try {
-        const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
-        const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  // Agent registration is required before workflows can run against new agents.
+  // Do this synchronously so an immediate post-apply workflow run doesn't fail.
+  for (const agentId of createdAgents) {
+    try {
+      const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
+      const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+      const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
 
-        execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
-          encoding: 'utf-8',
-          stdio: 'pipe'
-        })
-        console.log(`Registered agent ${agentId} in openclaw.json`)
+      execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        env: registrationEnv,
+      })
+      console.log(`Registered agent ${agentId} in openclaw.json`)
 
-        fs.mkdirSync(agentDirArg, { recursive: true })
-        const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
-        if (!fs.existsSync(authProfilePath)) {
-          const authProfile: Record<string, any> = { version: 1, profiles: {} }
-          const systemKeys = getSystemProviderKeys()
-          if (systemKeys.openai) {
-            authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
-          }
-          if (systemKeys.anthropic) {
-            authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
-          }
-          fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
-          console.log(`Created auth profile for agent ${agentId}`)
-        }
-      } catch (err) {
-        console.warn(`Failed to register agent ${agentId}: ${err}`)
+      const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const registered = Array.isArray(config?.agents?.list) && config.agents.list.some((agent: any) =>
+        agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
+      )
+      if (!registered) {
+        throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
       }
+
+      fs.mkdirSync(agentDirArg, { recursive: true })
+      const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
+      if (!fs.existsSync(authProfilePath)) {
+        const authProfile: Record<string, any> = { version: 1, profiles: {} }
+        const systemKeys = getSystemProviderKeys()
+        if (systemKeys.openai) {
+          authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
+        }
+        if (systemKeys.anthropic) {
+          authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
+        }
+        fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
+        console.log(`Created auth profile for agent ${agentId}`)
+      }
+    } catch (err) {
+      console.warn(`Failed to register agent ${agentId}: ${err}`)
     }
+  }
+
+  setTimeout(() => {
+    // Non-critical follow-through can stay off the request path.
 
     for (const templateAgent of agentsToCreate) {
       const skills = templateAgent.skills
@@ -1743,6 +1783,14 @@ export function importOrganizationTemplate(
         }
       })
 
+      const dependencyAliases = buildWorkflowDependencyAliasMap(adjustedTemplate.workflows as Workflow[])
+      adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => ({
+        ...workflow,
+        dependsOn: Array.isArray(workflow.dependsOn)
+          ? workflow.dependsOn.map((dep) => dependencyAliases[dep] || legacyWorkflowIdMap[dep] || dep)
+          : workflow.dependsOn,
+      }))
+
       const workflowIdRenames = Object.fromEntries(
         adjustedTemplate.workflows.map((workflow) => {
           const originalId = Object.keys(legacyWorkflowIdMap).find((key) => legacyWorkflowIdMap[key] === workflow.id) || workflow.id
@@ -2285,7 +2333,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       // Step 5: Create/update workflows from template
       if (adjustedTemplate.workflows && adjustedTemplate.workflows.length > 0) {
         const existingWorkflows = listWorkflows()
-        const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.name, w]))
+        const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.id, w]))
         const workflowIdMap: Record<string, string> = {}
 
         for (const wf of adjustedTemplate.workflows) {
@@ -2293,7 +2341,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
           const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || dep)
 
-          const existing = existingWorkflowMap.get(wf.name)
+          const existing = existingWorkflowMap.get(wf.id)
           if (existing) {
             // Workflow exists - merge new targeting with existing
             const existingAgents = existing.targeting.agents || []
