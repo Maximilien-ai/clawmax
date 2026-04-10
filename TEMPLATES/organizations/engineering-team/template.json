@@ -17,7 +17,7 @@
       "label": "Number of Engineers",
       "default": 2,
       "min": 1,
-      "max": 20
+      "max": 10
     }
   ],
   "agents": [
