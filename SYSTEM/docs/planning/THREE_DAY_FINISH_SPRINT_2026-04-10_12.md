@@ -27,10 +27,16 @@ Already shipped in this sprint:
 - initial organization-template audit and canonicalization pass
 
 Still open and important:
-- template feedback / ratings first slice
 - broader system-template audit and cleanup beyond the first normalized batch
 - partner/template experimentation with Blaxel and Redis
+- on-prem deployment validation and runtime packaging sanity check
 - Sunday hardening, polish, and release prep
+
+Completed today:
+- template feedback / ratings first slice
+- local-first plus optional remote feedback sink routing
+- template card rating summaries and rating filters
+- feedback docs / release handoff for CLI and deployment teams
 
 ## Priority Order
 
@@ -143,19 +149,26 @@ Definition of done:
 
 ### Goal
 
-Experiment with partners and new templates, not broad cleanup.
+Use Saturday for high-signal partner and deployment validation, not broad feature expansion.
 
 ### Focus
 
 1. Blaxel experiments
 - validate partner-aware flows
 - check useful partner-specific template paths
+- verify partner envs/secrets/template apply/runtime flow
 
 2. Redis experiments
 - test memory/state-oriented workflows
 - validate runtime/defaults/secret usage
+- confirm useful result surfacing, not just successful execution
 
-3. new templates
+3. on-prem deployment
+- verify container/on-prem runtime assumptions
+- confirm setup/auth/runtime persistence path on a clean deployment target
+- capture exact gaps for Sunday hardening instead of hand-waving them
+
+4. new templates
 - run the most promising new template pack items
 - refine based on real runs, not theory
 
@@ -163,7 +176,52 @@ Experiment with partners and new templates, not broad cleanup.
 
 - at least one Blaxel-flavored success path
 - at least one Redis-flavored success path
+- one credible on-prem deployment validation pass with concrete findings
 - at least one new/refined template that clearly benefits from a partner
+
+## Saturday Plan — Full Day
+
+### Block 1: Runtime + Setup Baseline
+
+1. fresh provisioned/partner-ready instance sanity
+- auth
+- keys/integrations
+- template apply
+- feedback path still healthy
+
+2. on-prem baseline
+- verify current Docker/container path
+- confirm gateway/runtime startup behavior
+- confirm persistent state expectations
+
+### Block 2: Partner Validation
+
+1. Blaxel
+- one concrete template/run that depends on Blaxel
+- document exact required settings
+- confirm outputs are visible and useful
+
+2. Redis
+- one concrete memory/state workflow
+- confirm secrets/defaults/result surfacing
+
+### Block 3: Template + Demo Readiness
+
+1. partner-benefiting templates
+- refine only the templates that matter for demos
+- avoid broad catalog churn
+
+2. multi-template sanity
+- re-check coexistence in one workspace
+- confirm no collisions/regressions after partner work
+
+### Saturday Exit Criteria
+
+- partner integrations have at least two real success paths
+- on-prem path has a concrete status:
+  - healthy
+  - or blocked with specific defects
+- no new high-risk template/runtime regressions introduced
 
 ## Sunday: Hardening + Polish
 

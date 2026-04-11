@@ -96,7 +96,7 @@
 
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
-- [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers
+- [ ] **Template feedback, ratings, and promotion flow** — first-pass ratings/feedback is shipped locally and can optionally route to a remote sink; keep promotion, ranking, and broader catalog lifecycle work open.
 - [x] **Template editing and AI refinement** — shipped first pass for organization and agent templates: start from an existing template, edit/refine in-wizard, save as a workspace variant, and for agent templates edit/generate the real `IDENTITY.md` / `SOUL.md` / `TOOLS.md` files.
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
@@ -116,7 +116,7 @@
 - [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
 - [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
-- [ ] **Template feedback remote sink / web sync** — current feedback is stored locally in workspace JSON as a cache/first slice. Add a generic server-side sink interface so production/web deployments can POST the same feedback payloads to a remote service without hardcoding ClawMax web internals into the open-source dashboard.
+- [x] **Template feedback remote sink / web sync** — shipped: template feedback stays local-first by default, and can optionally route through a generic remote sink when `TEMPLATE_FEEDBACK_REMOTE_URL`, `TEMPLATE_FEEDBACK_SUMMARY_URL`, and `TEMPLATE_FEEDBACK_TOKEN` are configured.
 - [ ] **Template upgrade / reapply-over-existing flow** — support upgrading a workspace that already applied a template when the template changes later; compare the current workspace against the newer template, show likely conflicts plus likely safe updates, and guide the user through update vs. replace decisions instead of forcing manual delete + reapply.
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.
 - [ ] **Small-business marketing template pack** — create suggested starter templates for marketing planning and budget allocation across Instagram, Facebook, YouTube, and Google News/Ads, including audience focus, budget planning, and channel prioritization flows. Expect some variants to use uploaded historical data or external API keys.
