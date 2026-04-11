@@ -148,6 +148,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
         templateType: 'organization',
       }))
     } catch {}
+    window.dispatchEvent(new CustomEvent('clawmax-open-template-from-onboarding'))
     onOpenTemplates()
     setOpen(false)
   }

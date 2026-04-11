@@ -116,6 +116,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [savingSkillContent, setSavingSkillContent] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
 
+  const focusSkill = (skillName: string) => {
+    const normalized = skillName.trim().toLowerCase()
+    if (!normalized) return
+    setSearchQuery(skillName)
+    const exactSkill = allSkills.find((skill) => skill.name.toLowerCase() === normalized)
+    if (exactSkill) {
+      void openSkillViewer(exactSkill)
+    }
+  }
+
   // Load agents list on mount
   useEffect(() => {
     loadAgents()
@@ -144,6 +154,17 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       })
       .catch(() => setPartnerInstallers([]))
   }, [])
+
+  useEffect(() => {
+    const handleOpenSkillSearch = (event: Event) => {
+      const detail = (event as CustomEvent<{ skill?: string }>).detail
+      if (detail?.skill) {
+        focusSkill(detail.skill)
+      }
+    }
+    window.addEventListener('clawmax-open-skill-search', handleOpenSkillSearch as EventListener)
+    return () => window.removeEventListener('clawmax-open-skill-search', handleOpenSkillSearch as EventListener)
+  }, [allSkills])
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
@@ -566,6 +587,18 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     .map((skill) => ({ ...skill, installName: skill.full_name || skill.name }))
     .filter((skill) => !registryInstalledNames.has(skill.installName))
     .slice(0, 5)
+  const visiblePartnerInstallers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return partnerInstallers.filter((partner) => {
+      if (!query) return true
+      return [
+        partner.name,
+        partner.description,
+        partner.skills.label || '',
+        ...(partner.skills.items || []),
+      ].join(' ').toLowerCase().includes(query)
+    })
+  }, [partnerInstallers, searchQuery])
   const missingGeneratedSkillSections = generatedSkillDraft
     ? SKILL_SPEC_SECTIONS.filter((section) => !generatedSkillDraft.content.includes(section))
     : []
@@ -887,6 +920,96 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         {saving && (
           <div className="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-2 rounded-lg mb-4">
             💾 Saving changes...
+          </div>
+        )}
+
+        {visiblePartnerInstallers.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Install from Partner</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Skills available from enabled partner integrations.
+                </p>
+              </div>
+              <button
+                onClick={() => openImportDialog('partner')}
+                className="text-xs font-medium text-purple-600 hover:text-purple-700"
+              >
+                Browse all
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visiblePartnerInstallers.map((partner) => (
+                <div key={`partner-surface-${partner.slug}`} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2">
+                    {partner.logoUrl ? (
+                      <img
+                        src={partner.logoUrl}
+                        alt={`${partner.name} logo`}
+                        className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{partner.description}</div>
+                  {partner.skills.items && partner.skills.items.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {partner.skills.items.map((item) => (
+                        <button
+                          key={`${partner.slug}-${item}`}
+                          type="button"
+                          onClick={() => focusSkill(item)}
+                          className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-300"
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {partner.skills.label || 'Partner skill installer'}
+                    </div>
+                    {partner.skills.mode === 'curated-installer' ? (
+                      <button
+                        onClick={async () => {
+                          if (!partner.skills.commandId) return
+                          setPartnerInstalling(partner.slug)
+                          try {
+                            const resp = await fetch('/api/skills/partner-install', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ commandId: partner.skills.commandId }),
+                            })
+                            const data = await resp.json().catch(() => ({}))
+                            if (!resp.ok) throw new Error(data.error || 'Install failed')
+                            showSuccess(`Installed ${partner.name} skills`)
+                            await loadSkills()
+                          } catch (err: any) {
+                            showToastError(err.message || `Failed to install ${partner.name} skills`)
+                          } finally {
+                            setPartnerInstalling(null)
+                          }
+                        }}
+                        disabled={!!partnerInstalling}
+                        className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                      >
+                        {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openImportDialog('partner')}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      >
+                        Browse
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

@@ -226,6 +226,18 @@ function getTemplateRow(template: Template): TemplateRow {
   }
 }
 
+const TEMPLATE_CATEGORY_OPTIONS = [
+  { key: 'all', label: 'All', icon: '' },
+  { key: 'business', label: 'Business', icon: '💼' },
+  { key: 'technical', label: 'Technical', icon: '⚙️' },
+  { key: 'personal', label: 'Personal', icon: '📚' },
+  { key: 'events', label: 'Events', icon: '🎤' },
+  { key: 'travel', label: 'Travel', icon: '✈️' },
+  { key: 'hobbies', label: 'Hobbies', icon: '🎨' },
+  { key: 'family', label: 'Family', icon: '🏡' },
+  { key: 'science', label: 'Science', icon: '🔬' },
+] as const
+
 export default function Templates() {
   const { showSuccess, showError } = useToast()
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
@@ -272,6 +284,30 @@ export default function Templates() {
     workflows: false,
   })
 
+  const applyPendingOnboardingSelection = React.useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem('clawmax-onboarding-template-query')
+      if (!raw) return
+      sessionStorage.removeItem('clawmax-onboarding-template-query')
+      const parsed = JSON.parse(raw)
+      if (typeof parsed?.search === 'string') {
+        setSearchQuery(parsed.search)
+      }
+      if (typeof parsed?.category === 'string') {
+        setCategoryFilter(parsed.category)
+      }
+      if (parsed?.templateId || parsed?.templateName) {
+        setPendingOnboardingSelection({
+          templateId: typeof parsed?.templateId === 'string' ? parsed.templateId : undefined,
+          templateName: typeof parsed?.templateName === 'string' ? parsed.templateName : undefined,
+          templateType: typeof parsed?.templateType === 'string' ? parsed.templateType : undefined,
+        })
+      }
+    } catch {
+      sessionStorage.removeItem('clawmax-onboarding-template-query')
+    }
+  }, [])
+
   const matchesOrgCategory = React.useCallback((template: OrganizationTemplate, filter: string) => {
     if (filter === 'all') return true
     if ((template as any).category === filter) return true
@@ -279,6 +315,25 @@ export default function Templates() {
     if (tags.includes(filter)) return true
     if (filter === 'events' && (tags.includes('event') || tags.includes('events'))) return true
     return false
+  }, [])
+
+  const matchesOrgSearch = React.useCallback((template: OrganizationTemplate, query: string) => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return true
+    return (
+      template.name.toLowerCase().includes(normalized) ||
+      template.description?.toLowerCase().includes(normalized) ||
+      template.author?.toLowerCase().includes(normalized) ||
+      template.tags?.some(tag => tag.toLowerCase().includes(normalized)) ||
+      template.agents.some(a => a.id.toLowerCase().includes(normalized) || a.role.toLowerCase().includes(normalized)) ||
+      template.communities?.some(c => c.name.toLowerCase().includes(normalized)) ||
+      template.groups?.some(g => g.name.toLowerCase().includes(normalized)) ||
+      template.workflows?.some(w =>
+        w.name?.toLowerCase().includes(normalized) ||
+        w.description?.toLowerCase().includes(normalized) ||
+        (w as any).content?.toLowerCase().includes(normalized)
+      )
+    )
   }, [])
 
   const fetchTemplates = () => {
@@ -329,28 +384,11 @@ export default function Templates() {
   }, [])
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('clawmax-onboarding-template-query')
-      if (!raw) return
-      sessionStorage.removeItem('clawmax-onboarding-template-query')
-      const parsed = JSON.parse(raw)
-      if (typeof parsed?.search === 'string') {
-        setSearchQuery(parsed.search)
-      }
-      if (typeof parsed?.category === 'string') {
-        setCategoryFilter(parsed.category)
-      }
-      if (parsed?.templateId || parsed?.templateName) {
-        setPendingOnboardingSelection({
-          templateId: typeof parsed?.templateId === 'string' ? parsed.templateId : undefined,
-          templateName: typeof parsed?.templateName === 'string' ? parsed.templateName : undefined,
-          templateType: typeof parsed?.templateType === 'string' ? parsed.templateType : undefined,
-        })
-      }
-    } catch {
-      sessionStorage.removeItem('clawmax-onboarding-template-query')
-    }
-  }, [])
+    applyPendingOnboardingSelection()
+    const handleOpenFromOnboarding = () => applyPendingOnboardingSelection()
+    window.addEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
+    return () => window.removeEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
+  }, [applyPendingOnboardingSelection])
 
   useEffect(() => {
     if (!pendingOnboardingSelection) return
@@ -503,17 +541,8 @@ export default function Templates() {
       filtered = filtered.filter(t => matchesOrgCategory(t, categoryFilter))
     }
     if (!searchQuery.trim()) return filtered
-    const query = searchQuery.trim().toLowerCase()
-    return filtered.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query) ||
-      t.author?.toLowerCase().includes(query) ||
-      t.tags?.some(tag => tag.toLowerCase().includes(query)) ||
-      t.agents.some(a => a.id.toLowerCase().includes(query) || a.role.toLowerCase().includes(query)) ||
-      t.communities?.some(c => c.name.toLowerCase().includes(query)) ||
-      t.groups?.some(g => g.name.toLowerCase().includes(query))
-    )
-  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter])
+    return filtered.filter(t => matchesOrgSearch(t, searchQuery))
+  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter, matchesOrgSearch])
 
   const filteredWorkflowTemplates = React.useMemo(() => {
     if (!searchQuery.trim()) return workflowTemplates
@@ -636,6 +665,27 @@ export default function Templates() {
       .filter((entry): entry is { row: TemplateRow; reasons: string[] } => !!entry.row)
   }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesOrgCategory])
   const shouldShowTemplateSuggestions = !!searchQuery.trim() && templateSuggestionRows.length > 0 && totalFiltered < 4
+  const matchingOrgTemplatesIgnoringCategory = React.useMemo(() => {
+    if (!searchQuery.trim()) return []
+    return orgTemplates.filter((template) => matchesRatingFilter(template) && matchesOrgSearch(template, searchQuery))
+  }, [searchQuery, orgTemplates, matchesRatingFilter, matchesOrgSearch])
+  const suggestedCategoriesForSearch = React.useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const matchingCategories = new Set<string>()
+    matchingOrgTemplatesIgnoringCategory
+      .forEach((template) => {
+        const match = TEMPLATE_CATEGORY_OPTIONS.find((option) => option.key !== 'all' && matchesOrgCategory(template, option.key))
+        if (match) matchingCategories.add(match.key)
+      })
+    return TEMPLATE_CATEGORY_OPTIONS.filter(
+      (option) =>
+        option.key !== 'all' &&
+        option.key !== categoryFilter &&
+        matchingCategories.has(option.key)
+    )
+  }, [searchQuery, matchingOrgTemplatesIgnoringCategory, matchesOrgCategory, categoryFilter])
+  const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingOrgTemplatesIgnoringCategory.length > 0
+  const suggestedCategoryLabels = suggestedCategoriesForSearch.map((category) => category.label)
 
   if (loading) {
     return (
@@ -898,17 +948,7 @@ export default function Templates() {
 
       {/* Category filter */}
       <div className="flex gap-2 mb-4">
-        {([
-          { key: 'all', label: 'All', icon: '' },
-          { key: 'business', label: 'Business', icon: '💼' },
-          { key: 'technical', label: 'Technical', icon: '⚙️' },
-          { key: 'personal', label: 'Personal', icon: '📚' },
-          { key: 'events', label: 'Events', icon: '🎤' },
-          { key: 'travel', label: 'Travel', icon: '✈️' },
-          { key: 'hobbies', label: 'Hobbies', icon: '🎨' },
-          { key: 'family', label: 'Family', icon: '🏡' },
-          { key: 'science', label: 'Science', icon: '🔬' },
-        ] as const).map(cat => (
+        {TEMPLATE_CATEGORY_OPTIONS.map(cat => (
           <button
             key={cat.key}
             onClick={() => setCategoryFilter(cat.key)}
@@ -983,9 +1023,40 @@ export default function Templates() {
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">🔍</div>
             <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">No templates found</h2>
-            <p className="text-gray-500 mb-4">
-              No templates match your search query "{searchQuery}"
-            </p>
+            {hasHiddenCategoryMatches ? (
+              <div className="mb-4 max-w-2xl rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-left">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Your current filters are hiding search matches for "{searchQuery}".
+                </p>
+                <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                  {suggestedCategoriesForSearch.length > 0
+                    ? `Try ${suggestedCategoryLabels.join(', ')} instead.`
+                    : 'This search has matches outside the current category filter.'}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {suggestedCategoriesForSearch.map((category) => (
+                    <button
+                      key={`suggest-category-${category.key}`}
+                      onClick={() => setCategoryFilter(category.key)}
+                      className="rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 hover:border-amber-400 dark:hover:border-amber-500"
+                    >
+                      {category.icon && <span className="mr-1">{category.icon}</span>}
+                      {category.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCategoryFilter('all')}
+                    className="rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
+                  >
+                    Show All Categories
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 mb-4">
+                No templates match your search query "{searchQuery}"
+              </p>
+            )}
             {templateSuggestionRows.length > 0 && (
               <div className="mb-5 w-full max-w-3xl rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-left">
                 <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>

@@ -152,7 +152,7 @@ export async function validateBlaxelConfig(
 ): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Blaxel key provided')
   try {
-    const url = 'https://api.blaxel.ai/v0/projects'
+    const url = 'https://api.blaxel.ai/v0/models'
     const res = await fetchImpl(url, {
       headers: {
         Authorization: `Bearer ${apiKey.trim()}`,

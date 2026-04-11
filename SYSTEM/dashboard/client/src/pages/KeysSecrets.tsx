@@ -19,6 +19,8 @@ type SecretConsumerMatch = {
   name: string
 }
 
+type KeyGroup = 'all' | 'llm' | 'partners' | 'infra' | 'other'
+
 function toDrafts(values: Record<string, string>): SecretDraft[] {
   return Object.entries(values)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -51,6 +53,47 @@ function mergeDraftsWithImported(currentDrafts: SecretDraft[], imported: Record<
     ...imported,
   }
   return toDrafts(merged)
+}
+
+function getKeyGroup(key: string, partnerDefinitions: PartnerDefinition[]): KeyGroup {
+  const normalized = key.trim().toUpperCase()
+  if (!normalized) return 'other'
+
+  if (
+    normalized.startsWith('OPENAI_') ||
+    normalized.startsWith('ANTHROPIC_') ||
+    normalized.startsWith('GEMINI_') ||
+    normalized.startsWith('OLLAMA_')
+  ) {
+    return 'llm'
+  }
+
+  const partnerKeys = new Set(
+    partnerDefinitions.flatMap((partner) =>
+      (partner.fields || []).map((field) => getPartnerVaultKey(partner.slug, field.key).toUpperCase())
+    )
+  )
+  if (partnerKeys.has(normalized)) return 'partners'
+
+  if (
+    normalized.includes('URL') ||
+    normalized.includes('HOST') ||
+    normalized.includes('DATABASE') ||
+    normalized.includes('POSTGRES') ||
+    normalized.includes('MYSQL') ||
+    normalized.includes('MONGO') ||
+    normalized.includes('SUPABASE') ||
+    normalized.includes('S3') ||
+    normalized.includes('AWS') ||
+    normalized.includes('GCP') ||
+    normalized.includes('AZURE') ||
+    normalized.includes('BUCKET') ||
+    normalized.includes('STORAGE')
+  ) {
+    return 'infra'
+  }
+
+  return 'other'
 }
 
 function SecretSection({
@@ -165,6 +208,8 @@ export default function KeysSecrets() {
   const [partnerDefinitions, setPartnerDefinitions] = useState<PartnerDefinition[]>([])
   const [managedSecrets, setManagedSecrets] = useState<Record<string, string>>({})
   const [knownMatches, setKnownMatches] = useState<Record<string, SecretConsumerMatch[]>>({})
+  const [keySearch, setKeySearch] = useState('')
+  const [keyGroupFilter, setKeyGroupFilter] = useState<KeyGroup>('all')
 
   const refreshVaultState = React.useCallback(() => {
     setGlobalDrafts(toDrafts(readSharedSecrets('global')))
@@ -265,6 +310,35 @@ export default function KeysSecrets() {
     () => findManagedSecretConflicts(workspacePreview, managedSecrets),
     [workspacePreview, managedSecrets]
   )
+  const matchesKeyInventoryFilters = React.useCallback((key: string, value: string) => {
+    const search = keySearch.trim().toLowerCase()
+    const group = getKeyGroup(key, partnerDefinitions)
+    if (keyGroupFilter !== 'all' && group !== keyGroupFilter) return false
+    if (!search) return true
+    const matchText = [
+      key,
+      value,
+      ...(knownMatches[key] || []).map((match) => `${match.type} ${match.name}`),
+      group,
+    ].join(' ').toLowerCase()
+    return matchText.includes(search)
+  }, [keySearch, keyGroupFilter, partnerDefinitions, knownMatches])
+  const filteredWorkspaceEntries = useMemo(
+    () => Object.entries(workspacePreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
+    [workspacePreview, matchesKeyInventoryFilters]
+  )
+  const filteredGlobalEntries = useMemo(
+    () => Object.entries(globalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
+    [globalPreview, matchesKeyInventoryFilters]
+  )
+  const totalVisibleKeyEntries = filteredWorkspaceEntries.length + filteredGlobalEntries.length
+  const keyGroupTabs: Array<{ key: KeyGroup; label: string }> = [
+    { key: 'all', label: 'All' },
+    { key: 'llm', label: 'LLM' },
+    { key: 'partners', label: 'Partners' },
+    { key: 'infra', label: 'Infra' },
+    { key: 'other', label: 'Other' },
+  ]
 
   return (
     <div className="p-6 space-y-6">
@@ -358,16 +432,71 @@ export default function KeysSecrets() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current Key Names</div>
-        <div className="mt-3 grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Workspace</div>
-            <div className="mt-2 space-y-2">
-              {Object.entries(workspacePreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.entries(workspacePreview).map(([key, value]) => (
-                <div key={`workspace-${key}`} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current Key Names</div>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Search across workspace and global keys, then narrow by group.
+            </p>
+          </div>
+          <div className="w-full max-w-sm">
+            <input
+              type="text"
+              value={keySearch}
+              onChange={(e) => setKeySearch(e.target.value)}
+              placeholder="Search key names, values, or usage..."
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {keyGroupTabs.map((tab) => (
+            <button
+              key={`key-group-${tab.key}`}
+              type="button"
+              onClick={() => setKeyGroupFilter(tab.key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                keyGroupFilter === tab.key
+                  ? 'bg-sky-100 text-sky-700 border border-sky-300 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          {(keySearch.trim() || keyGroupFilter !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setKeySearch('')
+                setKeyGroupFilter('all')
+              }}
+              className="rounded-full px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-600 hover:border-gray-400 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          Showing {totalVisibleKeyEntries} key{totalVisibleKeyEntries !== 1 ? 's' : ''}
+        </div>
+        <div className="mt-3 grid max-h-[28rem] gap-4 md:grid-cols-2">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Global ({Object.keys(globalPreview).length})
+            </div>
+            <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+              {Object.entries(globalPreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.entries(globalPreview).length > 0 && filteredGlobalEntries.length === 0 && (
+                <span className="text-sm text-gray-400">No global keys match your search or group filter.</span>
+              )}
+              {filteredGlobalEntries.map(([key, value]) => (
+                <div key={`global-${key}`} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300">
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{key}</span>
+                    <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] uppercase tracking-wide dark:bg-violet-950/60">
+                      {getKeyGroup(key, partnerDefinitions)}
+                    </span>
                     <span className="opacity-70">{maskValue(value)}</span>
                   </div>
                   {(knownMatches[key] || []).length > 0 && (
@@ -375,7 +504,7 @@ export default function KeysSecrets() {
                       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Used By</div>
                       <div className="flex flex-wrap gap-1.5">
                       {knownMatches[key].slice(0, 6).map((match, index) => (
-                        <span key={`workspace-${key}-${match.type}-${match.name}-${index}`} className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
+                        <span key={`global-${key}-${match.type}-${match.name}-${index}`} className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-violet-700 dark:bg-violet-950/60 dark:text-violet-200">
                           {match.type}: {match.name}
                         </span>
                       ))}
@@ -387,13 +516,21 @@ export default function KeysSecrets() {
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Global</div>
-            <div className="mt-2 space-y-2">
-              {Object.entries(globalPreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.entries(globalPreview).map(([key, value]) => (
-                <div key={`global-${key}`} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Workspace ({Object.keys(workspacePreview).length})
+            </div>
+            <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+              {Object.entries(workspacePreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.entries(workspacePreview).length > 0 && filteredWorkspaceEntries.length === 0 && (
+                <span className="text-sm text-gray-400">No workspace keys match your search or group filter.</span>
+              )}
+              {filteredWorkspaceEntries.map(([key, value]) => (
+                <div key={`workspace-${key}`} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{key}</span>
+                    <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] uppercase tracking-wide dark:bg-sky-950/60">
+                      {getKeyGroup(key, partnerDefinitions)}
+                    </span>
                     <span className="opacity-70">{maskValue(value)}</span>
                   </div>
                   {(knownMatches[key] || []).length > 0 && (
@@ -401,7 +538,7 @@ export default function KeysSecrets() {
                       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Used By</div>
                       <div className="flex flex-wrap gap-1.5">
                       {knownMatches[key].slice(0, 6).map((match, index) => (
-                        <span key={`global-${key}-${match.type}-${match.name}-${index}`} className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-violet-700 dark:bg-violet-950/60 dark:text-violet-200">
+                        <span key={`workspace-${key}-${match.type}-${match.name}-${index}`} className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
                           {match.type}: {match.name}
                         </span>
                       ))}

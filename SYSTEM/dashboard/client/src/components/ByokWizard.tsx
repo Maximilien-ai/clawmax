@@ -589,27 +589,29 @@ export function ByokWizard({
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
 
-  const runValidation = async () => {
+  const runValidation = async (scope: 'all' | 'current-partner' = 'all') => {
+    const currentPartnerSlug = step.startsWith('partner:') ? step.replace('partner:', '') : null
+    const scopedPayload = {
+      openai: scope === 'all' ? openaiKey.trim() : '',
+      anthropic: scope === 'all' ? anthropicKey.trim() : '',
+      gemini: scope === 'all' ? geminiApiKey.trim() : '',
+      ollamaBaseUrl: scope === 'all' ? ollamaBaseUrl.trim() : '',
+      ollamaDefaultModel: scope === 'all' ? ollamaDefaultModel.trim() : '',
+      opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
+      opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
+      opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
+      blaxelApiKey: scope === 'all' || currentPartnerSlug === 'blaxel' ? getPartnerSecret('blaxel', 'apiKey').trim() : '',
+      blaxelProjectId: scope === 'all' || currentPartnerSlug === 'blaxel' ? getPartnerValue('blaxel', 'projectId').trim() : '',
+      redisApiKey: scope === 'all' || currentPartnerSlug === 'redis' ? getPartnerSecret('redis', 'apiKey').trim() : '',
+      redisUrl: scope === 'all' || currentPartnerSlug === 'redis' ? getPartnerValue('redis', 'url').trim() : '',
+      sensoApiKey: scope === 'all' || currentPartnerSlug === 'senso' ? getPartnerSecret('senso', 'apiKey').trim() : '',
+    }
     setValidating(true)
     try {
       const res = await fetch('/api/integrations/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          openai: openaiKey.trim(),
-          anthropic: anthropicKey.trim(),
-          gemini: geminiApiKey.trim(),
-          ollamaBaseUrl: ollamaBaseUrl.trim(),
-          ollamaDefaultModel: ollamaDefaultModel.trim(),
-          opikApiKey: opikApiKey.trim(),
-          opikWorkspace: opikWorkspace.trim(),
-          opikProject: opikProject.trim(),
-          blaxelApiKey: getPartnerSecret('blaxel', 'apiKey').trim(),
-          blaxelProjectId: getPartnerValue('blaxel', 'projectId').trim(),
-          redisApiKey: getPartnerSecret('redis', 'apiKey').trim(),
-          redisUrl: getPartnerValue('redis', 'url').trim(),
-          sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
-        }),
+        body: JSON.stringify(scopedPayload),
       })
       const contentType = res.headers.get('content-type') || ''
       if (!contentType.includes('application/json')) {
@@ -641,7 +643,13 @@ export function ByokWizard({
       setValidation(nextState)
       if (nextState.ollama.status === 'valid') void loadOllamaModels(true)
       void loadAvailableModels(true)
-      const failures = Object.entries(nextState).filter(([, entry]) => entry.status === 'invalid' || entry.status === 'error')
+      const partnerScopedFailureKeys = scope === 'current-partner' && currentPartnerSlug
+        ? new Set([currentPartnerSlug])
+        : null
+      const failures = Object.entries(nextState).filter(([key, entry]) => {
+        if (partnerScopedFailureKeys && !partnerScopedFailureKeys.has(key)) return false
+        return entry.status === 'invalid' || entry.status === 'error'
+      })
       if (failures.length > 0) {
         const labels: Record<string, string> = {
           openai: 'OpenAI',
@@ -656,7 +664,7 @@ export function ByokWizard({
         showWarning(`Some integration checks failed: ${failures.map(([key]) => labels[key] || key).join(', ')}. Review the messages below. You can still save and complete optional integrations later.`)
         return true
       }
-      showSuccess('Integration checks completed')
+      showSuccess(scope === 'current-partner' && currentPartnerSlug ? `${labelsForSlug(currentPartnerSlug)} check completed` : 'Integration checks completed')
       return true
     } catch (err: any) {
       showWarning(err.message || 'Failed to validate integrations')
@@ -664,6 +672,20 @@ export function ByokWizard({
     } finally {
       setValidating(false)
     }
+  }
+
+  const labelsForSlug = (slug: string) => {
+    const labels: Record<string, string> = {
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      gemini: 'Gemini',
+      ollama: 'Ollama',
+      opik: 'Opik',
+      blaxel: 'Blaxel',
+      redis: 'Redis',
+      senso: 'Senso',
+    }
+    return labels[slug] || slug
   }
 
   const handleSave = async () => {
@@ -945,12 +967,49 @@ export function ByokWizard({
   }
 
   const renderPartnerSkillsNote = (partner: PartnerDefinition) => {
+    const openSkillFromPartner = (skillName: string) => {
+      window.dispatchEvent(new CustomEvent('clawmax-open-skill-search', { detail: { skill: skillName } }))
+      window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'skills' } }))
+      setOpen(false)
+    }
     if (!partner.skills) return null
     if (partner.skills.mode === 'shipables' && partner.skills.items?.length) {
-      return <div className="mt-2 text-xs opacity-80">Included skills: {partner.skills.items.join(', ')}</div>
+      return (
+        <div className="mt-2">
+          <div className="text-xs opacity-80">Included skills:</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {partner.skills.items.map((item) => (
+              <button
+                key={`${partner.slug}-shipable-${item}`}
+                type="button"
+                onClick={() => openSkillFromPartner(item)}
+                className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
     }
     if (partner.skills.mode === 'catalog' && partner.skills.items?.length) {
-      return <div className="mt-2 text-xs opacity-80">{partner.skills.label || 'Known skills'}: {partner.skills.items.join(', ')}</div>
+      return (
+        <div className="mt-2">
+          <div className="text-xs opacity-80">{partner.skills.label || 'Known skills'}:</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {partner.skills.items.map((item) => (
+              <button
+                key={`${partner.slug}-catalog-${item}`}
+                type="button"
+                onClick={() => openSkillFromPartner(item)}
+                className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
     }
     if (partner.skills.mode === 'curated-installer') {
       const installing = partnerInstallState[partner.slug] === 'installing'
@@ -1526,7 +1585,7 @@ export function ByokWizard({
                   <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
                     {currentPartner.validation && currentPartner.slug !== 'github' && (
-                      <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
+                      <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
                         {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                       </button>
                     )}

@@ -13,6 +13,7 @@ import {
 } from '../lib/skills'
 import { getCuratedPartnerInstaller } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
+import { safeEnv } from '../lib/safe-env'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
@@ -660,7 +661,11 @@ router.post('/partner-install', async (req, res) => {
     }
 
     const [command, ...args] = installer.command
-    const { stdout, stderr } = await execFileAsync(command, args, { timeout: 60000 })
+    const { stdout, stderr } = await execFileAsync(command, args, {
+      timeout: 180000,
+      env: safeEnv(),
+      maxBuffer: 1024 * 1024 * 8,
+    })
     res.json({
       ok: true,
       commandId: installer.commandId,
@@ -670,7 +675,11 @@ router.post('/partner-install', async (req, res) => {
     })
   } catch (err: any) {
     console.error('Curated partner install error:', err.message)
-    res.status(500).json({ error: err.message || 'Failed to run curated partner installer' })
+    const detail = [err?.stderr, err?.stdout].filter(Boolean).join('\n').trim()
+    res.status(500).json({
+      error: err.message || 'Failed to run curated partner installer',
+      detail: detail || undefined,
+    })
   }
 })
 

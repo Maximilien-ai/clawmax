@@ -31,11 +31,12 @@
     }
   ],
   "skills": {
-    "mode": "catalog",
+    "mode": "curated-installer",
+    "commandId": "redis-agent-skills",
     "items": [
       "redis-development"
     ],
-    "label": "Redis skill installer pending official package"
+    "label": "Install Redis agent skills"
   },
   "validation": {
     "mode": "config",
