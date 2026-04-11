@@ -5,12 +5,10 @@ All notable changes to ClawMax are documented here.
 ## [v1.2.11] - 2026-04-10
 
 ### Features — Template Feedback
-- **Remote Template Feedback Sink Support** — the dashboard template feedback routes now support an optional remote feedback sink when `TEMPLATE_FEEDBACK_REMOTE_URL`, `TEMPLATE_FEEDBACK_SUMMARY_URL`, and `TEMPLATE_FEEDBACK_TOKEN` are configured
-- **Local-First Fallback Preserved** — if the remote feedback env vars are absent, feedback continues to use the existing workspace-local `WORKSPACE/SYSTEM/template-feedback.json` path without changing the client contract
-- **Server-Owned Actor Identity** — dashboard feedback submissions now derive `actorKey` and `actorDisplay` from the authenticated dashboard session before proxying to the remote sink
+- **Template Feedback Routing** — users can now leave template ratings and short written feedback, and that feedback can be routed either to the local workspace JSON file or to an optional remote endpoint
 
 ### Docs
-- **Developer Feedback Routing Notes** — README now documents the local-first feedback path plus the optional remote sink env vars for deployed instances
+- **Developer Feedback Routing Notes** — README now documents the local JSON path plus the optional remote endpoint env vars
 
 ### Quality
 - **Release Gate** — validated locally with `npm run typecheck` and `npx ts-node --transpile-only server/lib/templates.test.ts`, with GitHub CI green on commit `c6af61f`

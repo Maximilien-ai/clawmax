@@ -12,15 +12,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 What's New in v1.2.11
 
-- Template feedback can now use an optional remote sink when configured:
-  - `TEMPLATE_FEEDBACK_REMOTE_URL`
-  - `TEMPLATE_FEEDBACK_SUMMARY_URL`
-  - `TEMPLATE_FEEDBACK_TOKEN`
-- Local-first behavior is preserved:
-  - if those env vars are absent, feedback still stays in `WORKSPACE/SYSTEM/template-feedback.json`
-- Remote feedback submissions now include server-derived actor identity from the authenticated dashboard session
-- This is release-ready for runtime provisioning:
-  - once a provisioned instance receives the three env vars, template card ratings and summaries can read/write through the web sink
+- Users can now leave template ratings and short written feedback
+- That feedback can be routed either:
+  - to the local workspace JSON file
+  - or to an optional remote endpoint when configured
 
 ## 🔥 Previously in v1.2.10
 
