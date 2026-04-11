@@ -149,7 +149,7 @@ Keys & Secrets safety model:
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **Secrets Step for Secure Inputs** - Templates with secret or runtime-input requirements now get a browser-local `Secrets` step during apply
 - **AI Generate** - Describe a team, AI fills all wizard steps
-- **Local-First Template Feedback** - Templates can collect star ratings and short optional feedback locally in the active workspace, with a future path to sync the same payload to a remote service
+- **Local-First Template Feedback** - Templates can collect star ratings and short optional feedback locally in the active workspace, and can optionally proxy the same payload to a remote web sink when configured
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
 - **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows
 - **Category Filters** - Business, Technical, Personal, Events, Science, Travel, Hobbies, and Family template categories
@@ -158,9 +158,13 @@ Keys & Secrets safety model:
 - **Import/Export** - Download and upload templates and workflows as `.md` files
 
 Local template feedback for developers:
-- Template ratings and short feedback are currently stored in the active workspace at `WORKSPACE/SYSTEM/template-feedback.json`
+- Template ratings and short feedback are stored in the active workspace at `WORKSPACE/SYSTEM/template-feedback.json` by default
 - This is intentional for local dev and OSS use: you can inspect, back up, diff, or clear that file directly
-- The dashboard treats this as a local cache / fallback. A future optional remote sink can accept the same feedback payload for shared production aggregation without removing the local-first path
+- If you set all three remote feedback env vars below, the dashboard will submit feedback to the remote sink instead of the local workspace file:
+  - `TEMPLATE_FEEDBACK_REMOTE_URL`
+  - `TEMPLATE_FEEDBACK_SUMMARY_URL`
+  - `TEMPLATE_FEEDBACK_TOKEN`
+- The dashboard client still uses the same local `/api/templates/.../feedback` routes either way; the server decides whether to use local workspace JSON or the configured remote sink
 
 ### Workspace Visibility
 - **Shareable Workspace Dashboards** - Generate public read-only links for workspace status, workflows, costs, results, and group chats

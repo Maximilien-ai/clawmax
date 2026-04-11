@@ -820,6 +820,16 @@ function getSessionFromRequest(req: Request): SessionPayload | null {
   return null
 }
 
+export function getAuthenticatedSession(req: Request): {
+  userId: string
+  login: string
+  name: string | null
+  email?: string | null
+  authType?: 'github' | 'otp'
+} | null {
+  return getSessionFromRequest(req)
+}
+
 /**
  * Middleware: require GitHub OAuth session OR dashboard token.
  * Supports both authentication methods for backwards compatibility.
