@@ -129,6 +129,15 @@ function extractWorkspaceFileMentions(content: string): string[] {
   return Array.from(new Set(matches))
 }
 
+function summarizeChatFailure(message: string): string {
+  const text = String(message || '').trim()
+  if (!text) return 'No reply from agent.'
+  if (/gateway/i.test(text)) return 'Agent could not reach the gateway runtime.'
+  if (/timeout/i.test(text)) return 'Agent timed out before producing a reply.'
+  if (/No API keys available|No execution path configured/i.test(text)) return 'No model execution path is configured for this chat.'
+  return text
+}
+
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -423,11 +432,22 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   : m
               ))
             } else if (data.type === 'complete') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId && !m.content.trim()
+                  ? { ...m, content: 'No reply from agent.' }
+                  : m
+              ))
               setStreaming(false)
               // Notify parent of successful completion
               onSuccess?.()
             } else if (data.type === 'error') {
-              setError(data.data || 'Chat error')
+              const friendly = summarizeChatFailure(data.data || 'Chat error')
+              setError(friendly)
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, content: friendly }
+                  : m
+              ))
               setStreaming(false)
             }
           } catch (e) {
@@ -439,10 +459,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       if (e.name === 'AbortError') {
         setError('Request cancelled')
       } else {
-        setError(String(e))
+        setError(summarizeChatFailure(String(e)))
       }
-      // Remove incomplete assistant message on error
-      setMessages(prev => prev.filter(m => m.id !== assistantId))
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId
+          ? { ...m, content: summarizeChatFailure(String(e)) }
+          : m
+      ))
     } finally {
       setSending(false)
       setStreaming(false)
@@ -613,17 +636,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             <div className="text-6xl mb-4">⚠️</div>
             <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Agent Chat Unavailable</h3>
             <div className="text-sm text-gray-500 mb-4 space-y-3">
-              <p>Chat requires the OpenClaw gateway running with a paired device identity.</p>
-              <div className="text-left inline-block">
-                <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">1. Ensure the gateway is running:</p>
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded block mb-3 dark:bg-gray-700">openclaw gateway start</code>
-                <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">2. Open the Control UI to pair this device:</p>
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded block mb-3 dark:bg-gray-700">open http://127.0.0.1:18789</code>
-                <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">3. Add API keys to <code className="text-xs bg-gray-100 px-1 rounded dark:bg-gray-700">SYSTEM/dashboard/.env</code>:</p>
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded block dark:bg-gray-700">ANTHROPIC_API_KEY=sk-ant-...</code>
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded block mt-1 dark:bg-gray-700">OPENAI_API_KEY=sk-...</code>
+              <p>Chat needs a working gateway or another configured execution path.</p>
+              <div className="text-left inline-block space-y-2">
+                <p>1. Check <span className="font-medium">System → Doctor</span> and fix the runtime warnings.</p>
+                <p>2. Confirm this instance has a valid model setup in <span className="font-medium">BYOK</span>.</p>
+                <p>3. If this is a managed or cloud instance, enable the gateway in the instance runtime instead of using local machine commands.</p>
               </div>
-              <p className="text-xs text-gray-400">Restart the dashboard after making changes.</p>
             </div>
           </div>
         </div>

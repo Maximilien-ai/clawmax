@@ -31,7 +31,7 @@ router.get('/', (req, res) => {
 // POST /api/workspaces - Create new workspace
 router.post('/', (req, res) => {
   try {
-    const { name, path: workspacePath, color, tags } = req.body
+    const { name, path: workspacePath, color, tags, mode } = req.body
 
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Workspace name is required' })
@@ -51,12 +51,24 @@ router.post('/', (req, res) => {
 
     const workspace = workspaceManager.createWorkspace(name, resolvedPath, {
       color,
-      tags
+      tags,
+      mode
     })
 
     res.json({ workspace })
   } catch (err: any) {
     console.error('Error creating workspace:', err)
+    if (err?.message?.startsWith('Workspace path already exists:') || err?.message?.startsWith('Workspace path is not empty:')) {
+      const pathText = String(err.message.split(':').slice(1).join(':')).trim()
+      const conflict = workspaceManager.inspectWorkspacePathConflict(pathText)
+      return res.status(409).json({
+        error: conflict.registeredWorkspace
+          ? `A workspace already uses this path: ${pathText}`
+          : `A workspace already exists at this path: ${pathText}`,
+        code: 'WORKSPACE_PATH_CONFLICT',
+        conflict
+      })
+    }
     res.status(500).json({ error: err.message || 'Failed to create workspace' })
   }
 })

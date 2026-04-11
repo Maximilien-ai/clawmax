@@ -120,6 +120,13 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   return null
 }
 
+function formatParticipantFailure(reportedFailure: string): string {
+  if (/^COMMS FAIL/i.test(reportedFailure)) {
+    return 'Communication delivery failed. The workflow tried to post to a group or community that is missing or misconfigured.'
+  }
+  return `Agent reported failure: ${reportedFailure}`
+}
+
 const GITHUB_RESULT_URL_REGEX = /https:\/\/github\.com\/[^\s)>\]]+\/(issues|pull)\/\d+[^\s)>\]]*/gi
 
 export function extractGitHubResultLinks(agentText: string, limit = 3): string[] {
@@ -1160,7 +1167,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           participant.status = reportedFailure ? 'failed' as any : 'completed' as any
           ;(participant as any).response = agentText
           if (reportedFailure) {
-            ;(participant as any).error = `Agent reported failure: ${reportedFailure}`
+            ;(participant as any).error = formatParticipantFailure(reportedFailure)
           }
           participant.completedAt = new Date().toISOString()
           execution.logs.push(

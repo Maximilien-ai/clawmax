@@ -14,6 +14,18 @@ export interface Workspace {
   tags?: string[]
 }
 
+export class WorkspaceCreateError extends Error {
+  code?: string
+  conflict?: any
+
+  constructor(message: string, code?: string, conflict?: any) {
+    super(message)
+    this.name = 'WorkspaceCreateError'
+    this.code = code
+    this.conflict = conflict
+  }
+}
+
 interface WorkspaceContextValue {
   workspaces: Workspace[]
   activeWorkspace: Workspace | null
@@ -22,7 +34,7 @@ interface WorkspaceContextValue {
   // Actions
   reorderWorkspaces: (fromIndex: number, toIndex: number) => void
   switchWorkspace: (id: string) => Promise<void>
-  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[] }) => Promise<Workspace>
+  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }) => Promise<Workspace>
   updateWorkspace: (id: string, updates: { name?: string; color?: string; tags?: string[] }) => Promise<void>
   deleteWorkspace: (id: string) => Promise<void>
   refreshWorkspaces: () => Promise<void>
@@ -117,7 +129,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const createWorkspace = useCallback(async (
     name: string,
     path: string,
-    options?: { color?: string; tags?: string[] }
+    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }
   ): Promise<Workspace> => {
     try {
       const res = await fetch('/api/workspaces', {
@@ -128,7 +140,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.error || 'Failed to create workspace')
+        throw new WorkspaceCreateError(error.error || 'Failed to create workspace', error.code, error.conflict)
       }
 
       const data = await res.json()
@@ -137,6 +149,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return data.workspace
     } catch (err: any) {
       console.error('Failed to create workspace:', err)
+      if (err instanceof WorkspaceCreateError && err.code === 'WORKSPACE_PATH_CONFLICT') {
+        throw err
+      }
       showError(err.message || 'Failed to create workspace')
       throw err
     }

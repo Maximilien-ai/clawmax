@@ -19,6 +19,14 @@ export interface WorkspaceRegistry {
   workspaces: Workspace[]
 }
 
+export interface WorkspacePathConflict {
+  path: string
+  registeredWorkspace: Workspace | null
+  reusableScaffold: boolean
+  canAdopt: boolean
+  canOverwrite: boolean
+}
+
 const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
 
 export class WorkspaceManager {
@@ -112,12 +120,38 @@ export class WorkspaceManager {
     return registry.workspaces.find(w => w.id === id) || null
   }
 
-  /** Create a new workspace */
-  createWorkspace(name: string, workspacePath: string, options?: { color?: string; tags?: string[] }): Workspace {
+  getWorkspaceByPath(workspacePath: string): Workspace | null {
     const registry = this.loadRegistry()
+    return registry.workspaces.find((w) => w.path === workspacePath) || null
+  }
+
+  inspectWorkspacePathConflict(workspacePath: string): WorkspacePathConflict {
+    const registeredWorkspace = this.getWorkspaceByPath(workspacePath)
+    const reusableScaffold = fs.existsSync(workspacePath)
+      ? this.isReusableWorkspaceScaffold(workspacePath)
+      : false
+
+    return {
+      path: workspacePath,
+      registeredWorkspace,
+      reusableScaffold,
+      canAdopt: fs.existsSync(workspacePath) && !reusableScaffold && !registeredWorkspace,
+      canOverwrite: fs.existsSync(workspacePath) && !reusableScaffold && !registeredWorkspace,
+    }
+  }
+
+  /** Create a new workspace */
+  createWorkspace(
+    name: string,
+    workspacePath: string,
+    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }
+  ): Workspace {
+    const registry = this.loadRegistry()
+    const mode = options?.mode || 'create'
 
     // Validate path doesn't already exist
-    if (registry.workspaces.some(w => w.path === workspacePath)) {
+    const registeredWorkspace = registry.workspaces.find(w => w.path === workspacePath) || null
+    if (registeredWorkspace) {
       throw new Error(`Workspace path already exists: ${workspacePath}`)
     }
 
@@ -127,9 +161,13 @@ export class WorkspaceManager {
         throw new Error(`Workspace path is not a directory: ${workspacePath}`)
       }
 
-      const entries = fs.readdirSync(workspacePath).filter((entry) => entry !== '.DS_Store')
-      if (entries.length > 0) {
-        throw new Error(`Workspace path is not empty: ${workspacePath}`)
+      const reusableScaffold = this.isReusableWorkspaceScaffold(workspacePath)
+      if (!reusableScaffold) {
+        if (mode === 'overwrite') {
+          fs.rmSync(workspacePath, { recursive: true, force: true })
+        } else if (mode !== 'adopt') {
+          throw new Error(`Workspace path is not empty: ${workspacePath}`)
+        }
       }
     }
 
@@ -142,8 +180,10 @@ export class WorkspaceManager {
       counter++
     }
 
-    // Create workspace directories
-    this.initializeWorkspaceStructure(workspacePath)
+    // Create workspace directories unless we are adopting an existing workspace as-is.
+    if (mode !== 'adopt') {
+      this.initializeWorkspaceStructure(workspacePath)
+    }
 
     const workspace: Workspace = {
       id,
@@ -290,6 +330,54 @@ export class WorkspaceManager {
       console.error('Failed to initialize workspace structure:', err)
       throw err
     }
+  }
+
+  /** Allow reusing an existing directory only when it is just the default empty workspace scaffold. */
+  private isReusableWorkspaceScaffold(workspacePath: string): boolean {
+    const entries = fs.readdirSync(workspacePath).filter((entry) => entry !== '.DS_Store')
+    if (entries.length === 0) return true
+
+    const allowedTopLevel = new Set(['AGENTS', 'ORG', 'SYSTEM'])
+    if (!entries.every((entry) => allowedTopLevel.has(entry))) return false
+
+    const agentsDir = path.join(workspacePath, 'AGENTS')
+    if (fs.existsSync(agentsDir)) {
+      const agentEntries = fs.readdirSync(agentsDir).filter((entry) => entry !== '.DS_Store')
+      if (agentEntries.some((entry) => entry !== 'archive')) return false
+
+      const archiveDir = path.join(agentsDir, 'archive')
+      if (fs.existsSync(archiveDir)) {
+        const archiveEntries = fs.readdirSync(archiveDir).filter((entry) => entry !== '.DS_Store')
+        if (archiveEntries.length > 0) return false
+      }
+    }
+
+    const orgDir = path.join(workspacePath, 'ORG')
+    if (fs.existsSync(orgDir)) {
+      const orgEntries = fs.readdirSync(orgDir).filter((entry) => entry !== '.DS_Store')
+      const allowedOrgEntries = new Set(['COMMUNITIES.md', 'GROUPS.md'])
+      if (!orgEntries.every((entry) => allowedOrgEntries.has(entry))) return false
+
+      const communitiesPath = path.join(orgDir, 'COMMUNITIES.md')
+      if (fs.existsSync(communitiesPath)) {
+        const content = fs.readFileSync(communitiesPath, 'utf-8').trim()
+        if (content !== '# Communities\n\n## Communities' && content !== '# Communities\n\n## Communities\n') return false
+      }
+
+      const groupsPath = path.join(orgDir, 'GROUPS.md')
+      if (fs.existsSync(groupsPath)) {
+        const content = fs.readFileSync(groupsPath, 'utf-8').trim()
+        if (content !== '# Groups\n\n## Groups' && content !== '# Groups\n\n## Groups\n') return false
+      }
+    }
+
+    const systemDir = path.join(workspacePath, 'SYSTEM')
+    if (fs.existsSync(systemDir)) {
+      const systemEntries = fs.readdirSync(systemDir).filter((entry) => entry !== '.DS_Store')
+      if (systemEntries.length > 0) return false
+    }
+
+    return true
   }
 
   /** Update workspace metadata (name, agent count, last accessed, color, tags, etc.) */

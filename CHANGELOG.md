@@ -7,6 +7,27 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+## [v1.2.12] - 2026-04-11
+
+### Features — Onboarding and Workspace Flow
+- **Onboarding Template Suggestions** — the onboarding wizard now uses a wider templates step, category-aware focus/goal guidance, clickable starter cards, and direct open of the selected template instead of only sending users to a generic templates list
+- **AI-First Agent Start Path** — onboarding now opens agent creation in AI mode automatically when BYOK/runtime is already configured with a usable LLM path
+- **Workspace Path Conflict Recovery** — creating a workspace over an existing path now returns an explicit conflict flow with `Open Existing`, `Use Existing`, and `Overwrite` actions instead of a dead-end “path is not empty” toast
+- **Document Download** — files opened in Documents can now be downloaded directly from the document toolbar
+
+### Fixes — Runtime, Cloud, and Messaging
+- **Workspace Export Rate Limit Bypass** — workspace export is no longer blocked by the generic API rate limiter under normal dashboard polling load
+- **Managed Runtime Gateway Guidance** — Doctor and chat fallback messaging now avoid machine-local command guidance as the primary recovery path on managed/container runtimes
+- **Agent Chat Failure Rendering** — empty or failed chat replies now surface a clear assistant-side error state instead of blank bubbles or stuck typing blocks
+- **Workflow Communication Diagnostics** — common communication delivery failures now render as a product-level explanation that the target group/community is missing or misconfigured
+- **Metering Empty-State Copy** — Activity empty metering copy is less misleading while traces are still arriving
+
+### Fixes — Auth Email Rendering
+- **OTP Dark-Mode Hardening** — one-time-code emails now use explicit inline colors for header, body, OTP card, code text, and security/footer copy so dark-mode mail clients keep the message readable
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`
+
 ## [v1.2.11] - 2026-04-10
 
 ### Features — Template Feedback

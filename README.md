@@ -5,12 +5,31 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.11-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.11)
+[![Version](https://img.shields.io/badge/version-1.2.12-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.12)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.11
+## 🔥 What's New in v1.2.12
+
+- Onboarding is tighter and faster:
+  - suggested templates in onboarding are now clickable
+  - clicking a suggested template opens that exact template
+  - onboarding now prefers AI agent creation when BYOK is already ready
+- Workspace setup is safer:
+  - creating a workspace over an existing path now offers clear recovery actions
+  - open existing workspace
+  - use existing unregistered workspace
+  - overwrite the old path explicitly
+- Cloud/runtime UX is clearer:
+  - managed runtime gateway warnings are more actionable
+  - empty/failed agent chat states no longer collapse into blank bubbles
+  - workflow communication failures now explain the real issue more clearly
+- Docs and handoff are better:
+  - workspace files can now be downloaded directly from Documents
+  - OTP email readability is hardened for dark-mode mail clients
+
+## 🔥 Previously in v1.2.11
 
 - Users can now leave template ratings and short written feedback
 - That feedback can be routed either:
@@ -38,37 +57,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - another batch of org templates was canonicalized for kickoff/final structure
   - normalized templates now carry explicit workflow `scaling` / `parallelism`
   - the public `maximilien-ai/templates` schema/validator now understand those fields
-
-## 🔥 Previously in v1.2.9
-
-- Workflow apply is safer in busy workspaces:
-  - detects agent, channel, and workflow conflicts
-  - supports rename-on-apply with direct recovery from blocked deploy state
-- Workflow operations are cleaner:
-  - DAG-first workflow view
-  - pipeline selection in DAG mode
-  - pause/resume workflow controls
-  - same-agent concurrent workflow runs no longer fail on session locks
-- Metering and budget views are more trustworthy:
-  - Opik token-only traces now derive estimated spend instead of showing `$0.00`
-  - user-facing cost display is normalized to 2 decimals
-- Agent and activity surfaces are more useful:
-  - agent detail recent workspace files are clickable
-  - activity file types are clearer
-  - Opik loading/empty states are less misleading
-- Mobile polish first pass:
-  - notifications open as a centered mobile sheet
-  - top bar wraps more cleanly on narrow layouts
-  - template apply modal shell is safer on small screens
-
-- **Partner-ready Workspaces Integrations** — the integrations flow now starts with models/providers and then branches into optional partner pages for Senso, Opik, GitHub, Blaxel, and Redis
-- **Partner skills and curated installs** — Skills now surfaces partner-backed skill references, with a curated one-click installer path for Blaxel agent skills
-- **Partner-aware templates** — added new partner showcase templates including Blaxel App Studio, Redis Memory Research Desk, and RAG To Sandbox Launch Team
-- **Container-ready partner metadata** — the runtime image now includes the repo `PARTNERS/` directory so cloud deployments can render the partner integrations UI
-- **AI skill creation** — Skills now has an AI-first creation flow with iterative refinement and missing-section guidance for `SKILL.md`
-- **Editable workspace template variants** — organization and agent templates can now be refined from built-in templates and saved as workspace-local variants
-- **Agent template file editing** — agent template refinement now includes real `IDENTITY.md`, `SOUL.md`, and `TOOLS.md` editing with validation and AI generation fallback
-- **GitHub partner auth flow** — Workspaces Integrations now supports guided GitHub auth and readiness checks inside the dashboard
 
 ## 🔥 Previously in v1.2.6
 

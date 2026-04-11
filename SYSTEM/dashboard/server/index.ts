@@ -119,6 +119,7 @@ const globalLimiter = rateLimit({
   max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path),
   message: { error: 'Too many requests, please try again later' },
 })
 const authLimiter = rateLimit({

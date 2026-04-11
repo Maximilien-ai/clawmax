@@ -318,6 +318,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const { showSuccess, showError } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
+  const formatParticipantError = React.useCallback((errorText: string) => {
+    if (/COMMS FAIL/i.test(errorText)) {
+      return 'Communication delivery failed. This workflow tried to post to a group or community that is missing or misconfigured.'
+    }
+    return errorText
+  }, [])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
@@ -2385,7 +2391,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         </div>
                         {participant.error && (
                           <div className="text-xs text-red-600 dark:text-red-400 mt-1 bg-red-50 dark:bg-red-900/20 p-2 rounded">
-                            Error: {participant.error}
+                            Error: {formatParticipantError(participant.error)}
                           </div>
                         )}
                         {participant.result && (

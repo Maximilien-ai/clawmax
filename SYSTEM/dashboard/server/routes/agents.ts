@@ -12,7 +12,7 @@ import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
-import { getSystemProviderKeys, getUserDefaultProviderKeys } from '../lib/dashboard-env'
+import { getSystemProviderKeys, getUserDefaultProviderKeys, getDashboardEnvRaw } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
@@ -643,6 +643,7 @@ router.post('/doctor', async (req, res) => {
   let hasOpenclawCli = false
   let platformMessage: string | undefined
   let gatewayFixOutput: string | undefined
+  const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
   try {
     execSync('which openclaw', { stdio: 'pipe' })
     const versionText = String(execSync('openclaw --version', { stdio: 'pipe', env: safeEnv() }) || '').trim()
@@ -673,19 +674,33 @@ router.post('/doctor', async (req, res) => {
       if (restartedStatus.running) {
         platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
       } else {
-        platformChecks.push({ check: 'gateway', status: 'warn', message: `Gateway restart command ran but gateway is still not running on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+        platformChecks.push({
+          check: 'gateway',
+          status: 'warn',
+          message: isManagedRuntime
+            ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
+            : `Gateway restart command ran but gateway is still not running on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`
+        })
       }
     } catch (err: any) {
       const reason = String(err?.stderr || err?.stdout || err?.message || '').trim().split('\n')[0] || 'gateway restart failed'
       gatewayFixOutput = String(err?.stderr || err?.stdout || err?.message || '').trim()
-      platformChecks.push({ check: 'gateway', status: 'warn', message: `Gateway restart failed: ${reason}` })
+      platformChecks.push({
+        check: 'gateway',
+        status: 'warn',
+        message: isManagedRuntime
+          ? `Gateway restart failed in this runtime: ${reason}`
+          : `Gateway restart failed: ${reason}`
+      })
     }
   } else {
     platformChecks.push({
       check: 'gateway',
       status: hasOpenclawCli ? 'warn' : 'fail',
       message: hasOpenclawCli
-        ? `Gateway not running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`
+        ? (isManagedRuntime
+          ? 'Gateway is not running in this instance runtime.'
+          : `Gateway not running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`)
         : 'Gateway not running and openclaw CLI is unavailable for auto-fix',
     })
   }
@@ -836,7 +851,13 @@ router.post('/doctor', async (req, res) => {
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,
-    message: [platformMessage, gatewayFixOutput].filter(Boolean).join('\n\n') || undefined,
+    message: [
+      platformMessage,
+      gatewayFixOutput,
+      !effectiveGatewayRunning && isManagedRuntime
+        ? 'This looks like a managed or container runtime. Start or enable the gateway in the instance runtime configuration instead of using local machine commands.'
+        : undefined,
+    ].filter(Boolean).join('\n\n') || undefined,
   })
 })
 

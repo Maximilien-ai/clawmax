@@ -68,6 +68,46 @@ test('createWorkspace rejects an existing non-empty directory', () => {
   assert(threw, 'Expected createWorkspace to reject a non-empty existing directory')
 })
 
+test('createWorkspace reuses an existing empty workspace scaffold directory', () => {
+  const manager = createManager()
+  const workspacePath = path.join(tmpRoot, 'stale-empty-workspace')
+  fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'archive'), { recursive: true })
+  fs.mkdirSync(path.join(workspacePath, 'ORG'), { recursive: true })
+  fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(workspacePath, 'ORG', 'COMMUNITIES.md'), '# Communities\n\n## Communities\n\n', 'utf-8')
+  fs.writeFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), '# Groups\n\n## Groups\n\n', 'utf-8')
+
+  const workspace = manager.createWorkspace('Reused Workspace', workspacePath)
+
+  assert(workspace.path === workspacePath, 'Expected scaffold workspace path to be reused')
+  assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'archive')), 'Expected AGENTS/archive to remain available')
+})
+
+test('inspectWorkspacePathConflict reports adoptable existing workspaces', () => {
+  const manager = createManager()
+  const workspacePath = path.join(tmpRoot, 'adoptable-workspace')
+  fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'agent-a'), { recursive: true })
+  fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'agent-a', 'IDENTITY.md'), '# Identity', 'utf-8')
+
+  const conflict = manager.inspectWorkspacePathConflict(workspacePath)
+
+  assert(conflict.canAdopt === true, 'Expected existing unregistered workspace to be adoptable')
+  assert(conflict.canOverwrite === true, 'Expected existing unregistered workspace to be overwritable')
+  assert(conflict.registeredWorkspace === null, 'Expected no registered workspace for adoptable path')
+})
+
+test('createWorkspace can adopt an existing workspace directory', () => {
+  const manager = createManager()
+  const workspacePath = path.join(tmpRoot, 'existing-workspace')
+  fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'agent-a'), { recursive: true })
+  fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'agent-a', 'IDENTITY.md'), '# Identity', 'utf-8')
+
+  const workspace = manager.createWorkspace('Existing Workspace', workspacePath, { mode: 'adopt' })
+
+  assert(workspace.path === workspacePath, 'Expected existing workspace path to be adopted')
+  assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'agent-a', 'IDENTITY.md')), 'Expected existing workspace files to remain in place')
+})
+
 test('withWorkspace uses request-local workspace context without changing active workspace', async () => {
   const manager = createManager()
   const alphaPath = path.join(tmpRoot, 'alpha-workspace')

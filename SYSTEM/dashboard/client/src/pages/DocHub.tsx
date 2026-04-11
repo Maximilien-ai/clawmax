@@ -228,6 +228,20 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       .catch(() => { setSaving(false); setSaveError('Save failed') })
   }
 
+  function downloadSelectedFile() {
+    if (!selected) return
+    const fileName = selected.split('/').pop() || 'document.md'
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   function toggleSection(s: DocSection) {
     setCollapsed(c => ({ ...c, [s]: !c[s] }))
   }
@@ -572,6 +586,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             <div className="flex items-center justify-between px-8 py-3 border-b border-gray-100 shrink-0">
               <span className="text-xs text-gray-400 font-mono">{selected}</span>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadSelectedFile}
+                  className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Download
+                </button>
                 {saveSuccess && (
                   <span className="text-xs text-green-600 font-medium">Saved</span>
                 )}

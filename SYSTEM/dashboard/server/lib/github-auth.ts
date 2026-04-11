@@ -286,57 +286,73 @@ const CLAWMAX_LOGO_URL = 'https://www.clawmax.ai/clawmax-logo.jpg'
 
 function buildOtpEmailHtml(email: string, code: string): string {
   const expiryMinutes = Math.round(OTP_EXPIRY_MS / 60000)
-  return `
-    <div style="margin:0;padding:32px 0;background:#f4f1ea;font-family:Georgia,'Times New Roman',serif;color:#1f2937;">
-      <div style="max-width:680px;margin:0 auto;background:#fffdf8;border:1px solid #e7ded1;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(31,41,55,0.08);">
-        <div style="padding:28px 32px;background:linear-gradient(135deg,#111827 0%,#23484d 100%);color:#f9fafb;">
-          <div style="display:flex;align-items:center;gap:14px;">
-            <img src="${CLAWMAX_LOGO_URL}" alt="ClawMax logo" style="width:56px;height:56px;border-radius:14px;display:block;background:#ffffff;" />
-            <div>
-              <div style="font-size:13px;letter-spacing:0.22em;text-transform:uppercase;opacity:0.78;">ClawMax</div>
-              <div style="font-size:28px;font-weight:700;line-height:1.15;margin-top:4px;">Your login code</div>
+  return `<!doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="color-scheme" content="light dark" />
+      <meta name="supported-color-schemes" content="light dark" />
+      <title>Your ClawMax login code</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#f4f1ea;color:#1f2937;font-family:Georgia,'Times New Roman',serif;">
+      <div style="margin:0;padding:32px 12px;background-color:#f4f1ea;color:#1f2937;">
+        <div style="max-width:680px;margin:0 auto;background-color:#fffdf8;border:1px solid #e7ded1;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(31,41,55,0.08);">
+          <div style="padding:28px 32px;background-color:#16222d;background-image:linear-gradient(135deg,#111827 0%,#23484d 100%);color:#f9fafb;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td style="width:70px;vertical-align:top;">
+                  <img src="${CLAWMAX_LOGO_URL}" alt="ClawMax logo" width="56" height="56" style="width:56px;height:56px;border-radius:14px;display:block;background-color:#ffffff;" />
+                </td>
+                <td style="vertical-align:top;">
+                  <div style="font-size:13px;letter-spacing:0.22em;text-transform:uppercase;color:#d1d5db;">ClawMax</div>
+                  <div style="font-size:28px;font-weight:700;line-height:1.15;margin-top:4px;color:#f9fafb;">Your login code</div>
+                </td>
+              </tr>
+            </table>
+            <div style="margin-top:18px;font-size:15px;line-height:1.7;max-width:560px;color:#e5e7eb;">
+              Use this one-time code to sign in to your ClawMax dashboard.
             </div>
           </div>
-          <div style="margin-top:18px;font-size:15px;line-height:1.7;max-width:560px;">
-            Use this one-time code to sign in to your ClawMax dashboard.
-          </div>
-        </div>
 
-        <div style="padding:32px;">
-          <p style="margin:0 0 16px;font-size:18px;line-height:1.7;">Hi,</p>
-          <p style="margin:0 0 16px;font-size:16px;line-height:1.8;">
-            We received a sign-in request for <strong>${email}</strong>.
-          </p>
+          <div style="padding:32px;background-color:#fffdf8;color:#1f2937;">
+            <p style="margin:0 0 16px;font-size:18px;line-height:1.7;color:#111827;">Hi,</p>
+            <p style="margin:0 0 16px;font-size:16px;line-height:1.8;color:#1f2937;">
+              We received a sign-in request for <strong style="color:#111827;">${email}</strong>.
+            </p>
 
-          <div style="margin:24px 0;padding:22px;border:1px solid #d6c7b5;border-radius:18px;background:linear-gradient(180deg,#fff9ef 0%,#fffdf8 100%);text-align:center;">
-            <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#7c5c2d;margin-bottom:10px;">One-time password</div>
-            <div style="font-size:40px;line-height:1;font-weight:700;letter-spacing:0.3em;color:#111827;">${code}</div>
-            <div style="margin-top:12px;font-size:14px;color:#5b6471;line-height:1.7;">
-              This code expires in ${expiryMinutes} minutes and can only be used once.
+            <div style="margin:24px 0;padding:22px;border:1px solid #d6c7b5;border-radius:18px;background-color:#fff9ef;background-image:linear-gradient(180deg,#fff9ef 0%,#fffdf8 100%);text-align:center;color:#1f2937;">
+              <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#7c5c2d;margin-bottom:10px;">One-time password</div>
+              <div style="display:inline-block;padding:12px 18px;border-radius:14px;background-color:#fffdf8;border:1px solid #d6c7b5;color:#111827;font-size:40px;line-height:1;font-weight:700;letter-spacing:0.3em;">
+                ${code}
+              </div>
+              <div style="margin-top:12px;font-size:14px;color:#4b5563;line-height:1.7;">
+                This code expires in ${expiryMinutes} minutes and can only be used once.
+              </div>
             </div>
-          </div>
 
-          <div style="margin:24px 0 0;padding:0;">
-            <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:10px;">Security notes</div>
-            <ul style="padding-left:22px;margin:0;color:#374151;font-size:15px;line-height:1.8;">
-              <li>Enter the code exactly as shown on the login screen.</li>
-              <li>If you did not request this login code, you can ignore this email.</li>
-              <li>ClawMax will never ask you to share this code with anyone.</li>
-            </ul>
-          </div>
+            <div style="margin:24px 0 0;padding:0;background-color:#fffdf8;color:#1f2937;">
+              <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:10px;">Security notes</div>
+              <ul style="padding-left:22px;margin:0;color:#374151;font-size:15px;line-height:1.8;">
+                <li style="color:#374151;">Enter the code exactly as shown on the login screen.</li>
+                <li style="color:#374151;">If you did not request this login code, you can ignore this email.</li>
+                <li style="color:#374151;">ClawMax will never ask you to share this code with anyone.</li>
+              </ul>
+            </div>
 
-          <div style="margin-top:28px;padding-top:22px;border-top:1px solid #ece6dc;">
-            <div style="font-size:15px;line-height:1.8;color:#1f2937;">
-              Thank you,
-              <br /><br />
-              <strong>ClawMax</strong><br />
-              <a href="mailto:max@clawmax.ai" style="color:#0f766e;text-decoration:none;">max@clawmax.ai</a>
+            <div style="margin-top:28px;padding-top:22px;border-top:1px solid #ece6dc;background-color:#fffdf8;">
+              <div style="font-size:15px;line-height:1.8;color:#1f2937;">
+                Thank you,
+                <br /><br />
+                <strong style="color:#111827;">ClawMax</strong><br />
+                <a href="mailto:max@clawmax.ai" style="color:#0f766e;text-decoration:none;">max@clawmax.ai</a>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  `
+    </body>
+  </html>`
 }
 
 function buildOtpEmailText(email: string, code: string): string {

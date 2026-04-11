@@ -38,6 +38,15 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
+function deriveChatError(raw: string): string {
+  const text = raw.trim()
+  if (!text) return 'No reply from agent.'
+  if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
+  if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced.'
+  if (/api key|execution path configured|ollama runtime/i.test(text)) return text
+  return text
+}
+
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
     const sessionsDir = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
@@ -253,8 +262,8 @@ router.post('/:id/chat', (req, res) => {
 
         persistDashboardChatSession(id, effectiveSessionId)
 
-        if (!normalizedText && code !== 0) {
-          send('error', stderrOutput.slice(0, 300) || 'Agent failed. Check that API keys are configured.')
+        if (!normalizedText) {
+          send('error', deriveChatError(stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.')))
         }
         send('complete', {})
         if (!res.writableEnded) {

@@ -452,7 +452,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
             </div>
           ) : metering.totalTraces === 0 ? (
             <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-              No metering data yet. If Opik is connected, traces can take a little time to appear after agents and workflows start running.
+              No metering data yet. Run an agent or workflow and this workspace will start showing token and cost activity once traces arrive.
             </div>
           ) : null}
           {/* Summary cards */}

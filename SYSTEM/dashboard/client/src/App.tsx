@@ -158,7 +158,7 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
-  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'import' | undefined>(undefined)
+  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
@@ -427,6 +427,7 @@ export default function App() {
               onNavigateToPage={(p) => setPage(p as any)}
               onNavigateToDoc={(file) => { setDocFile(file); setPage('docs') }}
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
+              onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
               onOpenPartners={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
@@ -506,7 +507,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentImport, onOpenByok, onOpenPartners }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -519,6 +520,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onNavigateToPage?: (page: string) => void
   onNavigateToDoc?: (path: string) => void
   onOpenAgentCreate?: () => void
+  onOpenAgentCreateAI?: () => void
   onOpenAgentImport?: () => void
   onOpenByok?: () => void
   onOpenPartners?: () => void
@@ -606,6 +608,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
           onCreateAgent={() => onOpenAgentCreate?.()}
+          onCreateAgentAI={() => onOpenAgentCreateAI?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}
           workspaceId={activeWorkspace?.id}
         />

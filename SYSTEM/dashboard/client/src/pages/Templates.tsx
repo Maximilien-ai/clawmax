@@ -254,6 +254,11 @@ export default function Templates() {
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [pendingOnboardingSelection, setPendingOnboardingSelection] = useState<null | {
+    templateId?: string
+    templateName?: string
+    templateType?: string
+  }>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
     itemType: string
@@ -322,6 +327,51 @@ export default function Templates() {
     window.addEventListener('template-created', handleTemplateCreated)
     return () => window.removeEventListener('template-created', handleTemplateCreated)
   }, [])
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('clawmax-onboarding-template-query')
+      if (!raw) return
+      sessionStorage.removeItem('clawmax-onboarding-template-query')
+      const parsed = JSON.parse(raw)
+      if (typeof parsed?.search === 'string') {
+        setSearchQuery(parsed.search)
+      }
+      if (typeof parsed?.category === 'string') {
+        setCategoryFilter(parsed.category)
+      }
+      if (parsed?.templateId || parsed?.templateName) {
+        setPendingOnboardingSelection({
+          templateId: typeof parsed?.templateId === 'string' ? parsed.templateId : undefined,
+          templateName: typeof parsed?.templateName === 'string' ? parsed.templateName : undefined,
+          templateType: typeof parsed?.templateType === 'string' ? parsed.templateType : undefined,
+        })
+      }
+    } catch {
+      sessionStorage.removeItem('clawmax-onboarding-template-query')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pendingOnboardingSelection) return
+    const candidateTemplates: Template[] = [
+      ...agentTemplates,
+      ...orgTemplates,
+      ...workflowTemplates,
+    ]
+    const match = candidateTemplates.find((template) => {
+      if (pendingOnboardingSelection.templateType && template.type !== pendingOnboardingSelection.templateType) {
+        return false
+      }
+      if (template.type === 'workflow') {
+        return template.id === pendingOnboardingSelection.templateId || template.name === pendingOnboardingSelection.templateName
+      }
+      return template.slug === pendingOnboardingSelection.templateId || template.name === pendingOnboardingSelection.templateName
+    })
+    if (!match) return
+    setSelectedTemplate(match)
+    setPendingOnboardingSelection(null)
+  }, [pendingOnboardingSelection, agentTemplates, orgTemplates, workflowTemplates])
 
   const handleDelete = async (type: 'agent' | 'organization' | 'workflow', name: string, id?: string) => {
     const targetTemplate = type === 'workflow'

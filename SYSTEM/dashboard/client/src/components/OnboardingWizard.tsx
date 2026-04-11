@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
+import { useAuth } from '../contexts/AuthContext'
+import { hasAnyLLMKeys } from '../lib/byok'
 
 type Step = 'welcome' | 'byok' | 'partners' | 'build' | 'templates'
 type TemplateCandidate = {
@@ -16,11 +18,14 @@ interface OnboardingWizardProps {
   onOpenPartners: () => void
   onImportAgents: () => void
   onCreateAgent: () => void
+  onCreateAgentAI: () => void
   onOpenTemplates: () => void
   workspaceId?: string | null
 }
 
-export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImportAgents, onCreateAgent, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
+export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImportAgents, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
+  const { config } = useAuth()
+  const aiEnabled = hasAnyLLMKeys(config)
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('welcome')
   const [usesOpenClaw, setUsesOpenClaw] = useState<boolean | null>(null)
@@ -29,6 +34,48 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
   const [templateFocus, setTemplateFocus] = useState('')
   const [templateGoal, setTemplateGoal] = useState('')
   const [templateCandidates, setTemplateCandidates] = useState<TemplateCandidate[]>([])
+
+  const templateCopy = useMemo(() => {
+    switch (templateCategory) {
+      case 'research':
+        return {
+          focusPlaceholder: 'e.g. robotics, agents, biology, climate',
+          goalPlaceholder: 'e.g. literature review, experiment plan, research brief',
+          helper: 'Research teams work best when you state the subject area and the concrete output you need.'
+        }
+      case 'marketing':
+        return {
+          focusPlaceholder: 'e.g. launch, content, ads, ecommerce',
+          goalPlaceholder: 'e.g. campaign plan, landing page copy, content calendar',
+          helper: 'Marketing teams work best when you specify the channel and the expected deliverable.'
+        }
+      case 'technical':
+        return {
+          focusPlaceholder: 'e.g. API docs, release notes, QA, platform',
+          goalPlaceholder: 'e.g. docs set, test plan, implementation review',
+          helper: 'Technical teams work best when you state the system area and what artifact should be produced.'
+        }
+      case 'events':
+        return {
+          focusPlaceholder: 'e.g. conference, meetup, wedding, workshop',
+          goalPlaceholder: 'e.g. itinerary, staffing plan, vendor checklist',
+          helper: 'Event teams work best when you specify the event type and the planning artifact you want.'
+        }
+      case 'personal':
+        return {
+          focusPlaceholder: 'e.g. travel, family, meal planning, hobbies',
+          goalPlaceholder: 'e.g. weekly plan, recommendations, checklist',
+          helper: 'Personal teams work best when you describe the situation and the outcome you want.'
+        }
+      case 'business':
+      default:
+        return {
+          focusPlaceholder: 'e.g. sales, hiring, operations, finance',
+          goalPlaceholder: 'e.g. plan, report, workflow, recommendations',
+          helper: 'Business teams work best when you specify the function and the concrete deliverable.'
+        }
+    }
+  }, [templateCategory])
 
   useEffect(() => {
     if (!visible) {
@@ -91,6 +138,20 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
       .filter(Boolean) as Array<TemplateCandidate & { reasons: string[] }>
   }, [templateCandidates, templateCategory, templateFocus, templateGoal])
 
+  const openSuggestedTemplate = (template: TemplateCandidate) => {
+    try {
+      sessionStorage.setItem('clawmax-onboarding-template-query', JSON.stringify({
+        search: template.name,
+        category: templateCategory,
+        templateId: template.id,
+        templateName: template.name,
+        templateType: 'organization',
+      }))
+    } catch {}
+    onOpenTemplates()
+    setOpen(false)
+  }
+
   if (!visible) return null
 
   return (
@@ -106,7 +167,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
       {open && (
         <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div
-            className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-6 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-5xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-6 max-h-[90vh] overflow-y-auto"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -249,11 +310,21 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                     <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Best if you already have agents and want to keep momentum.</div>
                   </button>
                   <button
-                    onClick={() => { onCreateAgent(); setOpen(false) }}
+                    onClick={() => {
+                      if (aiEnabled) onCreateAgentAI()
+                      else onCreateAgent()
+                      setOpen(false)
+                    }}
                     className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900/40"
                   >
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create a new agent</div>
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Start with one role, validate it, then expand from there.</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {aiEnabled ? 'Create a new agent with AI' : 'Create a new agent'}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {aiEnabled
+                        ? 'BYOK is configured, so the fastest path is AI-assisted agent creation.'
+                        : 'Start with one role, validate it, then expand from there.'}
+                    </div>
                   </button>
                 </div>
 
@@ -294,7 +365,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                       type="text"
                       value={templateFocus}
                       onChange={(e) => setTemplateFocus(e.target.value)}
-                      placeholder="e.g. growth, content, robotics"
+                      placeholder={templateCopy.focusPlaceholder}
                       className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                     />
                   </div>
@@ -304,10 +375,14 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                       type="text"
                       value={templateGoal}
                       onChange={(e) => setTemplateGoal(e.target.value)}
-                      placeholder="What are you trying to accomplish?"
+                      placeholder={templateCopy.goalPlaceholder}
                       className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                     />
                   </div>
+                </div>
+
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {templateCopy.helper}
                 </div>
 
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-4">
@@ -319,7 +394,13 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                   ) : (
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {recommendedTemplates.map((template) => (
-                        <div key={template.id} className="rounded-xl border border-emerald-200/70 dark:border-emerald-800 bg-white/80 dark:bg-gray-900/30 p-4">
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => openSuggestedTemplate(template)}
+                          className="rounded-xl border border-emerald-200/70 dark:border-emerald-800 bg-white/80 dark:bg-gray-900/30 p-4 text-left hover:bg-white dark:hover:bg-gray-900/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+                          title={`Open ${template.name} in Templates`}
+                        >
                           <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.name}</div>
                           <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{template.description || 'Suggested starter template'}</div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -329,7 +410,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                               </span>
                             ))}
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
