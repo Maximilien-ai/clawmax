@@ -29,10 +29,16 @@ export function WorkspaceEditDialog({
   const [budgetSpend, setBudgetSpend] = useState(0)
   const [budgetPct, setBudgetPct] = useState(0)
   const [budgetLevel, setBudgetLevel] = useState<'ok' | 'warning' | 'exceeded'>('ok')
+  const [budgetEnabled, setBudgetEnabled] = useState(true)
 
   useEffect(() => {
     if (isOpen) {
       fetch(`/api/budget?workspaceId=${encodeURIComponent(workspace.id)}`).then(r => r.json()).then(d => {
+        if (d && d.enabled === false) {
+          setBudgetEnabled(false)
+          return
+        }
+        setBudgetEnabled(true)
         setBudgetLimit(String(d.config.limitUsd))
         setBudgetEnforced(d.config.enforced)
         setBudgetSpend(d.currentSpendUsd)
@@ -65,18 +71,19 @@ export function WorkspaceEditDialog({
         tags: parsedTags
       })
 
-      // Save budget config
-      try {
-        await fetch('/api/budget', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId: workspace.id,
-            limitUsd: parseFloat(budgetLimit) || 10,
-            enforced: budgetEnforced,
-          }),
-        })
-      } catch {}
+      if (budgetEnabled) {
+        try {
+          await fetch('/api/budget', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: workspace.id,
+              limitUsd: parseFloat(budgetLimit) || 10,
+              enforced: budgetEnforced,
+            }),
+          })
+        } catch {}
+      }
 
       onClose()
     } catch (err) {
@@ -150,7 +157,7 @@ export function WorkspaceEditDialog({
             </div>
           </div>
 
-          {/* Cost Budget */}
+          {budgetEnabled && (
           <div>
             <label htmlFor="workspace-budget" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Cost Budget (USD)
@@ -200,6 +207,7 @@ export function WorkspaceEditDialog({
               Agents pause automatically when budget is exceeded. Warning at 80%.
             </p>
           </div>
+          )}
 
           {/* Path info (read-only) */}
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">

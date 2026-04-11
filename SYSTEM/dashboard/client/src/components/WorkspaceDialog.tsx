@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 const PRESET_COLORS = [
@@ -19,6 +19,15 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
   const [creating, setCreating] = useState(false)
   const [budgetLimit, setBudgetLimit] = useState('10')
   const [budgetEnforced, setBudgetEnforced] = useState(true)
+  const [budgetEnabled, setBudgetEnabled] = useState(true)
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetch('/api/budget')
+      .then(r => r.json())
+      .then(d => setBudgetEnabled(!(d && d.enabled === false)))
+      .catch(() => {})
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -45,18 +54,19 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
         tags: parsedTags
       })
 
-      // Save budget config for the new workspace
-      try {
-        await fetch('/api/budget', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId: workspace.id,
-            limitUsd: parseFloat(budgetLimit) || 10,
-            enforced: budgetEnforced,
-          }),
-        })
-      } catch {}
+      if (budgetEnabled) {
+        try {
+          await fetch('/api/budget', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: workspace.id,
+              limitUsd: parseFloat(budgetLimit) || 10,
+              enforced: budgetEnforced,
+            }),
+          })
+        } catch {}
+      }
 
       // Reset form and close
       setName('')
@@ -155,7 +165,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
             </div>
           </div>
 
-          {/* Cost Budget */}
+          {budgetEnabled && (
           <div>
             <label htmlFor="workspace-budget" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Cost Budget (USD)
@@ -188,6 +198,7 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
               Agents pause automatically when budget is exceeded. Warning at 80%.
             </p>
           </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">

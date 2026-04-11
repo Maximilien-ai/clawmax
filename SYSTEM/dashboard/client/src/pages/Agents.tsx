@@ -150,6 +150,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [agentMetering, setAgentMetering] = useState<Record<string, { calls: number; tokens: number; cost: number }>>({})
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
   const [meteringLoaded, setMeteringLoaded] = useState(false)
+  const [costTrackingEnabled, setCostTrackingEnabled] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('agents-view-mode')
     return (saved === 'list' || saved === 'grid' || saved === 'table') ? saved : 'grid'
@@ -233,21 +234,32 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   // Fetch metering data
   useEffect(() => {
     fetch('/api/metering').then(r => r.json()).then(d => {
+      if (d && d.enabled === false) {
+        setCostTrackingEnabled(false)
+        setAgentMetering({})
+        setMeteringLoaded(true)
+        return
+      }
       const map: Record<string, { calls: number; tokens: number; cost: number }> = {}
       for (const a of d.byAgent || []) {
         map[a.agentId] = { calls: a.totalCalls, tokens: a.totalTokens, cost: a.estimatedCostUsd }
       }
+      setCostTrackingEnabled(true)
       setAgentMetering(map)
       setMeteringLoaded(true)
     }).catch(() => { setMeteringLoaded(true) })
   }, [])
 
   useEffect(() => {
+    if (!costTrackingEnabled) {
+      setAgentCostLimits({})
+      return
+    }
     fetch('/api/agents/cost-limits')
       .then(r => r.ok ? r.json() : null)
       .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
       .catch(() => setAgentCostLimits({}))
-  }, [])
+  }, [costTrackingEnabled])
 
   useEffect(() => {
     fetchAgents()
@@ -1387,8 +1399,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       workflows={agentWorkflows.get(agent.id)}
                       isSelected={selectedAgentIds.has(agent.id)}
                       onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
-                      metering={agentMetering[agent.id]}
-                      costLimit={agentCostLimits[agent.id] ?? null}
+                      metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
+                      costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
+                      costTrackingEnabled={costTrackingEnabled}
                       onUnlinkWa={() => {
                         fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                           .then(() => fetchAgents())
@@ -1516,8 +1529,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         isSelected={selectedAgentIds.has(agent.id)}
                         onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                         usage={agentUsage[agent.id]}
-                        metering={agentMetering[agent.id]}
-                        costLimit={agentCostLimits[agent.id] ?? null}
+                        metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
+                        costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
+                        costTrackingEnabled={costTrackingEnabled}
                       />
                     ))}
                   </div>
@@ -1563,8 +1577,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               isSelected={selectedAgentIds.has(agent.id)}
                               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                               usage={agentUsage[agent.id]}
-                              metering={agentMetering[agent.id]}
-                              costLimit={agentCostLimits[agent.id] ?? null}
+                              metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
+                              costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
+                              costTrackingEnabled={costTrackingEnabled}
                             />
                           ))}
                         </div>
@@ -1662,8 +1677,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               isSelected={selectedAgentIds.has(agent.id)}
               onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
               usage={agentUsage[agent.id]}
-              metering={agentMetering[agent.id]}
-              costLimit={agentCostLimits[agent.id] ?? null}
+              metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
+              costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
+              costTrackingEnabled={costTrackingEnabled}
             />
                       ))}
                     </div>
@@ -1710,8 +1726,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           isSelected={selectedAgentIds.has(agent.id)}
                           onToggleSelect={selectionMode ? () => toggleAgentSelection(agent.id) : undefined}
                           usage={agentUsage[agent.id]}
-                          metering={agentMetering[agent.id]}
-                          costLimit={agentCostLimits[agent.id] ?? null}
+                          metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
+                          costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
+                          costTrackingEnabled={costTrackingEnabled}
                         />
                       ))}
                     </div>
@@ -1748,8 +1765,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onEdit={setEditTarget}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
-          metering={agentMetering}
-          meteringLoaded={meteringLoaded}
+          metering={costTrackingEnabled ? agentMetering : {}}
+          meteringLoaded={costTrackingEnabled ? meteringLoaded : true}
+          costTrackingEnabled={costTrackingEnabled}
         />
       )}
 
@@ -1834,6 +1852,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <AgentDetailPanel
           agent={selectedAgent}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
+          costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
           onClone={() => {
@@ -2936,7 +2955,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true,
 }: {
   agent: Agent
   selected: boolean
@@ -2969,6 +2988,7 @@ const AgentCard = React.memo(function AgentCard({
   onToggleSelect?: () => void
   metering?: { calls: number; tokens: number; cost: number }
   costLimit?: number | null
+  costTrackingEnabled?: boolean
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -3040,7 +3060,7 @@ const AgentCard = React.memo(function AgentCard({
               {agent.status}
             </span>
           )}
-          {metering && metering.calls > 0 && (
+          {costTrackingEnabled && metering && metering.calls > 0 && (
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
@@ -3162,12 +3182,14 @@ const AgentCard = React.memo(function AgentCard({
                         >
                           ✎ Rename
                         </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
-                        >
-                          💲 Budget
-                        </button>
+                        {costTrackingEnabled && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          >
+                            💲 Budget
+                          </button>
+                        )}
                         {agent.archived ? (
                           <button
                             onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
@@ -3445,7 +3467,7 @@ const AgentCard = React.memo(function AgentCard({
           )}
 
           <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-            {costLimit && costLimit > 0 && (
+            {costTrackingEnabled && costLimit && costLimit > 0 && (
               <div className="mb-2">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-gray-400">
                   <span>Budget</span>
@@ -3469,7 +3491,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
@@ -3548,7 +3570,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          {metering && metering.calls > 0 && (
+          {costTrackingEnabled && metering && metering.calls > 0 && (
             <span
               className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
@@ -3576,7 +3598,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           </div>
         )}
       </div>
-      {costLimit && costLimit > 0 && (
+      {costTrackingEnabled && costLimit && costLimit > 0 && (
         <div className="mt-1.5">
           <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
             <span>Budget</span>
@@ -3740,12 +3762,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       >
                         ✎ Rename
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
-                      >
-                        💲 Budget
-                      </button>
+                      {costTrackingEnabled && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                        >
+                          💲 Budget
+                        </button>
+                      )}
                       {agent.archived ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
@@ -3800,6 +3824,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onUnarchive,
   metering,
   meteringLoaded = true,
+  costTrackingEnabled = true,
 }: {
   agents: Agent[]
   selectedAgent: Agent | null
@@ -3818,6 +3843,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onUnarchive: (agent: Agent) => void
   metering: Record<string, { calls: number; tokens: number; cost: number }>
   meteringLoaded?: boolean
+  costTrackingEnabled?: boolean
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
 
@@ -3922,7 +3948,7 @@ const AgentTableView = React.memo(function AgentTableView({
             <SortHeader column="name" label="Name" />
             <SortHeader column="status" label="Status" />
             <SortHeader column="heartbeat" label="Last Seen" />
-            <SortHeader column="cost" label="Cost" />
+            {costTrackingEnabled && <SortHeader column="cost" label="Cost" />}
             <SortHeader column="groups" label="Groups" />
             <SortHeader column="skills" label="Skills" />
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider dark:bg-gray-800">Tags</th>
@@ -3984,17 +4010,19 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                 {agent.lastHeartbeat ? timeAgo(agent.lastHeartbeat) : 'never'}
               </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm">
-                {!meteringLoaded ? (
-                  <span className="inline-block w-14 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                ) : metering[agent.id] ? (
-                  <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${((metering[agent.id].tokens || 0)/1000).toFixed(1)}k tokens`}>
-                    ${(metering[agent.id].cost || 0).toFixed(2)}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
+              {costTrackingEnabled && (
+                <td className="px-4 py-3 whitespace-nowrap text-sm">
+                  {!meteringLoaded ? (
+                    <span className="inline-block w-14 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  ) : metering[agent.id] ? (
+                    <span className="text-emerald-600 font-medium" title={`${metering[agent.id].calls} calls · ${((metering[agent.id].tokens || 0)/1000).toFixed(1)}k tokens`}>
+                      ${(metering[agent.id].cost || 0).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.groups.slice(0, 3).map(g => (

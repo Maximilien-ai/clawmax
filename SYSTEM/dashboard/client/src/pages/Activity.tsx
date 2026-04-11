@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 
 interface MeteringData {
+  enabled?: boolean
+  reason?: string
   totalTraces: number
   totalInputTokens: number
   totalOutputTokens: number
@@ -26,6 +28,7 @@ interface MeteringData {
 }
 
 const EMPTY_METERING: MeteringData = {
+  enabled: true,
   totalTraces: 0,
   totalInputTokens: 0,
   totalOutputTokens: 0,
@@ -111,6 +114,8 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [metering, setMetering] = useState<MeteringData | null>(null)
   const [meteringLoading, setMeteringLoading] = useState(true)
   const [showMetering, setShowMetering] = useState(true)
+  const [costBudgetEnabled, setCostBudgetEnabled] = useState(true)
+  const [costBudgetReason, setCostBudgetReason] = useState('')
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
   const [editingBudget, setEditingBudget] = useState(false)
@@ -152,7 +157,17 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
     fetchFeed()
     fetch('/api/metering')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setMetering(isMeteringResponse(d) ? d : EMPTY_METERING))
+      .then(d => {
+        if (d && d.enabled === false) {
+          setCostBudgetEnabled(false)
+          setCostBudgetReason(typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.')
+          setMetering(null)
+          return
+        }
+        setCostBudgetEnabled(true)
+        setCostBudgetReason('')
+        setMetering(isMeteringResponse(d) ? d : EMPTY_METERING)
+      })
       .catch(() => setMetering(EMPTY_METERING))
       .finally(() => setMeteringLoading(false))
     fetch('/api/agents/cost-limits')
@@ -162,7 +177,9 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
     fetch('/api/budget')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (isBudgetResponse(d)) {
+        if (d && d.enabled === false) {
+          setBudget(null)
+        } else if (isBudgetResponse(d)) {
           setBudget(d)
           setBudgetInput(String(d.config.limitUsd))
         } else {
@@ -338,8 +355,20 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
         </div>
       </div>
 
+      {!costBudgetEnabled && (
+        <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-5 py-4 text-sm text-amber-900 dark:text-amber-200">
+          <div className="font-semibold">Cost &amp; Budgeting is disabled for this instance</div>
+          <div className="mt-2">
+            This dashboard is not set up for cost and budgeting.
+          </div>
+          <div className="mt-2">
+            Recreate (export your workspace first) the instance with the Cost &amp; Budgeting feature via Comet Opik and these features will be enabled.
+          </div>
+        </div>
+      )}
+
       {/* Budget Bar */}
-      {budget && (
+      {costBudgetEnabled && budget && (
         <div className={`mb-4 rounded-lg border p-4 ${
           budget.level === 'exceeded' ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' :
           budget.level === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700' :
@@ -411,7 +440,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       )}
 
       {/* Metering Stats */}
-      {metering && showMetering && (
+      {costBudgetEnabled && metering && showMetering && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Token Metering</h2>
@@ -502,7 +531,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
           )}
         </div>
       )}
-      {!showMetering && metering && (
+      {costBudgetEnabled && !showMetering && metering && (
         <button onClick={() => setShowMetering(true)} className="text-xs text-sky-600 hover:text-sky-700 mb-4">Show Token Metering</button>
       )}
 

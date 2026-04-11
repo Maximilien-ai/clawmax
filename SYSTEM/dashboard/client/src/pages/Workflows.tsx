@@ -323,6 +323,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
   const [loading, setLoading] = useState(true)
   const [agentCosts, setAgentCosts] = useState<Record<string, number>>({})
+  const [costTrackingEnabled, setCostTrackingEnabled] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [showDetailPanel, setShowDetailPanel] = useState(false)
@@ -393,8 +394,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     fetchWorkflows()
     // Fetch metering costs per agent
     fetch('/api/metering').then(r => r.ok ? r.json() : null).then(d => {
+      if (d && d.enabled === false) {
+        setCostTrackingEnabled(false)
+        setAgentCosts({})
+        return
+      }
       const costs: Record<string, number> = {}
       for (const a of Array.isArray(d?.byAgent) ? d.byAgent : []) costs[a.agentId] = a.estimatedCostUsd
+      setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
   }, [])
@@ -1710,7 +1717,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
                   isRunning={runningWorkflows.has(workflow.id)}
                   healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
-                  totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+                  totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
                 />
               ))}
             </div>
@@ -1756,7 +1763,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
               runningWorkflows={runningWorkflows}
               latestExecutionStatuses={latestExecutionStatuses}
-              totalCost={Object.values(agentCosts).reduce((s, c) => s + c, 0)}
+              totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
               allVisibleSelected={allVisibleSelected}
               onSelectVisible={selectVisibleWorkflows}
               onDeselectVisible={deselectVisibleWorkflows}

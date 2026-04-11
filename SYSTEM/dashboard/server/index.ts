@@ -22,7 +22,7 @@ import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getLates
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
-import { initOpikTracing, shutdownOpik } from './lib/opik'
+import { initOpikTracing, shutdownOpik, isOpikEnabled } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
@@ -212,9 +212,15 @@ app.get('/api/activity', protect, (_req, res) => {
 // Budget status
 app.get('/api/budget', protect, async (req, res) => {
   try {
+    if (!isOpikEnabled()) {
+      return res.json({
+        enabled: false,
+        reason: 'Opik is not configured for this instance.',
+      })
+    }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
     const status = await getBudgetStatus(workspaceId)
-    res.json(status)
+    res.json({ enabled: true, ...status })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -223,6 +229,11 @@ app.get('/api/budget', protect, async (req, res) => {
 // Update budget config
 app.put('/api/budget', protect, (req, res) => {
   try {
+    if (!isOpikEnabled()) {
+      return res.status(400).json({
+        error: 'Cost & Budgeting is disabled because Opik is not configured for this instance.',
+      })
+    }
     const updates = req.body as Partial<BudgetConfig> & { workspaceId?: string }
     const workspaceId = typeof updates.workspaceId === 'string' ? updates.workspaceId : undefined
     const current = loadBudgetConfig(workspaceId)
@@ -254,9 +265,15 @@ app.put('/api/budget', protect, (req, res) => {
 // Metering data from Opik
 app.get('/api/metering', protect, async (req, res) => {
   try {
+    if (!isOpikEnabled()) {
+      return res.json({
+        enabled: false,
+        reason: 'Opik is not configured for this instance.',
+      })
+    }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
     const data = await getWorkspaceMetering(workspaceId)
-    res.json(data)
+    res.json({ enabled: true, ...data })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

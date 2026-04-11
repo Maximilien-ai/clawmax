@@ -97,6 +97,7 @@ export default function AgentDetailPanel({
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
+  costTrackingEnabled = true,
 }: {
   agent: Agent
   onClose: () => void
@@ -105,6 +106,7 @@ export default function AgentDetailPanel({
   onNavigateToSkills?: (agentId: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
+  costTrackingEnabled?: boolean
 }) {
   const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
@@ -145,6 +147,11 @@ export default function AgentDetailPanel({
     setLoading(true)
     setActivity(null)
     fetchActivity()
+    if (!costTrackingEnabled) {
+      setCostLimit(null)
+      setCostLimitInput('')
+      return
+    }
     // Fetch cost limit
     fetch(`/api/agents/${agent.id}/cost-limit`)
       .then(r => r.json())
@@ -153,7 +160,7 @@ export default function AgentDetailPanel({
         setCostLimitInput(d.limitUsd ? String(d.limitUsd) : '')
       })
       .catch(() => {})
-  }, [fetchActivity, agent.id])
+  }, [fetchActivity, agent.id, costTrackingEnabled])
 
   useEffect(() => {
     if (!initialEditCostLimit) return
@@ -307,37 +314,38 @@ export default function AgentDetailPanel({
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
 
-          {/* Cost Limit */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-gray-500 dark:text-gray-400">Cost limit:</span>
-            {editingCostLimit ? (
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400">$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={costLimitInput}
-                  onChange={(e) => setCostLimitInput(e.target.value)}
-                  placeholder="e.g. 1.00"
-                  className="w-20 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCostLimit(); if (e.key === 'Escape') setEditingCostLimit(false) }}
-                />
-                <button onClick={handleSaveCostLimit} className="text-sky-600 dark:text-sky-400 hover:underline">Save</button>
-                <button onClick={() => setEditingCostLimit(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => { setCostLimitInput(costLimit ? String(costLimit) : ''); setEditingCostLimit(true) }}
-                className="text-gray-600 dark:text-gray-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-                title="Set per-agent cost limit"
-              >
-                {costLimit ? `$${costLimit.toFixed(2)}` : 'No limit set'}
-                <span className="ml-1 text-gray-300 dark:text-gray-600">✏️</span>
-              </button>
-            )}
-          </div>
+          {costTrackingEnabled && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-gray-500 dark:text-gray-400">Cost limit:</span>
+              {editingCostLimit ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={costLimitInput}
+                    onChange={(e) => setCostLimitInput(e.target.value)}
+                    placeholder="e.g. 1.00"
+                    className="w-20 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCostLimit(); if (e.key === 'Escape') setEditingCostLimit(false) }}
+                  />
+                  <button onClick={handleSaveCostLimit} className="text-sky-600 dark:text-sky-400 hover:underline">Save</button>
+                  <button onClick={() => setEditingCostLimit(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setCostLimitInput(costLimit ? String(costLimit) : ''); setEditingCostLimit(true) }}
+                  className="text-gray-600 dark:text-gray-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                  title="Set per-agent cost limit"
+                >
+                  {costLimit ? `$${costLimit.toFixed(2)}` : 'No limit set'}
+                  <span className="ml-1 text-gray-300 dark:text-gray-600">✏️</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {!loading && activity && (
             <>

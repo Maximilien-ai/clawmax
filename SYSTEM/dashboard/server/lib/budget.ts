@@ -9,6 +9,7 @@ import path from 'path'
 import { getWorkspacePath } from './workspace'
 import { getWorkspaceMetering } from './metering'
 import { getWorkspaceManager } from './workspace-manager'
+import { isOpikEnabled } from './opik'
 
 export interface BudgetConfig {
   /** Maximum budget in USD (e.g., 10.00) */
@@ -103,6 +104,7 @@ export async function getBudgetStatus(workspaceId?: string): Promise<BudgetStatu
  * Returns null if OK, or an error message if blocked.
  */
 export function checkBudgetBlock(options?: { workspaceId?: string; operation?: 'agent' | 'workflow' }): string | null {
+  if (!isOpikEnabled()) return null
   const config = loadBudgetConfig(options?.workspaceId)
   if (!config.enforced) return null
   if (!config.paused) return null
