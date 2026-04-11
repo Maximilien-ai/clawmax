@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 
-type Step = 'welcome' | 'setup' | 'build' | 'templates'
+type Step = 'welcome' | 'byok' | 'partners' | 'build' | 'templates'
 type TemplateCandidate = {
   id: string
   name: string
@@ -13,12 +13,14 @@ type TemplateCandidate = {
 interface OnboardingWizardProps {
   visible: boolean
   onOpenByok: () => void
+  onOpenPartners: () => void
   onImportAgents: () => void
   onCreateAgent: () => void
   onOpenTemplates: () => void
+  workspaceId?: string | null
 }
 
-export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreateAgent, onOpenTemplates }: OnboardingWizardProps) {
+export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImportAgents, onCreateAgent, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('welcome')
   const [usesOpenClaw, setUsesOpenClaw] = useState<boolean | null>(null)
@@ -33,11 +35,11 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
       setOpen(false)
       return
     }
-    const key = 'clawmax-onboarding-auto-opened'
+    const key = `clawmax-onboarding-auto-opened:${workspaceId || 'default'}`
     if (localStorage.getItem(key) === 'true') return
     setOpen(true)
     localStorage.setItem(key, 'true')
-  }, [visible])
+  }, [visible, workspaceId])
 
   useEffect(() => {
     if (!open) return
@@ -119,7 +121,7 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-xs">
-              {(['welcome', 'setup', 'build', 'templates'] as Step[]).map((value) => (
+              {(['welcome', 'byok', 'partners', 'build', 'templates'] as Step[]).map((value) => (
                 <button
                   key={value}
                   onClick={() => setStep(value)}
@@ -129,7 +131,7 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  {value === 'welcome' ? '1. Context' : value === 'setup' ? '2. Keys' : value === 'build' ? '3. Agents' : '4. Templates'}
+                  {value === 'welcome' ? '1. Context' : value === 'byok' ? '2. BYOK' : value === 'partners' ? '3. Partners' : value === 'build' ? '4. Agents' : '5. Templates'}
                 </button>
               ))}
             </div>
@@ -140,13 +142,13 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Are you already using OpenClaw?</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
-                      onClick={() => { setUsesOpenClaw(true); setStep('setup') }}
+                      onClick={() => { setUsesOpenClaw(true); setStep('byok') }}
                       className={`rounded-lg px-3 py-2 text-sm transition-colors ${usesOpenClaw === true ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
                     >
                       Yes, import what I have
                     </button>
                     <button
-                      onClick={() => { setUsesOpenClaw(false); setStep('setup') }}
+                      onClick={() => { setUsesOpenClaw(false); setStep('byok') }}
                       className={`rounded-lg px-3 py-2 text-sm transition-colors ${usesOpenClaw === false ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
                     >
                       No, start fresh
@@ -161,15 +163,15 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
 
                 <div className="flex items-center justify-end gap-2">
                   <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Skip for now</button>
-                  <button onClick={() => setStep('setup')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Continue</button>
+                  <button onClick={() => setStep('byok')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Continue</button>
                 </div>
               </div>
             )}
 
-            {step === 'setup' && (
+            {step === 'byok' && (
               <div className="mt-6 space-y-5">
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
-                  <div className="text-sm font-medium text-amber-800 dark:text-amber-200">Set keys and runtime first</div>
+                  <div className="text-sm font-medium text-amber-800 dark:text-amber-200">Set BYOK and runtime first</div>
                   <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
                     If you want templates, AI generation, or system agents to work cleanly, configure BYOK or Ollama before you start.
                   </p>
@@ -180,13 +182,39 @@ export function OnboardingWizard({ visible, onOpenByok, onImportAgents, onCreate
                     onClick={() => { onOpenByok(); setOpen(false) }}
                     className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                   >
-                    Open BYOK Wizard
+                    Open BYOK
+                  </button>
+                  <button
+                    onClick={() => setStep('partners')}
+                    className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-200"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'partners' && (
+              <div className="mt-6 space-y-5">
+                <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4">
+                  <div className="text-sm font-medium text-cyan-800 dark:text-cyan-200">Optional partner integrations</div>
+                  <p className="mt-1 text-sm text-cyan-700 dark:text-cyan-300">
+                    Partner integrations are optional. Configure them when this workspace needs external systems or partner-backed templates.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => { onOpenPartners(); setOpen(false) }}
+                    className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700"
+                  >
+                    Open Partners
                   </button>
                   <button
                     onClick={() => setStep('build')}
                     className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-200"
                   >
-                    Continue without changing keys
+                    Continue
                   </button>
                 </div>
               </div>

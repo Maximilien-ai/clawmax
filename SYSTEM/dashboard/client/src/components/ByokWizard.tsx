@@ -10,6 +10,7 @@ function maskKey(value: string) {
 }
 
 type Step = 'models' | 'partners' | `partner:${string}`
+type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
 type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'blaxel' | 'redis' | 'senso', ValidationEntry>
@@ -101,6 +102,23 @@ function buildPartnerConfig(values: PartnerValueMap): Record<string, Record<stri
   )
 }
 
+const PARTNER_PRIORITY: Record<string, number> = {
+  opik: 0,
+  github: 1,
+  senso: 2,
+  blaxel: 3,
+  redis: 4,
+}
+
+function sortPartnerDefinitions(partners: PartnerDefinition[]): PartnerDefinition[] {
+  return [...partners].sort((a, b) => {
+    const aPriority = PARTNER_PRIORITY[a.slug] ?? 100
+    const bPriority = PARTNER_PRIORITY[b.slug] ?? 100
+    if (aPriority !== bPriority) return aPriority - bPriority
+    return a.name.localeCompare(b.name)
+  })
+}
+
 function mergeProviderKeysIntoSharedSecrets(
   existing: Record<string, string>,
   values: { openai: string; anthropic: string; gemini: string; ollamaBaseUrl: string }
@@ -114,7 +132,17 @@ function mergeProviderKeysIntoSharedSecrets(
   }
 }
 
-export function ByokWizard() {
+export function ByokWizard({
+  triggerLabel = 'Workspaces Integrations',
+  triggerTitle = 'Configure workspaces integrations',
+  initialStep = 'models',
+  openEventName = 'open-workspaces-integrations',
+}: {
+  triggerLabel?: string
+  triggerTitle?: string
+  initialStep?: Step
+  openEventName?: string
+} = {}) {
   const { user, config } = useAuth()
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
@@ -154,6 +182,7 @@ export function ByokWizard() {
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
+  const [modelTab, setModelTab] = useState<ModelTab>('openai')
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -200,16 +229,24 @@ export function ByokWizard() {
     const handleOpen = (event: Event) => {
       const detail = (event as CustomEvent<{ step?: Step; focus?: string }>).detail || {}
       setOpen(true)
-      setStep(detail.step || 'models')
+      setStep(detail.step || initialStep)
       if (detail.focus === 'preferred-model') {
         setHighlightPreferredModel(true)
         window.setTimeout(() => preferredModelRef.current?.focus(), 50)
         window.setTimeout(() => setHighlightPreferredModel(false), 2500)
       }
     }
-    window.addEventListener('open-workspaces-integrations', handleOpen as EventListener)
-    return () => window.removeEventListener('open-workspaces-integrations', handleOpen as EventListener)
-  }, [])
+    window.addEventListener(openEventName, handleOpen as EventListener)
+    if (initialStep === 'models' && openEventName !== 'open-workspaces-integrations') {
+      window.addEventListener('open-workspaces-integrations', handleOpen as EventListener)
+    }
+    return () => {
+      window.removeEventListener(openEventName, handleOpen as EventListener)
+      if (initialStep === 'models' && openEventName !== 'open-workspaces-integrations') {
+        window.removeEventListener('open-workspaces-integrations', handleOpen as EventListener)
+      }
+    }
+  }, [initialStep, openEventName])
 
   useEffect(() => {
     if (!hydrated) return
@@ -276,7 +313,10 @@ export function ByokWizard() {
     }))
   }, [])
 
-  const visiblePartnerDefinitions = useMemo(() => integrationStatus?.partnerDefinitions || [], [integrationStatus])
+  const visiblePartnerDefinitions = useMemo(
+    () => sortPartnerDefinitions(integrationStatus?.partnerDefinitions || []),
+    [integrationStatus]
+  )
   const visiblePartnerSlugs = useMemo(() => integrationStatus?.visiblePartners || [], [integrationStatus])
 
   useEffect(() => {
@@ -288,7 +328,7 @@ export function ByokWizard() {
   }, [visiblePartnerSlugs])
 
   const selectedPartnerDefinitions = useMemo(
-    () => visiblePartnerDefinitions.filter((partner) => selectedPartners.includes(partner.slug)),
+    () => sortPartnerDefinitions(visiblePartnerDefinitions.filter((partner) => selectedPartners.includes(partner.slug))),
     [selectedPartners, visiblePartnerDefinitions]
   )
 
@@ -341,11 +381,22 @@ export function ByokWizard() {
       return 'not configured'
     }
 
-    return [
+    const checks = [
       { id: 'openai', label: 'OpenAI', available: hasOpenAiAvailable, source: resolveSource('openai') },
       { id: 'gemini', label: 'Gemini', available: hasGeminiAvailable, source: resolveSource('gemini') },
       { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
     ]
+
+    if (ollamaDefaultModel.trim()) {
+      checks.push({
+        id: 'ollama',
+        label: 'Ollama',
+        available: true,
+        source: `local runtime · ${ollamaDefaultModel.trim()}`,
+      })
+    }
+
+    return checks
   }, [
     anthropicKey,
     config?.systemKeyDefaults?.anthropic,
@@ -356,6 +407,7 @@ export function ByokWizard() {
     hasAnthropicAvailable,
     hasGeminiAvailable,
     hasOpenAiAvailable,
+    ollamaDefaultModel,
     openaiKey,
   ])
 
@@ -694,7 +746,7 @@ export function ByokWizard() {
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
-    setStep('models')
+    setStep(initialStep)
     window.dispatchEvent(new CustomEvent('integrations-saved'))
     showSuccess('Workspace integrations saved. Provider secrets stay local; workspace defaults now persist for this workspace.')
   }
@@ -703,12 +755,12 @@ export function ByokWizard() {
     localStorage.setItem(getByokDismissKey(), 'true')
     setDismissed(true)
     setOpen(false)
-    setStep('models')
+    setStep(initialStep)
     showInfo('Workspace integrations skipped for now')
   }
 
   const handleReopen = () => {
-    setStep('models')
+    setStep(initialStep)
     setOpen(true)
   }
 
@@ -970,9 +1022,9 @@ export function ByokWizard() {
       <button
         onClick={handleReopen}
         className="text-xs rounded-full border border-amber-300/60 bg-amber-50 px-2.5 py-1 text-amber-700 hover:bg-amber-100 transition-colors dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
-        title="Configure workspaces integrations"
+        title={triggerTitle}
       >
-        Workspaces Integrations
+        {triggerLabel}
       </button>
 
       {!open ? null : (
@@ -980,13 +1032,13 @@ export function ByokWizard() {
           <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[93vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspaces Integrations</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{initialStep === 'partners' ? 'Partner Integrations' : 'BYOK'}</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.
                 </p>
               </div>
               <button
-                onClick={() => { setOpen(false); setStep('models') }}
+                onClick={() => { setOpen(false); setStep(initialStep) }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                 aria-label="Close"
               >
@@ -994,35 +1046,41 @@ export function ByokWizard() {
               </button>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <button
-                type="button"
-                onClick={() => setStep('models')}
-                className={`px-2 py-1 rounded-full transition-colors ${step === 'models' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              >
-                1. Models
-              </button>
-              <span>→</span>
-              <button
-                type="button"
-                onClick={() => setStep('partners')}
-                className={`px-2 py-1 rounded-full transition-colors ${step === 'partners' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              >
-                2. Partners
-              </button>
-              {selectedPartnerDefinitions.map((partner, index) => (
-                <React.Fragment key={partner.slug}>
-                  <span>→</span>
-                  <button
-                    type="button"
-                    onClick={() => setStep(`partner:${partner.slug}`)}
-                    className={`px-2 py-1 rounded-full transition-colors ${step === `partner:${partner.slug}` ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                  >
-                    {index + 3}. {partner.name}
-                  </button>
-                </React.Fragment>
-              ))}
-            </div>
+            {initialStep !== 'models' && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                {initialStep !== 'partners' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStep('models')}
+                      className={`px-2 py-1 rounded-full transition-colors ${step === 'models' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                    >
+                      1. Models
+                    </button>
+                    <span>→</span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setStep('partners')}
+                  className={`px-2 py-1 rounded-full transition-colors ${step === 'partners' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                >
+                  {initialStep === 'partners' ? 'Partners' : '2. Partners'}
+                </button>
+                {selectedPartnerDefinitions.map((partner, index) => (
+                  <React.Fragment key={partner.slug}>
+                    <span>→</span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(`partner:${partner.slug}`)}
+                      className={`px-2 py-1 rounded-full transition-colors ${step === `partner:${partner.slug}` ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                    >
+                      {initialStep === 'partners' ? partner.name : `${index + 3}. ${partner.name}`}
+                    </button>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
 
             <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
               integrationStatus?.validationAvailable
@@ -1057,7 +1115,7 @@ export function ByokWizard() {
                 </div>
 
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Current hosted-provider status</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">Current configured LLM providers</div>
                   <div className="mt-1">{statusText}</div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {providerChecks.map((provider) => (
@@ -1080,33 +1138,69 @@ export function ByokWizard() {
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  <div>
-                    <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">OpenAI key</label>
-                    <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    {renderValidation('openai')}
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      { id: 'openai', label: 'OpenAI', tone: 'Paid' },
+                      { id: 'anthropic', label: 'Anthropic', tone: 'Paid' },
+                      { id: 'gemini', label: 'Gemini', tone: 'Paid' },
+                      { id: 'ollama', label: 'Ollama', tone: 'OSS' },
+                    ] as Array<{ id: ModelTab; label: string; tone: string }>).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setModelTab(tab.id)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          modelTab === tab.id
+                            ? 'border-sky-500 bg-sky-100 text-sky-700 dark:border-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-300'
+                        }`}
+                      >
+                        {tab.label} <span className="opacity-70">{tab.tone}</span>
+                      </button>
+                    ))}
                   </div>
 
-                  <div>
-                    <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Anthropic key</label>
-                    <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    {renderValidation('anthropic')}
-                  </div>
+                  {modelTab === 'openai' && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI</div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Recommended for strong general-purpose results and broad model support.</p>
+                      <label htmlFor="byok-openai" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      {renderValidation('openai')}
+                    </div>
+                  )}
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  {modelTab === 'anthropic' && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Strong reasoning models, especially useful for longer-form planning and analysis.</p>
+                      <label htmlFor="byok-anthropic" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      {renderValidation('anthropic')}
+                    </div>
+                  )}
+
+                  {modelTab === 'gemini' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hosted Google Gemini models are supported alongside OpenAI and Anthropic.</p>
-                      <input type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <label htmlFor="byok-gemini" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <input id="byok-gemini" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       {renderValidation('gemini')}
                     </div>
+                  )}
+
+                  {modelTab === 'ollama' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Local open-source models. You manage the Ollama runtime and installed models on your own machine or host.</p>
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         Works best when Ollama is already running and the models you want have been pulled.
                       </div>
-                      <input type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
-                      <input type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <label htmlFor="byok-ollama-url" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base URL</label>
+                      <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <label htmlFor="byok-ollama-model" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model</label>
+                      <input id="byok-ollama-model" type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Installed Ollama models</div>
@@ -1144,11 +1238,11 @@ export function ByokWizard() {
                       {renderValidation('ollama')}
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{ollamaStatusText}</div>
                     </div>
-                  </div>
+                  )}
 
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for new agents</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred default model for new agents</label>
                       <select ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
                         {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
@@ -1194,7 +1288,9 @@ export function ByokWizard() {
                   <div className="flex items-center gap-2">
                     <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
                     <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60">Save &amp; Close</button>
-                    <button onClick={() => setStep('partners')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    {initialStep !== 'models' && (
+                      <button onClick={() => setStep('partners')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    )}
                   </div>
                 </div>
               </>
@@ -1258,7 +1354,11 @@ export function ByokWizard() {
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={() => setStep('models')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
+                  <div>
+                    {initialStep !== 'partners' && (
+                      <button onClick={() => setStep('models')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
                     <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">

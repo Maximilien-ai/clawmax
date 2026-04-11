@@ -20,6 +20,7 @@ import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
+import { useWorkspace } from './contexts/WorkspaceContext'
 
 type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'keys' | 'logs'
 
@@ -428,6 +429,7 @@ export default function App() {
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
+              onOpenPartners={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
             />
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
@@ -504,7 +506,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentImport, onOpenByok }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentImport, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -519,8 +521,10 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onOpenAgentCreate?: () => void
   onOpenAgentImport?: () => void
   onOpenByok?: () => void
+  onOpenPartners?: () => void
 }) {
   const { user, logout, config } = useAuth()
+  const { activeWorkspace } = useWorkspace()
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -599,11 +603,14 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <OnboardingWizard
           visible={(system?.agentCount || 0) === 0}
           onOpenByok={() => onOpenByok?.()}
+          onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
           onCreateAgent={() => onOpenAgentCreate?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}
+          workspaceId={activeWorkspace?.id}
         />
-        <ByokWizard />
+        <ByokWizard triggerLabel="BYOK" triggerTitle="Configure model providers and local runtime" initialStep="models" openEventName="open-byok-wizard" />
+        <ByokWizard triggerLabel="Partners" triggerTitle="Configure optional partner integrations" initialStep="partners" openEventName="open-partners-wizard" />
         {user && !config?.authDisabled && (
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
             {user.avatar ? (
