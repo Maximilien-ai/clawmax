@@ -149,12 +149,18 @@ Keys & Secrets safety model:
 - **5-Step Template Wizard** - Team Type → Composition → Communication → Workflows → Preview
 - **Secrets Step for Secure Inputs** - Templates with secret or runtime-input requirements now get a browser-local `Secrets` step during apply
 - **AI Generate** - Describe a team, AI fills all wizard steps
+- **Local-First Template Feedback** - Templates can collect star ratings and short optional feedback locally in the active workspace, with a future path to sync the same payload to a remote service
 - **Smart Workflow Customization** - Dynamic form fields (dropdowns, checkboxes) from template placeholders
 - **GitHub Coordination** - Toggle to add github skills and inject repo instructions into all workflows
 - **Category Filters** - Business, Technical, Personal, Events, Science, Travel, Hobbies, and Family template categories
 - **Collapsible Template Sections** - Collapse or expand Agent / Organization / Workflow sections while browsing
 - **TEMPLATE.md Format** - Lean markdown format with structured body sections
 - **Import/Export** - Download and upload templates and workflows as `.md` files
+
+Local template feedback for developers:
+- Template ratings and short feedback are currently stored in the active workspace at `WORKSPACE/SYSTEM/template-feedback.json`
+- This is intentional for local dev and OSS use: you can inspect, back up, diff, or clear that file directly
+- The dashboard treats this as a local cache / fallback. A future optional remote sink can accept the same feedback payload for shared production aggregation without removing the local-first path
 
 ### Workspace Visibility
 - **Shareable Workspace Dashboards** - Generate public read-only links for workspace status, workflows, costs, results, and group chats

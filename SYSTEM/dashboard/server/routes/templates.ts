@@ -23,6 +23,7 @@ import {
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
+import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateFeedbackSummary } from '../lib/template-feedback'
 
 const router = Router()
 
@@ -280,6 +281,11 @@ router.get('/organizations', (req, res) => {
   res.json({ templates })
 })
 
+// GET /api/templates/feedback/summary - Get all local feedback summaries keyed by type:slug
+router.get('/feedback/summary', (req, res) => {
+  res.json({ summaries: getAllTemplateFeedbackSummaries() })
+})
+
 // GET /api/templates/:type/:slug - Get a specific template
 router.get('/:type/:slug', (req, res) => {
   const { type, slug } = req.params
@@ -296,6 +302,64 @@ router.get('/:type/:slug', (req, res) => {
   }
 
   res.json(template)
+})
+
+// GET /api/templates/:type/:slug/feedback - Get local feedback summary for a template
+router.get('/:type/:slug/feedback', (req, res) => {
+  const { type, slug } = req.params
+  if (type !== 'agents' && type !== 'organizations') {
+    return res.status(400).json({ error: 'Type must be "agents" or "organizations"' })
+  }
+
+  const templateType = type === 'agents' ? 'agent' : 'organization'
+  const summary = getTemplateFeedbackSummary(templateType, slug)
+  res.json(summary)
+})
+
+// POST /api/templates/:type/:slug/feedback - Save local feedback for a template
+router.post('/:type/:slug/feedback', (req, res) => {
+  const { type, slug } = req.params
+  if (type !== 'agents' && type !== 'organizations') {
+    return res.status(400).json({ error: 'Type must be "agents" or "organizations"' })
+  }
+
+  const templateType = type === 'agents' ? 'agent' : 'organization'
+  const template = getTemplate(templateType, slug)
+  if (!template) {
+    return res.status(404).json({ error: 'Template not found' })
+  }
+
+  const {
+    rating,
+    easyToUse,
+    solvedUseCase,
+    customized,
+    otherUseCases,
+    suggestions,
+  } = req.body || {}
+
+  const easyToUseValue = easyToUse === 'yes' || easyToUse === 'mixed' || easyToUse === 'no' ? easyToUse : ''
+  const solvedUseCaseValue = solvedUseCase === 'yes' || solvedUseCase === 'partly' || solvedUseCase === 'no' ? solvedUseCase : ''
+  const customizedValue = customized === 'yes' || customized === 'a-little' || customized === 'no' ? customized : ''
+
+  const numericRating = Number(rating)
+  if (!Number.isFinite(numericRating) || numericRating < 1 || numericRating > 5) {
+    return res.status(400).json({ error: 'Rating must be between 1 and 5' })
+  }
+
+  addTemplateFeedback({
+    templateType,
+    templateSlug: slug,
+    templateName: template.name,
+    rating: numericRating,
+    easyToUse: easyToUseValue,
+    solvedUseCase: solvedUseCaseValue,
+    customized: customizedValue,
+    otherUseCases: typeof otherUseCases === 'string' ? otherUseCases.trim() : '',
+    suggestions: typeof suggestions === 'string' ? suggestions.trim() : '',
+  })
+
+  res.json({ ok: true, summary: getTemplateFeedbackSummary(templateType, slug) })
 })
 
 // POST /api/templates/agents/:agentId/save - Save an agent as a template

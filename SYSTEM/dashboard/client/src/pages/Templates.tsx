@@ -79,6 +79,25 @@ interface WorkflowTemplate {
   content: string
 }
 
+interface TemplateFeedbackEntry {
+  id: string
+  rating: number
+  easyToUse?: string
+  solvedUseCase?: string
+  customized?: string
+  otherUseCases?: string
+  suggestions?: string
+  createdAt: string
+}
+
+interface TemplateFeedbackSummary {
+  count: number
+  avgRating: number
+  entries: TemplateFeedbackEntry[]
+}
+
+type FeedbackSummaryMap = Record<string, { count: number; avgRating: number }>
+
 type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
 type TemplateViewMode = 'grid' | 'list'
 type TemplateSortColumn = 'name' | 'type' | 'agents' | 'groups' | 'workflows' | 'version' | 'author'
@@ -212,12 +231,14 @@ export default function Templates() {
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [orgTemplates, setOrgTemplates] = useState<OrganizationTemplate[]>([])
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([])
+  const [feedbackSummaries, setFeedbackSummaries] = useState<FeedbackSummaryMap>({})
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'events' | 'science' | 'travel' | 'hobbies' | 'family'>('all')
+  const [ratingFilter, setRatingFilter] = useState<'all' | 'unrated' | '4plus' | '3plus'>('all')
   const [viewMode, setViewMode] = useState<TemplateViewMode>(() => {
     const saved = localStorage.getItem('templates-view-mode')
     return saved === 'list' ? 'list' : 'grid'
@@ -257,12 +278,15 @@ export default function Templates() {
 
   const fetchTemplates = () => {
     setLoading(true)
-    fetch('/api/templates')
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load templates')))
-      .then(data => {
+    Promise.all([
+      fetch('/api/templates').then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load templates'))),
+      fetch('/api/templates/feedback/summary').then(r => r.ok ? r.json() : { summaries: {} }),
+    ])
+      .then(([data, feedbackData]) => {
         setAgentTemplates(Array.isArray(data.agents) ? data.agents : [])
         setOrgTemplates(Array.isArray(data.organizations) ? data.organizations : [])
         setWorkflowTemplates(Array.isArray(data.workflows) ? data.workflows : [])
+        setFeedbackSummaries(feedbackData?.summaries && typeof feedbackData.summaries === 'object' ? feedbackData.summaries : {})
         setLoading(false)
       })
       .catch(() => {
@@ -270,9 +294,22 @@ export default function Templates() {
         setAgentTemplates([])
         setOrgTemplates([])
         setWorkflowTemplates([])
+        setFeedbackSummaries({})
         setLoading(false)
       })
   }
+
+  const matchesRatingFilter = React.useCallback((template: Template) => {
+    if (template.type === 'workflow') return ratingFilter === 'all'
+    const key = `${template.type}:${template.slug || ''}`
+    const summary = feedbackSummaries[key]
+    if (ratingFilter === 'all') return true
+    if (ratingFilter === 'unrated') return !summary || summary.count === 0
+    if (!summary || summary.count === 0) return false
+    if (ratingFilter === '4plus') return summary.avgRating >= 4
+    if (ratingFilter === '3plus') return summary.avgRating >= 3
+    return true
+  }, [feedbackSummaries, ratingFilter])
 
   useEffect(() => {
     fetchTemplates()
@@ -397,19 +434,20 @@ export default function Templates() {
 
   // Filter templates by search query
   const filteredAgentTemplates = React.useMemo(() => {
-    if (!searchQuery.trim()) return agentTemplates
+    const filteredAgents = agentTemplates.filter(matchesRatingFilter)
+    if (!searchQuery.trim()) return filteredAgents
     const query = searchQuery.trim().toLowerCase()
-    return agentTemplates.filter(t =>
+    return filteredAgents.filter(t =>
       t.name.toLowerCase().includes(query) ||
       t.description?.toLowerCase().includes(query) ||
       t.author?.toLowerCase().includes(query) ||
       t.tags?.some(tag => tag.toLowerCase().includes(query)) ||
       t.agents.some(a => a.id.toLowerCase().includes(query) || a.role.toLowerCase().includes(query))
     )
-  }, [agentTemplates, searchQuery])
+  }, [agentTemplates, searchQuery, matchesRatingFilter])
 
   const filteredOrgTemplates = React.useMemo(() => {
-    let filtered = orgTemplates
+    let filtered = orgTemplates.filter(matchesRatingFilter)
     // Category filter
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(t => matchesOrgCategory(t, categoryFilter))
@@ -425,7 +463,7 @@ export default function Templates() {
       t.communities?.some(c => c.name.toLowerCase().includes(query)) ||
       t.groups?.some(g => g.name.toLowerCase().includes(query))
     )
-  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory])
+  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter])
 
   const filteredWorkflowTemplates = React.useMemo(() => {
     if (!searchQuery.trim()) return workflowTemplates
@@ -835,6 +873,27 @@ export default function Templates() {
         ))}
       </div>
 
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {([
+          { key: 'all', label: 'All Ratings' },
+          { key: '4plus', label: '4★+' },
+          { key: '3plus', label: '3★+' },
+          { key: 'unrated', label: 'Unrated' },
+        ] as const).map(option => (
+          <button
+            key={option.key}
+            onClick={() => setRatingFilter(option.key)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+              ratingFilter === option.key
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search bar */}
       <div className="mb-6">
         <div className="relative">
@@ -976,6 +1035,7 @@ export default function Templates() {
                               onApply={() => openApplyForTemplate(row.template)}
                               onClick={() => setSelectedTemplate(row.template)}
                               selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`agent:${(row.template as AgentTemplate).slug || ''}`]}
                               selectionMode={selectionMode}
                               isSelected={selectedTemplateKeys.has(row.key)}
                               onToggleSelect={() => toggleTemplateSelection(row.key)}
@@ -998,6 +1058,7 @@ export default function Templates() {
                               onApply={() => openApplyForTemplate(row.template)}
                               onClick={() => setSelectedTemplate(row.template)}
                               selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`agent:${(row.template as AgentTemplate).slug || ''}`]}
                               selectionMode={selectionMode}
                               isSelected={selectedTemplateKeys.has(row.key)}
                               onToggleSelect={() => toggleTemplateSelection(row.key)}
@@ -1048,6 +1109,7 @@ export default function Templates() {
                               onApply={() => openApplyForTemplate(row.template)}
                               onClick={() => setSelectedTemplate(row.template)}
                               selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`organization:${(row.template as OrganizationTemplate).slug || ''}`]}
                               selectionMode={selectionMode}
                               isSelected={selectedTemplateKeys.has(row.key)}
                               onToggleSelect={() => toggleTemplateSelection(row.key)}
@@ -1070,6 +1132,7 @@ export default function Templates() {
                               onApply={() => openApplyForTemplate(row.template)}
                               onClick={() => setSelectedTemplate(row.template)}
                               selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`organization:${(row.template as OrganizationTemplate).slug || ''}`]}
                               selectionMode={selectionMode}
                               isSelected={selectedTemplateKeys.has(row.key)}
                               onToggleSelect={() => toggleTemplateSelection(row.key)}
@@ -1597,12 +1660,13 @@ function TemplatesTable({
   )
 }
 
-function TemplateCard({ template, onDelete, onApply, onClick, selected, selectionMode, isSelected, onToggleSelect }: {
+function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSummary, selectionMode, isSelected, onToggleSelect }: {
   template: AgentTemplate | OrganizationTemplate
   onDelete: () => void
   onApply: () => void
   onClick: () => void
   selected: boolean
+  ratingSummary?: { count: number; avgRating: number }
   selectionMode?: boolean
   isSelected?: boolean
   onToggleSelect?: () => void
@@ -1704,7 +1768,17 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, selectio
       )}
 
       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
-        <span>v{template.version}</span>
+        <div className="flex flex-col items-start gap-1">
+          <span>v{template.version}</span>
+          {ratingSummary && ratingSummary.count > 0 && (
+            <span className="text-amber-500 dark:text-amber-400">
+              {'★'.repeat(Math.round(ratingSummary.avgRating))}
+              <span className="ml-1 text-gray-500 dark:text-gray-400">
+                {ratingSummary.avgRating.toFixed(1)} ({ratingSummary.count})
+              </span>
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {template.source === 'system' && <span className="text-amber-500">System</span>}
           {template.source === 'enterprise' && <span className="text-fuchsia-500">Enterprise</span>}
@@ -1724,10 +1798,68 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
   onEdit?: () => void
   onInstantiate?: () => void
 }) {
+  const { showSuccess, showError } = useToast()
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
   const canDelete = template.type === 'workflow' || template.source === 'workspace'
   const templateEmoji = (template as any).emoji
+  const [feedbackSummary, setFeedbackSummary] = useState<TemplateFeedbackSummary | null>(null)
+  const [loadingFeedback, setLoadingFeedback] = useState(false)
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [rating, setRating] = useState(0)
+  const [easyToUse, setEasyToUse] = useState('')
+  const [solvedUseCase, setSolvedUseCase] = useState('')
+  const [customized, setCustomized] = useState('')
+  const [otherUseCases, setOtherUseCases] = useState('')
+  const [suggestions, setSuggestions] = useState('')
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
+
+  useEffect(() => {
+    if (isWorkflow || !template.slug) return
+    setLoadingFeedback(true)
+    fetch(`/api/templates/${template.type === 'organization' ? 'organizations' : 'agents'}/${template.slug}/feedback`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setFeedbackSummary(data) })
+      .catch(() => {})
+      .finally(() => setLoadingFeedback(false))
+  }, [isWorkflow, template.slug, template.type])
+
+  const submitFeedback = async () => {
+    if (isWorkflow || !template.slug || rating < 1) {
+      showError('Select a star rating first')
+      return
+    }
+    setSubmittingFeedback(true)
+    try {
+      const resp = await fetch(`/api/templates/${template.type === 'organization' ? 'organizations' : 'agents'}/${template.slug}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating,
+          easyToUse,
+          solvedUseCase,
+          customized,
+          otherUseCases,
+          suggestions,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to save feedback')
+      setFeedbackSummary(data.summary)
+      setRating(0)
+      setEasyToUse('')
+      setSolvedUseCase('')
+      setCustomized('')
+      setOtherUseCases('')
+      setSuggestions('')
+      setShowFeedbackDialog(false)
+      showSuccess('Template feedback saved')
+    } catch (err: any) {
+      showError(err.message || 'Failed to save feedback')
+    } finally {
+      setSubmittingFeedback(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -1804,6 +1936,28 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
                     {tag}
                   </span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {!isWorkflow && template.slug && (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Template Feedback</h3>
+                  <div className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                    {loadingFeedback ? 'Loading…' : feedbackSummary && feedbackSummary.count > 0 ? `${feedbackSummary.avgRating.toFixed(1)} / 5` : 'No ratings yet'}
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                      ({feedbackSummary?.count || 0} submission{(feedbackSummary?.count || 0) === 1 ? '' : 's'})
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFeedbackDialog(true)}
+                  className="px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                >
+                  Leave Feedback
+                </button>
               </div>
             </div>
           )}
@@ -2053,6 +2207,108 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
           </div>
         </div>
       </div>
+
+      {!isWorkflow && template.slug && showFeedbackDialog && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowFeedbackDialog(false)}>
+          <div className="w-full max-w-xl rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Leave Template Feedback</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Stored locally in this workspace for now.</p>
+              </div>
+              <button onClick={() => setShowFeedbackDialog(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">Star Rating</div>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map(value => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRating(value)}
+                      className={`text-2xl leading-none ${value <= rating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}
+                      title={`${value} star${value === 1 ? '' : 's'}`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Easy to use?</span>
+                  <select value={easyToUse} onChange={(e) => setEasyToUse(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="">Select…</option>
+                    <option value="yes">Yes</option>
+                    <option value="mixed">Mixed</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Solved your use case?</span>
+                  <select value={solvedUseCase} onChange={(e) => setSolvedUseCase(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="">Select…</option>
+                    <option value="yes">Yes</option>
+                    <option value="partly">Partly</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Did you customize it?</span>
+                  <select value={customized} onChange={(e) => setCustomized(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="">Select…</option>
+                    <option value="yes">Yes</option>
+                    <option value="a-little">A little</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">What other use case should this support?</span>
+                <textarea value={otherUseCases} onChange={(e) => setOtherUseCases(e.target.value)} rows={2} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+              </label>
+
+              <label className="block">
+                <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Suggestions</span>
+                <textarea value={suggestions} onChange={(e) => setSuggestions(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+              </label>
+
+              {feedbackSummary && feedbackSummary.entries.length > 0 && (
+                <div>
+                  <div className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">Recent Feedback</div>
+                  <div className="space-y-2">
+                    {feedbackSummary.entries.slice(0, 3).map(entry => (
+                      <div key={entry.id} className="rounded-md bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 text-xs">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-amber-500">{'★'.repeat(entry.rating)}<span className="text-gray-300 dark:text-gray-600">{'★'.repeat(5 - entry.rating)}</span></div>
+                          <div className="text-gray-400 dark:text-gray-500">{new Date(entry.createdAt).toLocaleString()}</div>
+                        </div>
+                        {entry.suggestions && <div className="mt-2 text-gray-700 dark:text-gray-300">{entry.suggestions}</div>}
+                        {entry.otherUseCases && <div className="mt-1 text-gray-500 dark:text-gray-400">Other use case: {entry.otherUseCases}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => setShowFeedbackDialog(false)} className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">Cancel</button>
+                <button
+                  onClick={submitFeedback}
+                  disabled={submittingFeedback || rating < 1}
+                  className="px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
+                >
+                  {submittingFeedback ? 'Saving…' : 'Save Feedback'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
