@@ -5,12 +5,25 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.12-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.12)
+[![Version](https://img.shields.io/badge/version-1.2.13-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.13)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.12
+## 🔥 What's New in v1.2.13
+
+- Partner skill installs are more reliable:
+  - curated partner installs now run non-interactively for multi-skill partner repos
+  - install surfaces now show clearer installed state after a successful partner install
+  - curated partner installs include Redis alongside Blaxel
+- Workflow communication delivery is more consistent:
+  - workflow participants are now told to return plain text in-session instead of trying to send directly to the current workflow channel
+  - ClawMax continues to post workflow results into the targeted group or community automatically
+- Gateway health checks are more accurate:
+  - gateway detection no longer depends only on `lsof`
+  - Doctor now uses a real gateway responsiveness probe when status is ambiguous
+
+## 🔥 Previously in v1.2.12
 
 - Onboarding is tighter and faster:
   - suggested templates in onboarding are now clickable

@@ -1032,12 +1032,14 @@ export function triggerWorkflow(workflowId: string, options?: {
     if ((workflow.targeting.groups || []).length > 0) {
       runtimeContextLines.push(`- Current workflow group channel(s): ${(workflow.targeting.groups || []).join(', ')}`)
       runtimeContextLines.push('- Use the current workflow group channel for replies and reports in this run')
+      runtimeContextLines.push('- Return your final response as plain text in this session; do not call message/send/channel tools for the current workflow group delivery')
       runtimeContextLines.push('- Do not create or look up separate session labels unless explicitly configured in the workspace')
       runtimeContextLines.push('- ClawMax will post your final response back into the current workflow group channel automatically')
       runtimeContextLines.push('- Do not treat missing external channel plugins or messaging transports as a failure for this workflow unless the workflow explicitly asks you to test those transports')
     }
     if ((workflow.targeting.communities || []).length > 0) {
       runtimeContextLines.push(`- Current workflow community channel(s): ${(workflow.targeting.communities || []).join(', ')}`)
+      runtimeContextLines.push('- Return your final response as plain text in this session; do not call message/send/channel tools for the current workflow community delivery')
       runtimeContextLines.push('- ClawMax will post your final response back into the current workflow community channel automatically')
       runtimeContextLines.push('- Do not treat missing external channel plugins or messaging transports as a failure for this workflow unless the workflow explicitly asks you to test those transports')
     }

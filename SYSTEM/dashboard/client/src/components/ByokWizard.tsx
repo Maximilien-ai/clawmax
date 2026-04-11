@@ -180,6 +180,7 @@ export function ByokWizard({
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
+  const [installedPartnerSkillSlugs, setInstalledPartnerSkillSlugs] = useState<Set<string>>(new Set())
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
@@ -1015,32 +1016,42 @@ export function ByokWizard({
       const installing = partnerInstallState[partner.slug] === 'installing'
       return (
         <div className="mt-2 flex items-center gap-3">
-          <div className="text-xs opacity-80">{partner.skills.label || 'Curated skill install available'}.</div>
-          <button
-            type="button"
-            disabled={installing}
-            onClick={async () => {
-              if (!partner.skills?.commandId) return
-              setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'installing' }))
-              try {
-                const res = await fetch('/api/skills/partner-install', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ commandId: partner.skills.commandId }),
-                })
-                const data = await res.json().catch(() => ({}))
-                if (!res.ok) throw new Error(data.error || 'Failed to install partner skills')
-                showSuccess(`${partner.name} skills installed`)
-              } catch (err: any) {
-                showWarning(err.message || `Failed to install ${partner.name} skills`)
-              } finally {
-                setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'idle' }))
-              }
-            }}
-            className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
-          >
-            {installing ? 'Installing…' : 'Install Skills'}
-          </button>
+          <div className="text-xs opacity-80">
+            {partner.skills.label || 'Curated skill install available'}.
+            <span className="ml-1">Usually takes 1-3 minutes.</span>
+          </div>
+          {installedPartnerSkillSlugs.has(partner.slug) ? (
+            <span className="px-2.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500">
+              Installed
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={installing}
+              onClick={async () => {
+                if (!partner.skills?.commandId) return
+                setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'installing' }))
+                try {
+                  const res = await fetch('/api/skills/partner-install', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ commandId: partner.skills.commandId }),
+                  })
+                  const data = await res.json().catch(() => ({}))
+                  if (!res.ok) throw new Error(data.detail || data.error || 'Failed to install partner skills')
+                  showSuccess(`${partner.name} skills installed`)
+                  setInstalledPartnerSkillSlugs((current) => new Set([...current, partner.slug]))
+                } catch (err: any) {
+                  showWarning(err.message || `Failed to install ${partner.name} skills`)
+                } finally {
+                  setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'idle' }))
+                }
+              }}
+              className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
+            >
+              {installing ? 'Installing…' : 'Install Skills'}
+            </button>
+          )}
         </div>
       )
     }

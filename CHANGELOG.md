@@ -7,6 +7,19 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+## [v1.2.13] - 2026-04-11
+
+### Fixes — Partner Skill Installs
+- **Non-Interactive Curated Partner Installs** — curated partner installers now use the correct non-interactive Skills CLI flags for multi-skill repos, preventing Blaxel and Redis installs from stalling on hidden selection prompts
+- **Installed-State Follow-Through** — partner install surfaces now keep an explicit `Installed` state after successful curated installs instead of dropping back to a generic install button
+
+### Fixes — Workflow Communication Delivery
+- **Workflow Session Delivery Guidance** — workflow participant runtime instructions now explicitly tell agents to return plain-text results in-session and not call direct message/send tools for the current workflow group or community delivery path
+
+### Fixes — Gateway Health Detection
+- **Gateway Probe Fallback** — gateway health checks now fall back to a direct TCP probe when `lsof` is unavailable
+- **Token-Backed Doctor Probe** — Doctor now uses an authenticated in-instance gateway responsiveness probe before classifying the gateway as unavailable
+
 ## [v1.2.12] - 2026-04-11
 
 ### Features — Onboarding and Workspace Flow

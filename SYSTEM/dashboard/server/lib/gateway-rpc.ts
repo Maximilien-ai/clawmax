@@ -4,6 +4,7 @@ import path from 'path'
 import os from 'os'
 import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
+import { safeEnv } from './safe-env'
 
 interface GatewayConfig {
   port: number
@@ -352,9 +353,77 @@ export function isGatewayRunning(): { running: boolean; port: number | null } {
   if (!port) return { running: false, port: null }
 
   try {
-    execSync(`lsof -ti:${port}`, { stdio: 'pipe' })
+    execSync(`lsof -ti:${port}`, { stdio: 'pipe', env: safeEnv() })
     return { running: true, port }
   } catch {
-    return { running: false, port }
+    try {
+      // Minimal Linux images often omit `lsof`; probe the TCP port directly as a fallback.
+      execSync(`bash -lc 'exec 3<>/dev/tcp/127.0.0.1/${port}'`, {
+        stdio: 'pipe',
+        timeout: 1500,
+        env: safeEnv(),
+      })
+      return { running: true, port }
+    } catch {
+      return { running: false, port }
+    }
   }
+}
+
+export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ running: boolean; port: number | null }> {
+  const config = loadGatewayConfigFromDisk()
+  if (!config) return { running: false, port: null }
+
+  return new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${config.port}`)
+    const timer = setTimeout(() => {
+      try { ws.close() } catch {}
+      resolve({ running: false, port: config.port })
+    }, timeoutMs)
+
+    const cleanup = (result: { running: boolean; port: number | null }) => {
+      clearTimeout(timer)
+      try { ws.close() } catch {}
+      resolve(result)
+    }
+
+    ws.on('message', (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString())
+
+        if (message.event === 'connect.challenge') {
+          ws.send(JSON.stringify({
+            type: 'req',
+            id: randomUUID(),
+            method: 'connect',
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              client: {
+                id: 'openclaw-control-ui',
+                displayName: 'Dashboard Probe',
+                version: '1.0.0',
+                platform: process.platform,
+                mode: 'ui',
+              },
+              caps: [],
+              auth: { token: config.auth.token },
+              role: 'operator',
+              scopes: ['operator.read'],
+            },
+          }))
+          return
+        }
+
+        if (message.type === 'res') {
+          cleanup({ running: !!message.ok, port: config.port })
+        }
+      } catch {
+        cleanup({ running: false, port: config.port })
+      }
+    })
+
+    ws.on('error', () => cleanup({ running: false, port: config.port }))
+    ws.on('close', () => cleanup({ running: false, port: config.port }))
+  })
 }

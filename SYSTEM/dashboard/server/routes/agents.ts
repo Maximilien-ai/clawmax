@@ -6,7 +6,7 @@ import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
-import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
+import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
@@ -644,6 +644,21 @@ router.post('/doctor', async (req, res) => {
   let platformMessage: string | undefined
   let gatewayFixOutput: string | undefined
   const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
+  const summarizeGatewayDisabledRuntime = (text: string): string | null => {
+    const normalized = text.toLowerCase()
+    if (!normalized) return null
+    if (
+      normalized.includes('gateway service disabled') ||
+      normalized.includes('systemd user services are unavailable') ||
+      normalized.includes('run the gateway under your supervisor') ||
+      normalized.includes('if you\'re in a container')
+    ) {
+      return isManagedRuntime
+        ? 'Gateway is configured but disabled in this Linux instance runtime. Auto-Fix cannot keep a long-running gateway alive from the browser; start it from the instance startup or supervisor configuration.'
+        : 'Gateway is configured but disabled. Start or enable it in the local runtime before retrying.'
+    }
+    return null
+  }
   try {
     execSync('which openclaw', { stdio: 'pipe' })
     const versionText = String(execSync('openclaw --version', { stdio: 'pipe', env: safeEnv() }) || '').trim()
@@ -660,37 +675,41 @@ router.post('/doctor', async (req, res) => {
   }
 
   const gatewayStatus = isGatewayRunning()
-  const gatewayRunning = gatewayStatus.running
+  const gatewayProbe = gatewayStatus.running ? gatewayStatus : await probeGatewayResponsive()
+  const gatewayRunning = gatewayStatus.running || gatewayProbe.running
   let effectiveGatewayRunning = gatewayRunning
 
   if (gatewayRunning) {
-    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway running on port ${gatewayProbe.port ?? gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
   } else if (fix && hasOpenclawCli) {
     try {
       const restartOutput = String(execSync('openclaw gateway restart', { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
       gatewayFixOutput = restartOutput || 'Gateway restart command completed with no output.'
       const restartedStatus = isGatewayRunning()
-      effectiveGatewayRunning = restartedStatus.running
-      if (restartedStatus.running) {
-        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+      const restartedProbe = restartedStatus.running ? restartedStatus : await probeGatewayResponsive()
+      effectiveGatewayRunning = restartedStatus.running || restartedProbe.running
+      if (effectiveGatewayRunning) {
+        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
       } else {
+        const disabledMessage = summarizeGatewayDisabledRuntime(restartOutput)
         platformChecks.push({
           check: 'gateway',
           status: 'warn',
-          message: isManagedRuntime
+          message: disabledMessage || (isManagedRuntime
             ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
-            : `Gateway restart command ran but gateway is still not running on port ${restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`
+            : `Gateway restart command ran but gateway is still not running on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`)
         })
       }
     } catch (err: any) {
       const reason = String(err?.stderr || err?.stdout || err?.message || '').trim().split('\n')[0] || 'gateway restart failed'
       gatewayFixOutput = String(err?.stderr || err?.stdout || err?.message || '').trim()
+      const disabledMessage = summarizeGatewayDisabledRuntime(gatewayFixOutput)
       platformChecks.push({
         check: 'gateway',
         status: 'warn',
-        message: isManagedRuntime
+        message: disabledMessage || (isManagedRuntime
           ? `Gateway restart failed in this runtime: ${reason}`
-          : `Gateway restart failed: ${reason}`
+          : `Gateway restart failed: ${reason}`)
       })
     }
   } else {

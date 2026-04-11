@@ -97,6 +97,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }>>([])
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
+  const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [aiSkillPrompt, setAiSkillPrompt] = useState('')
   const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
   const [aiSkillGenerating, setAiSkillGenerating] = useState(false)
@@ -971,33 +972,41 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   <div className="mt-4 flex items-center justify-between gap-2">
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {partner.skills.label || 'Partner skill installer'}
+                      {partner.skills.mode === 'curated-installer' ? ' · usually 1-3 minutes' : ''}
                     </div>
                     {partner.skills.mode === 'curated-installer' ? (
-                      <button
-                        onClick={async () => {
-                          if (!partner.skills.commandId) return
-                          setPartnerInstalling(partner.slug)
-                          try {
-                            const resp = await fetch('/api/skills/partner-install', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ commandId: partner.skills.commandId }),
-                            })
-                            const data = await resp.json().catch(() => ({}))
-                            if (!resp.ok) throw new Error(data.error || 'Install failed')
-                            showSuccess(`Installed ${partner.name} skills`)
-                            await loadSkills()
-                          } catch (err: any) {
-                            showToastError(err.message || `Failed to install ${partner.name} skills`)
-                          } finally {
-                            setPartnerInstalling(null)
-                          }
-                        }}
-                        disabled={!!partnerInstalling}
-                        className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
-                      >
-                        {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
-                      </button>
+                      installedPartnerSlugs.has(partner.slug) ? (
+                        <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md shrink-0">
+                          Installed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            if (!partner.skills.commandId) return
+                            setPartnerInstalling(partner.slug)
+                            try {
+                              const resp = await fetch('/api/skills/partner-install', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ commandId: partner.skills.commandId }),
+                              })
+                              const data = await resp.json().catch(() => ({}))
+                              if (!resp.ok) throw new Error(data.detail || data.error || 'Install failed')
+                              showSuccess(`Installed ${partner.name} skills`)
+                              setInstalledPartnerSlugs((current) => new Set([...current, partner.slug]))
+                              await loadSkills()
+                            } catch (err: any) {
+                              showToastError(err.message || `Failed to install ${partner.name} skills`)
+                            } finally {
+                              setPartnerInstalling(null)
+                            }
+                          }}
+                          disabled={!!partnerInstalling}
+                          className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                        >
+                          {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
+                        </button>
+                      )
                     ) : (
                       <button
                         onClick={() => openImportDialog('partner')}
@@ -1681,6 +1690,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                                 <div className="mt-2 flex gap-3 text-xs">
                                   {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Website</a> : null}
                                   {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Docs</a> : null}
+                                </div>
+                              )}
+                              {partner.skills.mode === 'curated-installer' && (
+                                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                  Usually takes 1-3 minutes.
                                 </div>
                               )}
                             </div>
