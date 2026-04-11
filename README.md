@@ -122,6 +122,7 @@ Cloud/on-prem runtime note:
 - **Activity Feed** - Track agent actions, file changes, and workflow executions
 - **Status Dashboard** - System health, agent count, workspace metrics, and optionally costs and budget via Opik (requires Comet Opik service)
 - **Budget Controls** - Workspace-level budget visibility and enforcement to pause costly execution before spend drifts
+- **Opik Trace Attribution** - Manual chats and workflow runs now stamp workspace, agent/workflow, and real dashboard user identity into trace metadata so shared projects can still be filtered cleanly by user and workspace
 
 ### Authentication & Keys
 - **GitHub OAuth Login** - GitHub remains the primary general-purpose dashboard login path

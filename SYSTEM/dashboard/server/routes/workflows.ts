@@ -18,6 +18,7 @@ import { getNextCronRun } from '../lib/cron-next-run'
 import { listAgents } from '../lib/workspace'
 import { generateCronFromText, generateWorkflowFromNL } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
+import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
 
@@ -209,6 +210,7 @@ router.get('/:id', (req, res) => {
 router.post('/:id/trigger', (req, res) => {
   try {
     const { id } = req.params
+    const session = getAuthenticatedSession(req)
     const { byok, secrets, inputs } = req.body as {
       byok?: {
         openai?: string
@@ -234,7 +236,17 @@ router.post('/:id/trigger', (req, res) => {
     }
 
     // Trigger the workflow (manual = true bypasses maxRuns limit)
-    const result = triggerWorkflow(id, { manual: true, byok, secrets, inputs })
+    const result = triggerWorkflow(id, {
+      manual: true,
+      byok,
+      secrets,
+      inputs,
+      actor: session ? {
+        userId: session.userId,
+        login: session.login,
+        email: session.email,
+      } : undefined,
+    })
 
     if (!result.success) {
       return res.status(500).json({ error: 'Failed to trigger workflow', details: result.error })

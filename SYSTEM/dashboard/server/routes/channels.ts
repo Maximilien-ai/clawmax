@@ -11,6 +11,7 @@ import { traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
+import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
 
@@ -270,7 +271,13 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(agentId: string, message: string, sessionId: string, byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<string> {
+async function callAgent(
+  agentId: string,
+  message: string,
+  sessionId: string,
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string },
+  actor?: { userId?: string; login?: string; email?: string | null }
+): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const integrationConfig = readWorkspaceIntegrationConfig()
   const executionEnv = userExecutionEnv({
@@ -380,6 +387,9 @@ async function callAgent(agentId: string, message: string, sessionId: string, by
               outputTokens: agentMeta.usage?.output,
               cacheReadTokens: agentMeta.usage?.cacheRead,
               durationMs: meta.durationMs,
+              actorUserId: actor?.userId,
+              actorLogin: actor?.login,
+              actorEmail: actor?.email,
             })
           }
           const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
@@ -658,6 +668,7 @@ router.post('/communities/:name/messages', async (req, res) => {
   }
 
   const decodedName = decodeURIComponent(name)
+  const session = getAuthenticatedSession(req)
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('community', decodedName, {
@@ -682,13 +693,13 @@ router.post('/communities/:name/messages', async (req, res) => {
         try {
           const agentSessionId = `community:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, communityContext, agentSessionId, byok)
+          let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
 
           // Retry once if empty response
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, communityContext, agentSessionId, byok)
+            response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
@@ -738,6 +749,7 @@ router.post('/groups/:name/messages', async (req, res) => {
   }
 
   const decodedName = decodeURIComponent(name)
+  const session = getAuthenticatedSession(req)
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
@@ -764,13 +776,13 @@ router.post('/groups/:name/messages', async (req, res) => {
         try {
           const agentSessionId = `group:${decodedName}:${agentId}`
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, groupContext, agentSessionId, byok)
+          let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
 
           // Retry once if empty response (common with 2nd+ agent due to gateway timing)
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, groupContext, agentSessionId, byok)
+            response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
@@ -928,6 +940,7 @@ router.post('/direct-messages/:from/:to', async (req, res) => {
   }
 
   const key = directMessageKey(from, to)
+  const session = getAuthenticatedSession(req)
 
   // Add the sender's message
   const msg = addMessage('direct', key, { from, content, mentions: [to] })
@@ -936,7 +949,7 @@ router.post('/direct-messages/:from/:to', async (req, res) => {
   if (shouldCallAgent) {
     try {
       const dmContext = `[Direct message from ${from}]\n\n${content}`
-      const response = await callAgent(to, dmContext, `direct:${key}`)
+      const response = await callAgent(to, dmContext, `direct:${key}`, undefined, session || undefined)
       if (response && response.trim()) {
         addMessage('direct', key, { from: to, content: response, mentions: [from] })
       }

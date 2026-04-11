@@ -124,6 +124,9 @@ export function traceAgentChat(
     sessionId?: string
     workflowId?: string
     workflowName?: string
+    actorUserId?: string
+    actorLogin?: string
+    actorEmail?: string | null
   }
 ): void {
   if (!enabled) return
@@ -149,7 +152,9 @@ export function traceAgentChat(
     metadata: {
       agent_id: agentId,
       workspace_id: getWorkspaceId(),
-      user_id: meta.sessionId ? 'session' : 'system',
+      user_id: meta.actorUserId || (meta.sessionId ? 'session' : 'system'),
+      user_login: meta.actorLogin || '',
+      user_email: meta.actorEmail || '',
       model: meta.model || 'unknown',
       provider: meta.provider || 'unknown',
       tokens_input: meta.inputTokens || 0,
@@ -183,6 +188,9 @@ export function traceWorkflowExecution(
     triggerType: string
     totalDurationMs: number
     status: string
+    actorUserId?: string
+    actorLogin?: string
+    actorEmail?: string | null
   }
 ): void {
   if (!enabled) return
@@ -208,6 +216,9 @@ export function traceWorkflowExecution(
       workflow_id: workflowId,
       workflow_name: workflowName,
       workspace_id: getWorkspaceId(),
+      user_id: meta.actorUserId || 'system',
+      user_login: meta.actorLogin || '',
+      user_email: meta.actorEmail || '',
       trigger_type: meta.triggerType,
       participant_count: participants.length,
       tokens_input: totalInput,

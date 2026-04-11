@@ -2,6 +2,11 @@
 
 All notable changes to ClawMax are documented here.
 
+## [Unreleased]
+
+### Fixes — Opik Attribution
+- **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
+
 ## [v1.2.11] - 2026-04-10
 
 ### Features — Template Feedback

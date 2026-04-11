@@ -12,6 +12,7 @@ import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
 
@@ -137,6 +138,7 @@ router.post('/:id/chat', (req, res) => {
   }
 
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const session = getAuthenticatedSession(req)
   const executionEnv = userExecutionEnv({
     openai: byok?.openai,
     anthropic: byok?.anthropic,
@@ -243,6 +245,9 @@ router.post('/:id/chat', (req, res) => {
             model: resolvedAgent.model,
             provider: resolvedAgent.provider || undefined,
             sessionId: effectiveSessionId,
+            actorUserId: session?.userId,
+            actorLogin: session?.login,
+            actorEmail: session?.email,
           })
         }
 

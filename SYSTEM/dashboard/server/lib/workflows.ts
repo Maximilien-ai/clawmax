@@ -848,6 +848,11 @@ export function triggerWorkflow(workflowId: string, options?: {
   byok?: WorkflowRuntimeOverrides
   secrets?: Record<string, string>
   inputs?: Record<string, string>
+  actor?: {
+    userId?: string
+    login?: string
+    email?: string | null
+  }
 }): { success: boolean; executionId?: string; error?: string } {
   try {
     // Check workspace budget before executing
@@ -1231,6 +1236,9 @@ export function triggerWorkflow(workflowId: string, options?: {
             durationMs: agentResult.durationMs,
             workflowId,
             workflowName: workflow.name,
+            actorUserId: options?.actor?.userId,
+            actorLogin: options?.actor?.login,
+            actorEmail: options?.actor?.email,
           })
 
           // Post response to targeted groups/communities
@@ -1323,6 +1331,9 @@ export function triggerWorkflow(workflowId: string, options?: {
         triggerType: options?.manual ? 'manual' : 'scheduled',
         totalDurationMs: execDuration,
         status: execution.status,
+        actorUserId: options?.actor?.userId,
+        actorLogin: options?.actor?.login,
+        actorEmail: options?.actor?.email,
       })
     }
 
