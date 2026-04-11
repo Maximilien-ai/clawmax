@@ -5,12 +5,24 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.10-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.10)
+[![Version](https://img.shields.io/badge/version-1.2.11-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.11)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.10
+## 🔥 What's New in v1.2.11
+
+- Template feedback can now use an optional remote sink when configured:
+  - `TEMPLATE_FEEDBACK_REMOTE_URL`
+  - `TEMPLATE_FEEDBACK_SUMMARY_URL`
+  - `TEMPLATE_FEEDBACK_TOKEN`
+- Local-first behavior is preserved:
+  - if those env vars are absent, feedback still stays in `WORKSPACE/SYSTEM/template-feedback.json`
+- Remote feedback submissions now include server-derived actor identity from the authenticated dashboard session
+- This is release-ready for runtime provisioning:
+  - once a provisioned instance receives the three env vars, template card ratings and summaries can read/write through the web sink
+
+## 🔥 Previously in v1.2.10
 
 - AI template generation is much more complete:
   - preserves user-pinned template names on regenerate
