@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import { validateIntegrations } from '../lib/integration-validation'
 import { readWorkspaceIntegrationConfig, writeWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
-import { checkGitHubCliPrereqs } from '../lib/prereqs'
+import { checkGitHubPrereqs, getGitHubAuthMode } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
 import { getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 
@@ -30,9 +30,10 @@ router.get('/config', (_req, res) => {
 })
 
 router.get('/github-status', (_req, res) => {
-  const checks = checkGitHubCliPrereqs()
+  const repo = readWorkspaceIntegrationConfig().githubDefaultRepo?.trim()
+  const checks = checkGitHubPrereqs({ repo })
   const ready = checks.every((check) => check.status === 'pass')
-  res.json({ ready, checks })
+  res.json({ ready, checks, mode: getGitHubAuthMode() })
 })
 
 router.put('/config', (req, res) => {
@@ -90,9 +91,10 @@ router.post('/github-auth', (req, res) => {
     res.end()
   })
   child.on('close', (code) => {
-    const checks = checkGitHubCliPrereqs()
+    const repo = readWorkspaceIntegrationConfig().githubDefaultRepo?.trim()
+    const checks = checkGitHubPrereqs({ repo })
     const ready = checks.every((check) => check.status === 'pass')
-    send('status', JSON.stringify({ ready, checks }))
+    send('status', JSON.stringify({ ready, checks, mode: getGitHubAuthMode() }))
     if (code === 0) {
       send('done', ready ? 'GitHub auth complete.\n' : 'GitHub auth command finished, but readiness is still limited.\n')
     } else {

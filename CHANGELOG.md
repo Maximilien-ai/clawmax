@@ -14,7 +14,8 @@ All notable changes to ClawMax are documented here.
 - **BYOK Readiness Pill** — the top-bar `BYOK` trigger now turns green when a usable provider path is available instead of staying hardcoded amber
 - **Onboarding / BYOK Race Hardening** — onboarding now suppresses BYOK auto-open directly from `App`, preventing the first-run onboarding flow from being replaced a few seconds later by the BYOK modal
 - **Opik Copy Tightening** — Workspaces Integrations now says clearly that browser-stored Opik defaults do not enable runtime tracing, budgeting, or monitoring by themselves; runtime `OPIK_*` env is still required
-- **Cloud GitHub Copy Hardening** — GitHub readiness copy now reflects the current CLI-based limitation and no longer implies cloud readiness is as strong as local/dev
+- **Cloud GitHub Token Path** — hosted/cloud runtimes can now report GitHub readiness from a runtime `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo, while local/on-prem continues to use the `gh` CLI auth flow
+- **GitHub Readiness Copy Hardening** — the GitHub partner surface now reflects which auth mode is active instead of implying cloud readiness is still CLI-only
 
 ### Fixes — Cloud Ollama Visibility Contract
 - **Managed Runtime Ollama Default** — Ollama is now hidden by default in managed/cloud dashboard runtimes so cloud users are not prompted to configure a local model path the deployment cannot actually reach
@@ -22,7 +23,7 @@ All notable changes to ClawMax are documented here.
 - **Cloud UI Surface Cleanup** — when Ollama is disabled, the dashboard removes Ollama from Workspaces Integrations, onboarding guidance, Add Agent model-selection affordances, and Keys & Secrets inventory
 
 ### Docs
-- **Env Contract Documentation** — documented `DASHBOARD_ENABLE_OLLAMA` in `SYSTEM/dashboard/.env.example` and `README.md` for CLI/web handoff and deployment clarity
+- **Env Contract Documentation** — documented `DASHBOARD_ENABLE_OLLAMA` plus the cloud GitHub runtime token contract (`GITHUB_TOKEN` / `GH_TOKEN`) in `SYSTEM/dashboard/.env.example` and `README.md` for CLI/web handoff and deployment clarity
 
 ### Quality
 - **Validation Gate** — validated locally with `npm run typecheck`

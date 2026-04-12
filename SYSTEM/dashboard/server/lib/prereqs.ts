@@ -35,6 +35,8 @@ export interface PrereqResult {
   summary: { pass: number; fail: number; warn: number }
 }
 
+export type GitHubAuthMode = 'token' | 'gh' | 'none'
+
 interface TemplatePrereqOptions {
   useGithub?: boolean
   githubRepo?: string
@@ -158,21 +160,61 @@ export function buildGitHubAuthChecks(commandAvailable: boolean, output: string)
   ]
 }
 
+export function getGitHubTokenFromEnv(): string | undefined {
+  const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || ''
+  return token || undefined
+}
+
+export function getGitHubAuthMode(): GitHubAuthMode {
+  if (getGitHubTokenFromEnv()) return 'token'
+  return commandExists('gh') ? 'gh' : 'none'
+}
+
+export function buildGitHubTokenChecks(repo?: string): PrereqCheck[] {
+  const normalizedRepo = repo?.trim()
+  return [
+    {
+      id: 'github-auth',
+      label: 'GitHub runtime token',
+      status: 'pass',
+      message: 'Runtime GitHub token is configured for hosted/cloud execution',
+      category: 'auth'
+    },
+    {
+      id: 'gh-issues',
+      label: 'GitHub Issues (repo access)',
+      status: normalizedRepo ? 'pass' : 'warn',
+      message: normalizedRepo
+        ? `GitHub token mode ready for ${normalizedRepo}`
+        : 'GitHub token is configured, but no default repository is set yet',
+      fixHint: normalizedRepo ? undefined : 'Set owner/repo in Workspaces Integrations or the template context step',
+      category: 'auth'
+    },
+  ]
+}
+
 export function checkGitHubCliPrereqs(): PrereqCheck[] {
   const commandAvailable = commandExists('gh')
   const authStatus = commandAvailable ? getGhAuthStatusOutput() : { ok: false, output: '' }
   return buildGitHubAuthChecks(commandAvailable, authStatus.output)
 }
 
+export function checkGitHubPrereqs(options: { repo?: string } = {}): PrereqCheck[] {
+  if (getGitHubTokenFromEnv()) {
+    return buildGitHubTokenChecks(options.repo)
+  }
+  return checkGitHubCliPrereqs()
+}
+
 // Skills that require specific auth or infrastructure
 const SKILL_REQUIREMENTS: Record<string, { label: string; check: () => PrereqCheck }> = {
   'github': {
     label: 'GitHub CLI',
-    check: () => checkGitHubCliPrereqs().find((check) => check.id === 'github-auth')!
+    check: () => checkGitHubPrereqs().find((check) => check.id === 'github-auth')!
   },
   'gh-issues': {
     label: 'GitHub Issues',
-    check: () => checkGitHubCliPrereqs().find((check) => check.id === 'gh-issues')!
+    check: () => checkGitHubPrereqs().find((check) => check.id === 'gh-issues')!
   },
 }
 
@@ -247,9 +289,11 @@ export function checkTemplatePrereqs(template: {
   }
 
   if (options.useGithub) {
+    const githubRepo = options.githubRepo?.trim() || integrationConfig.githubDefaultRepo?.trim()
     allSkills.add('github')
     allSkills.add('gh-issues')
-    if (!options.githubRepo?.trim()) {
+    checks.push(...checkGitHubPrereqs({ repo: githubRepo }))
+    if (!githubRepo) {
       checks.push({
         id: 'github-repo',
         label: 'GitHub repository',
@@ -263,7 +307,7 @@ export function checkTemplatePrereqs(template: {
         id: 'github-repo',
         label: 'GitHub repository',
         status: 'pass',
-        message: `GitHub repo ready: ${options.githubRepo.trim()}`,
+        message: `GitHub repo ready: ${githubRepo}`,
         category: 'tooling'
       })
     }
@@ -322,8 +366,9 @@ export function checkTemplatePrereqs(template: {
       continue
     }
     const req = SKILL_REQUIREMENTS[skillId]
-    if (req && !seen.has(req.check().id)) {
+    if (req) {
       const check = req.check()
+      if (seen.has(check.id)) continue
       seen.add(check.id)
       checks.push(check)
     }
@@ -350,14 +395,15 @@ export function checkTemplatePrereqs(template: {
     })
   }
   if (options.useGithub) {
+    const githubRepo = options.githubRepo?.trim() || integrationConfig.githubDefaultRepo?.trim()
     const githubReady = checks.some((check) => check.id === 'github-auth' && check.status === 'pass')
     expectations.push({
       id: 'github-coordination',
       label: 'GitHub coordination',
-      status: githubReady && !!options.githubRepo?.trim() ? 'ready' : 'limited',
-      message: githubReady && !!options.githubRepo?.trim()
-        ? `Issues/PR coordination should work in ${options.githubRepo?.trim()}`
-        : 'GitHub is enabled, but issue/PR coordination is likely to degrade until gh auth and repo setup are complete'
+      status: githubReady && !!githubRepo ? 'ready' : 'limited',
+      message: githubReady && !!githubRepo
+        ? `Issues/PR coordination should work in ${githubRepo}`
+        : 'GitHub is enabled, but issue/PR coordination is likely to degrade until GitHub auth and repo setup are complete'
     })
   }
   if (options.useSenso) {

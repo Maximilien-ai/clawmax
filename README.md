@@ -100,6 +100,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 Cloud/on-prem runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
 - If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.
+- For GitHub issue/PR workflows in cloud, prefer a runtime `GITHUB_TOKEN`/`GH_TOKEN` plus a default repo in Workspaces Integrations. Keep `gh auth login` for local/dev and on-prem operator workflows.
 
 ---
 

@@ -169,6 +169,7 @@ export function ByokWizard({
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [githubChecks, setGithubChecks] = useState<Array<{ id: string; label: string; status: string; message: string; fixHint?: string }>>([])
+  const [githubMode, setGithubMode] = useState<'token' | 'gh' | 'none'>('none')
   const [githubStatusChecking, setGithubStatusChecking] = useState(false)
   const [githubAuthLogs, setGithubAuthLogs] = useState<string[]>([])
   const [githubAuthRunning, setGithubAuthRunning] = useState(false)
@@ -210,6 +211,7 @@ export function ByokWizard({
       const response = await fetch('/api/integrations/github-status')
       const data = response.ok ? await response.json() : null
       setGithubChecks(Array.isArray(data?.checks) ? data.checks : [])
+      setGithubMode(data?.mode === 'token' || data?.mode === 'gh' ? data.mode : 'none')
       if (!silent) {
         if (data?.ready) {
           showSuccess('GitHub readiness looks good')
@@ -219,6 +221,7 @@ export function ByokWizard({
       }
     } catch {
       setGithubChecks([])
+      setGithubMode('none')
       if (!silent) {
         showWarning('Could not refresh GitHub readiness')
       }
@@ -883,6 +886,7 @@ export function ByokWizard({
             } else if (msg.type === 'status') {
               const parsed = JSON.parse(msg.data)
               setGithubChecks(Array.isArray(parsed?.checks) ? parsed.checks : [])
+              setGithubMode(parsed?.mode === 'token' || parsed?.mode === 'gh' ? parsed.mode : 'none')
             } else if (msg.type === 'done') {
               setGithubAuthLogs((current) => [...current, msg.data])
               setGithubAuthDone(true)
@@ -973,7 +977,14 @@ export function ByokWizard({
         : 'Not configured — workspace files remain the default shared context layer'
     }
     if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — this UI can store Opik defaults, but runtime tracing and budget data still require dashboard OPIK_* env'
-    if (partner.slug === 'github') return githubReady ? 'GitHub CLI-based issue workflows look ready in this runtime.' : 'GitHub delivery workflows need auth in the current runtime. Cloud support is still CLI-dependent today.'
+    if (partner.slug === 'github') {
+      if (githubMode === 'token') {
+        return githubReady
+          ? 'GitHub token-based issue workflows look ready in this runtime.'
+          : 'GitHub token mode is active, but a default repository is still needed for issue workflows.'
+      }
+      return githubReady ? 'GitHub CLI-based issue workflows look ready in this runtime.' : 'GitHub delivery workflows need auth in the current runtime.'
+    }
 
     const secretFields = (partner.fields || []).filter((field) => field.secret && getPartnerSecret(partner.slug, field.key).trim())
     const plainFields = (partner.fields || []).filter((field) => !field.secret && getPartnerValue(partner.slug, field.key).trim())
@@ -1003,7 +1014,7 @@ export function ByokWizard({
     if (partner.slug === 'github') {
       return (
         <>
-          Use GitHub for issues, PRs, code review, and shared delivery workflows. Today this page checks the GitHub CLI path. That works best in local or dev environments. Cloud deployments still need a stronger token or app based connection path.
+          Use GitHub for issues, PRs, code review, and shared delivery workflows. Local and on-prem runtimes can use GitHub CLI auth. Hosted/cloud runtimes should prefer a runtime <span className="font-mono">GITHUB_TOKEN</span> or <span className="font-mono">GH_TOKEN</span> plus a default repository.
         </>
       )
     }
@@ -1519,7 +1530,7 @@ export function ByokWizard({
                     <div className="font-medium text-gray-900 dark:text-gray-100">GitHub readiness</div>
                     <div className="mt-2 space-y-2">
                       {githubChecks.length === 0 ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub CLI readiness for this runtime…</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub readiness for this runtime…</div>
                       ) : githubChecks.map((check) => (
                         <div
                           key={check.id}
@@ -1537,22 +1548,26 @@ export function ByokWizard({
                       ))}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void runGitHubAuth('login')}
-                        disabled={githubAuthRunning}
-                        className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
-                      >
-                        {githubAuthRunning ? 'Connecting…' : 'Connect GitHub CLI'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void runGitHubAuth('refresh-repo-scope')}
-                        disabled={githubAuthRunning}
-                        className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
-                      >
-                        Refresh Repo Scope
-                      </button>
+                      {githubMode !== 'token' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void runGitHubAuth('login')}
+                            disabled={githubAuthRunning}
+                            className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
+                          >
+                            {githubAuthRunning ? 'Connecting…' : 'Connect GitHub CLI'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void runGitHubAuth('refresh-repo-scope')}
+                            disabled={githubAuthRunning}
+                            className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                          >
+                            Refresh Repo Scope
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => void refreshGithubChecks()}
@@ -1563,7 +1578,9 @@ export function ByokWizard({
                       </button>
                     </div>
                     <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                      This is the current GitHub CLI auth flow for the active runtime. It is reliable in local/dev setups. Cloud-safe token or app based GitHub auth still needs a dedicated follow-through path.
+                      {githubMode === 'token'
+                        ? 'This runtime is using GitHub token mode. Keep the token in server/runtime env and set a default repository for issue and PR workflows.'
+                        : 'This runtime is using the GitHub CLI auth flow. It is reliable in local/dev and on-prem setups. Hosted/cloud deployments should prefer a runtime token or app-based GitHub connection.'}
                     </div>
                     {(githubDeviceCode || githubDeviceUrl) && (
                       <div className="mt-3 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-3 py-3 text-sm text-sky-900 dark:text-sky-100">

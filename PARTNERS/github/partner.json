@@ -26,6 +26,6 @@
   "validation": {
     "mode": "status",
     "label": "Check keys",
-    "helperText": "Checks GitHub CLI install state, auth status, and repo scope readiness for issue and PR workflows."
+    "helperText": "Checks GitHub readiness for issue and PR workflows. Local/dev uses GitHub CLI auth; cloud can use a runtime GitHub token plus a default repo."
   }
 }

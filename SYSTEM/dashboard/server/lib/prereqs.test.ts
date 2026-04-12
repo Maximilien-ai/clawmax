@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpile-only server/lib/prereqs.test.ts
  */
 
-import { buildGitHubAuthChecks } from './prereqs'
+import { buildGitHubAuthChecks, buildGitHubTokenChecks } from './prereqs'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -58,6 +58,19 @@ test('buildGitHubAuthChecks requires repo scope for gh-issues', () => {
 test('buildGitHubAuthChecks passes when gh auth includes repo scope', () => {
   const checks = buildGitHubAuthChecks(true, 'Logged in to github.com account test-user\nToken scopes: repo, read:org')
   assert(checks.every((check) => check.status === 'pass'), 'Expected all GitHub checks to pass with repo scope')
+})
+
+test('buildGitHubTokenChecks passes when runtime token and repo are configured', () => {
+  const checks = buildGitHubTokenChecks('Maximilien-ai/clawmax-test')
+  assert(checks.every((check) => check.status === 'pass'), 'Expected runtime token checks to pass with repo')
+})
+
+test('buildGitHubTokenChecks warns when repo is missing', () => {
+  const checks = buildGitHubTokenChecks()
+  const authCheck = checks.find((check) => check.id === 'github-auth')
+  const issueCheck = checks.find((check) => check.id === 'gh-issues')
+  assert(authCheck?.status === 'pass', `Expected github-auth pass, got ${authCheck?.status}`)
+  assert(issueCheck?.status === 'warn', `Expected gh-issues warn without repo, got ${issueCheck?.status}`)
 })
 
 console.log('\n========================================')
