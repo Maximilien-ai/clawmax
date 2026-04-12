@@ -79,7 +79,7 @@ export async function validateGeminiKey(apiKey: string, fetchImpl: FetchLike = f
 }
 
 function normalizeOllamaBaseUrl(baseUrl: string): string {
-  const trimmed = baseUrl.trim() || 'http://localhost:11434'
+  const trimmed = baseUrl.trim() || getDefaultOllamaBaseUrl()
   return trimmed.replace(/\/+$/, '')
 }
 
@@ -93,7 +93,7 @@ export async function validateOllamaConfig(
   if (!baseUrl.trim() && !normalizedModel) {
     return skipped('Ollama is optional and not configured')
   }
-  if (normalizedBaseUrl === 'http://localhost:11434' && !normalizedModel) {
+  if (normalizedBaseUrl === getDefaultOllamaBaseUrl() && !normalizedModel) {
     return skipped('Ollama is optional and not configured')
   }
   try {
@@ -170,3 +170,4 @@ export async function validateIntegrations(input: {
 
   return { openai, anthropic, gemini, ollama, opik, senso }
 }
+import { getDefaultOllamaBaseUrl } from './dashboard-env'

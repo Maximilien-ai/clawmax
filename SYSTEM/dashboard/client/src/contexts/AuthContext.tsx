@@ -16,6 +16,7 @@ interface AuthConfig {
   authDisabled: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
+  defaultOllamaBaseUrl?: string
   allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
     openai: boolean

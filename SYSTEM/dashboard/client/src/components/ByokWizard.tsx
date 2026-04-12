@@ -72,7 +72,7 @@ type WorkspaceIntegrationConfig = {
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
 
-const defaultOllamaBaseUrl = 'http://localhost:11434'
+const localDevOllamaBaseUrl = 'http://localhost:11434'
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
@@ -154,7 +154,7 @@ export function ByokWizard({
   const [openaiKey, setOpenaiKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
   const [geminiApiKey, setGeminiApiKey] = useState('')
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(defaultOllamaBaseUrl)
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
   const [ollamaDefaultModel, setOllamaDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
@@ -190,6 +190,7 @@ export function ByokWizard({
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const ollamaEnabled = config?.ollamaEnabled !== false
+  const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
 
   const refreshLocalState = React.useCallback(() => {
     const stored = readStoredByokKeys()
@@ -206,7 +207,7 @@ export function ByokWizard({
     setPartnerSecrets(stored.partnerSecrets || {})
     setPartnerValues(stored.partnerValues || {})
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
-  }, [])
+  }, [defaultOllamaBaseUrl])
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -289,7 +290,11 @@ export function ByokWizard({
         const workspaceConfig = (data?.config || {}) as WorkspaceIntegrationConfig
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
-        setOllamaBaseUrl((current) => (current && current !== defaultOllamaBaseUrl) ? current : (workspaceConfig.ollamaBaseUrl || current))
+        setOllamaBaseUrl((current) => {
+          const nextDefault = workspaceConfig.ollamaBaseUrl || defaultOllamaBaseUrl
+          const isCustomCurrent = !!current && current !== defaultOllamaBaseUrl
+          return isCustomCurrent ? current : nextDefault
+        })
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
         setPartnerValues((current) => mergePartnerMaps(current, {
           ...Object.fromEntries(
@@ -1396,7 +1401,7 @@ export function ByokWizard({
                         Works best when Ollama is already running and the models you want have been pulled.
                       </div>
                       <label htmlFor="byok-ollama-url" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base URL</label>
-                      <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder={defaultOllamaBaseUrl || localDevOllamaBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <label htmlFor="byok-ollama-model" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model</label>
                       <input id="byok-ollama-model" type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">

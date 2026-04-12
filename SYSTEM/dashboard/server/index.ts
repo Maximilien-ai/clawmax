@@ -30,7 +30,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthC
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -162,6 +162,7 @@ app.get('/api/auth/config', (_req, res) => {
     authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
+    defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
@@ -208,6 +209,7 @@ app.get('/api/system', protect, (_req, res) => {
     gitBranch,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
+    defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     orgName: getOrgName() ?? null,
   })
 })

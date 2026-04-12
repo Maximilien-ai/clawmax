@@ -7,6 +7,10 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+### Fixes — Ollama Runtime Defaults
+- **Environment-Aware Ollama Base URL** — the dashboard now prefers an injected `OLLAMA_BASE_URL` when present and only falls back to `http://localhost:11434` for true local/native development
+- **On-Prem Container Contract** — env examples now document that containerized/on-prem deployments should inject a reachable Ollama URL explicitly instead of relying on the localhost fallback
+
 ## [v1.2.18] - 2026-04-12
 
 ### Fixes — Hosted GitHub and Integration UX

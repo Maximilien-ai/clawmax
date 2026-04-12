@@ -2,7 +2,7 @@
  * Dynamic model discovery — fetches available models from OpenAI, Anthropic, and Gemini APIs.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
-import { getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
+import { getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -186,7 +186,8 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '') || 'http://localhost:11434'
+  const normalizedBaseUrl = (baseUrl.trim() || getDefaultOllamaBaseUrl()).replace(/\/+$/, '')
+  if (!normalizedBaseUrl) return []
   const cacheKey = `ollama:${normalizedBaseUrl}`
   const cached = getCached(cacheKey)
   if (cached) return cached

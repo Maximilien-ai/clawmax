@@ -74,6 +74,14 @@ export function isOllamaUiEnabled(rawEnv: Record<string, string> = dashboardEnv)
   return !isManagedRuntime(rawEnv)
 }
 
+export function getDefaultOllamaBaseUrl(rawEnv: Record<string, string> = dashboardEnv): string {
+  const explicit = firstNonEmpty(rawEnv, 'OLLAMA_BASE_URL') || process.env.OLLAMA_BASE_URL?.trim()
+  if (explicit) {
+    return explicit.replace(/\/+$/, '')
+  }
+  return isManagedRuntime(rawEnv) ? '' : 'http://localhost:11434'
+}
+
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
   const allowProcessFallback = rawEnv === dashboardEnv && isContainerMode
   const lookup = allowProcessFallback
