@@ -5,22 +5,25 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.13-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.13)
+[![Version](https://img.shields.io/badge/version-1.2.17-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.17)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.13
+## 🔥 What's New in v1.2.17
 
-- Partner skill installs are more reliable:
-  - curated partner installs now run non-interactively for multi-skill partner repos
-  - install surfaces now show clearer installed state after a successful partner install
-- Workflow communication delivery is more consistent:
-  - workflow participants are now told to return plain text in-session instead of trying to send directly to the current workflow channel
-  - ClawMax continues to post workflow results into the targeted group or community automatically
-- Gateway health checks are more accurate:
-  - gateway detection no longer depends only on `lsof`
-  - Doctor now uses a real gateway responsiveness probe when status is ambiguous
+- Cloud/default managed runtimes are cleaner:
+  - Ollama is hidden by default unless explicitly enabled with `DASHBOARD_ENABLE_OLLAMA`
+  - `OLLAMA_BASE_URL` is hidden from `Keys & Secrets` when Ollama is disabled
+- BYOK and onboarding are more reliable:
+  - the BYOK pill now reflects real readiness instead of staying amber
+  - onboarding is no longer replaced by BYOK a few seconds after first load
+  - saved browser-vault keys now stay in sync across both mounted BYOK entrypoints
+- Cloud GitHub workflows have a stronger path:
+  - hosted/cloud runtimes can use `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo
+  - local/dev and on-prem continue to use the existing `gh` CLI auth flow
+
+## 🔥 Previously in v1.2.13
 
 ## 🔥 Previously in v1.2.12
 
