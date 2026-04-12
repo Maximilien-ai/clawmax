@@ -935,7 +935,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
               <div className="flex gap-3 text-sm flex-wrap">
                 <span className={`px-3 py-1.5 rounded-lg ${results.platform?.cli ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>{results.platform?.cli ? '✓' : '✗'} CLI</span>
                 <span className={`px-3 py-1.5 rounded-lg ${results.platform?.gateway ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.platform?.gateway ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>
-                <span className={`px-3 py-1.5 rounded-lg ${results.healthy ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.fixed} fixed</span>
+                <span className={`px-3 py-1.5 rounded-lg ${results.healthy && results.summary.warn === 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.warn} warn, {results.summary.fixed} fixed</span>
               </div>
               {results.results?.map((agent: any) => (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -950,6 +950,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
               {results.results?.length === 0 && <div className="text-center text-gray-400 py-4">No agents in workspace</div>}
+              {results.healthy && results.summary.warn > 0 && <div className="text-center text-amber-700 dark:text-amber-300 py-2 text-sm">Agents are healthy, but runtime warnings still need attention.</div>}
               {results.message && results.results?.length === 0 && <div className="text-center text-gray-500 dark:text-gray-400 py-2 text-sm">{results.message}</div>}
             </div>
           ) : <div className="text-center text-red-500 py-8">Failed to run doctor</div>}

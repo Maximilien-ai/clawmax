@@ -310,14 +310,15 @@ export default function Logs() {
               <div className="flex gap-2 text-xs flex-wrap">
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.cli ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>{doctorResults.platform?.cli ? '✓' : '✗'} CLI</span>
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.gateway ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.platform?.gateway ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
-                <span className={`px-2 py-1 rounded ${doctorResults.healthy ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.fixed} fixed</span>
+                <span className={`px-2 py-1 rounded ${doctorResults.healthy && doctorResults.summary.warn === 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.warn} warn, {doctorResults.summary.fixed} fixed</span>
               </div>
               {(doctorResults.results || []).filter((r: any) => (r.checks || []).some((c: any) => c.status !== 'pass')).map((r: any) => (
                 <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
                   <span className="font-mono font-medium">{r.id}:</span> {(r.checks || []).filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
                 </div>
               ))}
-              {doctorResults.healthy && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
+              {doctorResults.healthy && doctorResults.summary.warn === 0 && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
+              {doctorResults.healthy && doctorResults.summary.warn > 0 && <div className="text-xs text-amber-700 dark:text-amber-300">Agents are healthy, but runtime warnings still need attention.</div>}
               {doctorResults.message && doctorResults.results.length === 0 && (
                 <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap break-words">{doctorResults.message}</div>
               )}

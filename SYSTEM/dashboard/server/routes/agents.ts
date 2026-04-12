@@ -672,7 +672,7 @@ router.post('/doctor', async (req, res) => {
       normalized.includes('if you\'re in a container')
     ) {
       return isManagedRuntime
-        ? 'Gateway is configured but disabled in this Linux instance runtime. Auto-Fix cannot keep a long-running gateway alive from the browser; start it from the instance startup or supervisor configuration.'
+        ? 'Gateway is not active in this managed instance runtime. Auto-Fix cannot keep a long-running gateway alive from the browser; start it from the instance startup or supervisor configuration.'
         : 'Gateway is configured but disabled. Start or enable it in the local runtime before retrying.'
     }
     return null
