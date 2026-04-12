@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 function maskKey(value: string) {
@@ -184,6 +185,7 @@ export function ByokWizard({
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -315,10 +317,17 @@ export function ByokWizard({
   }, [])
 
   const visiblePartnerDefinitions = useMemo(
-    () => sortPartnerDefinitions(integrationStatus?.partnerDefinitions || []),
+    () => {
+      const visibleSlugs = integrationStatus?.visiblePartners?.length ? integrationStatus.visiblePartners : DEFAULT_VISIBLE_PARTNERS
+      const visibleSet = new Set(visibleSlugs)
+      return sortPartnerDefinitions((integrationStatus?.partnerDefinitions || []).filter((partner) => visibleSet.has(partner.slug)))
+    },
     [integrationStatus]
   )
-  const visiblePartnerSlugs = useMemo(() => integrationStatus?.visiblePartners || [], [integrationStatus])
+  const visiblePartnerSlugs = useMemo(
+    () => (integrationStatus?.visiblePartners?.length ? integrationStatus.visiblePartners : DEFAULT_VISIBLE_PARTNERS),
+    [integrationStatus]
+  )
 
   useEffect(() => {
     if (!visiblePartnerSlugs.length) return
@@ -415,9 +424,10 @@ export function ByokWizard({
   useEffect(() => {
     if (!hydrated) return
     if (!user && !config?.authDisabled) return
+    if (onboardingOpen) return
     if (hasDefaultUserKeys || hasStoredKeys || dismissed) return
     setOpen(true)
-  }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, user])
+  }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, user])
 
   useEffect(() => {
     const openWizard = () => {
@@ -426,6 +436,15 @@ export function ByokWizard({
     }
     window.addEventListener('open-byok-wizard', openWizard)
     return () => window.removeEventListener('open-byok-wizard', openWizard)
+  }, [])
+
+  useEffect(() => {
+    const handleOnboardingVisibility = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail || {}
+      setOnboardingOpen(!!detail.open)
+    }
+    window.addEventListener('clawmax-onboarding-visibility', handleOnboardingVisibility as EventListener)
+    return () => window.removeEventListener('clawmax-onboarding-visibility', handleOnboardingVisibility as EventListener)
   }, [])
 
   useEffect(() => {
@@ -439,8 +458,8 @@ export function ByokWizard({
             validationMode: 'fallback',
             providers: [],
             notes: ['Live validation is unavailable on the current server build.'],
-            visiblePartners: [],
-            partnerDefinitions: [],
+            visiblePartners: [...DEFAULT_VISIBLE_PARTNERS],
+            partnerDefinitions: getDefaultPartnerDefinitions(),
           })
           return null
         }
@@ -485,8 +504,8 @@ export function ByokWizard({
         validationMode: 'fallback',
         providers: [],
         notes: ['Live validation is unavailable on the current server build.'],
-        visiblePartners: [],
-        partnerDefinitions: [],
+        visiblePartners: [...DEFAULT_VISIBLE_PARTNERS],
+        partnerDefinitions: getDefaultPartnerDefinitions(),
       }))
 
     void refreshGithubChecks({ silent: true })

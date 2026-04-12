@@ -89,6 +89,13 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
   }, [visible, workspaceId])
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('clawmax-onboarding-visibility', { detail: { open } }))
+    return () => {
+      window.dispatchEvent(new CustomEvent('clawmax-onboarding-visibility', { detail: { open: false } }))
+    }
+  }, [open])
+
+  useEffect(() => {
     if (!open) return
     fetch('/api/templates/organizations')
       .then((res) => (res.ok ? res.json() : { templates: [] }))

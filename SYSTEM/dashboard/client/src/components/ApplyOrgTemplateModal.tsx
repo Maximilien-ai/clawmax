@@ -459,7 +459,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       .catch(() => {})
   }, [])
 
-  const partnerIsVisible = (slug: string) => visiblePartners.length === 0 || visiblePartners.includes(slug)
+  const partnerIsVisible = (slug: string) => {
+    const effectiveVisiblePartners = visiblePartners.length > 0 ? visiblePartners : ['senso', 'opik', 'github']
+    return effectiveVisiblePartners.includes(slug)
+  }
   const partnerIsEnabled = (slug: string) => enabledPartners.length === 0 ? true : enabledPartners.includes(slug)
 
   const githubAvailable = partnerIsVisible('github') && partnerIsEnabled('github') && !!githubRepo.trim() && hasGithubAuth

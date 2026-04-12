@@ -644,6 +644,24 @@ router.post('/doctor', async (req, res) => {
   let platformMessage: string | undefined
   let gatewayFixOutput: string | undefined
   const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
+  const summarizeDoctorGatewayMessage = (text: string | undefined): string | undefined => {
+    const raw = String(text || '').trim()
+    if (!raw) return undefined
+    const disabledMessage = summarizeGatewayDisabledRuntime(raw)
+    if (disabledMessage) return disabledMessage
+    if (isManagedRuntime) {
+      const lines = raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !/^start with:/i.test(line))
+        .filter((line) => !/openclaw gateway install/i.test(line))
+        .filter((line) => !/openclaw gateway\b/i.test(line))
+        .filter((line) => !/systemctl --user\b/i.test(line))
+      return lines[0] || 'Gateway is unavailable in this managed runtime. Start or enable it from the instance runtime configuration.'
+    }
+    return raw
+  }
   const summarizeGatewayDisabledRuntime = (text: string): string | null => {
     const normalized = text.toLowerCase()
     if (!normalized) return null
@@ -756,7 +774,7 @@ router.post('/doctor', async (req, res) => {
         fixed: platformChecks.filter(c => c.status === 'fixed').length,
       },
       healthy: platformChecks.every(c => c.status === 'pass' || c.status === 'fixed'),
-      message: [platformMessage, gatewayFixOutput].filter(Boolean).join('\n\n') || 'No agents directory found'
+      message: [platformMessage, summarizeDoctorGatewayMessage(gatewayFixOutput)].filter(Boolean).join('\n\n') || 'No agents directory found'
     })
     return
   }
@@ -872,7 +890,7 @@ router.post('/doctor', async (req, res) => {
     healthy: fail === 0,
     message: [
       platformMessage,
-      gatewayFixOutput,
+      summarizeDoctorGatewayMessage(gatewayFixOutput),
       !effectiveGatewayRunning && isManagedRuntime
         ? 'This looks like a managed or container runtime. Start or enable the gateway in the instance runtime configuration instead of using local machine commands.'
         : undefined,

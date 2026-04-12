@@ -39,7 +39,7 @@ export interface PartnerDefinition {
   sourceRoot?: string
 }
 
-const DEFAULT_PARTNERS = ['senso', 'opik', 'github']
+export const DEFAULT_PARTNERS = ['senso', 'opik', 'github'] as const
 
 function splitList(raw: string | undefined): string[] {
   return (raw || '')
@@ -58,7 +58,9 @@ function getPartnerRoots(): string[] {
 
 export function getEnabledPartnerSlugs(): string[] {
   const configured = splitList(process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES)
-  return configured.length > 0 ? configured : DEFAULT_PARTNERS
+  const allowed = new Set<string>(DEFAULT_PARTNERS)
+  const selected = configured.length > 0 ? configured : [...DEFAULT_PARTNERS]
+  return selected.filter((slug, index) => allowed.has(slug) && selected.indexOf(slug) === index)
 }
 
 export function listPartnerDefinitions(): PartnerDefinition[] {

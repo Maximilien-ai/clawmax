@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { readStoredByokKeys } from '../lib/byok'
+import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 type SecretDraft = { key: string; value: string }
@@ -234,8 +235,17 @@ export default function KeysSecrets() {
   useEffect(() => {
     fetch('/api/integrations/status')
       .then((res) => res.json())
-      .then((data) => setPartnerDefinitions(Array.isArray(data?.partnerDefinitions) ? data.partnerDefinitions : []))
-      .catch(() => setPartnerDefinitions([]))
+      .then((data) => {
+        const visiblePartners = Array.isArray(data?.visiblePartners) && data.visiblePartners.length > 0
+          ? data.visiblePartners.filter((item: unknown): item is string => typeof item === 'string')
+          : [...DEFAULT_VISIBLE_PARTNERS]
+        const visibleSet = new Set(visiblePartners)
+        const definitions = Array.isArray(data?.partnerDefinitions) && data.partnerDefinitions.length > 0
+          ? data.partnerDefinitions
+          : getDefaultPartnerDefinitions()
+        setPartnerDefinitions(definitions.filter((partner: PartnerDefinition) => visibleSet.has(partner.slug)))
+      })
+      .catch(() => setPartnerDefinitions(getDefaultPartnerDefinitions()))
   }, [])
 
   useEffect(() => {
@@ -279,7 +289,15 @@ export default function KeysSecrets() {
           addMatch(requirement.key, 'skill', skill.name || 'Skill')
         }
       }
-      for (const partner of Array.isArray(integrationData?.partnerDefinitions) ? integrationData.partnerDefinitions : []) {
+      const visiblePartners = Array.isArray(integrationData?.visiblePartners) && integrationData.visiblePartners.length > 0
+        ? integrationData.visiblePartners.filter((item: unknown): item is string => typeof item === 'string')
+        : [...DEFAULT_VISIBLE_PARTNERS]
+      const visibleSet = new Set(visiblePartners)
+      const integrationPartners = Array.isArray(integrationData?.partnerDefinitions) && integrationData.partnerDefinitions.length > 0
+        ? integrationData.partnerDefinitions
+        : getDefaultPartnerDefinitions()
+      for (const partner of integrationPartners) {
+        if (!visibleSet.has(partner?.slug)) continue
         for (const field of Array.isArray(partner?.fields) ? partner.fields : []) {
           addMatch(getPartnerVaultKey(partner.slug, field.key), 'partner', partner.name || partner.slug)
         }
