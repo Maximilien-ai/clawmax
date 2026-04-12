@@ -201,6 +201,9 @@
 - [ ] **Remote setup/management/updates**
 - [ ] **On-premise management dashboard**
 - [ ] **Docker/Kubernetes packaging**
+- [ ] **Blaxel template stabilization branch follow-through** — continue the Blaxel-specific hardening work on branch `feat/blaxel-template-stabilization`: sandbox naming fidelity, durable process management, explicit preview creation, stale-run evidence rejection, and deciding which demo helper files should be harvested vs. discarded before merging anything back.
+- [ ] **Redis template stabilization branch follow-through** — continue Redis-specific runtime/template hardening on branch `feat/redis-template-stabilization` when the Redis flows start showing repeated partner-specific execution or memory-contract issues; keep Redis-specific commands and readiness rules out of generic template/chat paths until that work is explicitly folded back.
+- [ ] **Template audit / canonization branch follow-through** — continue the reusable cross-template lessons on branch `feat/template-canon-audit`: partner skills integration, repo-root deploy context, explicit final deliverables, runtime/tool evidence requirements, and other template audit learnings that should be applied broadly where they make sense.
 
 ## History
 
