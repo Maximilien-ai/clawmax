@@ -7,6 +7,35 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+## [v1.2.16] - 2026-04-12
+
+### Fixes — Template Library and Runtime Doctor
+- **Partner Cleanup on Main** — removed the unstable Blaxel and Redis template plus partner-definition assets from `main` while preserving the work on their dedicated stabilization branches
+- **Managed-Runtime Doctor Copy** — Doctor now uses managed-instance wording for gateway warnings instead of implying desktop/Linux host remediation
+- **Runtime Warning Summary** — Activity and System & Logs no longer report `All agents healthy` when runtime warnings are still active
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, the standalone templates test suite, and `./SYSTEM/test.sh integration --with-validation`
+
+## [v1.2.15] - 2026-04-12
+
+### Fixes — Partner Visibility and Workflow UX
+- **Partner Surface Consistency** — `Partners` and `Keys & Secrets` now consistently show only the intended `GitHub`, `Senso`, and `Opik` integrations on `main`, including local/dev fallback rendering
+- **Onboarding / BYOK Modal Ordering** — onboarding is no longer interrupted by a delayed BYOK auto-open on empty workspaces
+- **Workflow Customization Persistence** — select-based kickoff/workflow customization fields now persist correctly into workflow markdown overrides and stop triggering false required-field errors
+
+### Fixes — System Test and Runtime Guidance
+- **Communications Test Prompt Hardening** — the `ClawMax System Test` communications step now treats lack of direct transport control as non-fatal and focuses failure on real workflow-context gaps
+- **Managed-Runtime Guidance Cleanup** — managed/container runtime messaging avoids desktop/systemd-first gateway recovery guidance
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and the green `ClawMax System Test` path in cloud after switching to a working model provider
+
+## [v1.2.14] - 2026-04-11
+
+### Docs
+- **Partner Follow-Up Branch Tracking** — documented the dedicated Blaxel, Redis, and template-audit follow-up branches in backlog/docs so `main` could stay release-ready while partner stabilization continued separately
+
 ## [v1.2.13] - 2026-04-11
 
 ### Fixes — Partner Skill Installs
