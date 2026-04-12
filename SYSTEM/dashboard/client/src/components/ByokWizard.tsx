@@ -14,7 +14,7 @@ type Step = 'models' | 'partners' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
-type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'blaxel' | 'redis' | 'senso', ValidationEntry>
+type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'senso', ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
 type PartnerFieldDefinition = {
   key: string
@@ -107,8 +107,6 @@ const PARTNER_PRIORITY: Record<string, number> = {
   opik: 0,
   github: 1,
   senso: 2,
-  blaxel: 3,
-  redis: 4,
 }
 
 function sortPartnerDefinitions(partners: PartnerDefinition[]): PartnerDefinition[] {
@@ -164,8 +162,6 @@ export function ByokWizard({
     gemini: { status: 'idle', message: '' },
     ollama: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
-    blaxel: { status: 'idle', message: '' },
-    redis: { status: 'idle', message: '' },
     senso: { status: 'idle', message: '' },
   })
   const [dismissed, setDismissed] = useState(false)
@@ -620,10 +616,6 @@ export function ByokWizard({
       opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
       opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
       opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
-      blaxelApiKey: scope === 'all' || currentPartnerSlug === 'blaxel' ? getPartnerSecret('blaxel', 'apiKey').trim() : '',
-      blaxelProjectId: scope === 'all' || currentPartnerSlug === 'blaxel' ? getPartnerValue('blaxel', 'projectId').trim() : '',
-      redisApiKey: scope === 'all' || currentPartnerSlug === 'redis' ? getPartnerSecret('redis', 'apiKey').trim() : '',
-      redisUrl: scope === 'all' || currentPartnerSlug === 'redis' ? getPartnerValue('redis', 'url').trim() : '',
       sensoApiKey: scope === 'all' || currentPartnerSlug === 'senso' ? getPartnerSecret('senso', 'apiKey').trim() : '',
     }
     setValidating(true)
@@ -641,8 +633,6 @@ export function ByokWizard({
           gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          blaxel: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          redis: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
@@ -656,8 +646,6 @@ export function ByokWizard({
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
         ollama: { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
-        blaxel: { status: data.blaxel?.status || 'idle', message: data.blaxel?.message || '' },
-        redis: { status: data.redis?.status || 'idle', message: data.redis?.message || '' },
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
       }
       setValidation(nextState)
@@ -677,8 +665,6 @@ export function ByokWizard({
           gemini: 'Gemini',
           ollama: 'Ollama',
           opik: 'Opik',
-          blaxel: 'Blaxel',
-          redis: 'Redis',
           senso: 'Senso',
         }
         showWarning(`Some integration checks failed: ${failures.map(([key]) => labels[key] || key).join(', ')}. Review the messages below. You can still save and complete optional integrations later.`)
@@ -701,8 +687,6 @@ export function ByokWizard({
       gemini: 'Gemini',
       ollama: 'Ollama',
       opik: 'Opik',
-      blaxel: 'Blaxel',
-      redis: 'Redis',
       senso: 'Senso',
     }
     return labels[slug] || slug
@@ -715,9 +699,6 @@ export function ByokWizard({
       || geminiApiKey.trim()
       || opikApiKey.trim()
       || ollamaConfigured
-      || getPartnerSecret('blaxel', 'apiKey').trim()
-      || getPartnerSecret('redis', 'apiKey').trim()
-      || getPartnerValue('redis', 'url').trim()
       || getPartnerSecret('senso', 'apiKey').trim()
     )
     if (shouldValidate) {
@@ -1087,9 +1068,6 @@ export function ByokWizard({
       : partner.slug === 'senso' && field.key === 'contextLabel' ? 'e.g. Workspace / Team / Project'
       : partner.slug === 'opik' && field.key === 'workspace' ? 'e.g. my-team'
       : partner.slug === 'opik' && field.key === 'project' ? 'e.g. clawmax-agents'
-      : partner.slug === 'blaxel' && field.key === 'projectId' ? 'e.g. sandbox-project'
-      : partner.slug === 'blaxel' && field.key === 'defaultSandbox' ? 'e.g. demo-sandbox'
-      : partner.slug === 'redis' && field.key === 'url' ? 'redis://...'
       : field.label
 
     return (

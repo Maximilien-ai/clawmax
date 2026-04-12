@@ -15,7 +15,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Partner skill installs are more reliable:
   - curated partner installs now run non-interactively for multi-skill partner repos
   - install surfaces now show clearer installed state after a successful partner install
-  - curated partner installs include Redis alongside Blaxel
 - Workflow communication delivery is more consistent:
   - workflow participants are now told to return plain text in-session instead of trying to send directly to the current workflow channel
   - ClawMax continues to post workflow results into the targeted group or community automatically
@@ -294,7 +293,7 @@ OTP_DEV_MODE=log
 # Latest code is written to .clawmax-otp-dev.json
 
 # Optional partner visibility in Workspaces Integrations
-WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github,blaxel,redis
+WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 
 # Optional extra partner roots
 CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS

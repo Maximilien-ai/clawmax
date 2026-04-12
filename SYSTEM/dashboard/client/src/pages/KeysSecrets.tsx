@@ -662,7 +662,7 @@ export default function KeysSecrets() {
           value={importText}
           onChange={(e) => setImportText(e.target.value)}
           rows={7}
-          placeholder={`OPENAI_API_KEY=...\nANTHROPIC_API_KEY=...\nREDIS_URL=redis://...`}
+          placeholder={`OPENAI_API_KEY=...\nANTHROPIC_API_KEY=...\nGITHUB_TOKEN=...`}
           className="mt-4 w-full rounded-lg border border-amber-300 bg-white px-3 py-3 font-mono text-sm text-gray-900 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

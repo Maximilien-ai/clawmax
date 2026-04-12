@@ -41,11 +41,10 @@ test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
 })
 
 test('listPartnerDefinitions respects configured allowlist', () => {
-  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,blaxel,redis'
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik'
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
-  assert(slugs.join(',') === 'github,blaxel,redis', `Unexpected visible partners: ${slugs.join(',')}`)
-  assert(partners[1].skills?.mode === 'curated-installer', 'Expected Blaxel curated installer metadata')
+  assert(slugs.join(',') === 'github,senso,opik', `Unexpected visible partners: ${slugs.join(',')}`)
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

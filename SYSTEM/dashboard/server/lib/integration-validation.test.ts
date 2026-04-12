@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateBlaxelConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAIKey, validateOpikConfig, validateRedisConfig, validateSensoConfig } from './integration-validation'
+import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -74,16 +74,6 @@ async function run() {
     assert(result.status === 'valid', 'Expected valid status')
   })
 
-  await test('validateBlaxelConfig returns valid on 200', async () => {
-    const result = await validateBlaxelConfig('blaxel-key', 'sandbox-project', mockFetch(200))
-    assert(result.status === 'valid', 'Expected valid status')
-  })
-
-  await test('validateRedisConfig validates redis URL shape', async () => {
-    const result = await validateRedisConfig('redis-token', 'rediss://default:secret@redis.example.com:6379/0')
-    assert(result.status === 'valid', 'Expected valid status')
-  })
-
   await test('validateSensoConfig checks presence of key', async () => {
     const result = await validateSensoConfig('senso-key')
     assert(result.status === 'valid', 'Expected valid status')
@@ -99,10 +89,6 @@ async function run() {
       opikApiKey: 'opik-key',
       opikWorkspace: 'team',
       opikProject: 'clawmax',
-      blaxelApiKey: 'blaxel-key',
-      blaxelProjectId: 'sandbox-project',
-      redisApiKey: 'redis-token',
-      redisUrl: 'rediss://default:secret@redis.example.com:6379/0',
       sensoApiKey: 'senso-key',
     }, (async (url: string) => {
       if (url.includes('/api/tags')) {
@@ -124,8 +110,6 @@ async function run() {
     assert(result.gemini?.status === 'valid', 'Expected Gemini valid')
     assert(result.ollama?.status === 'valid', 'Expected Ollama valid')
     assert(result.opik?.status === 'valid', 'Expected Opik valid')
-    assert(result.blaxel?.status === 'valid', 'Expected Blaxel valid')
-    assert(result.redis?.status === 'valid', 'Expected Redis valid')
     assert(result.senso?.status === 'valid', 'Expected Senso valid')
   })
 

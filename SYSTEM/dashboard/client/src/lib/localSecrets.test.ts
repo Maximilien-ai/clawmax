@@ -96,7 +96,7 @@ test('findManagedSecretConflicts returns only differing overlapping keys', () =>
 
 test('partner vault helpers only map declared fields', () => {
   assert(getPartnerVaultKey('opik', 'apiKey') === 'OPIK_API_KEY', 'Expected api key mapping')
-  assert(getPartnerVaultKey('blaxel', 'projectId') === 'BLAXEL_PROJECT_ID', 'Expected project id mapping')
+  assert(getPartnerVaultKey('github', 'defaultRepo') === 'GITHUB_DEFAULT_REPO', 'Expected default repo mapping')
 
   const fields = [
     { key: 'apiKey', label: 'API key', secret: true },

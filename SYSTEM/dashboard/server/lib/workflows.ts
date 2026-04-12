@@ -109,6 +109,18 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
+    if (/^LLM request rejected:/i.test(line)) {
+      return line
+    }
+    if (/^No execution path configured\b/i.test(line)) {
+      return line
+    }
+    if (/^No API keys available\b/i.test(line)) {
+      return line
+    }
+  }
+
+  for (const line of lines) {
     if (/^(FAIL|FAILED)\b/i.test(line)) {
       return line
     }
@@ -121,6 +133,12 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 }
 
 function formatParticipantFailure(reportedFailure: string): string {
+  if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
+    return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
+  }
+  if (/^No execution path configured\b/i.test(reportedFailure) || /^No API keys available\b/i.test(reportedFailure)) {
+    return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
+  }
   if (/^COMMS FAIL/i.test(reportedFailure)) {
     return 'Communication delivery failed. The workflow tried to post to a group or community that is missing or misconfigured.'
   }
@@ -973,9 +991,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
 
-    const blaxelDefaults = integrationDefaults.partners?.blaxel || {}
-    const redisDefaults = integrationDefaults.partners?.redis || {}
-    const workflowSignalsPartner = (partner: 'github' | 'senso' | 'blaxel' | 'redis') => {
+    const workflowSignalsPartner = (partner: 'github' | 'senso') => {
       const text = (workflow.content || '').toLowerCase()
       const requirements = workflow.secretRequirements || []
       const requirementText = requirements
@@ -988,10 +1004,6 @@ export function triggerWorkflow(workflowId: string, options?: {
           return /github|repo|pull request|issue\b|gh\b/.test(haystack)
         case 'senso':
           return /senso|context label|context folder|shared context/.test(haystack)
-        case 'blaxel':
-          return /blaxel|sandbox|project id|deploy/.test(haystack)
-        case 'redis':
-          return /redis|namespace|memory layer|memory store/.test(haystack)
         default:
           return false
       }
@@ -1002,21 +1014,6 @@ export function triggerWorkflow(workflowId: string, options?: {
     }
     if (workflowSignalsPartner('senso') && integrationDefaults.sensoContextLabel && !content.includes(integrationDefaults.sensoContextLabel)) {
       runtimeContextLines.push(`- Senso context: \`${integrationDefaults.sensoContextLabel}\``)
-    }
-    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.projectId === 'string' && blaxelDefaults.projectId.trim() && !content.includes(blaxelDefaults.projectId.trim())) {
-      runtimeContextLines.push(`- Blaxel project: \`${blaxelDefaults.projectId.trim()}\``)
-    }
-    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.defaultSandbox === 'string' && blaxelDefaults.defaultSandbox.trim() && !content.includes(blaxelDefaults.defaultSandbox.trim())) {
-      runtimeContextLines.push(`- Blaxel sandbox: \`${blaxelDefaults.defaultSandbox.trim()}\``)
-    }
-    if (workflowSignalsPartner('blaxel') && typeof blaxelDefaults.region === 'string' && blaxelDefaults.region.trim() && !content.includes(blaxelDefaults.region.trim())) {
-      runtimeContextLines.push(`- Blaxel region: \`${blaxelDefaults.region.trim()}\``)
-    }
-    if (workflowSignalsPartner('redis') && typeof redisDefaults.url === 'string' && redisDefaults.url.trim() && !content.includes(redisDefaults.url.trim())) {
-      runtimeContextLines.push(`- Redis URL: \`${redisDefaults.url.trim()}\``)
-    }
-    if (workflowSignalsPartner('redis') && typeof redisDefaults.namespace === 'string' && redisDefaults.namespace.trim() && !content.includes(redisDefaults.namespace.trim())) {
-      runtimeContextLines.push(`- Redis namespace: \`${redisDefaults.namespace.trim()}\``)
     }
     if (workflow.secretRequirements?.length && options?.secrets) {
       for (const requirement of workflow.secretRequirements) {

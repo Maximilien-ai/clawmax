@@ -326,6 +326,14 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
   assert(detectParticipantReportedFailure('COMMS PASS') === null, 'Expected PASS marker to remain non-failing')
+  assert(
+    detectParticipantReportedFailure('LLM request rejected: You have reached your specified API usage limits.') === 'LLM request rejected: You have reached your specified API usage limits.',
+    'Expected upstream provider rejection to be treated as failure'
+  )
+  assert(
+    detectParticipantReportedFailure('No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.') === 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.',
+    'Expected missing execution path to be treated as failure'
+  )
 })
 
 test('extractGitHubResultLinks finds issue and PR URLs cleanly', () => {

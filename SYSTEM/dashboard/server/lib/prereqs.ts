@@ -40,13 +40,6 @@ interface TemplatePrereqOptions {
   githubRepo?: string
   useSenso?: boolean
   sensoContextLabel?: string
-  useBlaxel?: boolean
-  blaxelProjectId?: string
-  blaxelSandbox?: string
-  blaxelRegion?: string
-  useRedis?: boolean
-  redisUrl?: string
-  redisNamespace?: string
   useWorkspaceFs?: boolean
 }
 
@@ -298,55 +291,6 @@ export function checkTemplatePrereqs(template: {
     })
   }
 
-  if (options.useBlaxel) {
-    const blaxelConfig = integrationConfig.partners?.blaxel || {}
-    const projectId = options.blaxelProjectId?.trim() || `${blaxelConfig.projectId || ''}`.trim()
-    const sandbox = options.blaxelSandbox?.trim() || `${blaxelConfig.defaultSandbox || ''}`.trim()
-    const region = options.blaxelRegion?.trim() || `${blaxelConfig.region || ''}`.trim()
-    checks.push({
-      id: 'blaxel-config',
-      label: 'Blaxel sandbox config',
-      status: projectId || sandbox || region ? 'pass' : 'warn',
-      message: projectId || sandbox || region
-        ? `Blaxel runtime ready${projectId ? ` · project: ${projectId}` : ''}${sandbox ? ` · sandbox: ${sandbox}` : ''}${region ? ` · region: ${region}` : ''}`
-        : 'Blaxel enabled, but no sandbox defaults are set yet',
-      fixHint: projectId || sandbox || region ? undefined : 'Set a Blaxel project, sandbox, or region in the Context step or Workspaces Integrations',
-      category: 'tooling'
-    })
-    checks.push({
-      id: 'blaxel-auth-preview',
-      label: 'Blaxel auth',
-      status: 'warn',
-      message: 'Blaxel auth is browser-local in this preview flow — verify it in Workspaces Integrations before running sandbox-heavy workflows',
-      fixHint: 'Open Workspaces Integrations and validate Blaxel before applying',
-      category: 'auth'
-    })
-  }
-
-  if (options.useRedis) {
-    const redisConfig = integrationConfig.partners?.redis || {}
-    const redisUrl = options.redisUrl?.trim() || `${redisConfig.url || ''}`.trim()
-    const redisNamespace = options.redisNamespace?.trim() || `${redisConfig.namespace || ''}`.trim()
-    checks.push({
-      id: 'redis-config',
-      label: 'Redis memory config',
-      status: redisUrl ? 'pass' : 'warn',
-      message: redisUrl
-        ? `Redis memory ready: ${redisUrl}${redisNamespace ? ` · namespace: ${redisNamespace}` : ''}`
-        : 'Redis enabled, but no Redis URL is configured yet',
-      fixHint: redisUrl ? undefined : 'Set a Redis URL in the Context step or Workspaces Integrations',
-      category: 'tooling'
-    })
-    checks.push({
-      id: 'redis-auth-preview',
-      label: 'Redis auth',
-      status: 'warn',
-      message: 'Redis auth is browser-local in this preview flow — verify it in Workspaces Integrations before relying on shared memory',
-      fixHint: 'Open Workspaces Integrations and validate Redis before applying',
-      category: 'auth'
-    })
-  }
-
   if (options.useWorkspaceFs) {
     checks.push({
       id: 'workspace-files',
@@ -425,32 +369,6 @@ export function checkTemplatePrereqs(template: {
       message: contextLabel
         ? `Senso context will be seeded under ${contextLabel}`
         : 'Senso is enabled, but users should expect context setup friction until a folder/context is chosen'
-    })
-  }
-  if (options.useBlaxel) {
-    const blaxelConfig = integrationConfig.partners?.blaxel || {}
-    const projectId = options.blaxelProjectId?.trim() || `${blaxelConfig.projectId || ''}`.trim()
-    const sandbox = options.blaxelSandbox?.trim() || `${blaxelConfig.defaultSandbox || ''}`.trim()
-    expectations.push({
-      id: 'blaxel-runtime',
-      label: 'Blaxel sandbox runtime',
-      status: projectId || sandbox ? 'ready' : 'limited',
-      message: projectId || sandbox
-        ? `Agents should be able to target Blaxel sandboxes${projectId ? ` in project ${projectId}` : ''}${sandbox ? ` using ${sandbox}` : ''}`
-        : 'Blaxel is enabled, but sandbox execution may require manual setup until project defaults are filled in'
-    })
-  }
-  if (options.useRedis) {
-    const redisConfig = integrationConfig.partners?.redis || {}
-    const redisUrl = options.redisUrl?.trim() || `${redisConfig.url || ''}`.trim()
-    const redisNamespace = options.redisNamespace?.trim() || `${redisConfig.namespace || ''}`.trim()
-    expectations.push({
-      id: 'redis-memory',
-      label: 'Redis shared memory',
-      status: redisUrl ? 'ready' : 'limited',
-      message: redisUrl
-        ? `Agents should be able to use Redis-backed memory${redisNamespace ? ` in namespace ${redisNamespace}` : ''}`
-        : 'Redis is enabled, but shared memory will likely degrade until a Redis endpoint is configured'
     })
   }
   if (options.useWorkspaceFs) {

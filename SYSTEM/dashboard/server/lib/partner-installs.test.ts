@@ -32,20 +32,6 @@ function test(name: string, fn: () => void) {
 
 console.log(`\n${YELLOW}=== Partner Installer Test Suite ===${RESET}\n`)
 
-test('getCuratedPartnerInstaller returns allowlisted Blaxel installer', () => {
-  const installer = getCuratedPartnerInstaller('blaxel-agent-skills')
-  assert(!!installer, 'Expected curated installer')
-  assert(installer?.command[0] === 'npx', 'Expected npx command')
-  assert(installer?.command.join(' ') === 'npx -y skills add blaxel-ai/agent-skills --yes --global', 'Expected exact Blaxel install command')
-})
-
-test('getCuratedPartnerInstaller returns allowlisted Redis installer', () => {
-  const installer = getCuratedPartnerInstaller('redis-agent-skills')
-  assert(!!installer, 'Expected curated installer')
-  assert(installer?.command[0] === 'npx', 'Expected npx command')
-  assert(installer?.command.join(' ') === 'npx -y skills add redis/agent-skills --yes --global', 'Expected exact Redis install command')
-})
-
 test('getCuratedPartnerInstaller rejects unknown command ids', () => {
   assert(getCuratedPartnerInstaller('rm-everything') === null, 'Expected unknown installer to be rejected')
 })

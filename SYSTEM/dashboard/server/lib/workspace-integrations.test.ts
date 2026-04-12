@@ -93,30 +93,15 @@ test('writeWorkspaceIntegrationConfig persists trimmed workspace defaults', () =
   assert(persisted.opikProject === 'clawmax', 'Expected persisted opik project')
 })
 
-test('writeWorkspaceIntegrationConfig persists nested partner config', () => {
+test('writeWorkspaceIntegrationConfig normalizes enabled partner selections', () => {
   const config = writeWorkspaceIntegrationConfig({
-    enabledPartners: [' senso ', 'redis', 'redis'],
-    partners: {
-      blaxel: {
-        projectId: ' demo-project ',
-        defaultSandbox: ' default ',
-        enabled: true,
-      },
-      redis: {
-        url: ' redis://localhost:6379 ',
-        namespace: ' memory-space ',
-      },
-    },
+    enabledPartners: [' senso ', 'github', 'github'],
   })
 
-  assert(config.partners?.blaxel?.projectId === 'demo-project', 'Expected trimmed Blaxel project id')
-  assert(config.partners?.blaxel?.enabled === true, 'Expected boolean partner field preserved')
-  assert(config.partners?.redis?.url === 'redis://localhost:6379', 'Expected trimmed Redis URL')
-  assert(JSON.stringify(config.enabledPartners) === JSON.stringify(['senso', 'redis']), 'Expected enabled partners normalized and deduplicated')
+  assert(JSON.stringify(config.enabledPartners) === JSON.stringify(['senso', 'github']), 'Expected enabled partners normalized and deduplicated')
 
   const persisted = readWorkspaceIntegrationConfig()
-  assert(persisted.partners?.redis?.namespace === 'memory-space', 'Expected persisted Redis namespace')
-  assert(JSON.stringify(persisted.enabledPartners) === JSON.stringify(['senso', 'redis']), 'Expected persisted enabled partners')
+  assert(JSON.stringify(persisted.enabledPartners) === JSON.stringify(['senso', 'github']), 'Expected persisted enabled partners')
 })
 
 if (typeof originalHome === 'undefined') delete process.env.HOME

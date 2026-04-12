@@ -636,7 +636,7 @@ router.post('/agents/import', (req, res) => {
 // POST /api/templates/organizations/import - Import organization from template
 // POST /api/templates/organizations/prereqs — check prerequisites before applying
 router.post('/organizations/prereqs', (req, res) => {
-  const { templateSlug, useGithub, githubRepo, useSenso, sensoContextLabel, useBlaxel, blaxelProjectId, blaxelSandbox, blaxelRegion, useRedis, redisUrl, redisNamespace, useWorkspaceFs } = req.body
+  const { templateSlug, useGithub, githubRepo, useSenso, sensoContextLabel, useWorkspaceFs } = req.body
   if (!templateSlug) {
     return res.status(400).json({ error: 'templateSlug is required' })
   }
@@ -652,13 +652,6 @@ router.post('/organizations/prereqs', (req, res) => {
     githubRepo: typeof githubRepo === 'string' ? githubRepo : undefined,
     useSenso: !!useSenso,
     sensoContextLabel: typeof sensoContextLabel === 'string' ? sensoContextLabel : undefined,
-    useBlaxel: !!useBlaxel,
-    blaxelProjectId: typeof blaxelProjectId === 'string' ? blaxelProjectId : undefined,
-    blaxelSandbox: typeof blaxelSandbox === 'string' ? blaxelSandbox : undefined,
-    blaxelRegion: typeof blaxelRegion === 'string' ? blaxelRegion : undefined,
-    useRedis: !!useRedis,
-    redisUrl: typeof redisUrl === 'string' ? redisUrl : undefined,
-    redisNamespace: typeof redisNamespace === 'string' ? redisNamespace : undefined,
     useWorkspaceFs: !!useWorkspaceFs,
   })
   res.json(result)

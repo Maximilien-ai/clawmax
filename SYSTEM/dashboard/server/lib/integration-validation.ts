@@ -10,8 +10,6 @@ export interface IntegrationValidationResponse {
   gemini?: IntegrationValidationResult
   ollama?: IntegrationValidationResult
   opik?: IntegrationValidationResult
-  blaxel?: IntegrationValidationResult
-  redis?: IntegrationValidationResult
   senso?: IntegrationValidationResult
 }
 
@@ -145,57 +143,6 @@ export async function validateOpikConfig(
   }
 }
 
-export async function validateBlaxelConfig(
-  apiKey: string,
-  projectId: string,
-  fetchImpl: FetchLike = fetch
-): Promise<IntegrationValidationResult> {
-  if (!apiKey.trim()) return skipped('No Blaxel key provided')
-  try {
-    const url = 'https://api.blaxel.ai/v0/models'
-    const res = await fetchImpl(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-        Accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (res.ok) {
-      return valid(projectId.trim() ? `Blaxel key is valid for project "${projectId.trim()}"` : 'Blaxel key is valid')
-    }
-    if (res.status === 401 || res.status === 403) return invalid('Blaxel rejected this key')
-    if (res.status === 404) return invalid('Blaxel API endpoint was not found')
-    return errored(`Blaxel validation returned ${res.status}`)
-  } catch (err: any) {
-    return errored(`Blaxel validation failed: ${err.message || 'network error'}`)
-  }
-}
-
-export async function validateRedisConfig(
-  apiKey: string,
-  url: string
-): Promise<IntegrationValidationResult> {
-  const normalizedApiKey = apiKey.trim()
-  const normalizedUrl = url.trim()
-  if (!normalizedApiKey && !normalizedUrl) return skipped('No Redis configuration provided')
-  if (!normalizedUrl) return invalid('Redis URL is required when using Redis')
-  if (!normalizedApiKey) return invalid('Redis API key or token is required when using Redis')
-
-  try {
-    const parsed = new URL(normalizedUrl)
-    if (!['redis:', 'rediss:'].includes(parsed.protocol)) {
-      return invalid('Redis URL must start with redis:// or rediss://')
-    }
-    if (!parsed.hostname) {
-      return invalid('Redis URL must include a host')
-    }
-  } catch {
-    return invalid('Redis URL is not valid')
-  }
-
-  return valid('Redis config looks complete. Live auth validation is not yet implemented from this form.')
-}
-
 export async function validateSensoConfig(apiKey: string): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Senso key provided')
   return valid('Senso key is present. Live API validation is not yet implemented from this form.')
@@ -210,22 +157,16 @@ export async function validateIntegrations(input: {
   opikApiKey?: string
   opikWorkspace?: string
   opikProject?: string
-  blaxelApiKey?: string
-  blaxelProjectId?: string
-  redisApiKey?: string
-  redisUrl?: string
   sensoApiKey?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, anthropic, gemini, ollama, opik, blaxel, redis, senso] = await Promise.all([
+  const [openai, anthropic, gemini, ollama, opik, senso] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
     validateGeminiKey(input.gemini || '', fetchImpl),
     validateOllamaConfig(input.ollamaBaseUrl || '', input.ollamaDefaultModel || '', fetchImpl),
     validateOpikConfig(input.opikApiKey || '', input.opikWorkspace || '', input.opikProject || '', fetchImpl),
-    validateBlaxelConfig(input.blaxelApiKey || '', input.blaxelProjectId || '', fetchImpl),
-    validateRedisConfig(input.redisApiKey || '', input.redisUrl || ''),
     validateSensoConfig(input.sensoApiKey || ''),
   ])
 
-  return { openai, anthropic, gemini, ollama, opik, blaxel, redis, senso }
+  return { openai, anthropic, gemini, ollama, opik, senso }
 }
