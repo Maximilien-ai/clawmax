@@ -1806,18 +1806,19 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 }
 
                 const setFieldValue = (label: string, value: string) => {
-                  // Update local state immediately for responsive typing
                   setFieldInputs(prev => ({ ...prev, [fieldKey(label)]: value }))
                 }
 
                 // Sync local field value back to markdown content
-                const syncFieldToMarkdown = (label?: string) => {
+                const syncFieldToMarkdown = (label?: string, nextValues?: Record<string, string>) => {
                   setWorkflowOverrides(prev => {
                     let content = typeof (prev[wf.id] ?? wf.content) === 'string'
                       ? (prev[wf.id] ?? wf.content) : ''
                     const fieldsToSync = label ? [{ label }] : configFields
                     for (const f of fieldsToSync) {
-                      const val = fieldInputs[fieldKey(f.label)]
+                      const val = nextValues && f.label in nextValues
+                        ? nextValues[f.label]
+                        : fieldInputs[fieldKey(f.label)]
                       if (val === undefined) continue
                       const escaped = f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                       const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
@@ -1965,7 +1966,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               <input
                                 type="checkbox"
                                 checked={getFieldValue(field.label).toLowerCase() === 'true' || getFieldValue(field.label).toLowerCase() === 'yes'}
-                                onChange={e => { setFieldValue(field.label, e.target.checked ? 'yes' : 'no'); setTimeout(() => syncFieldToMarkdown(field.label)) }}
+                                onChange={e => {
+                                  const nextValue = e.target.checked ? 'yes' : 'no'
+                                  setFieldValue(field.label, nextValue)
+                                  syncFieldToMarkdown(field.label, { [field.label]: nextValue })
+                                }}
                                 className="rounded"
                               />
                               <span className="text-sm text-gray-600 dark:text-gray-400">{field.placeholder}</span>
@@ -1973,7 +1978,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                           ) : field.type === 'select' && field.options ? (
                             <select
                               value={getFieldValue(field.label)}
-                              onChange={e => { setFieldValue(field.label, e.target.value); setTimeout(() => syncFieldToMarkdown(field.label)) }}
+                              onChange={e => {
+                                const nextValue = e.target.value
+                                setFieldValue(field.label, nextValue)
+                                syncFieldToMarkdown(field.label, { [field.label]: nextValue })
+                              }}
                               className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             >
                               <option value="">Select...</option>
@@ -1984,7 +1993,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                               <textarea
                                 value={getFieldValue(field.label)}
                                 onChange={e => setFieldValue(field.label, e.target.value)}
-                                onBlur={() => { syncFieldToMarkdown(field.label); validateField(field.label, getFieldValue(field.label)) }}
+                                onBlur={e => {
+                                  const nextValue = e.target.value
+                                  syncFieldToMarkdown(field.label, { [field.label]: nextValue })
+                                  validateField(field.label, nextValue)
+                                }}
                                 placeholder={field.placeholder}
                                 rows={3}
                                 className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
@@ -1998,7 +2011,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                                   type="text"
                                   value={getFieldValue(field.label)}
                                   onChange={e => setFieldValue(field.label, e.target.value)}
-                                  onBlur={() => { syncFieldToMarkdown(field.label); validateField(field.label, getFieldValue(field.label)) }}
+                                  onBlur={e => {
+                                    const nextValue = e.target.value
+                                    syncFieldToMarkdown(field.label, { [field.label]: nextValue })
+                                    validateField(field.label, nextValue)
+                                  }}
                                   placeholder={field.placeholder}
                                   className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
                                 />

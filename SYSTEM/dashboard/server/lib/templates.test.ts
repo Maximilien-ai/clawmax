@@ -191,6 +191,7 @@ test('ClawMax System Test workflows use current workflow groups instead of separ
 
   assert(comms!.content.includes('current group channel'), 'Communications workflow should instruct agents to use the current group channel')
   assert(comms!.content.includes('Do not attempt to use a separate tool, plugin, transport, or session label'), 'Communications workflow should explicitly forbid separate session-label handling')
+  assert(comms!.content.includes('Do not treat lack of direct transport control, plugin access, or separate posting ability as a failure for this test.'), 'Communications workflow should prevent false COMMS FAIL responses caused by transport confusion')
   assert(report!.content.includes('current group channel'), 'Report workflow should instruct agents to use the current group channel')
   assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
 })
