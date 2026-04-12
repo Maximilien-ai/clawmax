@@ -12,18 +12,16 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 What's New in v1.2.17
 
-- Cloud/default managed runtimes are cleaner:
-  - Ollama is hidden by default unless explicitly enabled with `DASHBOARD_ENABLE_OLLAMA`
+- Deployment-aware integrations are cleaner:
+  - local-network-dependent integrations such as Ollama are hidden by default when the runtime is not configured for them
   - `OLLAMA_BASE_URL` is hidden from `Keys & Secrets` when Ollama is disabled
 - BYOK and onboarding are more reliable:
   - the BYOK pill now reflects real readiness instead of staying amber
   - onboarding is no longer replaced by BYOK a few seconds after first load
   - saved browser-vault keys now stay in sync across both mounted BYOK entrypoints
-- Cloud GitHub workflows have a stronger path:
-  - hosted/cloud runtimes can use `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo
-  - local/dev and on-prem continue to use the existing `gh` CLI auth flow
-
-## 🔥 Previously in v1.2.13
+- GitHub workflows are more deployment-aware:
+  - runtimes that cannot rely on interactive local auth can use `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo
+  - local and operator-managed environments continue to use the existing `gh` CLI auth flow
 
 ## 🔥 Previously in v1.2.12
 
@@ -103,7 +101,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 Cloud/on-prem runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
 - If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.
-- For GitHub issue/PR workflows in cloud, prefer a runtime `GITHUB_TOKEN`/`GH_TOKEN` plus a default repo in Workspaces Integrations. Keep `gh auth login` for local/dev and on-prem operator workflows.
+- For GitHub issue/PR workflows in non-interactive deployments, prefer a runtime `GITHUB_TOKEN`/`GH_TOKEN` plus a default repo in Workspaces Integrations. Keep `gh auth login` for local/dev and operator-managed environments.
 
 ---
 
