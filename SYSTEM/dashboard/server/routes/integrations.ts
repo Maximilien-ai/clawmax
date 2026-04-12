@@ -5,14 +5,16 @@ import { readWorkspaceIntegrationConfig, writeWorkspaceIntegrationConfig } from 
 import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
 import { checkGitHubCliPrereqs } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
+import { getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 
 const router = Router()
 
 router.get('/status', (_req, res) => {
+  const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
   res.json({
     validationAvailable: true,
     validationMode: 'live',
-    providers: ['openai', 'anthropic', 'gemini', 'ollama', 'opik'],
+    providers: ollamaEnabled ? ['openai', 'anthropic', 'gemini', 'ollama', 'opik'] : ['openai', 'anthropic', 'gemini', 'opik'],
     notes: [
       'Validation runs against the current server build.',
       'Provider secrets remain browser-local in this preview flow.',

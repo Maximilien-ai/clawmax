@@ -612,8 +612,20 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onOpenTemplates={() => onNavigateToPage?.('templates')}
           workspaceId={activeWorkspace?.id}
         />
-        <ByokWizard triggerLabel="BYOK" triggerTitle="Configure model providers and local runtime" initialStep="models" openEventName="open-byok-wizard" />
-        <ByokWizard triggerLabel="Partners" triggerTitle="Configure optional partner integrations" initialStep="partners" openEventName="open-partners-wizard" />
+        <ByokWizard
+          triggerLabel="BYOK"
+          triggerTitle="Configure model providers and local runtime"
+          initialStep="models"
+          openEventName="open-byok-wizard"
+          suppressAutoOpen={(system?.agentCount || 0) === 0}
+        />
+        <ByokWizard
+          triggerLabel="Partners"
+          triggerTitle="Configure optional partner integrations"
+          initialStep="partners"
+          openEventName="open-partners-wizard"
+          suppressAutoOpen={(system?.agentCount || 0) === 0}
+        />
         {user && !config?.authDisabled && (
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
             {user.avatar ? (

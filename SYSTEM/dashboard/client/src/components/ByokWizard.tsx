@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
-import { readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 function maskKey(value: string) {
   if (value.length <= 8) return 'configured'
@@ -136,11 +136,13 @@ export function ByokWizard({
   triggerTitle = 'Configure workspaces integrations',
   initialStep = 'models',
   openEventName = 'open-workspaces-integrations',
+  suppressAutoOpen = false,
 }: {
   triggerLabel?: string
   triggerTitle?: string
   initialStep?: Step
   openEventName?: string
+  suppressAutoOpen?: boolean
 } = {}) {
   const { user, config } = useAuth()
   const { showSuccess, showInfo, showWarning } = useToast()
@@ -182,6 +184,24 @@ export function ByokWizard({
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const ollamaEnabled = config?.ollamaEnabled !== false
+
+  const refreshLocalState = React.useCallback(() => {
+    const stored = readStoredByokKeys()
+    const sharedWorkspace = readSharedSecrets('workspace')
+    const sharedGlobal = readSharedSecrets('global')
+    const shared = { ...sharedGlobal, ...sharedWorkspace }
+
+    setOpenaiKey(shared.OPENAI_API_KEY || stored.openai || '')
+    setAnthropicKey(shared.ANTHROPIC_API_KEY || stored.anthropic || '')
+    setGeminiApiKey(shared.GEMINI_API_KEY || stored.geminiApiKey || '')
+    setOllamaBaseUrl(shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || defaultOllamaBaseUrl)
+    setOllamaDefaultModel(stored.ollamaDefaultModel || '')
+    setPreferredModel(stored.preferredModel || '')
+    setPartnerSecrets(stored.partnerSecrets || {})
+    setPartnerValues(stored.partnerValues || {})
+    setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
+  }, [])
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -208,21 +228,19 @@ export function ByokWizard({
   }, [showInfo, showSuccess, showWarning])
 
   useEffect(() => {
-    const stored = readStoredByokKeys()
-    const sharedWorkspace = readSharedSecrets('workspace')
-    const sharedGlobal = readSharedSecrets('global')
-    const shared = { ...sharedGlobal, ...sharedWorkspace }
-    setOpenaiKey(shared.OPENAI_API_KEY || stored.openai || '')
-    setAnthropicKey(shared.ANTHROPIC_API_KEY || stored.anthropic || '')
-    setGeminiApiKey(shared.GEMINI_API_KEY || stored.geminiApiKey || '')
-    setOllamaBaseUrl(shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || defaultOllamaBaseUrl)
-    setOllamaDefaultModel(stored.ollamaDefaultModel || '')
-    setPreferredModel(stored.preferredModel || '')
-    setPartnerSecrets(stored.partnerSecrets || {})
-    setPartnerValues(stored.partnerValues || {})
-    setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
+    refreshLocalState()
     setHydrated(true)
-  }, [])
+  }, [refreshLocalState])
+
+  useEffect(() => {
+    const handleVaultUpdated = () => refreshLocalState()
+    window.addEventListener(BROWSER_VAULT_UPDATED_EVENT, handleVaultUpdated)
+    window.addEventListener('integrations-saved', handleVaultUpdated)
+    return () => {
+      window.removeEventListener(BROWSER_VAULT_UPDATED_EVENT, handleVaultUpdated)
+      window.removeEventListener('integrations-saved', handleVaultUpdated)
+    }
+  }, [refreshLocalState])
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
@@ -287,7 +305,7 @@ export function ByokWizard({
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
   const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
   const normalizedOllamaBaseUrl = ollamaBaseUrl.trim()
-  const ollamaConfigured = !!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl)
+  const ollamaConfigured = ollamaEnabled && (!!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl))
 
   const getPartnerSecret = React.useCallback((slug: string, key: string) => partnerSecrets[slug]?.[key] || '', [partnerSecrets])
   const getPartnerValue = React.useCallback((slug: string, key: string) => partnerValues[slug]?.[key] || '', [partnerValues])
@@ -349,6 +367,12 @@ export function ByokWizard({
     }
   }, [step, stepOrder])
 
+  useEffect(() => {
+    if (!ollamaEnabled && modelTab === 'ollama') {
+      setModelTab('openai')
+    }
+  }, [modelTab, ollamaEnabled])
+
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!getPartnerSecret('senso', 'apiKey').trim()
   const opikApiKey = getPartnerSecret('opik', 'apiKey')
@@ -393,7 +417,7 @@ export function ByokWizard({
       { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
     ]
 
-    if (ollamaDefaultModel.trim()) {
+    if (ollamaEnabled && ollamaDefaultModel.trim()) {
       checks.push({
         id: 'ollama',
         label: 'Ollama',
@@ -414,16 +438,18 @@ export function ByokWizard({
     hasGeminiAvailable,
     hasOpenAiAvailable,
     ollamaDefaultModel,
+    ollamaEnabled,
     openaiKey,
   ])
 
   useEffect(() => {
     if (!hydrated) return
     if (!user && !config?.authDisabled) return
+    if (suppressAutoOpen) return
     if (onboardingOpen) return
     if (hasDefaultUserKeys || hasStoredKeys || dismissed) return
     setOpen(true)
-  }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, user])
+  }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, suppressAutoOpen, user])
 
   useEffect(() => {
     const openWizard = () => {
@@ -508,6 +534,10 @@ export function ByokWizard({
   }, [open, refreshGithubChecks])
 
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
+    if (!ollamaEnabled) {
+      setOllamaModels([])
+      return
+    }
     const baseUrl = ollamaBaseUrl.trim()
     if (!baseUrl) {
       setOllamaModels([])
@@ -539,14 +569,14 @@ export function ByokWizard({
     } finally {
       setOllamaModelsLoading(false)
     }
-  }, [ollamaBaseUrl])
+  }, [ollamaBaseUrl, ollamaEnabled])
 
   const loadAvailableModels = React.useCallback(async (forceRefresh: boolean = false) => {
     const payload = {
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
-      ollamaBaseUrl: ollamaBaseUrl.trim(),
+      ollamaBaseUrl: ollamaEnabled ? ollamaBaseUrl.trim() : '',
     }
 
     try {
@@ -586,15 +616,28 @@ export function ByokWizard({
     return 'No user keys configured yet'
   }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
 
+  const triggerReady =
+    initialStep === 'partners'
+      ? selectedPartnerDefinitions.some((partner) => {
+          const hasSecret = (partner.fields || []).some((field) => field.secret && !!getPartnerSecret(partner.slug, field.key).trim())
+          const hasValue = (partner.fields || []).some((field) => !field.secret && !!getPartnerValue(partner.slug, field.key).trim())
+          if (partner.slug === 'github') return githubReady || !!githubDefaultRepo.trim()
+          if (partner.slug === 'senso') return sensoConfigured || !!sensoContextLabel.trim()
+          if (partner.slug === 'opik') return opikConfigured || !!opikWorkspace.trim() || !!opikProject.trim()
+          return hasSecret || hasValue
+        })
+      : hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || (ollamaEnabled && ollamaConfigured)
+
   const monitoringStatusText = useMemo(() => {
     if (opikApiKey) {
       const parts = [`Opik ${maskKey(opikApiKey)}`]
       if (opikWorkspace) parts.push(`workspace: ${opikWorkspace}`)
       if (opikProject) parts.push(`project: ${opikProject}`)
-      parts.push('server env required for live tracing')
+      parts.push('browser defaults only')
+      parts.push('runtime OPIK_* env still required for tracing and budget data')
       return parts.join(' · ')
     }
-    return 'Not configured — ClawMax still works, but monitoring visibility may be reduced'
+    return 'Not configured — browser defaults are empty, and runtime tracing/budget data stay off until OPIK_* env is configured on the dashboard runtime'
   }, [opikApiKey, opikProject, opikWorkspace])
 
   const ollamaStatusText = useMemo(() => {
@@ -698,7 +741,7 @@ export function ByokWizard({
       || anthropicKey.trim()
       || geminiApiKey.trim()
       || opikApiKey.trim()
-      || ollamaConfigured
+      || (ollamaEnabled && ollamaConfigured)
       || getPartnerSecret('senso', 'apiKey').trim()
     )
     if (shouldValidate) {
@@ -723,7 +766,7 @@ export function ByokWizard({
       anthropic: providerKeyValues.anthropic,
       geminiApiKey: providerKeyValues.gemini,
       ollamaBaseUrl: providerKeyValues.ollamaBaseUrl,
-      ollamaDefaultModel: ollamaDefaultModel.trim(),
+      ollamaDefaultModel: ollamaEnabled ? ollamaDefaultModel.trim() : '',
       sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
       sensoContextLabel: sensoContextLabel.trim(),
       opikApiKey: opikApiKey.trim(),
@@ -757,8 +800,8 @@ export function ByokWizard({
         preferredModel: preferredModel || undefined,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
-        ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
-        ollamaDefaultModel: ollamaDefaultModel.trim() || undefined,
+        ollamaBaseUrl: ollamaEnabled ? (ollamaBaseUrl.trim() || undefined) : undefined,
+        ollamaDefaultModel: ollamaEnabled ? (ollamaDefaultModel.trim() || undefined) : undefined,
         opikWorkspace: opikWorkspace.trim() || undefined,
         opikProject: opikProject.trim() || undefined,
         enabledPartners: selectedPartners,
@@ -796,9 +839,9 @@ export function ByokWizard({
 
     try {
       await navigator.clipboard.writeText(snippet)
-      showSuccess('Copied OPIK_* env snippet. Paste into SYSTEM/dashboard/.env and restart the dashboard.')
+      showSuccess('Copied OPIK_* env snippet. Add it to the dashboard runtime env and restart to enable Opik tracing and budget data.')
     } catch {
-      showWarning('Could not copy automatically. Select the generated OPIK_* values and paste them into SYSTEM/dashboard/.env.')
+      showWarning('Could not copy automatically. Copy the generated OPIK_* values into the dashboard runtime env; browser-only values are not enough.')
     }
   }
 
@@ -929,8 +972,8 @@ export function ByokWizard({
         ? `Configured ${maskKey(getPartnerSecret('senso', 'apiKey'))}${sensoContextLabel ? ` · context: ${sensoContextLabel}` : ''}`
         : 'Not configured — workspace files remain the default shared context layer'
     }
-    if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — monitoring will be limited or ignored'
-    if (partner.slug === 'github') return githubReady ? 'GitHub CLI and issue workflows look ready.' : 'GitHub delivery workflows need auth before agents can create issues or PRs.'
+    if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — this UI can store Opik defaults, but runtime tracing and budget data still require dashboard OPIK_* env'
+    if (partner.slug === 'github') return githubReady ? 'GitHub CLI-based issue workflows look ready in this runtime.' : 'GitHub delivery workflows need auth in the current runtime. Cloud support is still CLI-dependent today.'
 
     const secretFields = (partner.fields || []).filter((field) => field.secret && getPartnerSecret(partner.slug, field.key).trim())
     const plainFields = (partner.fields || []).filter((field) => !field.secret && getPartnerValue(partner.slug, field.key).trim())
@@ -953,14 +996,14 @@ export function ByokWizard({
     if (partner.slug === 'opik') {
       return (
         <>
-          Connect your own Opik account to track agent calls, tokens, and costs under your workspace. Live tracing still requires matching server-side <span className="font-mono">OPIK_*</span> env vars plus a dashboard restart.
+          Store Opik workspace defaults here if you want them available during setup. This browser form does <span className="font-semibold">not</span> enable runtime monitoring, token/cost tracking, or budget visibility by itself. Those require server-side <span className="font-mono">OPIK_*</span> env vars on the dashboard runtime and a restart.
         </>
       )
     }
     if (partner.slug === 'github') {
       return (
         <>
-          Use GitHub for issues, PRs, code review, and shared delivery workflows. ClawMax can check GitHub readiness here and run the auth flow in-product so you do not have to leave the workspace.
+          Use GitHub for issues, PRs, code review, and shared delivery workflows. Today this page checks the GitHub CLI path. That works best in local or dev environments. Cloud deployments still need a stronger token or app based connection path.
         </>
       )
     }
@@ -1088,7 +1131,11 @@ export function ByokWizard({
     <>
       <button
         onClick={handleReopen}
-        className="text-xs rounded-full border border-amber-300/60 bg-amber-50 px-2.5 py-1 text-amber-700 hover:bg-amber-100 transition-colors dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+        className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
+          triggerReady
+            ? 'border-emerald-300/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+            : 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+        }`}
         title={triggerTitle}
       >
         {triggerLabel}
@@ -1159,7 +1206,7 @@ export function ByokWizard({
               </div>
               <div className="mt-1 text-xs opacity-90">
                 {integrationStatus?.validationAvailable
-                  ? 'This server can validate provider keys and local Ollama reachability right now.'
+                  ? (ollamaEnabled ? 'This server can validate provider keys and local Ollama reachability right now.' : 'This server can validate hosted provider keys right now.')
                   : 'This server cannot validate integrations live right now. Local browser save still works, and template defaults still prefill.'}
               </div>
               {templateDefaultsSummary.length > 0 && (
@@ -1211,7 +1258,7 @@ export function ByokWizard({
                       { id: 'anthropic', label: 'Anthropic', tone: 'Paid' },
                       { id: 'gemini', label: 'Gemini', tone: 'Paid' },
                       { id: 'ollama', label: 'Ollama', tone: 'OSS' },
-                    ] as Array<{ id: ModelTab; label: string; tone: string }>).map((tab) => (
+                    ] as Array<{ id: ModelTab; label: string; tone: string }>).filter((tab) => ollamaEnabled || tab.id !== 'ollama').map((tab) => (
                       <button
                         key={tab.id}
                         type="button"
@@ -1257,7 +1304,7 @@ export function ByokWizard({
                     </div>
                   )}
 
-                  {modelTab === 'ollama' && (
+                  {ollamaEnabled && modelTab === 'ollama' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Local open-source models. You manage the Ollama runtime and installed models on your own machine or host.</p>
@@ -1336,7 +1383,7 @@ export function ByokWizard({
                                 <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
                               </>
                             )}
-                            {ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
+                            {ollamaEnabled && ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
                           </>
                         )}
                       </select>
@@ -1472,7 +1519,7 @@ export function ByokWizard({
                     <div className="font-medium text-gray-900 dark:text-gray-100">GitHub readiness</div>
                     <div className="mt-2 space-y-2">
                       {githubChecks.length === 0 ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub CLI and issue workflow support…</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Checking GitHub CLI readiness for this runtime…</div>
                       ) : githubChecks.map((check) => (
                         <div
                           key={check.id}
@@ -1496,7 +1543,7 @@ export function ByokWizard({
                         disabled={githubAuthRunning}
                         className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
                       >
-                        {githubAuthRunning ? 'Connecting…' : 'Connect GitHub'}
+                        {githubAuthRunning ? 'Connecting…' : 'Connect GitHub CLI'}
                       </button>
                       <button
                         type="button"
@@ -1516,7 +1563,7 @@ export function ByokWizard({
                       </button>
                     </div>
                     <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                      ClawMax can run the GitHub CLI auth flow here, stream the terminal output, and recheck readiness when it finishes.
+                      This is the current GitHub CLI auth flow for the active runtime. It is reliable in local/dev setups. Cloud-safe token or app based GitHub auth still needs a dedicated follow-through path.
                     </div>
                     {(githubDeviceCode || githubDeviceUrl) && (
                       <div className="mt-3 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-3 py-3 text-sm text-sky-900 dark:text-sky-100">

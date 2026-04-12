@@ -14,6 +14,8 @@ interface AuthConfig {
   otpEnabled?: boolean
   authMode?: string
   authDisabled: boolean
+  managedRuntime?: boolean
+  ollamaEnabled?: boolean
   allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
     openai: boolean

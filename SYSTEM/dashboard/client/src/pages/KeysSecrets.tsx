@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { useAuth } from '../contexts/AuthContext'
 import { readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
@@ -202,6 +203,8 @@ function SecretSection({
 export default function KeysSecrets() {
   const { showSuccess } = useToast()
   const { activeWorkspace } = useWorkspace()
+  const { config } = useAuth()
+  const ollamaEnabled = config?.ollamaEnabled !== false
   const [globalDrafts, setGlobalDrafts] = useState<SecretDraft[]>([])
   const [workspaceDrafts, setWorkspaceDrafts] = useState<SecretDraft[]>([])
   const [importScope, setImportScope] = useState<'workspace' | 'global'>('workspace')
@@ -220,9 +223,9 @@ export default function KeysSecrets() {
       ...(stored.openai?.trim() ? { OPENAI_API_KEY: stored.openai.trim() } : {}),
       ...(stored.anthropic?.trim() ? { ANTHROPIC_API_KEY: stored.anthropic.trim() } : {}),
       ...(stored.geminiApiKey?.trim() ? { GEMINI_API_KEY: stored.geminiApiKey.trim() } : {}),
-      ...(stored.ollamaBaseUrl?.trim() ? { OLLAMA_BASE_URL: stored.ollamaBaseUrl.trim() } : {}),
+      ...(ollamaEnabled && stored.ollamaBaseUrl?.trim() ? { OLLAMA_BASE_URL: stored.ollamaBaseUrl.trim() } : {}),
     })
-  }, [activeWorkspace?.id])
+  }, [activeWorkspace?.id, ollamaEnabled])
 
   useEffect(() => {
     refreshVaultState()
@@ -320,13 +323,21 @@ export default function KeysSecrets() {
 
   const globalPreview = useMemo(() => toRecord(globalDrafts), [globalDrafts])
   const workspacePreview = useMemo(() => toRecord(workspaceDrafts), [workspaceDrafts])
+  const visibleGlobalPreview = useMemo(
+    () => (ollamaEnabled ? globalPreview : Object.fromEntries(Object.entries(globalPreview).filter(([key]) => key !== 'OLLAMA_BASE_URL'))),
+    [globalPreview, ollamaEnabled]
+  )
+  const visibleWorkspacePreview = useMemo(
+    () => (ollamaEnabled ? workspacePreview : Object.fromEntries(Object.entries(workspacePreview).filter(([key]) => key !== 'OLLAMA_BASE_URL'))),
+    [workspacePreview, ollamaEnabled]
+  )
   const globalManagedConflicts = useMemo(
-    () => findManagedSecretConflicts(globalPreview, managedSecrets),
-    [globalPreview, managedSecrets]
+    () => findManagedSecretConflicts(visibleGlobalPreview, managedSecrets),
+    [visibleGlobalPreview, managedSecrets]
   )
   const workspaceManagedConflicts = useMemo(
-    () => findManagedSecretConflicts(workspacePreview, managedSecrets),
-    [workspacePreview, managedSecrets]
+    () => findManagedSecretConflicts(visibleWorkspacePreview, managedSecrets),
+    [visibleWorkspacePreview, managedSecrets]
   )
   const matchesKeyInventoryFilters = React.useCallback((key: string, value: string) => {
     const search = keySearch.trim().toLowerCase()
@@ -342,12 +353,12 @@ export default function KeysSecrets() {
     return matchText.includes(search)
   }, [keySearch, keyGroupFilter, partnerDefinitions, knownMatches])
   const filteredWorkspaceEntries = useMemo(
-    () => Object.entries(workspacePreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
-    [workspacePreview, matchesKeyInventoryFilters]
+    () => Object.entries(visibleWorkspacePreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
+    [visibleWorkspacePreview, matchesKeyInventoryFilters]
   )
   const filteredGlobalEntries = useMemo(
-    () => Object.entries(globalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
-    [globalPreview, matchesKeyInventoryFilters]
+    () => Object.entries(visibleGlobalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
+    [visibleGlobalPreview, matchesKeyInventoryFilters]
   )
   const totalVisibleKeyEntries = filteredWorkspaceEntries.length + filteredGlobalEntries.length
   const keyGroupTabs: Array<{ key: KeyGroup; label: string }> = [
@@ -427,11 +438,11 @@ export default function KeysSecrets() {
         <SecretSection
           title={`Workspace Keys${activeWorkspace ? ` · ${activeWorkspace.name}` : ''}`}
           description="Use these for secrets that should stay scoped to the current workspace."
-          drafts={workspaceDrafts}
+          drafts={ollamaEnabled ? workspaceDrafts : workspaceDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')}
           setDrafts={setWorkspaceDrafts}
-          defaultOpen={workspaceDrafts.length === 0}
+          defaultOpen={(ollamaEnabled ? workspaceDrafts : workspaceDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
           onSave={() => {
-            writeSharedSecrets(workspacePreview, { scope: 'workspace', workspaceId: activeWorkspace?.id })
+            writeSharedSecrets(visibleWorkspacePreview, { scope: 'workspace', workspaceId: activeWorkspace?.id })
             showSuccess('Saved workspace keys')
           }}
         />
@@ -439,11 +450,11 @@ export default function KeysSecrets() {
         <SecretSection
           title="Global Keys"
           description="Use these for secrets you want available across all workspaces in this browser."
-          drafts={globalDrafts}
+          drafts={ollamaEnabled ? globalDrafts : globalDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')}
           setDrafts={setGlobalDrafts}
-          defaultOpen={globalDrafts.length === 0}
+          defaultOpen={(ollamaEnabled ? globalDrafts : globalDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
           onSave={() => {
-            writeSharedSecrets(globalPreview, { scope: 'global' })
+            writeSharedSecrets(visibleGlobalPreview, { scope: 'global' })
             showSuccess('Saved global keys')
           }}
         />
@@ -501,11 +512,11 @@ export default function KeysSecrets() {
         <div className="mt-3 grid max-h-[28rem] gap-4 md:grid-cols-2">
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Global ({Object.keys(globalPreview).length})
+              Global ({Object.keys(visibleGlobalPreview).length})
             </div>
             <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-              {Object.entries(globalPreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.entries(globalPreview).length > 0 && filteredGlobalEntries.length === 0 && (
+              {Object.entries(visibleGlobalPreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.entries(visibleGlobalPreview).length > 0 && filteredGlobalEntries.length === 0 && (
                 <span className="text-sm text-gray-400">No global keys match your search or group filter.</span>
               )}
               {filteredGlobalEntries.map(([key, value]) => (
@@ -535,11 +546,11 @@ export default function KeysSecrets() {
           </div>
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Workspace ({Object.keys(workspacePreview).length})
+              Workspace ({Object.keys(visibleWorkspacePreview).length})
             </div>
             <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-              {Object.entries(workspacePreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.entries(workspacePreview).length > 0 && filteredWorkspaceEntries.length === 0 && (
+              {Object.entries(visibleWorkspacePreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.entries(visibleWorkspacePreview).length > 0 && filteredWorkspaceEntries.length === 0 && (
                 <span className="text-sm text-gray-400">No workspace keys match your search or group filter.</span>
               )}
               {filteredWorkspaceEntries.map(([key, value]) => (

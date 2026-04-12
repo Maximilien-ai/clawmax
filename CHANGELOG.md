@@ -7,6 +7,26 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+## [v1.2.17] - 2026-04-12
+
+### Fixes — BYOK, Onboarding, and Cloud Runtime UX
+- **BYOK State Sync** — the `BYOK` and `Partners` entrypoints now resync from browser-vault updates so saved provider keys persist visibly across both mounted wizard instances instead of drifting stale
+- **BYOK Readiness Pill** — the top-bar `BYOK` trigger now turns green when a usable provider path is available instead of staying hardcoded amber
+- **Onboarding / BYOK Race Hardening** — onboarding now suppresses BYOK auto-open directly from `App`, preventing the first-run onboarding flow from being replaced a few seconds later by the BYOK modal
+- **Opik Copy Tightening** — Workspaces Integrations now says clearly that browser-stored Opik defaults do not enable runtime tracing, budgeting, or monitoring by themselves; runtime `OPIK_*` env is still required
+- **Cloud GitHub Copy Hardening** — GitHub readiness copy now reflects the current CLI-based limitation and no longer implies cloud readiness is as strong as local/dev
+
+### Fixes — Cloud Ollama Visibility Contract
+- **Managed Runtime Ollama Default** — Ollama is now hidden by default in managed/cloud dashboard runtimes so cloud users are not prompted to configure a local model path the deployment cannot actually reach
+- **Explicit Ollama UI Override** — added `DASHBOARD_ENABLE_OLLAMA` so operators can force-enable or force-hide Ollama in the dashboard UI as needed
+- **Cloud UI Surface Cleanup** — when Ollama is disabled, the dashboard removes Ollama from Workspaces Integrations, onboarding guidance, Add Agent model-selection affordances, and Keys & Secrets inventory
+
+### Docs
+- **Env Contract Documentation** — documented `DASHBOARD_ENABLE_OLLAMA` in `SYSTEM/dashboard/.env.example` and `README.md` for CLI/web handoff and deployment clarity
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`
+
 ## [v1.2.16] - 2026-04-12
 
 ### Fixes — Template Library and Runtime Doctor

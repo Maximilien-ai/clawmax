@@ -242,7 +242,9 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
                   <div className="text-sm font-medium text-amber-800 dark:text-amber-200">Set BYOK and runtime first</div>
                   <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                    If you want templates, AI generation, or system agents to work cleanly, configure BYOK or Ollama before you start.
+                    {config?.ollamaEnabled === false
+                      ? 'If you want templates, AI generation, or system agents to work cleanly, configure BYOK before you start.'
+                      : 'If you want templates, AI generation, or system agents to work cleanly, configure BYOK or Ollama before you start.'}
                   </p>
                 </div>
 

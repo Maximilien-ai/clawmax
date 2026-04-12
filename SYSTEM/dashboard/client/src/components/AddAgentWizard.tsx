@@ -48,6 +48,7 @@ interface ValidationResult {
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
+  const ollamaEnabled = config?.ollamaEnabled !== false
   const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -92,10 +93,13 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     // Fetch available models based on API keys (includes BYOK)
     fetchModelsWithByok()
       .then(d => {
-        const models = d.models || []
+        const models = (d.models || []).filter((model: string) => ollamaEnabled || !model.startsWith('ollama/'))
+        const filteredModelsByProvider = Object.fromEntries(
+          Object.entries(d.modelsByProvider || {}).filter(([providerId]) => ollamaEnabled || providerId !== 'ollama')
+        )
         setAvailableModels(models)
         setModelsLoaded(true)
-        setModelsByProvider(d.modelsByProvider || {})
+        setModelsByProvider(filteredModelsByProvider)
 
         // Pick best model based on configured keys
         if (models.length > 0) {
@@ -111,7 +115,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
               const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
               const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
-              const hasOllama = !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
+              const hasOllama = ollamaEnabled && !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
 
               let defaultModel: string
               if (hasOllama) {
@@ -173,7 +177,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         setAgentTemplates(templates)
       })
       .catch(() => {})
-  }, [])
+  }, [ollamaEnabled])
 
   // Pre-fill form when template is selected
   useEffect(() => {
@@ -532,7 +536,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 </select>
                 {modelsLoaded && availableModels.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
-                    No models are available yet. Configure OpenAI, Anthropic, Gemini, or a local Ollama runtime in Workspaces Integrations.
+                    {ollamaEnabled
+                      ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, or a local Ollama runtime in Workspaces Integrations.'
+                      : 'No models are available yet. Configure OpenAI, Anthropic, or Gemini in Workspaces Integrations.'}
                   </p>
                 )}
               </div>

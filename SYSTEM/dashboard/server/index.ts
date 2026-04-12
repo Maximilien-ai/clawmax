@@ -30,7 +30,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthC
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -151,13 +151,17 @@ app.use('/api/auth', createAuthRouter())
 // Auth config info (public — so login page knows what's available)
 app.get('/api/auth/config', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
+  const rawEnv = getDashboardEnvRaw()
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
+  const managedRuntime = isManagedRuntime(rawEnv)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     otpEnabled: isOtpAuthConfigured(),
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
+    managedRuntime,
+    ollamaEnabled: isOllamaUiEnabled(rawEnv),
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
@@ -183,6 +187,8 @@ const protect = requireGitHubAuth
 // Workspace system info — installation identity card
 app.get('/api/system', protect, (_req, res) => {
   const workspacePath = getWorkspacePath()
+  const rawEnv = getDashboardEnvRaw()
+  const managedRuntime = isManagedRuntime(rawEnv)
   let gitBranch = 'unknown'
   try {
     const head = fs.readFileSync(path.join(workspacePath, '.git', 'HEAD'), 'utf-8').trim()
@@ -200,6 +206,8 @@ app.get('/api/system', protect, (_req, res) => {
     onlineCount: activeAgents.filter(a => a.status === 'online').length,
     version: getLatestTag() ?? '0.1.0',
     gitBranch,
+    managedRuntime,
+    ollamaEnabled: isOllamaUiEnabled(rawEnv),
     orgName: getOrgName() ?? null,
   })
 })

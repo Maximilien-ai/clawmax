@@ -295,6 +295,12 @@ OTP_DEV_MODE=log
 # Optional partner visibility in Workspaces Integrations
 WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 
+# Optional Ollama visibility override for Workspaces Integrations.
+# Default:
+# - local / on-prem with dashboard .env present: enabled
+# - managed / cloud runtime with no dashboard .env: hidden
+DASHBOARD_ENABLE_OLLAMA=false
+
 # Optional extra partner roots
 CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS
 ```
@@ -303,6 +309,7 @@ Notes:
 - Built-in partner definitions ship in the repo-level `PARTNERS/` directory.
 - `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
 - If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
+- `DASHBOARD_ENABLE_OLLAMA` controls only whether Ollama appears in the dashboard UI. It does not provision an Ollama runtime for cloud deployments.
 
 ### First Steps
 

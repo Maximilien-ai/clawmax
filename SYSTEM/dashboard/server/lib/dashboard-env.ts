@@ -63,6 +63,17 @@ export function getDashboardEnvRaw(): Record<string, string> {
   return { ...dashboardEnv }
 }
 
+export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv): boolean {
+  return Object.keys(rawEnv).length === 0
+}
+
+export function isOllamaUiEnabled(rawEnv: Record<string, string> = dashboardEnv): boolean {
+  const explicit = firstNonEmpty(rawEnv, 'DASHBOARD_ENABLE_OLLAMA') || process.env.DASHBOARD_ENABLE_OLLAMA?.trim()
+  if (explicit === 'true') return true
+  if (explicit === 'false') return false
+  return !isManagedRuntime(rawEnv)
+}
+
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
   const allowProcessFallback = rawEnv === dashboardEnv && isContainerMode
   const lookup = allowProcessFallback
