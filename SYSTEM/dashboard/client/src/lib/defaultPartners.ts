@@ -4,6 +4,7 @@ export type DefaultPartnerFieldDefinition = {
   type: 'text' | 'password' | 'select'
   required?: boolean
   secret?: boolean
+  storage?: 'browser' | 'server'
 }
 
 export type DefaultPartnerDefinition = {
@@ -31,6 +32,14 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     category: 'delivery',
     enabledByDefault: true,
     fields: [
+      {
+        key: 'token',
+        label: 'Runtime token',
+        type: 'password',
+        required: false,
+        secret: true,
+        storage: 'server',
+      },
       {
         key: 'defaultRepo',
         label: 'Default repository',

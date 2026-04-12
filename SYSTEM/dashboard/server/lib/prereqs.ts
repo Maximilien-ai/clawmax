@@ -8,9 +8,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { getConfiguredGatewayPort, isGatewayConfigured, isGatewayRunning } from './gateway-rpc'
-import { getSystemProviderKeys, getUserDefaultProviderKeys } from './dashboard-env'
-import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { listAvailableSkills } from './skills'
+import { getDashboardEnvRaw, getSystemProviderKeys, getUserDefaultProviderKeys, isManagedRuntime } from './dashboard-env'
+import { getWorkspaceGitHubToken, readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { getSkillById, listAvailableSkills } from './skills'
 
 export interface PrereqCheck {
   id: string
@@ -161,12 +161,13 @@ export function buildGitHubAuthChecks(commandAvailable: boolean, output: string)
 }
 
 export function getGitHubTokenFromEnv(): string | undefined {
-  const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || ''
+  const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || getWorkspaceGitHubToken() || ''
   return token || undefined
 }
 
 export function getGitHubAuthMode(): GitHubAuthMode {
   if (getGitHubTokenFromEnv()) return 'token'
+  if (isManagedRuntime(getDashboardEnvRaw())) return 'none'
   return commandExists('gh') ? 'gh' : 'none'
 }
 
@@ -193,6 +194,27 @@ export function buildGitHubTokenChecks(repo?: string): PrereqCheck[] {
   ]
 }
 
+export function buildManagedRuntimeGitHubChecks(): PrereqCheck[] {
+  return [
+    {
+      id: 'github-auth',
+      label: 'GitHub runtime token',
+      status: 'fail',
+      message: 'This hosted runtime needs GITHUB_TOKEN or GH_TOKEN for GitHub issue and PR workflows',
+      fixHint: 'Set GITHUB_TOKEN or GH_TOKEN in the runtime env, then recheck status',
+      category: 'auth'
+    },
+    {
+      id: 'gh-issues',
+      label: 'GitHub Issues (repo access)',
+      status: 'fail',
+      message: 'GitHub issue workflows are unavailable until a runtime token is configured',
+      fixHint: 'Set GITHUB_TOKEN or GH_TOKEN and keep a default owner/repo configured',
+      category: 'auth'
+    },
+  ]
+}
+
 export function checkGitHubCliPrereqs(): PrereqCheck[] {
   const commandAvailable = commandExists('gh')
   const authStatus = commandAvailable ? getGhAuthStatusOutput() : { ok: false, output: '' }
@@ -200,8 +222,12 @@ export function checkGitHubCliPrereqs(): PrereqCheck[] {
 }
 
 export function checkGitHubPrereqs(options: { repo?: string } = {}): PrereqCheck[] {
-  if (getGitHubTokenFromEnv()) {
+  const mode = getGitHubAuthMode()
+  if (mode === 'token') {
     return buildGitHubTokenChecks(options.repo)
+  }
+  if (mode === 'none' && isManagedRuntime(getDashboardEnvRaw())) {
+    return buildManagedRuntimeGitHubChecks()
   }
   return checkGitHubCliPrereqs()
 }
@@ -227,6 +253,7 @@ export function checkTemplatePrereqs(template: {
   const expectations: PrereqExpectation[] = []
   const integrationConfig = readWorkspaceIntegrationConfig()
   const availableSkillNames = new Set(listAvailableSkills().map((skill) => skill.name))
+  const preferredModel = integrationConfig.preferredModel?.trim()
 
   // ── Infrastructure checks ──
   // OpenClaw CLI
@@ -255,7 +282,8 @@ export function checkTemplatePrereqs(template: {
   const hasSystemKeys = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini)
   const hasUserKeys = !!(userKeys.openai || userKeys.anthropic || userKeys.gemini)
   const hasOllamaPath = !!(integrationConfig.ollamaBaseUrl?.trim() && integrationConfig.ollamaDefaultModel?.trim())
-  const hasExecutionPath = hasSystemKeys || hasUserKeys || hasOllamaPath
+  const hasPreferredModel = !!preferredModel
+  const hasExecutionPath = hasSystemKeys || hasUserKeys || hasOllamaPath || hasPreferredModel
 
   if (hasOllamaPath) {
     checks.push({
@@ -263,6 +291,14 @@ export function checkTemplatePrereqs(template: {
       label: 'Execution Model Path',
       status: 'pass',
       message: `Ollama default ready (${integrationConfig.ollamaDefaultModel})`,
+      category: 'keys'
+    })
+  } else if (hasPreferredModel) {
+    checks.push({
+      id: 'execution-path',
+      label: 'Execution Model Path',
+      status: 'pass',
+      message: `Workspace preferred model configured (${preferredModel})`,
       category: 'keys'
     })
   } else if (hasSystemKeys) {
@@ -349,7 +385,7 @@ export function checkTemplatePrereqs(template: {
   }
 
   for (const skillId of allSkills) {
-    if (!availableSkillNames.has(skillId)) {
+    if (!availableSkillNames.has(skillId) && !getSkillById(skillId)) {
       checks.push({
         id: `skill-available:${skillId}`,
         label: `Skill available: ${skillId}`,

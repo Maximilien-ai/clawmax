@@ -1,7 +1,13 @@
 import { Router } from 'express'
 import { spawn } from 'child_process'
 import { validateIntegrations } from '../lib/integration-validation'
-import { readWorkspaceIntegrationConfig, writeWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
+import {
+  getWorkspaceIntegrationSecretPresence,
+  readWorkspaceIntegrationConfig,
+  readWorkspaceIntegrationSecrets,
+  writeWorkspaceIntegrationConfig,
+  writeWorkspaceIntegrationSecrets,
+} from '../lib/workspace-integrations'
 import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
 import { checkGitHubPrereqs, getGitHubAuthMode } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
@@ -26,7 +32,10 @@ router.get('/status', (_req, res) => {
 })
 
 router.get('/config', (_req, res) => {
-  res.json({ config: readWorkspaceIntegrationConfig() })
+  res.json({
+    config: readWorkspaceIntegrationConfig(),
+    secretPresence: getWorkspaceIntegrationSecretPresence(),
+  })
 })
 
 router.get('/github-status', (_req, res) => {
@@ -49,7 +58,20 @@ router.put('/config', (req, res) => {
     enabledPartners: Array.isArray(body.enabledPartners) ? body.enabledPartners.filter((item): item is string => typeof item === 'string') : undefined,
     partners: typeof body.partners === 'object' && body.partners ? body.partners as Record<string, Record<string, string | boolean | undefined>> : undefined,
   })
-  res.json({ ok: true, config })
+  const partnerSecretsInput =
+    typeof body.partnerSecrets === 'object' && body.partnerSecrets
+      ? body.partnerSecrets as Record<string, Record<string, string | undefined>>
+      : undefined
+  const existingSecrets = readWorkspaceIntegrationSecrets()
+  const serverPartnerSecrets = {
+    github: {
+      token: typeof partnerSecretsInput?.github?.token === 'string'
+        ? (partnerSecretsInput.github.token.trim() || existingSecrets.partners?.github?.token)
+        : existingSecrets.partners?.github?.token,
+    },
+  }
+  writeWorkspaceIntegrationSecrets({ partners: serverPartnerSecrets })
+  res.json({ ok: true, config, secretPresence: getWorkspaceIntegrationSecretPresence() })
 })
 
 router.post('/validate', async (req, res) => {
@@ -75,7 +97,7 @@ router.post('/github-auth', (req, res) => {
 
   const args = mode === 'refresh-repo-scope'
     ? ['auth', 'refresh', '--hostname', 'github.com', '-s', 'repo']
-    : ['auth', 'login', '--web', '--clipboard', '--git-protocol', 'https', '--scopes', 'repo']
+    : ['auth', 'login', '--web', '--git-protocol', 'https', '--scopes', 'repo']
 
   send('start', `$ gh ${args.join(' ')}\n`)
   send('log', mode === 'refresh-repo-scope'

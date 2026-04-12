@@ -22,6 +22,7 @@ type PartnerFieldDefinition = {
   type: 'text' | 'password' | 'select'
   required?: boolean
   secret?: boolean
+  storage?: 'browser' | 'server'
 }
 type PartnerSkillsDefinition = {
   mode: 'shipables' | 'curated-installer' | 'planned' | 'catalog'
@@ -69,8 +70,10 @@ type WorkspaceIntegrationConfig = {
   partners?: Record<string, Record<string, string | boolean | undefined>>
 }
 type PartnerValueMap = Record<string, Record<string, string>>
+type PartnerSecretPresence = Record<string, Record<string, boolean>>
 
 const defaultOllamaBaseUrl = 'http://localhost:11434'
+const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
   const next: PartnerValueMap = { ...base }
@@ -155,6 +158,7 @@ export function ByokWizard({
   const [ollamaDefaultModel, setOllamaDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
+  const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [validating, setValidating] = useState(false)
@@ -269,11 +273,21 @@ export function ByokWizard({
   }, [initialStep, openEventName])
 
   useEffect(() => {
+    const handleClose = () => {
+      setOpen(false)
+      setStep(initialStep)
+    }
+    window.addEventListener(CLOSE_INTEGRATIONS_WIZARDS_EVENT, handleClose)
+    return () => window.removeEventListener(CLOSE_INTEGRATIONS_WIZARDS_EVENT, handleClose)
+  }, [initialStep])
+
+  useEffect(() => {
     if (!hydrated) return
     fetch('/api/integrations/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const workspaceConfig = (data?.config || {}) as WorkspaceIntegrationConfig
+        setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
         setOllamaBaseUrl((current) => (current && current !== defaultOllamaBaseUrl) ? current : (workspaceConfig.ollamaBaseUrl || current))
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
@@ -332,6 +346,16 @@ export function ByokWizard({
       },
     }))
   }, [])
+
+  const isServerStoredField = React.useCallback(
+    (field: PartnerFieldDefinition) => field.secret && field.storage === 'server',
+    []
+  )
+
+  const hasServerPartnerSecret = React.useCallback(
+    (slug: string, key: string) => !!serverPartnerSecretPresence[slug]?.[key],
+    [serverPartnerSecretPresence]
+  )
 
   const visiblePartnerDefinitions = useMemo(
     () => {
@@ -506,7 +530,11 @@ export function ByokWizard({
         setPartnerSecrets((current) => {
           const next = { ...current }
           for (const partner of partnerDefs) {
-            const mapped = readPartnerValuesFromSharedSecrets(partner.slug, partner.fields?.filter((field) => field.secret), shared)
+            const mapped = readPartnerValuesFromSharedSecrets(
+              partner.slug,
+              partner.fields?.filter((field) => field.secret && field.storage !== 'server'),
+              shared
+            )
             if (Object.keys(mapped).length > 0) {
               next[partner.slug] = { ...(next[partner.slug] || {}), ...mapped }
             }
@@ -622,7 +650,9 @@ export function ByokWizard({
   const triggerReady =
     initialStep === 'partners'
       ? selectedPartnerDefinitions.some((partner) => {
-          const hasSecret = (partner.fields || []).some((field) => field.secret && !!getPartnerSecret(partner.slug, field.key).trim())
+          const hasSecret = (partner.fields || []).some((field) =>
+            field.secret && (!!getPartnerSecret(partner.slug, field.key).trim() || hasServerPartnerSecret(partner.slug, field.key))
+          )
           const hasValue = (partner.fields || []).some((field) => !field.secret && !!getPartnerValue(partner.slug, field.key).trim())
           if (partner.slug === 'github') return githubReady || !!githubDefaultRepo.trim()
           if (partner.slug === 'senso') return sensoConfigured || !!sensoContextLabel.trim()
@@ -757,6 +787,22 @@ export function ByokWizard({
 
     const persistedPartnerValues = buildPartnerConfig(partnerValues)
     const persistedPartnerSecrets = buildPartnerConfig(partnerSecrets)
+    const browserPartnerSecrets = Object.fromEntries(
+      Object.entries(persistedPartnerSecrets).map(([slug, values]) => {
+        const partner = visiblePartnerDefinitions.find((item) => item.slug === slug)
+        const browserSecretKeys = new Set(
+          (partner?.fields || [])
+            .filter((field) => field.secret && field.storage !== 'server')
+            .map((field) => field.key)
+        )
+        return [slug, Object.fromEntries(Object.entries(values).filter(([key]) => browserSecretKeys.has(key)))]
+      }).filter(([, values]) => Object.keys(values).length > 0)
+    )
+    const serverPartnerSecrets = {
+      github: {
+        token: persistedPartnerSecrets.github?.token || '',
+      },
+    }
     const providerKeyValues = {
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
@@ -777,7 +823,7 @@ export function ByokWizard({
       opikProject: opikProject.trim(),
       githubDefaultRepo: githubDefaultRepo.trim(),
       preferredModel: preferredModel || undefined,
-      partnerSecrets: persistedPartnerSecrets,
+      partnerSecrets: browserPartnerSecrets,
       partnerValues: persistedPartnerValues,
     })
 
@@ -792,7 +838,12 @@ export function ByokWizard({
         ...(partnerValues[partner.slug] || {}),
         ...(partnerSecrets[partner.slug] || {}),
       }
-      return writePartnerValuesToSharedSecrets(partner.slug, partner.fields, acc, combinedValues)
+      return writePartnerValuesToSharedSecrets(
+        partner.slug,
+        (partner.fields || []).filter((field) => field.storage !== 'server'),
+        acc,
+        combinedValues
+      )
     }, currentSharedSecrets)
     writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
@@ -809,13 +860,22 @@ export function ByokWizard({
         opikProject: opikProject.trim() || undefined,
         enabledPartners: selectedPartners,
         partners: persistedPartnerValues,
+        partnerSecrets: serverPartnerSecrets,
       }),
-    }).catch(() => {})
+    })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (typeof data?.secretPresence === 'object' && data.secretPresence) {
+          setServerPartnerSecretPresence(data.secretPresence)
+        }
+      })
+      .catch(() => {})
 
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
     setOpen(false)
     setStep(initialStep)
+    window.dispatchEvent(new CustomEvent(CLOSE_INTEGRATIONS_WIZARDS_EVENT))
     window.dispatchEvent(new CustomEvent('integrations-saved'))
     showSuccess('Workspace integrations saved. Provider secrets stay local; workspace defaults now persist for this workspace.')
   }
@@ -825,6 +885,7 @@ export function ByokWizard({
     setDismissed(true)
     setOpen(false)
     setStep(initialStep)
+    window.dispatchEvent(new CustomEvent(CLOSE_INTEGRATIONS_WIZARDS_EVENT))
     showInfo('Workspace integrations skipped for now')
   }
 
@@ -986,11 +1047,13 @@ export function ByokWizard({
       return githubReady ? 'GitHub CLI-based issue workflows look ready in this runtime.' : 'GitHub delivery workflows need auth in the current runtime.'
     }
 
-    const secretFields = (partner.fields || []).filter((field) => field.secret && getPartnerSecret(partner.slug, field.key).trim())
+    const secretFields = (partner.fields || []).filter((field) =>
+      field.secret && (getPartnerSecret(partner.slug, field.key).trim() || hasServerPartnerSecret(partner.slug, field.key))
+    )
     const plainFields = (partner.fields || []).filter((field) => !field.secret && getPartnerValue(partner.slug, field.key).trim())
     if (secretFields.length === 0 && plainFields.length === 0) return 'Not configured yet'
     const labels = [
-      ...secretFields.map((field) => `${field.label}: ${maskKey(getPartnerSecret(partner.slug, field.key))}`),
+      ...secretFields.map((field) => `${field.label}: ${getPartnerSecret(partner.slug, field.key).trim() ? maskKey(getPartnerSecret(partner.slug, field.key)) : 'configured on server'}`),
       ...plainFields.map((field) => `${field.label}: ${getPartnerValue(partner.slug, field.key)}`),
     ]
     return labels.join(' · ')
@@ -1117,8 +1180,11 @@ export function ByokWizard({
 
   const renderPartnerField = (partner: PartnerDefinition, field: PartnerFieldDefinition) => {
     const value = field.secret ? getPartnerSecret(partner.slug, field.key) : getPartnerValue(partner.slug, field.key)
+    const serverStored = isServerStoredField(field)
+    const configuredOnServer = serverStored && hasServerPartnerSecret(partner.slug, field.key)
     const placeholder =
       partner.slug === 'github' && field.key === 'defaultRepo' ? 'owner/repo'
+      : partner.slug === 'github' && field.key === 'token' ? 'ghp_...'
       : partner.slug === 'senso' && field.key === 'contextLabel' ? 'e.g. Workspace / Team / Project'
       : partner.slug === 'opik' && field.key === 'workspace' ? 'e.g. my-team'
       : partner.slug === 'opik' && field.key === 'project' ? 'e.g. clawmax-agents'
@@ -1131,9 +1197,16 @@ export function ByokWizard({
           type={field.type === 'password' ? 'password' : 'text'}
           value={value}
           onChange={(e) => setPartnerField(partner.slug, field.key, e.target.value, field.secret)}
-          placeholder={placeholder}
+          placeholder={serverStored && configuredOnServer && !value ? `${placeholder} (leave blank to keep current token)` : placeholder}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
         />
+        {serverStored && (
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {configuredOnServer
+              ? 'A token is already configured on the server for this workspace. Leave this blank to keep it, or paste a new token to replace it.'
+              : 'This secret is stored on the server for hosted execution, not in browser vault.'}
+          </div>
+        )}
       </div>
     )
   }

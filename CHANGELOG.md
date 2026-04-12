@@ -7,6 +7,22 @@ All notable changes to ClawMax are documented here.
 ### Fixes — Opik Attribution
 - **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
 
+## [v1.2.18] - 2026-04-12
+
+### Fixes — Hosted GitHub and Integration UX
+- **Hosted GitHub Token Storage** — GitHub partner integration now supports a server-stored runtime token for hosted/non-interactive deployments, while local and operator-managed environments continue to use the existing `gh` CLI auth flow
+- **GitHub Readiness Contract** — hosted runtimes without a runtime token now report the missing token directly instead of falling back to misleading local CLI auth guidance
+- **GitHub Secret Handling** — GitHub runtime tokens no longer rely on browser vault; the UI now shows server-side token presence without returning the raw token after save
+
+### Fixes — Onboarding, BYOK, and Prereqs
+- **Onboarding Workspace Scope** — onboarding visibility now tracks the active workspace’s agent count instead of the global system count, so it no longer disappears after login hydration on empty workspaces
+- **BYOK Close Consistency** — saving or skipping integrations now closes all mounted wizard instances consistently instead of requiring repeated close actions
+- **Shared Execution Readiness** — template prereqs now treat a saved workspace preferred model as a valid shared execution path
+- **Packaged Skill Detection** — packaged skills like `workspace-ls` now resolve correctly in prereq checks instead of warning as missing when the runtime already includes them
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `npx ts-node --transpile-only server/lib/workspace-integrations.test.ts`
+
 ## [v1.2.17] - 2026-04-12
 
 ### Fixes — BYOK, Onboarding, and Cloud Runtime UX

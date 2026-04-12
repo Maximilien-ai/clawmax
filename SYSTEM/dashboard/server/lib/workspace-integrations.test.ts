@@ -7,7 +7,14 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { readWorkspaceIntegrationConfig, writeWorkspaceIntegrationConfig } from './workspace-integrations'
+import {
+  getWorkspaceGitHubToken,
+  getWorkspaceIntegrationSecretPresence,
+  readWorkspaceIntegrationConfig,
+  readWorkspaceIntegrationSecrets,
+  writeWorkspaceIntegrationConfig,
+  writeWorkspaceIntegrationSecrets,
+} from './workspace-integrations'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -102,6 +109,26 @@ test('writeWorkspaceIntegrationConfig normalizes enabled partner selections', ()
 
   const persisted = readWorkspaceIntegrationConfig()
   assert(JSON.stringify(persisted.enabledPartners) === JSON.stringify(['senso', 'github']), 'Expected persisted enabled partners')
+})
+
+test('writeWorkspaceIntegrationSecrets persists github runtime token without exposing it in config', () => {
+  writeWorkspaceIntegrationSecrets({
+    partners: {
+      github: {
+        token: ' ghp_test_token ',
+      },
+    },
+  })
+
+  const secrets = readWorkspaceIntegrationSecrets()
+  assert(secrets.partners?.github?.token === 'ghp_test_token', 'Expected trimmed github token in secrets store')
+  assert(getWorkspaceGitHubToken() === 'ghp_test_token', 'Expected github token helper to resolve token')
+
+  const presence = getWorkspaceIntegrationSecretPresence()
+  assert(presence.github?.token === true, 'Expected secret presence marker for github token')
+
+  const config = readWorkspaceIntegrationConfig()
+  assert(!config.partners?.github?.token, 'Expected raw github token to stay out of non-secret config')
 })
 
 if (typeof originalHome === 'undefined') delete process.env.HOME

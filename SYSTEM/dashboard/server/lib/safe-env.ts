@@ -2,6 +2,7 @@
  * Security helpers for child process spawning and input validation.
  */
 import { type ProviderKeys, resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
+import { getWorkspaceGitHubToken } from './workspace-integrations'
 
 export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
@@ -12,6 +13,7 @@ export interface ExecutionEnvOverrides extends ProviderKeys {
  * Prevents leaking secrets to subprocesses that don't need them.
  */
 export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.ProcessEnv {
+  const workspaceGitHubToken = getWorkspaceGitHubToken()
   const base: Record<string, string | undefined> = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -23,8 +25,8 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
     NODE_ENV: process.env.NODE_ENV,
     // GitHub CLI auth (needed for agents with github/gh-issues skills)
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-    GH_TOKEN: process.env.GH_TOKEN,
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN || workspaceGitHubToken,
+    GH_TOKEN: process.env.GH_TOKEN || workspaceGitHubToken,
     // gh CLI config directory
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
   }

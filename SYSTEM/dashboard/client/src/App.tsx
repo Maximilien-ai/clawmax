@@ -527,6 +527,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 }) {
   const { user, logout, config } = useAuth()
   const { activeWorkspace } = useWorkspace()
+  const onboardingVisible = activeWorkspace
+    ? (activeWorkspace.agentCount ?? 0) === 0
+    : (system?.agentCount ?? 0) === 0
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -603,7 +606,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
         />
         <OnboardingWizard
-          visible={(system?.agentCount || 0) === 0}
+          visible={onboardingVisible}
           onOpenByok={() => onOpenByok?.()}
           onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
@@ -617,14 +620,14 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           triggerTitle="Configure model providers and local runtime"
           initialStep="models"
           openEventName="open-byok-wizard"
-          suppressAutoOpen={(system?.agentCount || 0) === 0}
+          suppressAutoOpen={onboardingVisible}
         />
         <ByokWizard
           triggerLabel="Partners"
           triggerTitle="Configure optional partner integrations"
           initialStep="partners"
           openEventName="open-partners-wizard"
-          suppressAutoOpen={(system?.agentCount || 0) === 0}
+          suppressAutoOpen={onboardingVisible}
         />
         {user && !config?.authDisabled && (
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">

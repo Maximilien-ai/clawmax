@@ -285,7 +285,25 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
  */
 export function getSkillById(id: string): OpenClawSkill | null {
   const skills = listAvailableSkills()
-  return skills.find(s => s.name === id) || null
+  const direct = skills.find(s => s.name === id)
+  if (direct) return direct
+
+  const repoSkillDir = path.join(REPO_CUSTOM_SKILLS_DIR, id)
+  const uppercaseSkillPath = path.join(repoSkillDir, 'SKILL.md')
+  const lowercaseSkillPath = path.join(repoSkillDir, 'skill.md')
+  const skillPath = fs.existsSync(uppercaseSkillPath) ? uppercaseSkillPath : lowercaseSkillPath
+  if (fs.existsSync(skillPath)) {
+    const fallback = parseWorkspaceSkillFile(skillPath, id)
+    if (fallback) {
+      return {
+        ...fallback,
+        bundled: true,
+        source: 'bundled',
+      }
+    }
+  }
+
+  return null
 }
 
 export function getSkillContent(skillId: string): { skill: OpenClawSkill; content: string; editable: boolean } | null {

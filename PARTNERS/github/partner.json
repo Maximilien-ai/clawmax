@@ -9,6 +9,14 @@
   "enabledByDefault": true,
   "fields": [
     {
+      "key": "token",
+      "label": "Runtime token",
+      "type": "password",
+      "required": false,
+      "secret": true,
+      "storage": "server"
+    },
+    {
       "key": "defaultRepo",
       "label": "Default repository",
       "type": "text",
