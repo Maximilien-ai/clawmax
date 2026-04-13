@@ -1,21 +1,20 @@
 # ClawMax Status
 
-**Current Version**: v1.2.5
-**Last Updated**: April 3, 2026
-**Status**: Point release ready — test harness stability, secure browser-local runtime inputs, template DAG/tag audit, and shared dashboard readability fixes are on main
+**Current Version**: v1.2.18
+**Last Updated**: April 13, 2026
+**Status**: `v1.2.18` is the current shipped baseline; `main` is now being prepared for a broader `v1.3.0` test-candidate release
 
 ---
 
 ## Current State
 
-- `v1.2.5` ready on main — system-test harness fixes, template dependency/tag audit, and shared dashboard spend/markdown improvements are on main
-- browser-local secrets now work across template apply, workflow runs, and skill detail views for secure runtime inputs like API keys, event URLs, and export paths
-- 53 organization templates + 25 reusable agent templates across Business, Technical, Personal, Events, Science, Travel, Hobbies, Family, Markets, and launch/research use cases
-- Interactive DAG visualization with edit mode, zoom, progress bars, and dependency management
-- Workspaces Integrations for hosted/local models plus Senso, Opik, and GitHub status
-- Shareable workspace dashboards with compact/standard/detail display modes
-- Docker deployment support in the public repo
-- Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
+- `v1.2.18` is the current released baseline on `main`
+- hosted/non-interactive GitHub execution now has a server-stored runtime-token path, while local/on-prem preserves the existing `gh` CLI flow
+- onboarding, BYOK readiness, Doctor/runtime messaging, template prereqs, and partner visibility have all been hardened across the recent `v1.2.14` through `v1.2.18` line
+- unstable Blaxel/Redis partner surfaces were removed from shipped `main` and preserved on their dedicated stabilization branches
+- the next likely release milestone is `v1.3.0`, intended as a broader initial-user test candidate rather than another narrow point release
+- current unreleased follow-through on `main`: environment-aware Ollama base URL handling so injected `OLLAMA_BASE_URL` wins in containerized/on-prem deployments and localhost remains only the true local/native fallback
+- detailed prep plan: [RELEASE_1_3_0_PREP_2026-04-13.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RELEASE_1_3_0_PREP_2026-04-13.md)
 
 ## v1.2.5 — Test Harness and Dashboard Reliability
 
