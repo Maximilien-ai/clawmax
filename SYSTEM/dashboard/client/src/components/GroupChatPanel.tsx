@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { readStoredByokKeys } from '../lib/byok'
+import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
   id: string
@@ -105,6 +106,8 @@ function extractWorkspaceFileMentions(content: string): string[] {
 }
 
 export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
+  const { config } = useAuth()
+  const chatEnabled = hasAiGenerationAccess(config)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -303,6 +306,10 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
   async function sendMessage() {
     if (!input.trim() || sending) return
+    if (!chatEnabled) {
+      setError('Group chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
+      return
+    }
 
     const userMessage = input.trim()
 
@@ -815,6 +822,31 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
         {/* Input */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
+          {!chatEnabled && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+              <div className="font-medium">Group chat is disabled because no AI execution path is configured</div>
+              <div className="mt-1 text-xs opacity-90">
+                This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open BYOK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open Keys & Secrets
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="relative">
             {/* @Mention Dropdown */}
             {showMentions && filteredMentionAgents.length > 0 && (
@@ -901,12 +933,12 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
                 onKeyDown={handleKeyDown}
                 placeholder={isListening ? "Listening..." : "Type or speak... posts to everyone by default, or use @name"}
                 className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                disabled={sending || isListening}
+                disabled={sending || isListening || !chatEnabled}
               />
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}
-                disabled={!input.trim() || sending}
+                disabled={!input.trim() || sending || !chatEnabled}
                 className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}

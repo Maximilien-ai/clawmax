@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
-import { readStoredByokKeys, hasAnyLLMKeys } from '../lib/byok'
+import { readStoredByokKeys, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
@@ -317,7 +317,7 @@ function ImportWorkflowModal({
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const { config } = useAuth()
-  const aiEnabled = hasAnyLLMKeys(config)
+  const aiEnabled = hasAiGenerationAccess(config)
   const formatParticipantError = React.useCallback((errorText: string) => {
     if (/COMMS FAIL/i.test(errorText)) {
       return 'Communication delivery failed. This workflow tried to post to a group or community that is missing or misconfigured.'
@@ -1029,6 +1029,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   const handleAiGenerate = async () => {
     if (!aiPromptText.trim()) return
+    if (!aiEnabled) {
+      showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
+      return
+    }
     setAiGenerating(true)
     try {
       const resp = await fetch('/api/workflows/generate', {
@@ -1471,19 +1475,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               {showWorkflowActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
                         setShowWorkflowActionsMenu(false)
                         setShowAiPrompt(true)
                       }}
-                      disabled={!aiEnabled}
-                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
-                        aiEnabled
-                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
-                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800'
-                      }`}
-                      title={aiEnabled ? 'Generate workflow with AI' : 'Configure API keys (BYOK) to enable AI generation'}
+                      className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                      title="Generate workflow with AI"
                     >
                       <span className="text-purple-500">✨</span> AI Generate
                     </button>
@@ -2659,6 +2658,30 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Describe what you want the workflow to do in natural language. The AI will generate a workflow definition you can review and edit.
             </p>
+            {!aiEnabled && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+                <div className="font-medium">AI workflow generation is disabled because no AI execution path is configured</div>
+                <div className="mt-1 text-xs opacity-90">
+                  This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                  >
+                    Open BYOK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                  >
+                    Open Keys & Secrets
+                  </button>
+                </div>
+              </div>
+            )}
             <textarea
               value={aiPromptText}
               onChange={(e) => setAiPromptText(e.target.value)}
@@ -2676,10 +2699,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </button>
               <button
                 onClick={handleAiGenerate}
-                disabled={aiGenerating || !aiPromptText.trim()}
+                disabled={aiGenerating || !aiPromptText.trim() || !aiEnabled}
                 className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {aiGenerating ? 'Generating...' : 'Generate Workflow'}
+                {aiGenerating ? 'Generating...' : !aiEnabled ? 'Generate Workflow (set up keys first)' : 'Generate Workflow'}
               </button>
             </div>
           </div>

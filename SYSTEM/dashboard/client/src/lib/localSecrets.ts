@@ -109,6 +109,7 @@ export function writePartnerValuesToSharedSecrets(
     const vaultKey = getPartnerVaultKey(slug, field.key)
     const value = (partnerValues[field.key] || '').trim()
     if (value) next[vaultKey] = value
+    else delete next[vaultKey]
   }
   return normalizeSecrets(next)
 }

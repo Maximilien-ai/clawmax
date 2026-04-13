@@ -125,13 +125,16 @@ function mergeProviderKeysIntoSharedSecrets(
   existing: Record<string, string>,
   values: { openai: string; anthropic: string; gemini: string; ollamaBaseUrl: string }
 ) {
-  return {
-    ...existing,
-    ...(values.openai ? { OPENAI_API_KEY: values.openai } : {}),
-    ...(values.anthropic ? { ANTHROPIC_API_KEY: values.anthropic } : {}),
-    ...(values.gemini ? { GEMINI_API_KEY: values.gemini } : {}),
-    ...(values.ollamaBaseUrl ? { OLLAMA_BASE_URL: values.ollamaBaseUrl } : {}),
-  }
+  const next = { ...existing }
+  if (values.openai) next.OPENAI_API_KEY = values.openai
+  else delete next.OPENAI_API_KEY
+  if (values.anthropic) next.ANTHROPIC_API_KEY = values.anthropic
+  else delete next.ANTHROPIC_API_KEY
+  if (values.gemini) next.GEMINI_API_KEY = values.gemini
+  else delete next.GEMINI_API_KEY
+  if (values.ollamaBaseUrl) next.OLLAMA_BASE_URL = values.ollamaBaseUrl
+  else delete next.OLLAMA_BASE_URL
+  return next
 }
 
 export function ByokWizard({
@@ -323,11 +326,13 @@ export function ByokWizard({
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini)
+  const hasSystemProviderKeys = !!(config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.gemini)
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
   const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
   const normalizedOllamaBaseUrl = ollamaBaseUrl.trim()
   const ollamaConfigured = ollamaEnabled && (!!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl))
+  const hasSharedExecutionPath = hasDefaultUserKeys || hasSystemProviderKeys || !!preferredModel.trim()
 
   const getPartnerSecret = React.useCallback((slug: string, key: string) => partnerSecrets[slug]?.[key] || '', [partnerSecrets])
   const getPartnerValue = React.useCallback((slug: string, key: string) => partnerValues[slug]?.[key] || '', [partnerValues])
@@ -652,6 +657,14 @@ export function ByokWizard({
     return 'No user keys configured yet'
   }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
 
+  const browserLocalKeysNotice = useMemo(() => {
+    if (hasStoredKeys) return null
+    if (hasSharedExecutionPath) {
+      return 'This browser does not have saved local keys yet. Shared/runtime execution may still work, but if you previously configured keys in another browser or on another machine, add them again here to use this browser for BYOK-powered flows.'
+    }
+    return 'This browser does not have saved local keys yet. If you previously configured keys in another browser or on another machine, add them again here before running agents, templates, or AI-assisted flows from this browser.'
+  }, [hasSharedExecutionPath, hasStoredKeys])
+
   const triggerReady =
     initialStep === 'partners'
       ? selectedPartnerDefinitions.some((partner) => {
@@ -771,6 +784,27 @@ export function ByokWizard({
       senso: 'Senso',
     }
     return labels[slug] || slug
+  }
+
+  const clearProviderKey = (provider: 'openai' | 'anthropic' | 'gemini' | 'ollama') => {
+    if (provider === 'openai') {
+      setOpenaiKey('')
+      setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } }))
+      return
+    }
+    if (provider === 'anthropic') {
+      setAnthropicKey('')
+      setValidation((current) => ({ ...current, anthropic: { status: 'idle', message: '' } }))
+      return
+    }
+    if (provider === 'gemini') {
+      setGeminiApiKey('')
+      setValidation((current) => ({ ...current, gemini: { status: 'idle', message: '' } }))
+      return
+    }
+    setOllamaBaseUrl(defaultOllamaBaseUrl)
+    setOllamaDefaultModel('')
+    setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } }))
   }
 
   const handleSave = async () => {
@@ -1235,7 +1269,7 @@ export function ByokWizard({
           <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[93vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{initialStep === 'partners' ? 'Partner Integrations' : 'BYOK'}</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">BYOK & Partner Integrations</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.
                 </p>
@@ -1320,6 +1354,11 @@ export function ByokWizard({
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
                   <div className="font-medium text-gray-900 dark:text-gray-100">Current configured LLM providers</div>
                   <div className="mt-1">{statusText}</div>
+                  {browserLocalKeysNotice && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                      {browserLocalKeysNotice}
+                    </div>
+                  )}
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {providerChecks.map((provider) => (
                       <div
@@ -1367,7 +1406,14 @@ export function ByokWizard({
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Recommended for strong general-purpose results and broad model support.</p>
-                      <label htmlFor="byok-openai" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
+                        {openaiKey && (
+                          <button type="button" onClick={() => clearProviderKey('openai')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
                       <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
                       {renderValidation('openai')}
                     </div>
@@ -1377,7 +1423,14 @@ export function ByokWizard({
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Strong reasoning models, especially useful for longer-form planning and analysis.</p>
-                      <label htmlFor="byok-anthropic" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
+                        {anthropicKey && (
+                          <button type="button" onClick={() => clearProviderKey('anthropic')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
                       <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
                       {renderValidation('anthropic')}
                     </div>
@@ -1387,7 +1440,14 @@ export function ByokWizard({
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hosted Google Gemini models are supported alongside OpenAI and Anthropic.</p>
-                      <label htmlFor="byok-gemini" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key</label>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-gemini" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
+                        {geminiApiKey && (
+                          <button type="button" onClick={() => clearProviderKey('gemini')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
                       <input id="byok-gemini" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       {renderValidation('gemini')}
                     </div>
@@ -1400,7 +1460,14 @@ export function ByokWizard({
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         Works best when Ollama is already running and the models you want have been pulled.
                       </div>
-                      <label htmlFor="byok-ollama-url" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base URL</label>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-ollama-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Base URL</label>
+                        {(ollamaBaseUrl !== defaultOllamaBaseUrl || ollamaDefaultModel.trim()) && (
+                          <button type="button" onClick={() => clearProviderKey('ollama')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
                       <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder={defaultOllamaBaseUrl || localDevOllamaBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <label htmlFor="byok-ollama-model" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model</label>
                       <input id="byok-ollama-model" type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />

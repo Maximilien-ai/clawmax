@@ -1,19 +1,19 @@
 # ClawMax Status
 
-**Current Version**: v1.2.18
+**Current Version**: v1.3.0
 **Last Updated**: April 13, 2026
-**Status**: `v1.2.18` is the current shipped baseline; `main` is now being prepared for a broader `v1.3.0` test-candidate release
+**Status**: `v1.3.0` is the current release target on `main`
 
 ---
 
 ## Current State
 
-- `v1.2.18` is the current released baseline on `main`
+- `v1.3.0` is the current release target on `main`
 - hosted/non-interactive GitHub execution now has a server-stored runtime-token path, while local/on-prem preserves the existing `gh` CLI flow
 - onboarding, BYOK readiness, Doctor/runtime messaging, template prereqs, and partner visibility have all been hardened across the recent `v1.2.14` through `v1.2.18` line
 - unstable Blaxel/Redis partner surfaces were removed from shipped `main` and preserved on their dedicated stabilization branches
-- the next likely release milestone is `v1.3.0`, intended as a broader initial-user test candidate rather than another narrow point release
-- current unreleased follow-through on `main`: environment-aware Ollama base URL handling so injected `OLLAMA_BASE_URL` wins in containerized/on-prem deployments and localhost remains only the true local/native fallback
+- `main` now carries the broader runtime/setup hardening that was previously split across the late `v1.2.x` line
+- recent follow-through on `main` includes environment-aware Ollama base URL handling so injected `OLLAMA_BASE_URL` wins in containerized operator-managed deployments and localhost remains only the true local/native fallback
 - detailed prep plan: [RELEASE_1_3_0_PREP_2026-04-13.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RELEASE_1_3_0_PREP_2026-04-13.md)
 
 ## v1.2.5 — Test Harness and Dashboard Reliability

@@ -47,6 +47,43 @@ function deriveChatError(raw: string): string {
   return text
 }
 
+function evaluateChatExecutionReadiness(
+  agentId: string,
+  byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
+) {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const executionEnv = userExecutionEnv({
+    openai: byok?.openai,
+    anthropic: byok?.anthropic,
+    gemini: byok?.gemini,
+    ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+  })
+  executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
+  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
+  const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+
+  if (resolvedAgent.provider === 'ollama' && !hasOllamaPath && !hasHostedKeys) {
+    return {
+      available: false,
+      error: `Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured. Add an Ollama base URL in BYOK or workspace integrations.`,
+      resolvedAgent,
+    }
+  }
+  if (!hasHostedKeys && !hasOllamaPath) {
+    return {
+      available: false,
+      error: 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.',
+      resolvedAgent,
+    }
+  }
+
+  return {
+    available: true,
+    resolvedAgent,
+  }
+}
+
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
     const sessionsDir = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
@@ -119,6 +156,23 @@ router.get('/:id/gateway', (req, res) => {
   })
 })
 
+router.post('/:id/chat/readiness', (req, res) => {
+  const { id } = req.params
+  const { byok } = req.body as {
+    byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
+  }
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  const readiness = evaluateChatExecutionReadiness(id, byok)
+  if (!readiness.available) {
+    return res.status(200).json(readiness)
+  }
+  return res.json(readiness)
+})
+
 /**
  * POST /api/agents/:id/chat
  * SSE proxy that spawns `openclaw agent` CLI to handle chat.
@@ -146,8 +200,12 @@ router.post('/:id/chat', (req, res) => {
     return res.status(402).json({ error: budgetBlock })
   }
 
-  const integrationConfig = readWorkspaceIntegrationConfig()
   const session = getAuthenticatedSession(req)
+  const readiness = evaluateChatExecutionReadiness(id, byok)
+  if (!readiness.available) {
+    return res.status(400).json({ error: readiness.error })
+  }
+  const integrationConfig = readWorkspaceIntegrationConfig()
   const executionEnv = userExecutionEnv({
     openai: byok?.openai,
     anthropic: byok?.anthropic,
@@ -155,25 +213,11 @@ router.post('/:id/chat', (req, res) => {
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
   })
   executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
-  const resolvedAgent = resolveAgentExecutionConfig(id)
+  const resolvedAgent = readiness.resolvedAgent
   const effectiveSessionId = scopeSessionIdToModel(
     sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace),
     resolvedAgent.model
   )
-
-  // Validate API keys exist before starting chat
-  const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
-  const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
-  if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
-    return res.status(400).json({
-      error: `Agent ${id} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured. Add an Ollama base URL in BYOK or workspace integrations.`
-    })
-  }
-  if (!hasHostedKeys && !hasOllamaPath) {
-    return res.status(400).json({
-      error: 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.'
-    })
-  }
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 

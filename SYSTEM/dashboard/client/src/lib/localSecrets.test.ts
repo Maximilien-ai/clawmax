@@ -116,6 +116,31 @@ test('partner vault helpers only map declared fields', () => {
   assert(written.KEEP_ME === 'yes', 'Expected preserved existing key')
 })
 
+test('writePartnerValuesToSharedSecrets removes stale partner values when fields are cleared', () => {
+  const fields = [
+    { key: 'apiKey', label: 'API key', secret: true },
+    { key: 'workspace', label: 'Workspace' },
+  ]
+
+  const written = writePartnerValuesToSharedSecrets(
+    'opik',
+    fields,
+    {
+      OPIK_API_KEY: 'secret',
+      OPIK_WORKSPACE: 'demo',
+      KEEP_ME: 'yes',
+    },
+    {
+      apiKey: '',
+      workspace: '',
+    }
+  )
+
+  assert(!('OPIK_API_KEY' in written), 'Expected cleared apiKey to be removed from shared secrets')
+  assert(!('OPIK_WORKSPACE' in written), 'Expected cleared workspace to be removed from shared secrets')
+  assert(written.KEEP_ME === 'yes', 'Expected unrelated keys to be preserved')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

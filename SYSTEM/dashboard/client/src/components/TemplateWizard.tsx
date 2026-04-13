@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
+import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -355,7 +355,7 @@ function MultiValueInput({
 
 export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError, initialTemplate }: TemplateWizardProps) {
   const { config } = useAuth()
-  const aiEnabled = hasAnyLLMKeys(config)
+  const aiEnabled = hasAiGenerationAccess(config)
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(INITIAL_STATE)
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -469,6 +469,10 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   // ---- AI Generate ----
   const handleAiGenerate = async () => {
     if (!state.teamDescription.trim()) return
+    if (!aiEnabled) {
+      showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
+      return
+    }
     setAiGenerating(true)
     try {
       const byok = readStoredByokKeys()
@@ -964,23 +968,23 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       </div>
 
       {!aiEnabled && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-          <div className="font-medium">AI generation needs a configured model key first</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+          <div className="font-medium">AI template generation is disabled because no AI execution path is configured</div>
           <div className="mt-1 text-xs opacity-90">
-            Add browser keys in Workspaces Integrations or Keys & Secrets, then pick a preferred model if you want shared defaults.
+            This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-white text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
             >
-              Open Workspaces Integrations
+              Open BYOK
             </button>
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-300 bg-white text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
             >
               Open Keys & Secrets
             </button>

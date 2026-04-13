@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys, fetchModelsWithByok, hasAnyLLMKeys } from '../lib/byok'
+import { readStoredByokKeys, fetchModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 const PREDEFINED_TAGS = [
@@ -47,7 +47,7 @@ interface ValidationResult {
 
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
   const { config } = useAuth()
-  const aiEnabled = hasAnyLLMKeys(config)
+  const aiEnabled = hasAiGenerationAccess(config)
   const ollamaEnabled = config?.ollamaEnabled !== false
   const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
@@ -280,6 +280,10 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
   async function generateWithAI() {
     if (!form.aiDescription.trim()) return
+    if (!aiEnabled) {
+      setGenError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
+      return
+    }
     setGenerating(true)
     setGenError(null)
 
@@ -680,15 +684,31 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 Optionally use AI to generate your agent's personality files (IDENTITY, SOUL, TOOLS). Skip this step to clone or create from scratch.
               </p>
               {!aiEnabled && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-                  <div className="font-medium">AI generation needs a configured model key first</div>
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+                  <div className="font-medium">AI agent generation is disabled because no AI execution path is configured</div>
                   <div className="mt-1 text-xs opacity-90">
-                    You can still create agents manually, but AI generation and AI-assisted runs need browser keys or a shared preferred model.
+                    This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                    >
+                      Open BYOK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                    >
+                      Open Keys & Secrets
+                    </button>
                   </div>
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Describe your agent <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Describe your agent</label>
                 <textarea
                   value={form.aiDescription}
                   onChange={e => set('aiDescription', e.target.value)}

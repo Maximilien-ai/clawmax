@@ -5,23 +5,32 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.17-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.2.17)
+[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.0)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 What's New in v1.2.17
+## 🔥 New in v1.3.0
 
-- Deployment-aware integrations are cleaner:
-  - local-network-dependent integrations such as Ollama are hidden by default when the runtime is not configured for them
-  - `OLLAMA_BASE_URL` is hidden from `Keys & Secrets` when Ollama is disabled
-- BYOK and onboarding are more reliable:
-  - the BYOK pill now reflects real readiness instead of staying amber
-  - onboarding is no longer replaced by BYOK a few seconds after first load
-  - saved browser-vault keys now stay in sync across both mounted BYOK entrypoints
-- GitHub workflows are more deployment-aware:
-  - runtimes that cannot rely on interactive local auth can use `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo
-  - local and operator-managed environments continue to use the existing `gh` CLI auth flow
+- Runtime-aware integrations are cleaner:
+  - local-network-dependent integrations such as Ollama stay hidden unless the runtime is actually configured for them
+  - injected `OLLAMA_BASE_URL` is preferred when present, while true local/native dev still falls back to `http://localhost:11434`
+  - `OLLAMA_BASE_URL` stays out of `Keys & Secrets` when Ollama is disabled
+- Hosted vs local execution paths are clearer:
+  - non-interactive deployments can use a runtime `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo for GitHub workflows
+  - local/native and operator-managed environments continue to use the existing `gh` CLI auth flow
+- Onboarding and BYOK are more stable:
+  - onboarding stays tied to the active workspace instead of disappearing after login hydration
+  - BYOK save/close behavior is consistent across both mounted entrypoints
+  - the BYOK pill reflects real readiness instead of staying amber
+- Template apply/readiness is tighter:
+  - a saved preferred model counts as a valid shared execution path
+  - packaged skills like `workspace-ls` resolve correctly in prereq checks
+  - unstable partner-specific Blaxel/Redis surfaces remain off shipped `main`
+- AI-assisted creation is clearer:
+  - AI create flows for agents, workflows, skills, and templates now consistently explain when generation is unavailable
+  - browser-local key state is explained more clearly when users switch browsers or machines
+  - AI flows link directly to `BYOK` and `Keys & Secrets` when setup is still missing
 
 ## 🔥 Previously in v1.2.12
 
@@ -69,8 +78,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Previously in v1.2.6
 
-- **Cloud runtime bootstrap hardening** — the runtime image now installs `openclaw`, initializes `HOME` and `OPENCLAW_WORKSPACE`, and bootstraps a real OpenClaw runtime path on container start
-- **Gateway startup on boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh cloud/on-prem deployments do not rely on manual Doctor repair first
+- **Hosted runtime bootstrap hardening** — the runtime image now installs `openclaw`, initializes `HOME` and `OPENCLAW_WORKSPACE`, and bootstraps a real OpenClaw runtime path on container start
+- **Gateway startup on boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh hosted or operator-managed deployments do not rely on manual Doctor repair first
 - **Persistent OpenClaw state in container deployments** — Docker/Compose guidance now persists `~/.openclaw` separately from workspace files so agent registration and sessions survive restart
 - **Workflow-aware GitHub prereqs** — template apply no longer hard-fails GitHub CLI checks for `clawmax-system-test` unless GitHub coordination is actually enabled
 
@@ -92,13 +101,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Previously in v1.2.3
 
-- **Email OTP auth** — dashboard now supports a secure email-code login mode for single-user cloud/on-prem installs, in addition to GitHub OAuth and bypass
+- **Email OTP auth** — dashboard now supports a secure email-code login mode for single-user hosted or operator-managed installs, in addition to GitHub OAuth and bypass
 - **Developer OTP flow** — local dev can use `OTP_DEV_MODE=log` and read the latest code from `.clawmax-otp-dev.json` instead of scraping logs or disabling auth
 - **50+ organization templates** — added ten new proposal templates across entertainment, astronomy, paper digests, markets, evaluation, product research, competitive analysis, rapid website creation, and blog launch
 - **25 reusable agent templates** — expanded the agent-template library with repeatable roles from events, testing, product research, markets, astronomy, and shipping flows
 - **Auth test coverage** — OTP request/verify/reuse/expiry tests now run in the normal `SYSTEM/test.sh` path
 
-Cloud/on-prem runtime note:
+Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
 - If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.
 - For GitHub issue/PR workflows in non-interactive deployments, prefer a runtime `GITHUB_TOKEN`/`GH_TOKEN` plus a default repo in Workspaces Integrations. Keep `gh auth login` for local/dev and operator-managed environments.
@@ -124,7 +133,7 @@ Cloud/on-prem runtime note:
 
 ### Authentication & Keys
 - **GitHub OAuth Login** - GitHub remains the primary general-purpose dashboard login path
-- **Email OTP Login** - Single-user cloud/on-prem login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
+- **Email OTP Login** - Single-user hosted/operator-managed login mode with allowlisted email(s), short-lived codes, and persistent session cookies after verification
 - **Workspaces Integrations / BYOK** - Users can configure hosted and local model providers plus optional integrations for their agents and workflows
 - **Keys & Secrets Browser Vault** - A central browser-local vault can capture reusable provider and partner keys once, then prefill matching template, workflow, skill, and integration inputs
 - **Browser-Local Runtime Secrets** - Templates, workflows, and skills can request browser-local secrets like API keys, event slugs, or export paths without persisting them to the server by default
@@ -133,7 +142,7 @@ Cloud/on-prem runtime note:
 Keys & Secrets safety model:
 - Values in `Keys & Secrets` are stored in the current browser only. They are meant to centralize capture and reuse across dashboard forms, not to act as a secure remote secrets manager.
 - ClawMax uses the browser vault to prefill matching inputs for templates, workflows, skills, and visible partner integrations. Users can still override values locally for a specific apply/run/edit flow.
-- Browser-local values are not a substitute for proper server-side or infrastructure secret management. For production cloud/on-prem deployments, keep system/runtime secrets in environment variables, secret stores, or your platform’s native secret manager.
+- Browser-local values are not a substitute for proper server-side or infrastructure secret management. For production hosted or operator-managed deployments, keep system/runtime secrets in environment variables, secret stores, or your platform’s native secret manager.
 - If you share a browser profile or machine, treat browser-local vault contents as locally accessible to that profile. Clear or rotate values when changing environments or handing a machine to someone else.
 
 ### Workflows & DAG
@@ -284,7 +293,7 @@ Auth options:
 # GitHub OAuth
 DASHBOARD_AUTH_MODE=github_oauth
 
-# Email OTP for single-user cloud/on-prem
+# Email OTP for single-user hosted/operator-managed installs
 DASHBOARD_AUTH_MODE=email_otp
 OTP_ALLOWED_EMAILS=you@example.com
 RESEND_API_KEY=your_resend_api_key
@@ -299,8 +308,8 @@ WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 
 # Optional Ollama visibility override for Workspaces Integrations.
 # Default:
-# - local / on-prem with dashboard .env present: enabled
-# - managed / cloud runtime with no dashboard .env: hidden
+# - local/native or operator-managed runtime with dashboard .env present: enabled
+# - non-interactive hosted runtime with no dashboard .env: hidden
 DASHBOARD_ENABLE_OLLAMA=false
 
 # Optional extra partner roots
@@ -311,7 +320,7 @@ Notes:
 - Built-in partner definitions ship in the repo-level `PARTNERS/` directory.
 - `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
 - If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
-- `DASHBOARD_ENABLE_OLLAMA` controls only whether Ollama appears in the dashboard UI. It does not provision an Ollama runtime for cloud deployments.
+- `DASHBOARD_ENABLE_OLLAMA` controls only whether Ollama appears in the dashboard UI. It does not provision an Ollama runtime for hosted deployments.
 
 ### First Steps
 
@@ -405,7 +414,7 @@ If `DASHBOARD_AUTH_MODE` is omitted, ClawMax defaults to:
 Use:
 
 - `github_oauth` for normal multi-user or GitHub-based owner access
-- `email_otp` for single-user cloud or on-prem installs
+- `email_otp` for single-user hosted or operator-managed installs
 - `bypass` only for solo local development when you intentionally do not want auth
 
 ### GitHub OAuth
@@ -443,7 +452,7 @@ CORS_ORIGIN=http://localhost:5174
 
 ### Email OTP
 
-Email OTP is the recommended login mode for single-user cloud and on-prem installs.
+Email OTP is the recommended login mode for single-user hosted and operator-managed installs.
 
 Minimum setup in `SYSTEM/dashboard/.env`:
 
@@ -662,7 +671,7 @@ See **[KNOWN_ISSUES.md](SYSTEM/docs/KNOWN_ISSUES.md)** for active issues and wor
 
 - **Now** — Workflow v2 polish (DAG run buttons, per-workspace budget, cron cascade)
 - **Next** — Agent-to-agent messaging, community rules, workflow DAG visualization improvements
-- **Later** — Secure multi-user BYOK storage, cloud/on-prem packaging, public template registry
+- **Later** — Secure multi-user BYOK storage, broader hosted/operator-managed packaging, public template registry
 
 **Full backlog**: [BACKLOG.md](SYSTEM/docs/BACKLOG.md)
 

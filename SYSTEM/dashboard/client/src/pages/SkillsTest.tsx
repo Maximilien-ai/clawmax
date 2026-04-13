@@ -5,7 +5,7 @@ import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
-import { hasAnyLLMKeys, readStoredByokKeys } from '../lib/byok'
+import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -56,7 +56,7 @@ const SKILL_SPEC_SECTIONS = [
 export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
   const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
-  const aiEnabled = hasAnyLLMKeys(config)
+  const aiEnabled = hasAiGenerationAccess(config)
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
@@ -426,6 +426,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     const activePrompt = refine ? aiSkillRefinementPrompt.trim() : aiSkillPrompt.trim()
     if (!activePrompt) {
       setError(refine ? 'Describe how you want to refine the draft' : 'Describe the skill you want to create')
+      return
+    }
+    if (!aiEnabled) {
+      setError('AI skill generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
       return
     }
 
@@ -1743,8 +1747,27 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     </p>
 
                     {!aiEnabled && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                        AI creation needs configured system keys or browser-local BYOK keys in Workspaces Integrations.
+                      <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+                        <div className="font-medium">AI skill generation is disabled because no AI execution path is configured</div>
+                        <div className="mt-1 text-xs opacity-90">
+                          This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-700 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                          >
+                            Open BYOK
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-700 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                          >
+                            Keys & Secrets
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -1767,7 +1790,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         disabled={!aiEnabled || aiSkillGenerating || !aiSkillPrompt.trim()}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
                       >
-                        {aiSkillGenerating ? 'Generating...' : '✨ Generate Skill Draft'}
+                        {aiSkillGenerating ? 'Generating...' : !aiEnabled ? 'Generate Skill Draft (set up keys first)' : '✨ Generate Skill Draft'}
                       </button>
                     </div>
 

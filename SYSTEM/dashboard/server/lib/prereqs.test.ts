@@ -61,7 +61,7 @@ test('buildGitHubAuthChecks passes when gh auth includes repo scope', () => {
 })
 
 test('buildGitHubTokenChecks passes when runtime token and repo are configured', () => {
-  const checks = buildGitHubTokenChecks('Maximilien-ai/clawmax-test')
+  const checks = buildGitHubTokenChecks('owner/repo-name')
   assert(checks.every((check) => check.status === 'pass'), 'Expected runtime token checks to pass with repo')
 })
 

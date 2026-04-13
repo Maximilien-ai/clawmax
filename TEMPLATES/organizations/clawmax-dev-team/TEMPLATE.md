@@ -28,7 +28,7 @@ dev-team-kickoff
 ```
 
 ## Defaults
-- GitHub repo: Maximilien-ai/clawmax
+- GitHub repo: owner/repo-name
 - Main branch: main
 - Test command: ./SYSTEM/test.sh
 - Release prefix: v

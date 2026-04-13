@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { readStoredByokKeys } from '../lib/byok'
+import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -139,6 +140,8 @@ function summarizeChatFailure(message: string): string {
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
+  const { config } = useAuth()
+  const browserChatEnabled = hasAiGenerationAccess(config)
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
@@ -148,6 +151,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [error, setError] = useState<string | null>(null)
   const [sessionId] = useState<string>(() => `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
+  const [chatEnabled, setChatEnabled] = useState(browserChatEnabled)
   const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
   const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
@@ -203,6 +207,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   useEffect(() => {
     checkGateway()
+    checkChatExecutionReadiness()
     fetchArchivesList() // Fetch archives on mount to enable/disable history button
     // Delay focus slightly to ensure component is fully mounted
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -245,7 +250,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         recognitionRef.current.stop()
       }
     }
-  }, [agentId, agentStatus, agentName])
+  }, [agentId, agentStatus, agentName, browserChatEnabled])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -315,6 +320,32 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     setError('No API keys available. Add keys via BYOK or configure server environment.')
   }
 
+  async function checkChatExecutionReadiness() {
+    if (!browserChatEnabled) {
+      setChatEnabled(false)
+      return
+    }
+
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/readiness`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ byok: readStoredByokKeys() }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (r.ok && data.available !== false) {
+        setChatEnabled(true)
+        return
+      }
+      setChatEnabled(false)
+      if (data?.error) {
+        setError(data.error)
+      }
+    } catch {
+      setChatEnabled(browserChatEnabled)
+    }
+  }
+
   async function resetAgentSession() {
     try {
       setResettingSession(true)
@@ -359,6 +390,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   async function sendMessage(messageText?: string) {
     const textToSend = messageText || input.trim()
     if (!textToSend || sending) return
+    if (!chatEnabled) {
+      setError('Agent chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
+      return
+    }
 
     // Add to input history
     if (!messageText && textToSend) {
@@ -635,12 +670,30 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           <div className="text-center py-8">
             <div className="text-6xl mb-4">⚠️</div>
             <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Agent Chat Unavailable</h3>
-            <div className="text-sm text-gray-500 mb-4 space-y-3">
-              <p>Chat needs a working gateway or another configured execution path.</p>
-              <div className="text-left inline-block space-y-2">
-                <p>1. Check <span className="font-medium">System → Doctor</span> and fix the runtime warnings.</p>
-                <p>2. Confirm this instance has a valid model setup in <span className="font-medium">BYOK</span>.</p>
-                <p>3. If this is a managed or cloud instance, enable the gateway in the instance runtime instead of using local machine commands.</p>
+            <div className="mx-auto max-w-md rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+              <div className="font-medium">Agent chat is disabled because no AI execution path is configured</div>
+              <div className="mt-1 text-xs opacity-90">
+                This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open BYOK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open Keys & Secrets
+                </button>
+              </div>
+              <div className="mt-3 text-xs opacity-90 space-y-1">
+                <p>Check <span className="font-medium">System → Doctor</span> if runtime warnings are still active.</p>
+                <p>If this is a hosted or remote runtime, enable the gateway in the instance runtime instead of using local machine commands.</p>
               </div>
             </div>
           </div>
@@ -717,6 +770,31 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+          {!chatEnabled && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+              <div className="font-medium">Agent chat is disabled because no AI execution path is configured</div>
+              <div className="mt-1 text-xs opacity-90">
+                This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open BYOK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open Keys & Secrets
+                </button>
+              </div>
+            </div>
+          )}
+
           {loadingHistory && messages.length === 0 && (
             <div className="text-center py-12 text-gray-400 text-sm">
               <div className="text-2xl mb-3 animate-spin">↻</div>
@@ -884,7 +962,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           <div className="flex gap-2">
             <button
               onClick={toggleVoiceInput}
-              disabled={sending || !gatewayAvailable}
+              disabled={sending || !gatewayAvailable || !chatEnabled}
               className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
                 isListening
                   ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
@@ -941,7 +1019,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 }
               }}
               placeholder={isListening ? "Listening..." : "Type or speak your message... (Enter to send)"}
-              disabled={sending || !gatewayAvailable || isListening}
+              disabled={sending || !gatewayAvailable || isListening || !chatEnabled}
               className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
             {streaming ? (
@@ -955,7 +1033,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               <button
                 ref={sendButtonRef}
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || sending || !gatewayAvailable}
+                disabled={!input.trim() || sending || !gatewayAvailable || !chatEnabled}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
               >
                 Send

@@ -313,6 +313,33 @@ else
   fail "Notifications unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Local secrets unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/localSecrets.test.ts > /tmp/clawmax-local-secrets.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-local-secrets.out; then
+  local_secrets_count=$(grep "Tests passed:" /tmp/clawmax-local-secrets.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Local secrets unit tests (${local_secrets_count:-?} tests)"
+else
+  fail "Local secrets unit tests"
+fi
+
+echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/byok.test.ts > /tmp/clawmax-byok.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-byok.out; then
+  byok_count=$(grep "Tests passed:" /tmp/clawmax-byok.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "BYOK helper unit tests (${byok_count:-?} tests)"
+else
+  fail "BYOK helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/dashboard-env.test.ts > /tmp/clawmax-dashboard-env.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-dashboard-env.out; then
+  dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
+else
+  fail "Dashboard env unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
@@ -320,6 +347,33 @@ if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
   pass "Workflows unit tests (${wf_count:-?} tests)"
 else
   fail "Workflows unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Prereqs unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/prereqs.test.ts > /tmp/clawmax-prereqs.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-prereqs.out; then
+  prereqs_count=$(grep "Tests passed:" /tmp/clawmax-prereqs.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Prereqs unit tests (${prereqs_count:-?} tests)"
+else
+  fail "Prereqs unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace integrations unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-integrations.test.ts > /tmp/clawmax-workspace-integrations.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-integrations.out; then
+  workspace_integrations_count=$(grep "Tests passed:" /tmp/clawmax-workspace-integrations.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace integrations unit tests (${workspace_integrations_count:-?} tests)"
+else
+  fail "Workspace integrations unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Integration validation unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/integration-validation.test.ts > /tmp/clawmax-integration-validation.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-integration-validation.out; then
+  integration_validation_count=$(grep "Tests passed:" /tmp/clawmax-integration-validation.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Integration validation unit tests (${integration_validation_count:-?} tests)"
+else
+  fail "Integration validation unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Validator unit tests...${NC}"

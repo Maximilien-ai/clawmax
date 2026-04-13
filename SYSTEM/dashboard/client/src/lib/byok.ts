@@ -19,6 +19,20 @@ export interface StoredByokKeys {
   partnerValues?: Record<string, Record<string, string>>
 }
 
+interface AiExecutionConfig {
+  allowSystemKeysForUserExecution?: boolean
+  systemKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
+  userKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
+}
+
 export function getByokStorageKey() {
   return STORAGE_KEY
 }
@@ -76,6 +90,34 @@ export function hasAnyLLMKeys(config?: { systemKeyDefaults?: { openai?: boolean;
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.ollamaBaseUrl || byok.ollamaDefaultModel) return true
   if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.gemini) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini) return true
+  return false
+}
+
+/** Check whether the current browser/user execution path can actually run AI generation */
+export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolean {
+  const byok = readStoredByokKeys()
+  if (byok.openai || byok.anthropic) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic) return true
+  if (
+    config?.allowSystemKeysForUserExecution &&
+    (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic)
+  ) {
+    return true
+  }
+  return false
+}
+
+/** Check whether the current browser/user execution path can actually run chat turns */
+export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boolean {
+  const byok = readStoredByokKeys()
+  if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.ollamaBaseUrl || byok.ollamaDefaultModel) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini) return true
+  if (
+    config?.allowSystemKeysForUserExecution &&
+    (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini)
+  ) {
+    return true
+  }
   return false
 }
 

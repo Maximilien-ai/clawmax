@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
-import { fetchModelsWithByok, refreshModelsWithByok, hasAnyLLMKeys } from '../lib/byok'
+import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import ArchiveAgentPanel from '../components/ArchiveAgentPanel'
@@ -129,7 +129,7 @@ type ArchiveTab = 'active' | 'archived'
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
-  const aiEnabled = hasAnyLLMKeys(config)
+  const aiEnabled = hasAiGenerationAccess(config)
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [doctorRunning, setDoctorRunning] = useState(false)
@@ -1120,7 +1120,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               {showAgentActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowAgentActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
                         setShowAgentActionsMenu(false)
@@ -1128,13 +1128,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         setAiGenerateMode(true)
                         setShowAddWizard(true)
                       }}
-                      disabled={!aiEnabled}
-                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
-                        aiEnabled
-                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
-                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800'
-                      }`}
-                      title={aiEnabled ? 'Generate agent with AI' : 'Configure API keys (BYOK) to enable AI generation'}
+                      className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                      title="Generate agent with AI"
                     >
                       <span className="text-purple-500">✨</span> AI Generate
                     </button>

@@ -2,14 +2,35 @@
 
 All notable changes to ClawMax are documented here.
 
-## [Unreleased]
+## [v1.3.0] - 2026-04-13
 
-### Fixes — Opik Attribution
-- **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers in Opik trace metadata, while scheduled/system runs remain attributed as system activity
+### Fixes — Hosted Runtime and Integrations
+- **Hosted GitHub Runtime Token Path** — hosted/non-interactive deployments can now store a GitHub runtime token server-side for issue and PR workflows, while local/native and operator-managed environments continue to use the `gh` CLI path
+- **Runtime-Aware Ollama Defaults** — the dashboard now prefers an injected `OLLAMA_BASE_URL` when present and only falls back to `http://localhost:11434` for true local/native development
+- **Runtime-Aware Ollama Visibility** — Ollama stays hidden unless the runtime is actually configured for it, and `OLLAMA_BASE_URL` no longer leaks into `Keys & Secrets` when Ollama is disabled
 
-### Fixes — Ollama Runtime Defaults
-- **Environment-Aware Ollama Base URL** — the dashboard now prefers an injected `OLLAMA_BASE_URL` when present and only falls back to `http://localhost:11434` for true local/native development
-- **On-Prem Container Contract** — env examples now document that containerized/on-prem deployments should inject a reachable Ollama URL explicitly instead of relying on the localhost fallback
+### Fixes — Onboarding, BYOK, and User Setup
+- **Onboarding Stability** — onboarding now stays tied to the active workspace instead of disappearing during login hydration on empty workspaces
+- **BYOK State and Close Consistency** — saving or skipping integrations now closes mounted wizard instances consistently, resyncs browser-local state correctly, and updates readiness more reliably
+- **Browser-Local Key Explanation** — BYOK now explains when keys were configured in another browser or machine so users understand why local browser setup must be repeated
+- **Workspace vs Browser Defaults** — workspace-level GitHub defaults continue to persist across browsers while model/provider BYOK values remain browser-local
+
+### Fixes — AI Creation Flows
+- **Consistent AI Gating** — agent, workflow, skill, and template AI-create flows now open first and show the same in-flow warning when no usable AI execution path is configured
+- **Setup Guidance in Flow** — each AI-create surface now links directly to `BYOK` and `Keys & Secrets` instead of waiting for a failed generation attempt
+- **AI Readiness Contract** — AI create readiness is now based on the execution paths those generation routes can actually use, avoiding false-ready states in a new browser
+
+### Fixes — Template Apply and Prereqs
+- **Preferred Model Readiness** — a saved preferred model now counts as a valid shared execution path during template prereq checks
+- **Packaged Skill Detection** — packaged skills like `workspace-ls` resolve correctly in prereq checks instead of warning as missing
+- **Partner Surface Cleanup on Main** — unstable Blaxel and Redis partner/template surfaces remain removed from shipped `main` and preserved only on their dedicated branches
+
+### Fixes — Secrets and Traces
+- **Partner Secret Cleanup** — clearing partner fields now removes stale saved values instead of leaving outdated shared-secret residue behind
+- **User-Aware Opik Metadata** — manual chats, group/direct messaging, and manual workflow runs now stamp real dashboard user identity alongside workspace and agent/workflow identifiers, while scheduled/system runs remain attributed as system activity
+
+### Quality
+- **Expanded Local Validation** — added focused unit coverage for browser-vault helpers, dashboard env resolution, workspace integrations, prereqs, and integration validation so `SYSTEM/test.sh` reflects the newer runtime/setup behavior
 
 ## [v1.2.18] - 2026-04-12
 

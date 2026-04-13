@@ -21,11 +21,15 @@ interface AuthConfig {
   systemKeyDefaults?: {
     openai: boolean
     anthropic: boolean
+    gemini?: boolean
   }
   userKeyDefaults?: {
     openai: boolean
     anthropic: boolean
+    gemini?: boolean
   }
+  recommendedModel?: string
+  costEfficientModel?: string
 }
 
 interface AuthContextValue {
