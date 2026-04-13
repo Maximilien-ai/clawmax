@@ -199,6 +199,48 @@ async function run() {
     assert(metering.byAgent.some((agent) => agent.agentId === 'analysis-lead' && agent.estimatedCostUsd > 0), 'Expected per-agent derived cost')
   })
 
+  await test('aggregateWorkspaceMeteringFromTraces can be safely pre-filtered by viewer identity', () => {
+    const traces = [
+      {
+        id: 'a1',
+        name: 'agent.chat.one',
+        start_time: '2026-04-08T19:00:00.000Z',
+        end_time: '2026-04-08T19:00:10.000Z',
+        metadata: {
+          agent_id: 'one',
+          user_id: 'user-a',
+          user_login: 'alpha',
+          tokens_input: 100,
+          tokens_output: 50,
+          tokens_total: 150,
+          estimated_cost_usd: 0.1,
+        },
+      },
+      {
+        id: 'a2',
+        name: 'agent.chat.two',
+        start_time: '2026-04-08T19:01:00.000Z',
+        end_time: '2026-04-08T19:01:04.000Z',
+        metadata: {
+          agent_id: 'two',
+          user_id: 'user-b',
+          user_login: 'beta',
+          tokens_input: 200,
+          tokens_output: 100,
+          tokens_total: 300,
+          estimated_cost_usd: 0.2,
+        },
+      },
+    ] as any
+
+    const onlyAlpha = traces.filter((trace: any) => trace.metadata?.user_id === 'user-a')
+    const metering = aggregateWorkspaceMeteringFromTraces(onlyAlpha)
+
+    assert(metering.totalTraces === 1, 'Expected only one viewer trace after filtering')
+    assert(metering.byAgent.length === 1 && metering.byAgent[0].agentId === 'one', 'Expected only the viewer agent usage')
+    assert(Math.abs(metering.estimatedCostUsd - 0.1) < 0.0001, 'Expected only the viewer cost to remain')
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)

@@ -58,6 +58,13 @@ export interface WorkspaceMetering {
   period: string
 }
 
+interface MeteringViewer {
+  userId?: string | null
+  login?: string | null
+  email?: string | null
+  dashboardInstanceId?: string | null
+}
+
 export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<WorkspaceMetering, 'period'> {
   const agentMap = new Map<string, AgentMetering>()
   const workflowMap = new Map<string, WorkflowMetering>()
@@ -297,11 +304,27 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
   })
 }
 
-export async function getWorkspaceMetering(workspaceId?: string): Promise<WorkspaceMetering> {
+function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): boolean {
+  if (!viewer?.userId && !viewer?.login && !viewer?.email && !viewer?.dashboardInstanceId) return true
+  const meta = trace.metadata || {}
+  if (viewer.dashboardInstanceId && String(meta.dashboard_instance_id || '').toLowerCase() !== String(viewer.dashboardInstanceId).toLowerCase()) {
+    return false
+  }
+  if (viewer.userId && meta.user_id && String(meta.user_id) === String(viewer.userId)) return true
+  if (viewer.login && meta.user_login && String(meta.user_login).toLowerCase() === String(viewer.login).toLowerCase()) return true
+  if (viewer.email && meta.user_email && String(meta.user_email).toLowerCase() === String(viewer.email).toLowerCase()) return true
+  if (viewer.userId || viewer.login || viewer.email) return false
+  return true
+}
+
+export async function getWorkspaceMetering(workspaceId?: string, viewer?: MeteringViewer): Promise<WorkspaceMetering> {
   const config = getOpikConfig()
   const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
   const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
   const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
+    if (!traceMatchesViewer(trace, viewer)) {
+      return false
+    }
     const traceWorkspaceId = trace.metadata?.workspace_id
     if (traceWorkspaceId) {
       return workspaceIds.has(String(traceWorkspaceId))

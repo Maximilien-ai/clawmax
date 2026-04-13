@@ -6,7 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayRunning } from '../lib/gateway-rpc'
-import { traceAgentChat } from '../lib/opik'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -301,6 +301,7 @@ router.post('/:id/chat', (req, res) => {
             actorUserId: session?.userId,
             actorLogin: session?.login,
             actorEmail: session?.email,
+            dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
         }
 

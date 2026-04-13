@@ -2,6 +2,20 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.1] - 2026-04-13
+
+### Fixes — Hosted Setup and Integrations
+- **Sticky Empty-Workspace Onboarding** — onboarding now stays open reliably for a truly empty active workspace instead of disappearing during late hydration on a brand new hosted instance
+- **Hidden Ollama Validation Cleanup** — saving integrations no longer reports hidden Ollama validation failures when Ollama is disabled for the current runtime
+- **Runtime Workspace Reconciliation** — the dashboard workspace registry now reconciles its default workspace path against the configured runtime workspace so a fresh hosted instance does not inherit a stale prior workspace path
+
+### Fixes — Opik Metering Isolation
+- **User-Scoped Metering** — `/api/metering` now filters Opik traces to the authenticated user before aggregating workspace/agent/workflow totals, preventing a fresh user from seeing another user’s trace data in the same hosted project
+- **Dashboard Instance Scoping** — Opik traces now include a `dashboard_instance_id` derived from the canonical dashboard URL/request host, and metering only includes traces from the current dashboard instance
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/workspace-manager.test.ts`, `server/lib/integration-validation.test.ts`, and `server/lib/metering.test.ts`
+
 ## [v1.3.0] - 2026-04-13
 
 ### Fixes — Hosted Runtime and Integrations

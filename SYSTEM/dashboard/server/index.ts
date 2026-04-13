@@ -22,11 +22,11 @@ import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getLates
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
-import { initOpikTracing, shutdownOpik, isOpikEnabled } from './lib/opik'
+import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
-import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured } from './lib/github-auth'
+import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
@@ -283,7 +283,15 @@ app.get('/api/metering', protect, async (req, res) => {
       })
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
-    const data = await getWorkspaceMetering(workspaceId)
+    const session = getAuthenticatedSession(req)
+    const data = await getWorkspaceMetering(workspaceId, session ? {
+      userId: session.userId,
+      login: session.login,
+      email: session.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    } : {
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ enabled: true, ...data })
   } catch (err: any) {
     res.status(500).json({ error: err.message })

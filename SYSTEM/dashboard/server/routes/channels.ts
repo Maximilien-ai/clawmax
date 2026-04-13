@@ -7,7 +7,7 @@ import { userExecutionEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages, directMessageKey, type Message } from '../lib/messages'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
-import { traceAgentChat } from '../lib/opik'
+import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
 import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -390,6 +390,7 @@ async function callAgent(
               actorUserId: actor?.userId,
               actorLogin: actor?.login,
               actorEmail: actor?.email,
+              dashboardInstanceId: getConfiguredDashboardInstanceId(),
             })
           }
           const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId

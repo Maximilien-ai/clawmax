@@ -14,6 +14,33 @@ let workspace = ''
 let projectName = ''
 let enabled = false
 
+function normalizeDashboardInstanceId(value: string): string {
+  return value.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+export function getConfiguredDashboardInstanceId(): string {
+  const configured = (process.env.DASHBOARD_PUBLIC_URL || '').trim()
+  if (!configured) return ''
+  return normalizeDashboardInstanceId(configured)
+}
+
+export function getRequestDashboardInstanceId(req?: {
+  protocol?: string
+  headers?: Record<string, string | string[] | undefined>
+} | null): string {
+  if (!req) return getConfiguredDashboardInstanceId()
+  const forwardedProto = req.headers?.['x-forwarded-proto']
+  const proto = Array.isArray(forwardedProto)
+    ? forwardedProto[0]
+    : forwardedProto || req.protocol || 'https'
+  const forwardedHost = req.headers?.['x-forwarded-host']
+  const host = Array.isArray(forwardedHost)
+    ? forwardedHost[0]
+    : forwardedHost || req.headers?.host || ''
+  if (!host) return getConfiguredDashboardInstanceId()
+  return normalizeDashboardInstanceId(`${proto}://${host}`)
+}
+
 function getWorkspaceId(): string {
   try {
     return getWorkspaceManager().getActiveWorkspaceId()
@@ -127,6 +154,7 @@ export function traceAgentChat(
     actorUserId?: string
     actorLogin?: string
     actorEmail?: string | null
+    dashboardInstanceId?: string
   }
 ): void {
   if (!enabled) return
@@ -155,6 +183,7 @@ export function traceAgentChat(
       user_id: meta.actorUserId || (meta.sessionId ? 'session' : 'system'),
       user_login: meta.actorLogin || '',
       user_email: meta.actorEmail || '',
+      dashboard_instance_id: meta.dashboardInstanceId || getConfiguredDashboardInstanceId(),
       model: meta.model || 'unknown',
       provider: meta.provider || 'unknown',
       tokens_input: meta.inputTokens || 0,
@@ -191,6 +220,7 @@ export function traceWorkflowExecution(
     actorUserId?: string
     actorLogin?: string
     actorEmail?: string | null
+    dashboardInstanceId?: string
   }
 ): void {
   if (!enabled) return
@@ -219,6 +249,7 @@ export function traceWorkflowExecution(
       user_id: meta.actorUserId || 'system',
       user_login: meta.actorLogin || '',
       user_email: meta.actorEmail || '',
+      dashboard_instance_id: meta.dashboardInstanceId || getConfiguredDashboardInstanceId(),
       trigger_type: meta.triggerType,
       participant_count: participants.length,
       tokens_input: totalInput,

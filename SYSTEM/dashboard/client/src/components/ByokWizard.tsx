@@ -705,8 +705,8 @@ export function ByokWizard({
       openai: scope === 'all' ? openaiKey.trim() : '',
       anthropic: scope === 'all' ? anthropicKey.trim() : '',
       gemini: scope === 'all' ? geminiApiKey.trim() : '',
-      ollamaBaseUrl: scope === 'all' ? ollamaBaseUrl.trim() : '',
-      ollamaDefaultModel: scope === 'all' ? ollamaDefaultModel.trim() : '',
+      ollamaBaseUrl: scope === 'all' && ollamaEnabled ? ollamaBaseUrl.trim() : '',
+      ollamaDefaultModel: scope === 'all' && ollamaEnabled ? ollamaDefaultModel.trim() : '',
       opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
       opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
       opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
@@ -738,7 +738,9 @@ export function ByokWizard({
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
         anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
-        ollama: { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' },
+        ollama: ollamaEnabled
+          ? { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' }
+          : { status: 'skipped', message: 'Ollama is disabled in this runtime' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
       }

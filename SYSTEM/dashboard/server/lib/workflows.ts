@@ -7,7 +7,7 @@ import { safeEnv, userExecutionEnv } from './safe-env'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { addMessage } from './messages'
-import { traceAgentChat, traceWorkflowExecution } from './opik'
+import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
 import { isGatewayRunning } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
@@ -1245,6 +1245,7 @@ export function triggerWorkflow(workflowId: string, options?: {
             actorUserId: options?.actor?.userId,
             actorLogin: options?.actor?.login,
             actorEmail: options?.actor?.email,
+            dashboardInstanceId: getConfiguredDashboardInstanceId(),
           })
 
           // Post response to targeted groups/communities
@@ -1340,6 +1341,7 @@ export function triggerWorkflow(workflowId: string, options?: {
         actorUserId: options?.actor?.userId,
         actorLogin: options?.actor?.login,
         actorEmail: options?.actor?.email,
+        dashboardInstanceId: getConfiguredDashboardInstanceId(),
       })
     }
 

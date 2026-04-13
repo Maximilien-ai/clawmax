@@ -45,6 +45,7 @@ export class WorkspaceManager {
     try {
       const content = fs.readFileSync(this.registryPath, 'utf-8')
       this.registry = JSON.parse(content)
+      this.reconcileRegistryWithRuntimeWorkspace()
       return this.registry!
     } catch (err) {
       // Registry doesn't exist, create default with current workspace
@@ -71,6 +72,34 @@ export class WorkspaceManager {
       this.saveRegistry()
       return this.registry!
     }
+  }
+
+  private reconcileRegistryWithRuntimeWorkspace(): void {
+    if (!this.registry) return
+
+    const configuredWorkspacePath = process.env.OPENCLAW_WORKSPACE
+      ? path.resolve(process.env.OPENCLAW_WORKSPACE)
+      : ''
+    if (!configuredWorkspacePath) return
+
+    const registry = this.registry
+    const matchingWorkspace = registry.workspaces.find((workspace) => path.resolve(workspace.path) === configuredWorkspacePath)
+    if (matchingWorkspace) {
+      if (registry.activeWorkspaceId !== matchingWorkspace.id) {
+        registry.activeWorkspaceId = matchingWorkspace.id
+        this.saveRegistry()
+      }
+      return
+    }
+
+    const defaultWorkspace = registry.workspaces.find((workspace) => workspace.id === 'default')
+    if (!defaultWorkspace) return
+
+    defaultWorkspace.path = configuredWorkspacePath
+    defaultWorkspace.lastAccessedAt = new Date().toISOString()
+    registry.activeWorkspaceId = defaultWorkspace.id
+    this.initializeWorkspaceStructure(configuredWorkspacePath)
+    this.saveRegistry()
   }
 
   /** Save registry to disk */

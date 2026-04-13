@@ -47,12 +47,13 @@ router.get('/github-status', (_req, res) => {
 
 router.put('/config', (req, res) => {
   const body = (req.body || {}) as Record<string, unknown>
+  const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: typeof body.preferredModel === 'string' ? body.preferredModel : undefined,
     githubDefaultRepo: typeof body.githubDefaultRepo === 'string' ? body.githubDefaultRepo : undefined,
     sensoContextLabel: typeof body.sensoContextLabel === 'string' ? body.sensoContextLabel : undefined,
-    ollamaBaseUrl: typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
-    ollamaDefaultModel: typeof body.ollamaDefaultModel === 'string' ? body.ollamaDefaultModel : undefined,
+    ollamaBaseUrl: ollamaEnabled && typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
+    ollamaDefaultModel: ollamaEnabled && typeof body.ollamaDefaultModel === 'string' ? body.ollamaDefaultModel : undefined,
     opikWorkspace: typeof body.opikWorkspace === 'string' ? body.opikWorkspace : undefined,
     opikProject: typeof body.opikProject === 'string' ? body.opikProject : undefined,
     enabledPartners: Array.isArray(body.enabledPartners) ? body.enabledPartners.filter((item): item is string => typeof item === 'string') : undefined,
@@ -76,7 +77,12 @@ router.put('/config', (req, res) => {
 
 router.post('/validate', async (req, res) => {
   try {
-    const result = await validateIntegrations(req.body || {})
+    const body = { ...(req.body || {}) } as Record<string, unknown>
+    if (!isOllamaUiEnabled(getDashboardEnvRaw())) {
+      body.ollamaBaseUrl = ''
+      body.ollamaDefaultModel = ''
+    }
+    const result = await validateIntegrations(body)
     res.json(result)
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to validate integrations' })

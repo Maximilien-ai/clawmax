@@ -527,9 +527,23 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 }) {
   const { user, logout, config } = useAuth()
   const { activeWorkspace } = useWorkspace()
-  const onboardingVisible = activeWorkspace
+  const rawOnboardingVisible = activeWorkspace
     ? (activeWorkspace.agentCount ?? 0) === 0
     : (system?.agentCount ?? 0) === 0
+  const [stickyOnboardingWorkspaceId, setStickyOnboardingWorkspaceId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!activeWorkspace?.id) return
+    if ((activeWorkspace.agentCount ?? 0) === 0) {
+      setStickyOnboardingWorkspaceId(activeWorkspace.id)
+      return
+    }
+    if (stickyOnboardingWorkspaceId === activeWorkspace.id) {
+      setStickyOnboardingWorkspaceId(null)
+    }
+  }, [activeWorkspace?.id, activeWorkspace?.agentCount, stickyOnboardingWorkspaceId])
+
+  const onboardingVisible = rawOnboardingVisible || (!!activeWorkspace?.id && stickyOnboardingWorkspaceId === activeWorkspace.id)
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
