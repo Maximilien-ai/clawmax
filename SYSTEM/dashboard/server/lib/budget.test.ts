@@ -14,6 +14,7 @@ import {
   checkBudgetBlock,
   validateAgentCostLimit,
 } from './budget'
+import { initOpikTracing, shutdownOpik } from './opik'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -102,12 +103,16 @@ async function run() {
   })
 
   await test('checkBudgetBlock returns workflow-specific message', () => {
+    process.env.OPIK_API_KEY = 'test-opik-key'
+    initOpikTracing()
     saveBudgetConfig({ limitUsd: 44, warningPct: 80, enforced: true, paused: true }, 'workspace-a')
     const message = checkBudgetBlock({ workspaceId: 'workspace-a', operation: 'workflow' })
     assert(message === 'Workflow blocked: workspace budget exceeded ($44.00 limit). Increase budget or disable enforcement to continue.', 'Expected workflow-specific budget message')
   })
 
   await test('checkBudgetBlock returns agent-specific message', () => {
+    process.env.OPIK_API_KEY = 'test-opik-key'
+    initOpikTracing()
     saveBudgetConfig({ limitUsd: 55, warningPct: 80, enforced: true, paused: true }, 'workspace-b')
     const message = checkBudgetBlock({ workspaceId: 'workspace-b', operation: 'agent' })
     assert(message === 'Agent interaction blocked: workspace budget exceeded ($55.00 limit). Increase budget or disable enforcement to continue.', 'Expected agent-specific budget message')
@@ -133,6 +138,7 @@ async function run() {
 
   if (typeof originalOpikApiKey === 'undefined') delete process.env.OPIK_API_KEY
   else process.env.OPIK_API_KEY = originalOpikApiKey
+  shutdownOpik()
 
   resetWorkspaceManagerForTests()
 

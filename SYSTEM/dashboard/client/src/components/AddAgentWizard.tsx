@@ -18,7 +18,7 @@ interface WizardProps {
   startWithAI?: boolean
 }
 
-type Step = 1 | 2 | 3 | 4 | 5
+type Step = 1 | 2 | 3 | 4
 
 interface FormState {
   name: string
@@ -274,8 +274,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     1: nameOk && form.model.length > 0,
     2: true, // AI generation is optional
     3: true, // whatsapp is optional
-    4: true, // port/profile optional
-    5: false, // provision button handles this
+    4: false, // provision button handles this
   }
 
   async function generateWithAI() {
@@ -443,7 +442,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   }
 
   async function createAgentNowFromAI() {
-    setStep(5)
+    setStep(4)
     await provision()
   }
 
@@ -472,7 +471,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
         {/* Step indicators */}
         <div className="px-6 pt-4 pb-2 flex items-center gap-2 shrink-0">
-          {([1, 2, 3, 4, 5] as Step[]).map(s => (
+          {([1, 2, 3, 4] as Step[]).map(s => (
             <React.Fragment key={s}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 s < step ? 'bg-sky-600 text-white' :
@@ -481,14 +480,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               }`}>
                 {s < step ? '✓' : s}
               </div>
-              {s < 5 && <div className={`flex-1 h-0.5 rounded ${s < step ? 'bg-sky-400' : 'bg-gray-200'}`} />}
+              {s < 4 && <div className={`flex-1 h-0.5 rounded ${s < step ? 'bg-sky-400' : 'bg-gray-200'}`} />}
             </React.Fragment>
           ))}
         </div>
 
         {/* Step labels */}
         <div className="px-6 pb-3 flex justify-between shrink-0">
-          {['Identity', 'AI Agent', 'Channel', 'Deploy', 'Provision'].map((label, i) => (
+          {['Identity', 'AI Agent', 'Channel', 'Provision'].map((label, i) => (
             <span key={label} className={`text-xs ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}>
               {label}
             </span>
@@ -796,7 +795,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       {provisioning ? 'Creating…' : validatingProvision ? 'Validating…' : 'Create Agent'}
                     </button>
                     <button
-                      onClick={() => setStep(3)}
+                      onClick={() => setStep(4)}
                       disabled={provisioning || validatingProvision}
                       className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -826,28 +825,8 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
             </div>
           )}
 
-          {/* Step 4: Deployment */}
+          {/* Step 4: Review + Provision */}
           {step === 4 && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gateway port <span className="text-gray-400">(optional)</span></label>
-                <input
-                  type="number"
-                  value={form.port || ''}
-                  onChange={e => set('port', e.target.value ? parseInt(e.target.value, 10) : 0)}
-                  placeholder={String(suggested?.port ?? 18789)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 dark:focus:border-sky-600 font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                />
-                <p className="mt-1 text-xs text-gray-400">Suggested: <strong>{suggested?.port ?? '…'}</strong></p>
-              </div>
-              <div className="p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-700 dark:text-sky-300">
-                State will be isolated under <code className="font-mono">~/.openclaw-{form.name || suggested?.id || 'name'}/</code> with its own gateway and credentials.
-              </div>
-            </div>
-          )}
-
-          {/* Step 5: Review + Provision */}
-          {step === 5 && (
             <div className="space-y-4">
               {!provisioning && !done && !provError && (
                 <>
@@ -907,7 +886,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           </button>
 
           <div className="flex items-center gap-2">
-            {step < 5 && (
+            {step < 4 && (
               <button
                 onClick={() => setStep(s => (s + 1) as Step)}
                 disabled={!canNext[step]}
@@ -916,7 +895,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 Next
               </button>
             )}
-            {step === 5 && !done && (
+            {step === 4 && !done && (
               <button
                 onClick={provision}
                 disabled={provisioning || validatingProvision}

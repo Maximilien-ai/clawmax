@@ -230,7 +230,13 @@ app.get('/api/budget', protect, async (req, res) => {
       })
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
-    const status = await getBudgetStatus(workspaceId)
+    const session = getAuthenticatedSession(req)
+    const status = await getBudgetStatus(workspaceId, {
+      userId: session?.userId || null,
+      login: session?.login || null,
+      email: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ enabled: true, ...status })
   } catch (err: any) {
     res.status(500).json({ error: err.message })

@@ -9,6 +9,7 @@ interface Props {
 interface GatewayStatus {
   available: boolean
   port?: number
+  code?: string
   status?: {
     uptime?: number
     version?: string
@@ -111,6 +112,48 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
     )
   }
 
+  const statusCopy = (() => {
+    switch (gatewayStatus?.code) {
+      case 'gateway_not_configured':
+        return {
+          title: 'Gateway Not Configured',
+          detail: 'This agent does not currently have a gateway runtime attached.',
+          hint: 'Open Doctor to verify runtime configuration and gateway supervision for this instance.'
+        }
+      case 'gateway_auth_failed':
+        return {
+          title: 'Gateway Authentication Failed',
+          detail: 'The dashboard reached the agent gateway, but the runtime rejected the status request.',
+          hint: 'Open Doctor and check the runtime gateway credentials and agent registration state.'
+        }
+      case 'gateway_timeout':
+        return {
+          title: 'Gateway Timed Out',
+          detail: 'The runtime gateway did not answer the status probe in time.',
+          hint: 'Open Doctor to confirm the gateway is running and responsive in this runtime.'
+        }
+      case 'gateway_connection_error':
+      case 'gateway_connection_closed':
+        return {
+          title: 'Gateway Connection Failed',
+          detail: 'The dashboard could not maintain a connection to the agent gateway.',
+          hint: 'Open Doctor to inspect runtime connectivity and supervisor health for this instance.'
+        }
+      case 'gateway_status_error':
+        return {
+          title: 'Gateway Status Failed',
+          detail: 'The runtime gateway responded, but the status request itself failed.',
+          hint: 'Open Doctor and review runtime logs for the gateway process.'
+        }
+      default:
+        return {
+          title: 'Agent Chat Unavailable',
+          detail: gatewayStatus?.error || 'This agent cannot reach a healthy gateway runtime right now.',
+          hint: 'Open Doctor to verify gateway health and the runtime execution path for this instance.'
+        }
+    }
+  })()
+
   if (!gatewayStatus?.available) {
     return (
       <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
@@ -121,13 +164,22 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="text-center">
             <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Agent Chat Unavailable</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">{statusCopy.title}</h3>
             <p className="text-sm text-gray-500 mb-2">
-              {gatewayStatus?.error || 'Chat requires the gateway and API keys to be configured.'}
+              {statusCopy.detail}
             </p>
             <p className="text-xs text-gray-400 mb-3">
-              Run <code className="bg-gray-100 px-1 rounded dark:bg-gray-700">openclaw gateway start</code> and add API keys to <code className="bg-gray-100 px-1 rounded dark:bg-gray-700">.env</code>
+              {statusCopy.hint}
             </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-doctor'))}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
+              >
+                Open Doctor
+              </button>
+            </div>
           </div>
         </div>
       </div>
