@@ -2,6 +2,21 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.2] - 2026-04-14
+
+### Fixes — Hosted Metering and Budget Isolation
+- **Viewer-Scoped Workspace Budget** — `/api/budget` now uses the same authenticated user, workspace, and dashboard-instance scoping as metering so a fresh hosted dashboard no longer shows stale spend from another user or prior instance
+
+### Fixes — Gateway Diagnostics
+- **Gateway Status Failure Classification** — agent gateway status responses now distinguish configuration, authentication, timeout, and connection failures instead of collapsing them into a generic unavailable state
+- **Doctor-First Runtime Guidance** — the agent status panel now routes users to `Doctor` for gateway/runtime issues instead of showing local-machine command guidance that does not apply to managed or remote runtimes
+
+### Fixes — Agent Creation UX
+- **Removed Customer Gateway Step** — `Create Agent` no longer exposes the customer-facing gateway/deploy step; internal port/runtime behavior stays implicit instead of asking users to configure gateway details directly
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/budget.test.ts`, `server/lib/metering.test.ts`, `server/lib/workspace-manager.test.ts`, and `server/lib/integration-validation.test.ts`
+
 ## [v1.3.1] - 2026-04-13
 
 ### Fixes — Hosted Setup and Integrations
