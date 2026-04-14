@@ -21,6 +21,7 @@ router.get('/:id/status', async (req, res) => {
   if (!gatewayConfig) {
     return res.status(404).json({
       error: 'Gateway not configured for this agent',
+      code: 'gateway_not_configured',
       available: false
     })
   }
@@ -39,7 +40,7 @@ router.get('/:id/status', async (req, res) => {
 
     const timeout = setTimeout(() => {
       ws.close()
-      res.status(503).json({ error: 'Gateway timeout', available: false })
+      res.status(503).json({ error: 'Gateway timed out while reporting status', code: 'gateway_timeout', available: false })
       resolve()
     }, 10000)
 
@@ -103,7 +104,7 @@ router.get('/:id/status', async (req, res) => {
           } else {
             clearTimeout(timeout)
             ws.close()
-            res.status(401).json({ error: 'Authentication failed', available: false })
+            res.status(401).json({ error: 'Gateway authentication failed', code: 'gateway_auth_failed', available: false })
             resolve()
           }
           return
@@ -115,7 +116,7 @@ router.get('/:id/status', async (req, res) => {
           ws.close()
 
           if (message.error) {
-            res.status(500).json({ error: message.error.message || 'Status error', available: false })
+            res.status(500).json({ error: message.error.message || 'Gateway status request failed', code: 'gateway_status_error', available: false })
           } else {
             res.json({
               available: true,
@@ -132,14 +133,14 @@ router.get('/:id/status', async (req, res) => {
 
     ws.on('error', () => {
       clearTimeout(timeout)
-      res.status(503).json({ error: 'Gateway connection error', available: false })
+      res.status(503).json({ error: 'Gateway connection failed', code: 'gateway_connection_error', available: false })
       resolve()
     })
 
     ws.on('close', () => {
       clearTimeout(timeout)
       if (!res.headersSent) {
-        res.status(503).json({ error: 'Gateway connection closed', available: false })
+        res.status(503).json({ error: 'Gateway connection closed before status completed', code: 'gateway_connection_closed', available: false })
       }
       resolve()
     })

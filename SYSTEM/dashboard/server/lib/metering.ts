@@ -58,7 +58,7 @@ export interface WorkspaceMetering {
   period: string
 }
 
-interface MeteringViewer {
+export interface MeteringViewer {
   userId?: string | null
   login?: string | null
   email?: string | null

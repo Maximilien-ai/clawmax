@@ -7,7 +7,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
-import { getWorkspaceMetering } from './metering'
+import { getWorkspaceMetering, type MeteringViewer } from './metering'
 import { getWorkspaceManager } from './workspace-manager'
 import { isOpikEnabled } from './opik'
 
@@ -60,9 +60,9 @@ export function saveBudgetConfig(config: BudgetConfig, workspaceId?: string): vo
   fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8')
 }
 
-export async function getBudgetStatus(workspaceId?: string): Promise<BudgetStatus> {
+export async function getBudgetStatus(workspaceId?: string, viewer?: MeteringViewer): Promise<BudgetStatus> {
   const config = loadBudgetConfig(workspaceId)
-  const metering = await getWorkspaceMetering(workspaceId)
+  const metering = await getWorkspaceMetering(workspaceId, viewer)
   const currentSpend = metering.estimatedCostUsd
 
   const usedPct = config.limitUsd > 0
