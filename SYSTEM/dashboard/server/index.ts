@@ -18,7 +18,7 @@ import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
-import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getLatestTag, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
@@ -205,7 +205,7 @@ app.get('/api/system', protect, (_req, res) => {
     activeAgentCount: activeAgents.length,
     pausedAgentCount: agents.length - activeAgents.length,
     onlineCount: activeAgents.filter(a => a.status === 'online').length,
-    version: getLatestTag() ?? '0.1.0',
+    version: getDashboardVersion(),
     gitBranch,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),

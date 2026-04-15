@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        CLAWMAX_VERSION: ${CLAWMAX_VERSION:-}
     ports:
       - "${DASHBOARD_PORT:-3001}:3001"
     volumes:
@@ -16,6 +18,7 @@ services:
       DASHBOARD_PORT: 3001
       OPENCLAW_WORKSPACE: /app/WORKSPACES/default
       CLAWMAX_REPO_ROOT: /app
+      CLAWMAX_VERSION: ${CLAWMAX_VERSION:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
       WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github}
       CLAWMAX_EXTRA_PARTNER_DIRS: ${CLAWMAX_EXTRA_PARTNER_DIRS:-}

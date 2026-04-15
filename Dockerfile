@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 
+ARG CLAWMAX_VERSION=
 ARG OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32
 
 FROM node:22-bookworm-slim AS openclaw-builder
@@ -21,6 +22,8 @@ RUN npm pack
 
 FROM node:22-bookworm-slim AS builder
 
+ARG CLAWMAX_VERSION
+
 WORKDIR /app/SYSTEM/dashboard
 
 COPY SYSTEM/dashboard/package*.json ./
@@ -33,6 +36,7 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app/SYSTEM/dashboard
 
+ARG CLAWMAX_VERSION
 ARG OPENCLAW_GIT_REF
 
 RUN apt-get update \
@@ -82,6 +86,7 @@ ENV HOME=/app
 ENV DASHBOARD_PORT=3001
 ENV OPENCLAW_WORKSPACE=/app/WORKSPACES/default
 ENV CLAWMAX_REPO_ROOT=/app
+ENV CLAWMAX_VERSION=${CLAWMAX_VERSION}
 ENV OPENCLAW_GIT_REF=${OPENCLAW_GIT_REF}
 ENV CLAWMAX_GATEWAY_WATCHDOG=true
 ENV CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC=30

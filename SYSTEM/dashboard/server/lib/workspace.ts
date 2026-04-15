@@ -1089,6 +1089,44 @@ export function getLatestTag(): string | null {
   return tags[tags.length - 1]
 }
 
+function isUsableVersion(value: string | null | undefined): value is string {
+  const normalized = (value || '').trim()
+  if (!normalized) return false
+  if (normalized === '0.1.0' || normalized === 'dev' || normalized === 'unknown') return false
+  return true
+}
+
+function findDashboardPackageVersion(): string | null {
+  let current = __dirname
+
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(current, 'package.json')
+    try {
+      const raw = fs.readFileSync(candidate, 'utf-8')
+      const parsed = JSON.parse(raw)
+      if (parsed?.name === 'clawmax-dashboard' && isUsableVersion(parsed?.version)) {
+        return parsed.version.trim()
+      }
+    } catch {}
+
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+
+  return null
+}
+
+export function getDashboardVersion(): string {
+  const envVersion = process.env.CLAWMAX_VERSION?.trim()
+  if (isUsableVersion(envVersion)) return envVersion
+
+  const packageVersion = findDashboardPackageVersion()
+  if (packageVersion) return packageVersion
+
+  return getLatestTag() ?? '0.1.0'
+}
+
 export function listAgents(): AgentInfo[] {
   const agents: AgentInfo[] = []
   const agentsDir = getAgentsDir()
