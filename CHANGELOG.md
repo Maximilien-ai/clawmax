@@ -2,6 +2,16 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.3] - 2026-04-16
+
+### Fixes — Runtime Version Reporting
+- **Docker/Packaged Runtime Version Resolution** — the dashboard no longer depends solely on `.git` tag discovery inside the runtime image to determine its displayed version
+- **Explicit Version Contract** — packaged runtimes can now provide `CLAWMAX_VERSION`, and the dashboard will prefer that over git inspection when reporting the current version
+- **Safer Fallback Chain** — version resolution now falls back through explicit runtime version, checked-in dashboard package version, then git tag discovery instead of dropping straight to `0.1.0`
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/version.test.ts`
+
 ## [v1.3.2] - 2026-04-14
 
 ### Fixes — Hosted Metering and Budget Isolation
