@@ -2,6 +2,15 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.4] - 2026-04-16
+
+### Fixes — Runtime Version Reporting
+- **Git Checkout Version Precedence** — real repo checkouts now continue to prefer git tag discovery before falling back to the checked-in dashboard package version, so local/dev no longer regresses to the stale package version when a newer git tag exists
+- **Packaged Runtime Version Contract** — packaged runtimes still support `CLAWMAX_VERSION` explicitly, while `.git`-less images fall back safely without reporting `0.1.0`
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/version.test.ts`
+
 ## [v1.3.3] - 2026-04-16
 
 ### Fixes — Runtime Version Reporting

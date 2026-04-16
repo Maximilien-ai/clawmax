@@ -1121,10 +1121,13 @@ export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   if (isUsableVersion(envVersion)) return envVersion
 
+  const gitTag = getLatestTag()
+  if (isUsableVersion(gitTag)) return gitTag
+
   const packageVersion = findDashboardPackageVersion()
   if (packageVersion) return packageVersion
 
-  return getLatestTag() ?? '0.1.0'
+  return '0.1.0'
 }
 
 export function listAgents(): AgentInfo[] {
