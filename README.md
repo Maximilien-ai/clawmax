@@ -5,32 +5,27 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.0)
+[![Version](https://img.shields.io/badge/version-1.3.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.4)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.0
+## 🔥 New in v1.3.4
 
-- Runtime-aware integrations are cleaner:
-  - local-network-dependent integrations such as Ollama stay hidden unless the runtime is actually configured for them
-  - injected `OLLAMA_BASE_URL` is preferred when present, while true local/native dev still falls back to `http://localhost:11434`
-  - `OLLAMA_BASE_URL` stays out of `Keys & Secrets` when Ollama is disabled
-- Hosted vs local execution paths are clearer:
-  - non-interactive deployments can use a runtime `GITHUB_TOKEN` or `GH_TOKEN` plus a default repo for GitHub workflows
-  - local/native and operator-managed environments continue to use the existing `gh` CLI auth flow
-- Onboarding and BYOK are more stable:
-  - onboarding stays tied to the active workspace instead of disappearing after login hydration
-  - BYOK save/close behavior is consistent across both mounted entrypoints
-  - the BYOK pill reflects real readiness instead of staying amber
-- Template apply/readiness is tighter:
-  - a saved preferred model counts as a valid shared execution path
-  - packaged skills like `workspace-ls` resolve correctly in prereq checks
-  - unstable partner-specific Blaxel/Redis surfaces remain off shipped `main`
-- AI-assisted creation is clearer:
-  - AI create flows for agents, workflows, skills, and templates now consistently explain when generation is unavailable
-  - browser-local key state is explained more clearly when users switch browsers or machines
-  - AI flows link directly to `BYOK` and `Keys & Secrets` when setup is still missing
+- DocHub is now much more useful for workspace imports and review:
+  - upload files directly into the shared `AGENTS/` root or a specific agent workspace
+  - expand ZIP uploads in place, with conflict blocking instead of silent overwrite
+  - preview uploaded markdown, common text files, and common image files directly in DocHub
+  - remove uploaded AGENTS assets with a typed confirmation flow
+- Hosted/runtime setup is more stable:
+  - empty-workspace onboarding stays visible instead of disappearing during late hydration
+  - parallel workflow runs now retry boundedly when the only failure is a session lock on the same agent
+- Template and runtime checks are tighter:
+  - packaged skills such as `workspace-ls` resolve correctly in template prereq checks
+  - local/dev version reporting continues to prefer real git tags when available
+- Agent vs uploaded-asset boundaries are cleaner:
+  - uploaded AGENTS directories no longer become “real agents” just because stale runtime state exists
+  - deleting uploaded AGENTS directories also cleans up stale registration/runtime residue that would otherwise reclassify them
 
 ## 🔥 Previously in v1.2.12
 

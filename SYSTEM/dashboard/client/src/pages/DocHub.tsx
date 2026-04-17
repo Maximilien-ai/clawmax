@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -7,6 +7,22 @@ type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 interface DocEntry {
   path: string
   section: DocSection
+  kind?: 'markdown' | 'asset'
+  canDelete?: boolean
+  isAgentWorkspace?: boolean
+}
+
+interface AgentSummary {
+  id: string
+  name?: string
+}
+
+type SelectedPreviewKind = 'markdown' | 'text' | 'image' | 'asset'
+
+interface DeleteConfirmationState {
+  path: string
+  label: string
+  isDirectory: boolean
 }
 
 interface FileTree {
@@ -26,6 +42,17 @@ function buildTree(paths: string[]): FileTree {
     }
   }
   return tree
+}
+
+function getChildDirectories(tree: FileTree, parentDir: string): string[] {
+  return Object.keys(tree)
+    .filter((dir) => {
+      if (!dir || dir === parentDir) return false
+      if (!parentDir) return !dir.includes('/')
+      if (!dir.startsWith(`${parentDir}/`)) return false
+      return !dir.slice(parentDir.length + 1).includes('/')
+    })
+    .sort((a, b) => a.localeCompare(b))
 }
 
 const SECTION_CONFIG: Record<DocSection, { label: string; accent: string; headerCls: string; itemCls: string; selectedCls: string }> = {
@@ -80,6 +107,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [entries, setEntries] = useState<DocEntry[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState<string>('')
+  const [previewKind, setPreviewKind] = useState<SelectedPreviewKind>('markdown')
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, WORKFLOWS: false, SYSTEM: true })
@@ -92,6 +121,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [searchResults, setSearchResults] = useState<Array<{ path: string; matches: number; preview: string }>>([])
   const [searching, setSearching] = useState(false)
   const selectedButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [treeWidth, setTreeWidth] = useState(320)
+  const [resizingTree, setResizingTree] = useState(false)
+  const treeResizeOriginRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const selectedEntry = useMemo(() => entries.find((entry) => entry.path === selected) || null, [entries, selected])
+  const selectedIsAgentAsset = !!selectedEntry && selectedEntry.section === 'AGENTS' && !selectedEntry.isAgentWorkspace
+  const selectedIsMarkdown = !!selected && selected.endsWith('.md')
+  const selectedIsTextPreview = previewKind === 'text'
+  const selectedIsImagePreview = previewKind === 'image'
 
   function toggleDir(key: string) {
     setCollapsedDirs(prev => {
@@ -133,6 +170,19 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [newDocContent, setNewDocContent] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadTargetMode, setUploadTargetMode] = useState<'shared' | 'agent'>('shared')
+  const [uploadAgentId, setUploadAgentId] = useState('')
+  const [uploadSubdir, setUploadSubdir] = useState('')
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [extractZip, setExtractZip] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
+  const [agents, setAgents] = useState<AgentSummary[]>([])
+  const [pendingDelete, setPendingDelete] = useState<DeleteConfirmationState | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch('/api/docs')
@@ -144,15 +194,35 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         if (initialFile) {
           const targetFile = list.find(e => e.path === initialFile)
           if (targetFile) {
-            loadFile(targetFile.path)
+            openEntry(targetFile)
             return
           }
         }
         const mp = list.find(e => e.path === 'ORG/MASTER_PLAN.md') ?? list.find(e => e.path.endsWith('MASTER_PLAN.md'))
-        if (mp) loadFile(mp.path)
+        if (mp) openEntry(mp)
       })
       .catch(() => setError('Failed to load file list'))
   }, [initialFile])
+
+  useEffect(() => {
+    if (!resizingTree) return
+    const handleMove = (event: MouseEvent) => {
+      const origin = treeResizeOriginRef.current
+      if (!origin) return
+      const nextWidth = origin.startWidth + (event.clientX - origin.startX)
+      setTreeWidth(Math.max(240, Math.min(560, nextWidth)))
+    }
+    const handleUp = () => {
+      setResizingTree(false)
+      treeResizeOriginRef.current = null
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [resizingTree])
 
   function loadFile(path: string) {
     setSelected(path)
@@ -162,6 +232,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setEditMode(false)
     setSaveError(null)
     setSaveSuccess(false)
+    setPreviewKind('markdown')
+    setImageDataUrl(null)
 
     // Auto-expand section and directory if needed
     const section = path.split('/')[0] as DocSection
@@ -181,8 +253,22 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
       .then(r => r.json())
-      .then(d => { setContent(d.content); setLoading(false) })
+      .then(d => {
+        setPreviewKind(d.kind || 'markdown')
+        if (d.kind === 'image') {
+          setImageDataUrl(d.dataUrl || null)
+          setContent('')
+        } else {
+          setImageDataUrl(null)
+          setContent(d.content || '')
+        }
+        setLoading(false)
+      })
       .catch(() => { setError('Failed to load file'); setLoading(false) })
+  }
+
+  function openEntry(entry: DocEntry) {
+    loadFile(entry.path)
   }
 
   function startEdit() {
@@ -231,7 +317,17 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   function downloadSelectedFile() {
     if (!selected) return
     const fileName = selected.split('/').pop() || 'document.md'
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+    if (selectedIsImagePreview && imageDataUrl) {
+      const a = document.createElement('a')
+      a.href = imageDataUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      return
+    }
+    const contentType = previewKind === 'markdown' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8'
+    const blob = new Blob([content], { type: contentType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -286,6 +382,28 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setCreateError(null)
   }
 
+  function openUploadDialog() {
+    setUploadTargetMode('shared')
+    setUploadAgentId('')
+    setUploadSubdir('')
+    setUploadFiles([])
+    setExtractZip(true)
+    setUploadError(null)
+    setUploadSuccess(null)
+    setShowUploadDialog(true)
+    fetch('/api/agents')
+      .then(r => r.ok ? r.json() : { agents: [] })
+      .then(d => setAgents(Array.isArray(d.agents) ? d.agents : []))
+      .catch(() => setAgents([]))
+  }
+
+  function closeUploadDialog() {
+    setShowUploadDialog(false)
+    setUploadFiles([])
+    setUploadError(null)
+    setUploadSuccess(null)
+  }
+
   async function createDocument() {
     const trimmedPath = newDocPath.trim()
     if (!trimmedPath) {
@@ -310,14 +428,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       const data = await res.json()
 
       if (data.ok) {
-        // Reload file list
-        const entriesRes = await fetch('/api/docs')
-        const entriesData = await entriesRes.json()
-        setEntries(entriesData.entries ?? [])
-
+        await refreshEntries()
         // Close dialog and load the new file
         closeCreateDialog()
-        loadFile(fullPath)
+        const createdEntry: DocEntry = { path: fullPath, section: newDocSection, kind: 'markdown' }
+        openEntry(createdEntry)
       } else {
         setCreateError(data.error ?? 'Failed to create document')
       }
@@ -326,6 +441,198 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     } finally {
       setCreating(false)
     }
+  }
+
+  async function refreshEntries() {
+    const entriesRes = await fetch('/api/docs')
+    const entriesData = await entriesRes.json()
+    setEntries(entriesData.entries ?? [])
+  }
+
+  function buildUploadTargetPath() {
+    const base = uploadTargetMode === 'agent' && uploadAgentId.trim()
+      ? `AGENTS/${uploadAgentId.trim()}`
+      : 'AGENTS'
+    const subdir = uploadSubdir.trim().replace(/^\/+|\/+$/g, '')
+    return subdir ? `${base}/${subdir}` : base
+  }
+
+  async function uploadSelectedFiles() {
+    if (uploadFiles.length === 0) {
+      setUploadError('Choose at least one file')
+      return
+    }
+    if (uploadTargetMode === 'agent' && !uploadAgentId.trim()) {
+      setUploadError('Choose an agent workspace')
+      return
+    }
+
+    const target = buildUploadTargetPath()
+    setUploading(true)
+    setUploadError(null)
+    setUploadSuccess(null)
+
+    try {
+      const uploadedPaths: string[] = []
+      for (const file of uploadFiles) {
+        const shouldExtract = extractZip && file.name.toLowerCase().endsWith('.zip')
+        const res = await fetch(`/api/docs/upload?target=${encodeURIComponent(target)}&extractZip=${shouldExtract ? 'true' : 'false'}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+            'x-file-name': file.name,
+          },
+          body: await file.arrayBuffer(),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || `Failed to upload ${file.name}`)
+        }
+        if (Array.isArray(data.files)) {
+          uploadedPaths.push(...data.files)
+        } else if (typeof data.path === 'string') {
+          uploadedPaths.push(data.path)
+        }
+      }
+
+      await refreshEntries()
+      setUploadSuccess(`Uploaded ${uploadFiles.length} file${uploadFiles.length === 1 ? '' : 's'} to ${target}`)
+      const firstMarkdown = uploadedPaths.find((entry) => entry.endsWith('.md'))
+      if (firstMarkdown) {
+        openEntry({ path: firstMarkdown, section: 'AGENTS', kind: 'markdown' })
+      }
+      setTimeout(() => closeUploadDialog(), 1000)
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function getDirAssetMode(section: DocSection, dir: string, sectionEntries: DocEntry[]): 'agent' | 'asset' | 'mixed' {
+    if (section !== 'AGENTS' || !dir) return 'agent'
+    const prefix = `${section}/${dir}/`
+    const matching = sectionEntries.filter((entry) => entry.path.startsWith(prefix))
+    if (matching.length === 0) return 'agent'
+    const assetCount = matching.filter((entry) => !entry.isAgentWorkspace).length
+    if (assetCount === 0) return 'agent'
+    if (assetCount === matching.length) return 'asset'
+    return 'mixed'
+  }
+
+  function requestDeleteAsset(pathToDelete: string, label: string, isDirectory: boolean) {
+    setDeleteConfirmText('')
+    setPendingDelete({ path: pathToDelete, label, isDirectory })
+  }
+
+  function cancelDeleteAsset() {
+    if (deleting) return
+    setPendingDelete(null)
+    setDeleteConfirmText('')
+  }
+
+  async function confirmDeleteAsset() {
+    if (!pendingDelete) return
+    const expected = pendingDelete.label.replace(/\/$/, '')
+    if (deleteConfirmText.trim() !== expected) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/docs/entry?path=${encodeURIComponent(pendingDelete.path)}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Delete failed')
+      }
+      await refreshEntries()
+      if (selected === pendingDelete.path || selected?.startsWith(`${pendingDelete.path}/`)) {
+        setSelected(null)
+        setContent('')
+      }
+      setPendingDelete(null)
+      setDeleteConfirmText('')
+    } catch (err: any) {
+      setError(err.message || 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function renderDocDirectory(
+    section: DocSection,
+    dir: string,
+    depth: number,
+    tree: FileTree,
+    sectionEntries: DocEntry[],
+    entriesByDisplayPath: Map<string, DocEntry>,
+    cfg: typeof SECTION_CONFIG[DocSection]
+  ): React.ReactNode {
+    const dirKey = `${section}/${dir}`
+    const isDirCollapsed = collapsedDirs.has(dirKey)
+    const dirMode = getDirAssetMode(section, dir, sectionEntries)
+    const canDeleteDir = section === 'AGENTS' && dirMode === 'asset'
+    const dirDeletePath = canDeleteDir ? `${section}/${dir}` : null
+    const childDirs = getChildDirectories(tree, dir)
+    const files = tree[dir] || []
+    const dirName = dir.split('/').pop() || dir
+
+    return (
+      <div key={dir}>
+        <div className={`w-full flex items-center justify-between px-4 py-1 mt-1 transition-colors group ${dirMode === 'asset' ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+          <button
+            onClick={() => toggleDir(dirKey)}
+            className="flex min-w-0 flex-1 items-center justify-between text-left"
+            style={{ paddingLeft: `${depth * 14}px` }}
+          >
+            <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 group-hover:opacity-100 ${dirMode === 'asset' ? 'text-amber-700 dark:text-amber-300' : cfg.accent}`}>
+              {dirName}/
+            </span>
+            <span className={`text-xs opacity-40 group-hover:opacity-70 ${dirMode === 'asset' ? 'text-amber-700 dark:text-amber-300' : cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
+          </button>
+          {dirDeletePath && (
+            <button
+              onClick={() => requestDeleteAsset(dirDeletePath, `${dirName}/`, true)}
+              className="ml-2 rounded px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+              title="Delete uploaded directory"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+        {!isDirCollapsed && (
+          <>
+            {childDirs.map((childDir) => renderDocDirectory(section, childDir, depth + 1, tree, sectionEntries, entriesByDisplayPath, cfg))}
+            {files.map((displayPath) => {
+              const fullEntry = entriesByDisplayPath.get(displayPath)
+              const actualPath = fullEntry?.path ?? `${section}/${displayPath}`
+              const name = displayPath.split('/').pop() || displayPath
+              const isPinned = actualPath.endsWith('MASTER_PLAN.md')
+              const isSelected = selected === actualPath
+              const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
+              return (
+                <div
+                  key={actualPath}
+                  className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
+                    isSelected
+                      ? (isAsset ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 font-medium' : cfg.selectedCls)
+                      : (isAsset ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20' : cfg.itemCls)
+                  }`}
+                  style={{ paddingLeft: `${(depth + 1) * 14 + 16}px` }}
+                >
+                  <button
+                    ref={isSelected ? selectedButtonRef : null}
+                    onClick={() => fullEntry ? openEntry(fullEntry) : loadFile(actualPath)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  >
+                    {isPinned && <span className="text-xs text-amber-500">★</span>}
+                    {isAsset && <span className="text-[10px] rounded bg-amber-100 dark:bg-amber-950/40 px-1 text-amber-700 dark:text-amber-300">asset</span>}
+                    <span className="truncate">{name}</span>
+                  </button>
+                </div>
+              )
+            })}
+          </>
+        )}
+      </div>
+    )
   }
 
   // Auto-scroll to selected file when it changes
@@ -354,7 +661,10 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         <div className="fixed inset-0 bg-black/50 z-30 sm:hidden" onClick={() => setMobileTreeOpen(false)} />
       )}
 
-      <aside className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${treeCollapsed ? 'w-8' : 'w-64'} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}>
+      <aside
+        className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${resizingTree ? 'select-none' : ''} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}
+        style={{ width: treeCollapsed ? 32 : treeWidth }}
+      >
         {treeCollapsed ? (
           <div className="flex flex-col items-center pt-3">
             <button
@@ -374,6 +684,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     className="text-sky-600 hover:text-sky-700 hover:bg-sky-50 transition-colors text-xs px-2 py-1 rounded font-medium"
                     title="Create new document"
                   >+ New</button>
+                  <button
+                    onClick={openUploadDialog}
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors text-xs px-2 py-1 rounded font-medium"
+                    title="Upload files into the workspace"
+                  >Upload</button>
                   <button
                     onClick={collapseAllDirs}
                     className="text-gray-400 hover:text-gray-600 transition-colors text-xs px-2 py-1 rounded hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
@@ -458,7 +773,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   <button
                     key={result.path}
                     onClick={() => {
-                      loadFile(result.path)
+                      openEntry({ path: result.path, section: (result.path.split('/')[0] as DocSection) || 'SYSTEM', kind: result.path.endsWith('.md') ? 'markdown' : 'asset' })
                       clearSearch()
                     }}
                     className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
@@ -498,6 +813,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
                 const displayPaths = sectionEntries.map(e => stripPrefix(e.path, section))
                 const tree = buildTree(displayPaths)
+                const entriesByDisplayPath = new Map(sectionEntries.map((entry) => [stripPrefix(entry.path, section), entry]))
                 const dirs = Object.keys(tree).sort((a, b) => {
                   if (a === '') return -1
                   if (b === '') return 1
@@ -518,46 +834,37 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
                     {!isCollapsed && (
                       <div className="py-1">
-                        {dirs.map(dir => {
-                          const dirKey = `${section}/${dir}`
-                          const isDirCollapsed = dir ? collapsedDirs.has(dirKey) : false
+                        {(tree[''] || []).map((displayPath) => {
+                          const fullEntry = entriesByDisplayPath.get(displayPath)
+                          const actualPath = fullEntry?.path ?? `${section}/${displayPath}`
+                          const name = displayPath.split('/').pop() || displayPath
+                          const isPinned = actualPath.endsWith('MASTER_PLAN.md')
+                          const isSelected = selected === actualPath
+                          const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
                           return (
-                          <div key={dir}>
-                            {dir && (
+                            <div
+                              key={actualPath}
+                              className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
+                                isSelected
+                                  ? (isAsset ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 font-medium' : cfg.selectedCls)
+                                  : (isAsset ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20' : cfg.itemCls)
+                              }`}
+                            >
                               <button
-                                onClick={() => toggleDir(dirKey)}
-                                className={`w-full flex items-center justify-between px-4 py-1 mt-1 hover:bg-gray-50 transition-colors group`}
+                                ref={isSelected ? selectedButtonRef : null}
+                                onClick={() => fullEntry ? openEntry(fullEntry) : loadFile(actualPath)}
+                                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                               >
-                                <span className={`text-xs font-semibold uppercase tracking-wider opacity-60 group-hover:opacity-100 ${cfg.accent}`}>
-                                  {dir}/
-                                </span>
-                                <span className={`text-xs opacity-40 group-hover:opacity-70 ${cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
+                                {isPinned && <span className="text-xs text-amber-500">★</span>}
+                                {isAsset && <span className="text-[10px] rounded bg-amber-100 dark:bg-amber-950/40 px-1 text-amber-700 dark:text-amber-300">asset</span>}
+                                <span className="truncate">{name}</span>
                               </button>
-                            )}
-                            {!isDirCollapsed && tree[dir].map(displayPath => {
-                              const fullPath = section + '/' + (dir ? dir + '/' : '') + displayPath.split('/').pop()!
-                              const fullEntry = sectionEntries.find(e => stripPrefix(e.path, section) === (dir ? dir + '/' + displayPath.split('/').pop()! : displayPath))
-                              const actualPath = fullEntry?.path ?? fullPath
-                              const name = displayPath.split('/').pop()!
-                              const isPinned = actualPath.endsWith('MASTER_PLAN.md')
-                              const isSelected = selected === actualPath
-                              return (
-                                <button
-                                  key={actualPath}
-                                  ref={isSelected ? selectedButtonRef : null}
-                                  onClick={() => loadFile(actualPath)}
-                                  className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
-                                    isSelected ? cfg.selectedCls : cfg.itemCls
-                                  }`}
-                                >
-                                  {isPinned && <span className="text-xs text-amber-500">★</span>}
-                                  <span className={dir ? 'pl-2' : ''}>{name}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )
+                            </div>
+                          )
                         })}
+                        {getChildDirectories(tree, '').map((dir) =>
+                          renderDocDirectory(section, dir, 1, tree, sectionEntries, entriesByDisplayPath, cfg)
+                        )}
                       </div>
                     )}
                   </div>
@@ -571,6 +878,18 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
           </div>
         )}
       </aside>
+      {!treeCollapsed && (
+        <div
+          className="hidden sm:block w-3 -ml-1 shrink-0 cursor-col-resize bg-transparent hover:bg-sky-200/70 dark:hover:bg-sky-800/70"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            treeResizeOriginRef.current = { startX: event.clientX, startWidth: treeWidth }
+            setResizingTree(true)
+          }}
+          title="Resize file tree"
+        />
+      )}
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
@@ -586,19 +905,38 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             <div className="flex items-center justify-between px-8 py-3 border-b border-gray-100 shrink-0">
               <span className="text-xs text-gray-400 font-mono">{selected}</span>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={downloadSelectedFile}
-                  className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  Download
-                </button>
+                {(previewKind !== 'asset') && (
+                  <button
+                    onClick={downloadSelectedFile}
+                    className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Download
+                  </button>
+                )}
                 {saveSuccess && (
                   <span className="text-xs text-green-600 font-medium">Saved</span>
                 )}
                 {saveError && (
                   <span className="text-xs text-red-600">{saveError}</span>
                 )}
-                {editMode ? (
+                {selectedIsAgentAsset && selectedIsMarkdown && selectedEntry?.canDelete && !editMode && (
+                  <button
+                    onClick={() => requestDeleteAsset(selectedEntry.path, selectedEntry.path.split('/').pop() || selectedEntry.path, false)}
+                    className="text-xs px-3 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors dark:border-red-900 dark:hover:bg-red-950/30"
+                  >
+                    Delete
+                  </button>
+                )}
+                {selectedIsAgentAsset && !selectedIsMarkdown ? (
+                  selectedEntry?.canDelete ? (
+                    <button
+                      onClick={() => requestDeleteAsset(selectedEntry.path, selectedEntry.path.split('/').pop() || selectedEntry.path, false)}
+                      className="text-xs px-3 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors dark:border-red-900 dark:hover:bg-red-950/30"
+                    >
+                      Delete
+                    </button>
+                  ) : null
+                ) : editMode ? (
                   <>
                     <button
                       onClick={cancelEdit}
@@ -651,20 +989,56 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             )}
 
             {/* View or Edit */}
-            {editMode ? (
-              <textarea
-                className="flex-1 w-full px-8 py-6 font-mono text-sm text-gray-800 resize-none outline-none border-none bg-gray-50 dark:text-gray-200 dark:bg-gray-900"
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                spellCheck={false}
-                autoFocus
-              />
+            {selectedIsAgentAsset && previewKind === 'asset' ? (
+              <div className="flex-1 overflow-y-auto">
+                <div className="max-w-3xl mx-auto px-8 py-8">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+                    <div className="font-semibold">Uploaded workspace asset</div>
+                    <div className="mt-2 font-mono text-xs break-all">{selectedEntry.path}</div>
+                    <p className="mt-3 text-sm">
+                      Preview is not available for this file type. You can still download or delete it from DocHub if it is no longer needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : editMode ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {selectedIsAgentAsset && (
+                  <div className="mx-8 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+                    This markdown file was uploaded into an agent workspace. You can review, edit, download, or delete it here.
+                  </div>
+                )}
+                <textarea
+                  className="flex-1 w-full px-8 py-6 font-mono text-sm text-gray-800 resize-none outline-none border-none bg-gray-50 dark:text-gray-200 dark:bg-gray-900"
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  spellCheck={false}
+                  autoFocus
+                />
+              </div>
             ) : (
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-3xl mx-auto px-8 py-8">
-                  <div className="prose">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</ReactMarkdown>
-                  </div>
+                  {selectedIsAgentAsset && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+                      <div className="font-semibold">Uploaded markdown file</div>
+                      <div className="mt-1 font-mono text-xs break-all">{selectedEntry?.path}</div>
+                      <p className="mt-2">This file was uploaded into an agent workspace. It is not part of the protected agent definition, so you can edit, download, or delete it here.</p>
+                    </div>
+                  )}
+                  {selectedIsImagePreview && imageDataUrl ? (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                        <img src={imageDataUrl} alt={selected || 'Uploaded image'} className="max-w-full h-auto rounded mx-auto" />
+                      </div>
+                    </div>
+                  ) : selectedIsTextPreview ? (
+                    <pre className="whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">{content}</pre>
+                  ) : (
+                    <div className="prose">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -679,6 +1053,73 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       </div>
 
       {/* Create Document Dialog */}
+      {pendingDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={cancelDeleteAsset}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete {pendingDelete.label}?</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              This removes the uploaded {pendingDelete.isDirectory ? 'directory' : 'file'} from the workspace. This cannot be undone.
+            </p>
+
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+              <div className="font-medium">Will be deleted</div>
+              <div className="mt-2 font-mono text-xs break-all">{pendingDelete.path}</div>
+              {pendingDelete.isDirectory && (
+                <div className="mt-3 space-y-1">
+                  {entries
+                    .filter(entry => entry.path.startsWith(`${pendingDelete.path}/`))
+                    .slice(0, 12)
+                    .map(entry => (
+                      <div key={entry.path} className="font-mono text-xs break-all">
+                        {entry.path}
+                      </div>
+                    ))}
+                  {entries.filter(entry => entry.path.startsWith(`${pendingDelete.path}/`)).length > 12 && (
+                    <div className="font-mono text-xs opacity-70">
+                      …and {entries.filter(entry => entry.path.startsWith(`${pendingDelete.path}/`)).length - 12} more item(s)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Type <span className="font-mono">{pendingDelete.label.replace(/\/$/, '')}</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                className="mt-2 w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                placeholder={pendingDelete.label.replace(/\/$/, '')}
+                autoFocus
+              />
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={cancelDeleteAsset}
+                className="text-sm px-4 py-2 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAsset}
+                disabled={deleting || deleteConfirmText.trim() !== pendingDelete.label.replace(/\/$/, '')}
+                className={`text-sm px-4 py-2 rounded font-medium ${
+                  deleting || deleteConfirmText.trim() !== pendingDelete.label.replace(/\/$/, '')
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700'
+                    : 'bg-red-600 text-white hover:bg-red-700'
+                }`}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeCreateDialog}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -749,6 +1190,128 @@ Start writing..."
                 }`}
               >
                 {creating ? 'Creating...' : 'Create Document'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUploadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeUploadDialog}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Upload Files to Workspace</h3>
+
+            {uploadError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                {uploadError}
+              </div>
+            )}
+            {uploadSuccess && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded text-sm text-emerald-700">
+                {uploadSuccess}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300">
+                Upload into the shared <span className="font-mono">AGENTS/</span> root so every agent can access it, or target one specific agent workspace. ZIP files can be expanded in place.
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Destination</label>
+                <div className="flex gap-4 text-sm">
+                  <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                    <input
+                      type="radio"
+                      checked={uploadTargetMode === 'shared'}
+                      onChange={() => setUploadTargetMode('shared')}
+                    />
+                    Shared <span className="font-mono">AGENTS/</span> root
+                  </label>
+                  <label className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                    <input
+                      type="radio"
+                      checked={uploadTargetMode === 'agent'}
+                      onChange={() => setUploadTargetMode('agent')}
+                    />
+                    Specific agent workspace
+                  </label>
+                </div>
+              </div>
+
+              {uploadTargetMode === 'agent' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Agent</label>
+                  <select
+                    value={uploadAgentId}
+                    onChange={e => setUploadAgentId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-gray-700"
+                  >
+                    <option value="">Choose an agent</option>
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>{agent.name || agent.id}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Optional subdirectory</label>
+                <input
+                  type="text"
+                  value={uploadSubdir}
+                  onChange={e => setUploadSubdir(e.target.value)}
+                  placeholder="e.g. knowledge-base, inputs/april-demo"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm dark:border-gray-700"
+                />
+                <p className="text-xs text-gray-500 mt-1">Resolved target: <span className="font-mono">{buildUploadTargetPath()}</span></p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Files</label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={e => setUploadFiles(Array.from(e.target.files || []))}
+                  className="w-full text-sm text-gray-700 dark:text-gray-300"
+                />
+                {uploadFiles.length > 0 && (
+                  <div className="mt-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                    {uploadFiles.map((file) => (
+                      <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3">
+                        <span className="font-mono truncate">{file.name}</span>
+                        <span>{Math.max(1, Math.round(file.size / 1024))} KB</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={extractZip}
+                  onChange={e => setExtractZip(e.target.checked)}
+                />
+                Expand ZIP files after upload
+              </label>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-6">
+              <button
+                onClick={closeUploadDialog}
+                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={uploadSelectedFiles}
+                disabled={uploading}
+                className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
+                  uploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+              >
+                {uploading ? 'Uploading...' : 'Upload Files'}
               </button>
             </div>
           </div>

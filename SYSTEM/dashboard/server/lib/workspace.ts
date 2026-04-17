@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import net from 'net'
+import os from 'os'
+import { execFileSync } from 'child_process'
 import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
 
@@ -52,6 +54,9 @@ export type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 export interface DocEntry {
   path: string       // relative to WORKSPACE
   section: DocSection
+  kind?: 'markdown' | 'asset'
+  canDelete?: boolean
+  isAgentWorkspace?: boolean
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
@@ -115,9 +120,168 @@ export function listMarkdownFiles(): DocEntry[] {
   })
 }
 
-/** Validate a workspace path is inside the workspace and is a .md file */
-function isPathSafe(full: string, workspacePath: string): boolean {
-  if (!full.endsWith('.md')) return false
+function getRegisteredAgentDirectoryNames(): Set<string> {
+  const registered = new Set<string>()
+  const agentsDir = getAgentsDir()
+  const home = process.env.HOME || ''
+  try {
+    const configPath = path.join(home, '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : []
+    for (const agent of agentList) {
+      const workspace = typeof agent?.workspace === 'string' ? path.resolve(agent.workspace) : ''
+      if (!workspace) continue
+      const relative = path.relative(agentsDir, workspace)
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue
+      const firstSegment = relative.split(path.sep)[0]
+      const agentDir = firstSegment ? path.join(agentsDir, firstSegment) : ''
+      if (firstSegment && isManagedAgentWorkspaceDir(agentDir)) {
+        registered.add(firstSegment)
+      }
+    }
+  } catch {}
+  try {
+    const entries = fs.readdirSync(agentsDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive' || entry.name === '__MACOSX') continue
+      const workspaceDir = path.join(agentsDir, entry.name)
+      if (!isManagedAgentWorkspaceDir(workspaceDir)) continue
+      const sharedStateDir = path.join(home, '.openclaw', 'agents', entry.name)
+      const profileStateDir = path.join(home, `.openclaw-${entry.name}`)
+      if (fs.existsSync(sharedStateDir) || fs.existsSync(profileStateDir)) {
+        registered.add(entry.name)
+      }
+    }
+  } catch {}
+  return registered
+}
+
+const PROTECTED_AGENT_WORKSPACE_FILES = new Set([
+  'AGENTS.md',
+  'BOOTSTRAP.md',
+  'COMMUNITIES.md',
+  'GROUPS.md',
+  'HEARTBEAT.md',
+  'IDENTITY.md',
+  'SOUL.md',
+  'TOOLS.md',
+  'USER.md',
+])
+
+function extractIdentityField(content: string, field: string): string {
+  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
+  return match?.[1]?.trim() || ''
+}
+
+export function isManagedAgentWorkspaceDir(agentDir: string): boolean {
+  try {
+    const stats = fs.statSync(agentDir)
+    if (!stats.isDirectory()) return false
+  } catch {
+    return false
+  }
+
+  try {
+    const identityPath = path.join(agentDir, 'IDENTITY.md')
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    const name = extractIdentityField(identity, 'Name')
+    return !!name
+  } catch {
+    return false
+  }
+}
+
+function isProtectedAgentWorkspaceFile(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, '/')
+  if (!normalized.startsWith('AGENTS/')) return false
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.length < 3) return false
+  return PROTECTED_AGENT_WORKSPACE_FILES.has(segments[2])
+}
+
+export function listDocEntries(): DocEntry[] {
+  const workspacePath = getWorkspacePath()
+  const agentsDir = getAgentsDir()
+  const registeredAgentDirs = getRegisteredAgentDirectoryNames()
+  const results: DocEntry[] = listMarkdownFiles()
+    .filter((entry) => !entry.path.startsWith('AGENTS/__MACOSX/') && entry.path !== 'AGENTS/__MACOSX')
+    .map((entry) => {
+      const relativeAgentPath = entry.section === 'AGENTS'
+        ? entry.path.replace(/^AGENTS[\\/]/, '')
+        : ''
+      const topLevelAgentDir = relativeAgentPath ? relativeAgentPath.split(/[\\/]/)[0] : ''
+      const isRegisteredAgentWorkspace = entry.section === 'AGENTS' && !!topLevelAgentDir && registeredAgentDirs.has(topLevelAgentDir)
+      const isProtectedAgentFile = isRegisteredAgentWorkspace && isProtectedAgentWorkspaceFile(entry.path)
+      return {
+        ...entry,
+        kind: isRegisteredAgentWorkspace && isProtectedAgentFile ? 'markdown' : 'asset',
+        canDelete: entry.section === 'AGENTS' ? !isProtectedAgentFile : false,
+        isAgentWorkspace: isRegisteredAgentWorkspace && isProtectedAgentFile,
+      }
+    })
+
+  function walkAssetDir(currentDir: string, topLevelDir: string) {
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.name === '__MACOSX') continue
+      const full = path.join(currentDir, entry.name)
+      const rel = path.relative(workspacePath, full)
+      if (entry.isDirectory()) {
+        walkAssetDir(full, topLevelDir)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (entry.name.endsWith('.md')) continue
+      results.push({
+        path: rel,
+        section: 'AGENTS',
+        kind: 'asset',
+        canDelete: true,
+        isAgentWorkspace: false,
+      })
+    }
+  }
+
+  try {
+    const topLevelEntries = fs.readdirSync(agentsDir, { withFileTypes: true })
+    for (const entry of topLevelEntries) {
+      if (entry.name === '__MACOSX') continue
+      if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
+      const full = path.join(agentsDir, entry.name)
+      if (entry.isDirectory()) {
+        if (!registeredAgentDirs.has(entry.name)) {
+          walkAssetDir(full, entry.name)
+        }
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (entry.name.endsWith('.md')) continue
+      results.push({
+        path: path.relative(workspacePath, full),
+        section: 'AGENTS',
+        kind: 'asset',
+        canDelete: true,
+        isAgentWorkspace: false,
+      })
+    }
+  } catch {}
+
+  return results.sort((a, b) => {
+    const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, WORKFLOWS: 2, SYSTEM: 3 }
+    const sd = sOrder[a.section] - sOrder[b.section]
+    return sd !== 0 ? sd : a.path.localeCompare(b.path)
+  })
+}
+
+/** Validate a workspace path is inside the workspace root. */
+function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
   // Resolve symlinks to prevent traversal via symlinks
   let realFull: string
   let realWorkspace: string
@@ -133,13 +297,36 @@ function isPathSafe(full: string, workspacePath: string): boolean {
   return realFull.startsWith(realWorkspace + path.sep) || realFull === realWorkspace
 }
 
+/** Validate a markdown workspace path is inside the workspace and ends with .md */
+function isMarkdownPathSafe(full: string, workspacePath: string): boolean {
+  if (!full.endsWith('.md')) return false
+  return isWorkspacePathSafe(full, workspacePath)
+}
+
+export function resolveWorkspacePath(relPath: string, workspacePath = getWorkspacePath()): string | null {
+  const normalized = relPath.trim()
+  if (!normalized) return null
+  const full = path.resolve(workspacePath, normalized)
+  return isWorkspacePathSafe(full, workspacePath) ? full : null
+}
+
 /** Read a workspace .md file by relative path. Returns null if outside workspace or not found */
 export function readWorkspaceFile(relPath: string): string | null {
   const workspacePath = getWorkspacePath()
   const full = path.resolve(workspacePath, relPath)
-  if (!isPathSafe(full, workspacePath)) return null
+  if (!isMarkdownPathSafe(full, workspacePath)) return null
   try {
     return fs.readFileSync(full, 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+export function readWorkspaceBinaryFile(relPath: string, workspacePath = getWorkspacePath()): Buffer | null {
+  const full = resolveWorkspacePath(relPath, workspacePath)
+  if (!full) return null
+  try {
+    return fs.readFileSync(full)
   } catch {
     return null
   }
@@ -149,13 +336,163 @@ export function readWorkspaceFile(relPath: string): string | null {
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()
   const full = path.resolve(workspacePath, relPath)
-  if (!isPathSafe(full, workspacePath)) return false
+  if (!isMarkdownPathSafe(full, workspacePath)) return false
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, content, 'utf-8')
     return true
   } catch {
     return false
+  }
+}
+
+export function writeWorkspaceBinaryFile(relPath: string, content: Buffer, workspacePath = getWorkspacePath()): boolean {
+  const full = resolveWorkspacePath(relPath, workspacePath)
+  if (!full) return false
+  try {
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+    fs.writeFileSync(full, content)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function deleteWorkspaceAsset(relPath: string, workspacePath = getWorkspacePath()): { ok: boolean; error?: string } {
+  const normalized = relPath.trim().replace(/\\/g, '/')
+  if (!normalized.startsWith('AGENTS/')) {
+    return { ok: false, error: 'Only AGENTS assets can be deleted from DocHub' }
+  }
+
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.length < 2) {
+    return { ok: false, error: 'Refusing to delete AGENTS root' }
+  }
+
+  const topLevel = segments[1]
+  const registeredAgentDirs = getRegisteredAgentDirectoryNames()
+  if (registeredAgentDirs.has(topLevel)) {
+    if (segments.length === 2) {
+      return { ok: false, error: 'Refusing to delete a registered agent workspace from DocHub' }
+    }
+    if (isProtectedAgentWorkspaceFile(normalized)) {
+      return { ok: false, error: 'Refusing to delete protected agent workspace files from DocHub' }
+    }
+  }
+
+  const full = resolveWorkspacePath(normalized, workspacePath)
+  if (!full) {
+    return { ok: false, error: 'Cannot delete outside workspace' }
+  }
+  if (!fs.existsSync(full)) {
+    return { ok: false, error: 'Path not found' }
+  }
+
+  try {
+    const stats = fs.statSync(full)
+    if (stats.isDirectory()) {
+      fs.rmSync(full, { recursive: true, force: false })
+    } else {
+      fs.unlinkSync(full)
+    }
+    if (segments.length === 2) {
+      cleanupStaleAgentRegistration(topLevel, full)
+    }
+    return { ok: true }
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to delete asset' }
+  }
+}
+
+function cleanupStaleAgentRegistration(agentId: string, workspaceDir: string) {
+  const home = process.env.HOME || ''
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const list = Array.isArray(config?.agents?.list) ? config.agents.list : []
+    const normalizedWorkspaceDir = path.resolve(workspaceDir)
+    const nextList = list.filter((agent: any) => {
+      if (agent?.id === agentId) return false
+      if (typeof agent?.workspace === 'string' && path.resolve(agent.workspace) === normalizedWorkspaceDir) return false
+      return true
+    })
+    if (nextList.length !== list.length) {
+      config.agents = config.agents || {}
+      config.agents.list = nextList
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    }
+  } catch {}
+
+  try {
+    fs.rmSync(path.join(home, '.openclaw', 'agents', agentId), { recursive: true, force: true })
+  } catch {}
+  try {
+    fs.rmSync(path.join(home, `.openclaw-${agentId}`), { recursive: true, force: true })
+  } catch {}
+}
+
+function validateZipEntryPath(entryPath: string): boolean {
+  const normalized = entryPath.replace(/\\/g, '/').trim()
+  if (!normalized) return true
+  if (normalized.startsWith('/')) return false
+  return !normalized.split('/').some((segment) => segment === '..')
+}
+
+function isIgnoredZipEntry(entryPath: string): boolean {
+  const normalized = entryPath.replace(/\\/g, '/').trim()
+  return normalized.startsWith('__MACOSX/') || normalized === '__MACOSX' || normalized.endsWith('/.DS_Store') || normalized === '.DS_Store'
+}
+
+export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, workspacePath = getWorkspacePath()): { ok: boolean; files?: string[]; error?: string } {
+  const targetDir = resolveWorkspacePath(relDir, workspacePath)
+  if (!targetDir) {
+    return { ok: false, error: 'Cannot extract outside workspace' }
+  }
+
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-doc-upload-'))
+  const zipPath = path.join(tempRoot, 'upload.zip')
+
+  try {
+    fs.mkdirSync(targetDir, { recursive: true })
+    fs.writeFileSync(zipPath, zipContent)
+
+    const listing = execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf-8' })
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .filter((entry) => !isIgnoredZipEntry(entry))
+
+    for (const entry of listing) {
+      if (!validateZipEntryPath(entry)) {
+        return { ok: false, error: `ZIP contains an unsafe path: ${entry}` }
+      }
+    }
+
+    const conflicts = listing
+      .filter(Boolean)
+      .map((entry) => path.resolve(targetDir, entry))
+      .filter((destination) => fs.existsSync(destination))
+      .map((destination) => path.relative(workspacePath, destination))
+
+    if (conflicts.length > 0) {
+      return {
+        ok: false,
+        error: `ZIP extraction would overwrite existing paths: ${conflicts.slice(0, 5).join(', ')}${conflicts.length > 5 ? ', …' : ''}`,
+      }
+    }
+
+    execFileSync('unzip', ['-oq', zipPath, '-d', targetDir], { stdio: 'pipe' })
+
+    const files = listing
+      .filter((entry) => !entry.endsWith('/'))
+      .map((entry) => path.posix.join(relDir.replace(/\\/g, '/'), entry))
+
+    return { ok: true, files }
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to extract ZIP archive' }
+  } finally {
+    try {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    } catch {}
   }
 }
 
@@ -1190,6 +1527,7 @@ export function listAgents(): AgentInfo[] {
     if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
 
     const agentDir = path.join(agentsDir, entry.name)
+    if (!isManagedAgentWorkspaceDir(agentDir)) continue
     // Look up the registered ID from openclaw.json, fall back to directory name
     // Priority: workspace path match > agent ID match > directory name
     const registeredId = workspaceToIdMap.get(agentDir) || entry.name
@@ -1205,6 +1543,7 @@ export function listAgents(): AgentInfo[] {
       if (entry.name.startsWith('.') || entry.name.startsWith('_')) continue
 
       const agentDir = path.join(archiveDir, entry.name)
+      if (!isManagedAgentWorkspaceDir(agentDir)) continue
       const registeredId = workspaceToIdMap.get(agentDir) || entry.name
       const agent = readAgentInfo(registeredId, agentDir, agentValidationWarnings.get(registeredId), true, idToMetadataMap.get(entry.name))
       agents.push(agent)

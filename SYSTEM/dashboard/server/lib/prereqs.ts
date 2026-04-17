@@ -252,7 +252,14 @@ export function checkTemplatePrereqs(template: {
   const seen = new Set<string>()
   const expectations: PrereqExpectation[] = []
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const availableSkillNames = new Set(listAvailableSkills().map((skill) => skill.name))
+  const availableSkillNames = new Set<string>()
+  const availableSkillIds = new Set<string>()
+  for (const skill of listAvailableSkills()) {
+    availableSkillNames.add(skill.name)
+    if (skill.id) {
+      availableSkillIds.add(skill.id)
+    }
+  }
   const preferredModel = integrationConfig.preferredModel?.trim()
 
   // ── Infrastructure checks ──
@@ -385,7 +392,7 @@ export function checkTemplatePrereqs(template: {
   }
 
   for (const skillId of allSkills) {
-    if (!availableSkillNames.has(skillId) && !getSkillById(skillId)) {
+    if (!availableSkillNames.has(skillId) && !availableSkillIds.has(skillId) && !getSkillById(skillId)) {
       checks.push({
         id: `skill-available:${skillId}`,
         label: `Skill available: ${skillId}`,

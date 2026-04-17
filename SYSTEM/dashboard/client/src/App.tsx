@@ -526,24 +526,24 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onOpenPartners?: () => void
 }) {
   const { user, logout, config } = useAuth()
-  const { activeWorkspace } = useWorkspace()
-  const rawOnboardingVisible = activeWorkspace
-    ? (activeWorkspace.agentCount ?? 0) === 0
-    : (system?.agentCount ?? 0) === 0
-  const [stickyOnboardingWorkspaceId, setStickyOnboardingWorkspaceId] = useState<string | null>(null)
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace()
+  const activeWorkspaceKey = activeWorkspace?.path || activeWorkspace?.id || null
+  const rawOnboardingVisible = !workspaceLoading && !!activeWorkspace && (activeWorkspace.agentCount ?? 0) === 0
+  const [stickyOnboardingWorkspaceKey, setStickyOnboardingWorkspaceKey] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!activeWorkspace?.id) return
+    if (!activeWorkspaceKey) return
     if ((activeWorkspace.agentCount ?? 0) === 0) {
-      setStickyOnboardingWorkspaceId(activeWorkspace.id)
+      setStickyOnboardingWorkspaceKey(activeWorkspaceKey)
       return
     }
-    if (stickyOnboardingWorkspaceId === activeWorkspace.id) {
-      setStickyOnboardingWorkspaceId(null)
+    if (stickyOnboardingWorkspaceKey === activeWorkspaceKey) {
+      setStickyOnboardingWorkspaceKey(null)
     }
-  }, [activeWorkspace?.id, activeWorkspace?.agentCount, stickyOnboardingWorkspaceId])
+  }, [activeWorkspace?.agentCount, activeWorkspaceKey, stickyOnboardingWorkspaceKey])
 
-  const onboardingVisible = rawOnboardingVisible || (!!activeWorkspace?.id && stickyOnboardingWorkspaceId === activeWorkspace.id)
+  const effectiveOnboardingWorkspaceKey = activeWorkspaceKey || stickyOnboardingWorkspaceKey
+  const onboardingVisible = rawOnboardingVisible || (!!effectiveOnboardingWorkspaceKey && stickyOnboardingWorkspaceKey === effectiveOnboardingWorkspaceKey)
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -627,7 +627,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           onCreateAgent={() => onOpenAgentCreate?.()}
           onCreateAgentAI={() => onOpenAgentCreateAI?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}
-          workspaceId={activeWorkspace?.id}
+          workspaceId={effectiveOnboardingWorkspaceKey}
         />
         <ByokWizard
           triggerLabel="BYOK"

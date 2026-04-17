@@ -1,11 +1,12 @@
-import { Router } from 'express'
-import { listMarkdownFiles, readWorkspaceFile, writeWorkspaceFile } from '../lib/workspace'
+import express, { Router } from 'express'
+import path from 'path'
+import { deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, readWorkspaceBinaryFile, readWorkspaceFile, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
 
 const router = Router()
 
 // GET /api/docs — list all .md files with section classification
 router.get('/', (_req, res) => {
-  const entries = listMarkdownFiles()
+  const entries = listDocEntries()
   res.json({ entries })
 })
 
@@ -14,10 +15,42 @@ router.get('/content', (req, res) => {
   const relPath = req.query.path as string
   if (!relPath) return res.status(400).json({ error: 'path query param required' })
 
-  const content = readWorkspaceFile(relPath)
-  if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+  const normalized = relPath.trim().toLowerCase()
+  const textExtensions = new Set(['.txt', '.text', '.log', '.json', '.yaml', '.yml', '.csv', '.tsv', '.xml', '.html', '.css', '.js', '.ts', '.py', '.sh'])
+  const imageExtensions = new Map<string, string>([
+    ['.png', 'image/png'],
+    ['.jpg', 'image/jpeg'],
+    ['.jpeg', 'image/jpeg'],
+    ['.gif', 'image/gif'],
+    ['.webp', 'image/webp'],
+    ['.svg', 'image/svg+xml'],
+  ])
+  const ext = path.extname(normalized)
 
-  res.json({ path: relPath, content })
+  if (normalized.endsWith('.md')) {
+    const content = readWorkspaceFile(relPath)
+    if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+    return res.json({ path: relPath, kind: 'markdown', content })
+  }
+
+  if (textExtensions.has(ext)) {
+    const content = readWorkspaceBinaryFile(relPath)
+    if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+    return res.json({ path: relPath, kind: 'text', content: content.toString('utf-8') })
+  }
+
+  if (imageExtensions.has(ext)) {
+    const content = readWorkspaceBinaryFile(relPath)
+    if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+    return res.json({
+      path: relPath,
+      kind: 'image',
+      mimeType: imageExtensions.get(ext),
+      dataUrl: `data:${imageExtensions.get(ext)};base64,${content.toString('base64')}`,
+    })
+  }
+
+  return res.status(415).json({ error: 'Preview not available for this file type' })
 })
 
 // POST /api/docs/content — create OR update a file
@@ -39,6 +72,57 @@ router.put('/content', (req, res) => {
   const ok = writeWorkspaceFile(relPath, content)
   if (!ok) return res.status(400).json({ error: 'Cannot write to that path' })
 
+  res.json({ ok: true })
+})
+
+// POST /api/docs/upload?target=AGENTS/agent-a&extractZip=true — upload a file into the workspace
+router.post('/upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) => {
+  const target = typeof req.query.target === 'string' ? req.query.target.trim() : ''
+  const extractZip = req.query.extractZip === 'true'
+  const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
+  const fileName = path.basename(fileNameHeader.trim())
+  const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
+
+  if (!target) {
+    return res.status(400).json({ error: 'target query param required' })
+  }
+  if (!fileName) {
+    return res.status(400).json({ error: 'x-file-name header required' })
+  }
+  if (!body.length) {
+    return res.status(400).json({ error: 'File body required' })
+  }
+
+  if (extractZip) {
+    if (!fileName.toLowerCase().endsWith('.zip')) {
+      return res.status(400).json({ error: 'ZIP extraction requires a .zip file' })
+    }
+    const extracted = extractZipBufferToWorkspace(target, body)
+    if (!extracted.ok) {
+      return res.status(400).json({ error: extracted.error || 'Failed to extract ZIP archive' })
+    }
+    return res.json({ ok: true, extracted: true, files: extracted.files || [] })
+  }
+
+  const destination = path.posix.join(target.replace(/\\/g, '/'), fileName)
+  const ok = writeWorkspaceBinaryFile(destination, body)
+  if (!ok) {
+    return res.status(400).json({ error: 'Cannot write to that path' })
+  }
+
+  res.json({ ok: true, extracted: false, path: destination })
+})
+
+// DELETE /api/docs/entry?path=AGENTS/shared/foo.txt — delete a non-agent AGENTS asset
+router.delete('/entry', (req, res) => {
+  const relPath = typeof req.query.path === 'string' ? req.query.path : ''
+  if (!relPath) {
+    return res.status(400).json({ error: 'path query param required' })
+  }
+  const result = deleteWorkspaceAsset(relPath)
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error || 'Delete failed' })
+  }
   res.json({ ok: true })
 })
 

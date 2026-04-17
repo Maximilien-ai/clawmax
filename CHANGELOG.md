@@ -4,12 +4,28 @@ All notable changes to ClawMax are documented here.
 
 ## [v1.3.4] - 2026-04-16
 
-### Fixes — Runtime Version Reporting
+### Features — DocHub Upload and Asset Review
+- **Workspace Uploads** — DocHub now supports uploading files directly into the shared `AGENTS/` root or into a specific agent workspace
+- **ZIP Expansion** — uploaded ZIP archives can be expanded in place, with overwrite-conflict protection so existing workspace content is not silently replaced
+- **Asset Review in DocHub** — uploaded markdown, common text files, and common image files can now be previewed directly from DocHub, while unsupported binaries still remain downloadable
+- **Asset Delete Flow** — uploaded AGENTS assets can now be removed from DocHub with typed confirmation and directory-level previews of what will be deleted
+
+### Fixes — Agent Discovery and Asset Classification
+- **Invalid Agent Auto-Registration Guard** — uploaded AGENTS directories are no longer treated as real managed agents just because runtime state exists; blank scaffold identities now stay classified as uploaded assets
+- **Stale Runtime Cleanup on Delete** — deleting an uploaded AGENTS directory now also removes stale `openclaw.json` registration and local runtime state that would otherwise keep reclassifying it as an agent
+- **Protected Surface Boundaries** — `ORG/*`, `WORKFLOWS/*`, and protected real agent workspace files remain non-deletable, while uploaded AGENTS assets stay editable/deletable
+
+### Fixes — Hosted Onboarding and Workflow Reliability
+- **Sticky Empty-Workspace Onboarding** — onboarding now stays visible for truly empty hosted workspaces instead of appearing briefly and disappearing during late workspace hydration
+- **Workflow Session Lock Retry** — workflow agent execution now retries boundedly when the failure is only `session file locked`, reducing false failures in parallel runs that touch the same agent
+
+### Fixes — Template Prereqs and Runtime Version Reporting
+- **Packaged Skill Detection** — template prereq checks now resolve skills like `workspace-ls` by both id and surfaced catalog name, preventing false missing-skill warnings during `ClawMax System Test` apply
 - **Git Checkout Version Precedence** — real repo checkouts now continue to prefer git tag discovery before falling back to the checked-in dashboard package version, so local/dev no longer regresses to the stale package version when a newer git tag exists
 - **Packaged Runtime Version Contract** — packaged runtimes still support `CLAWMAX_VERSION` explicitly, while `.git`-less images fall back safely without reporting `0.1.0`
 
 ### Quality
-- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/version.test.ts`
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/workspace-upload.test.ts`, and `server/lib/workflows.test.ts`
 
 ## [v1.3.3] - 2026-04-16
 

@@ -178,6 +178,20 @@ export function buildWorkflowSessionId(executionId: string, agentId: string): st
 }
 
 const workflowAgentLocks = new Map<string, Promise<void>>()
+const WORKFLOW_AGENT_SESSION_LOCK_RETRIES = 2
+
+export function isWorkflowSessionLockError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /session file locked/i.test(message)
+}
+
+export function getWorkflowAgentRetryDelay(attempt: number): number {
+  return Math.min(1500 * 2 ** attempt, 5000)
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 async function withWorkflowAgentLock<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
   const previous = workflowAgentLocks.get(agentId) || Promise.resolve()
@@ -196,6 +210,23 @@ async function withWorkflowAgentLock<T>(agentId: string, fn: () => Promise<T>): 
       workflowAgentLocks.delete(agentId)
     }
   }
+}
+
+async function runWorkflowAgentWithRetry<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
+  return withWorkflowAgentLock(agentId, async () => {
+    let attempt = 0
+    while (true) {
+      try {
+        return await fn()
+      } catch (error) {
+        if (!isWorkflowSessionLockError(error) || attempt >= WORKFLOW_AGENT_SESSION_LOCK_RETRIES) {
+          throw error
+        }
+        await wait(getWorkflowAgentRetryDelay(attempt))
+        attempt++
+      }
+    }
+  })
 }
 
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
@@ -1100,7 +1131,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
 
           // Call agent via CLI
-          const agentResponse = await withWorkflowAgentLock(participant.agentId, () => new Promise<string>((resolve, reject) => {
+          const agentResponse = await runWorkflowAgentWithRetry(participant.agentId, () => new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {

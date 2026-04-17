@@ -18,7 +18,7 @@ import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
-import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity } from './lib/workspace'
+import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
@@ -605,6 +605,7 @@ app.listen(PORT, HOST, () => {
         if (registeredIds.has(d.name)) continue
         try {
           const ws = path.join(agentsDir, d.name)
+          if (!isManagedAgentWorkspaceDir(ws)) continue
           const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
           fs.mkdirSync(ad, { recursive: true })
           execSync(`openclaw agents add ${d.name} --workspace "${ws}" --agent-dir "${ad}" --non-interactive`, { stdio: 'pipe', timeout: 10000 })

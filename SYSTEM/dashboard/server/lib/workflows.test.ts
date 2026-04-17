@@ -23,6 +23,8 @@ import {
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
   buildWorkflowSessionId,
+  isWorkflowSessionLockError,
+  getWorkflowAgentRetryDelay,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -370,6 +372,23 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('isWorkflowSessionLockError matches the OpenClaw lock timeout error', () => {
+  assert(
+    isWorkflowSessionLockError(new Error('session file locked (timeout 10000ms)')),
+    'Expected lock timeout error to be recognized'
+  )
+  assert(
+    !isWorkflowSessionLockError(new Error('Agent timeout')),
+    'Expected non-lock error to be ignored'
+  )
+})
+
+test('getWorkflowAgentRetryDelay uses bounded exponential backoff', () => {
+  assert(getWorkflowAgentRetryDelay(0) === 1500, 'Expected first retry delay to be 1500ms')
+  assert(getWorkflowAgentRetryDelay(1) === 3000, 'Expected second retry delay to be 3000ms')
+  assert(getWorkflowAgentRetryDelay(4) === 5000, 'Expected retry delay to cap at 5000ms')
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {
