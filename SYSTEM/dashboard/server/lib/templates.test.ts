@@ -564,6 +564,65 @@ test('templateToMarkdown produces valid output', () => {
   assert(parsed.name === 'Round Trip', 'Round-trip name should match')
 })
 
+test('templateToMarkdown round-trips multiple workflows with internal markdown headings', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const template = {
+    name: 'Workflow Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'lead', role: 'Lead' }],
+    workflows: [
+      {
+        id: 'kickoff',
+        name: 'Kickoff',
+        schedule: 'manual',
+        enabled: true,
+        targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
+        created: '2026-04-17T00:00:00Z',
+        modified: '2026-04-17T00:00:00Z',
+        author: 'test',
+        executionMode: 'managed',
+        owner: 'lead',
+        content: '# Kickoff\n\n## Run Inputs\n- **Items path:** ~/tmp/items\n\n## Output\n- Publish kickoff',
+      },
+      {
+        id: 'analysis',
+        name: 'Analysis',
+        schedule: 'manual',
+        enabled: true,
+        targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
+        created: '2026-04-17T00:00:00Z',
+        modified: '2026-04-17T00:00:00Z',
+        author: 'test',
+        executionMode: 'managed',
+        owner: 'lead',
+        content: '# Analysis\n\n## Coordination\n- Post progress\n\n## Output\n- Publish analysis',
+      },
+      {
+        id: 'finalization',
+        name: 'Finalization',
+        schedule: 'manual',
+        enabled: true,
+        targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
+        created: '2026-04-17T00:00:00Z',
+        modified: '2026-04-17T00:00:00Z',
+        author: 'test',
+        executionMode: 'managed',
+        owner: 'lead',
+        content: '# Finalization\n\n## Final Output\n- Publish final',
+      },
+    ],
+  }
+
+  const md = templateToMarkdown(template)
+  const parsed = parseTemplateMd(md)
+  assert(parsed !== null, 'Expected round-trip parse to succeed')
+  assert((parsed.workflows || []).length === 3, `Expected 3 workflows after round-trip, got ${(parsed.workflows || []).length}`)
+  assert(parsed.workflows[0].content.includes('## Run Inputs'), 'Expected kickoff workflow content to preserve internal headings')
+  assert(parsed.workflows[1].content.includes('## Coordination'), 'Expected middle workflow content to preserve internal headings')
+  assert(parsed.workflows[2].content.includes('## Final Output'), 'Expected final workflow content to preserve internal headings')
+})
+
 // ============================================================================
 // Template Category Tests
 // ============================================================================

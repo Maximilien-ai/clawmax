@@ -660,6 +660,24 @@ export function parseTemplateMd(content: string): Template | null {
   }
 }
 
+function decodeWorkflowContentBlock(lines: string[]): string {
+  const joined = lines.join('\n').replace(/\s+$/, '')
+  if (!joined.trim()) return ''
+
+  const hasIndentedContent = lines.some((line) => line.startsWith('    ') || line === '')
+  if (!hasIndentedContent) {
+    return joined.trim()
+  }
+
+  return lines
+    .map((line) => {
+      if (line.startsWith('    ')) return line.slice(4)
+      return line.trim() === '' ? '' : line
+    })
+    .join('\n')
+    .trim()
+}
+
 /**
  * Parse structured markdown body sections for lean TEMPLATE.md format.
  * Sections: description (before first ##), ## Agents, ## Communities, ## Groups, ## Workflows
@@ -818,7 +836,7 @@ function parseTemplateMdBody(body: string): {
         }
       }
 
-      workflow.content = lines.slice(contentStart).join('\n').trim()
+      workflow.content = decodeWorkflowContentBlock(lines.slice(contentStart))
       result.workflows.push(workflow)
     }
   }
@@ -911,7 +929,7 @@ export function templateToMarkdown(template: Template): string {
       if (targets.length) lines.push(`- **Targets:** ${targets.join('; ')}`)
       lines.push('')
       if (w.content) {
-        lines.push(w.content)
+        lines.push(...String(w.content).split('\n').map((line) => `    ${line}`))
         lines.push('')
       }
     }
