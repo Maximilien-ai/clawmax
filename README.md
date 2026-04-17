@@ -5,12 +5,32 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.4)
+[![Version](https://img.shields.io/badge/version-1.3.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.6)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.4
+## 🔥 New in v1.3.6
+
+- Template export/import is more reliable:
+  - exported `TEMPLATE.md` files now preserve all workflows even when workflow bodies contain internal markdown headings like `## Run Inputs` or `## Output`
+  - template markdown round-trip no longer collapses toward the kickoff workflow
+- Anthropic AI generation is safer:
+  - AI generation no longer hardcodes one stale Anthropic model id
+  - `Create Agent with AI` now selects the best available Anthropic generation model by precedence, with `CLAWMAX_ANTHROPIC_GENERATION_MODEL` as an explicit override
+- Event planning templates are more usable:
+  - `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` now use structured kickoff inputs
+  - speaker and conference workflows branch more cleanly after kickoff
+  - final workflows now produce clearer host/organizer-facing markdown deliverables
+
+## 🔥 Previously in v1.3.5
+
+- DocHub ZIP uploads are more robust in packaged and remote runtimes:
+  - ZIP listing and extraction no longer require the `unzip` binary in the image
+  - when `unzip` is unavailable, DocHub falls back to `python3` and the stdlib `zipfile` module
+  - overwrite-conflict protection and unsafe-path checks remain intact across both extraction paths
+
+## 🔥 Previously in v1.3.4
 
 - DocHub is now much more useful for workspace imports and review:
   - upload files directly into the shared `AGENTS/` root or a specific agent workspace
@@ -26,81 +46,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Agent vs uploaded-asset boundaries are cleaner:
   - uploaded AGENTS directories no longer become “real agents” just because stale runtime state exists
   - deleting uploaded AGENTS directories also cleans up stale registration/runtime residue that would otherwise reclassify them
-
-## 🔥 Previously in v1.2.12
-
-- Onboarding is tighter and faster:
-  - suggested templates in onboarding are now clickable
-  - clicking a suggested template opens that exact template
-  - onboarding now prefers AI agent creation when BYOK is already ready
-- Workspace setup is safer:
-  - creating a workspace over an existing path now offers clear recovery actions
-  - open existing workspace
-  - use existing unregistered workspace
-  - overwrite the old path explicitly
-- Docs and handoff are better:
-  - workspace files can now be downloaded directly from Documents
-  - OTP email readability is hardened for dark-mode mail clients
-
-## 🔥 Previously in v1.2.11
-
-- Users can now leave template ratings and short written feedback
-- That feedback can be routed either:
-  - to the local workspace JSON file
-  - or to an optional remote endpoint when configured
-
-## 🔥 Previously in v1.2.10
-
-- AI template generation is much more complete:
-  - preserves user-pinned template names on regenerate
-  - preserves custom kickoff/run-input blocks during refine/regenerate
-  - uses examples/URLs from long prompts more explicitly in workflow content
-  - infers kickoff → middle → final workflow structure more reliably
-  - exposes workflow scaling and team-size controls for scalable templates
-- Multi-template apply is much safer in real workspaces:
-  - newly applied agents register reliably in `openclaw.json`
-  - repeated applies detect more workflow conflicts before import
-  - broken legacy workflow dependency aliases are normalized on import
-  - preferred-model setup is reachable directly from apply prereq warnings
-- Template/runtime UX is tighter:
-  - workflow run inputs support typed fields
-  - prompt editing is easier from the wizard flow
-  - experienced users can create AI-generated agents immediately after generation
-- Template library quality improved:
-  - another batch of org templates was canonicalized for kickoff/final structure
-  - normalized templates now carry explicit workflow `scaling` / `parallelism`
-  - the public `maximilien-ai/templates` schema/validator now understand those fields
-
-## 🔥 Previously in v1.2.6
-
-- **Hosted runtime bootstrap hardening** — the runtime image now installs `openclaw`, initializes `HOME` and `OPENCLAW_WORKSPACE`, and bootstraps a real OpenClaw runtime path on container start
-- **Gateway startup on boot** — container startup now attempts to bring up the OpenClaw gateway automatically so fresh hosted or operator-managed deployments do not rely on manual Doctor repair first
-- **Persistent OpenClaw state in container deployments** — Docker/Compose guidance now persists `~/.openclaw` separately from workspace files so agent registration and sessions survive restart
-- **Workflow-aware GitHub prereqs** — template apply no longer hard-fails GitHub CLI checks for `clawmax-system-test` unless GitHub coordination is actually enabled
-
-## 🔥 Previously in v1.2.5
-
-- **System test harness reliability** — `SYSTEM/test.sh` now recreates the system-test workspace before apply and waits for imported workflows to appear before verification/trigger
-- **Template DAG and tag audit** — multi-workflow templates now preserve correct dependencies, and every community, group, and workflow now has tags
-- **Shared dashboard readability** — notifications, workflows, and group chats now render markdown cleanly, scroll internally, and attribute workflow spend from agent traces
-- **Astronomy and similar templates behave correctly** — kickoff-first workflows no longer run in parallel by mistake after apply
-- **Keys & Secrets browser vault** — a central browser-local keystore now backs reusable provider, partner, template, workflow, and skill secrets, with workspace/global scope and `.env`-style bulk import
-- **Lu.ma Event Analysis Desk** — new Lu.ma analysis template plus starter `luma-event-insights` skill with secure browser-local prompt support for event scope and API key inputs
-
-## 🔥 Previously in v1.2.4
-
-- **Setup now offers Email OTP by default for local dev** — `./setup.sh` now prompts for local-dev Email OTP, bypass, GitHub OAuth, or production Email OTP
-- **CLI/local auth defaults clarified** — auth docs now show the exact env vars tools should use for developer OTP login without hardcoding personal emails
-- **Doctor and sidebar reliability** — Doctor no longer crashes on partial error payloads, and the navigation now groups `Templates/Skills` separately from `Activity/System & Logs`
-- **Workspace dashboard polish** — shared workspace dashboards now behave correctly in light/dark mode, compact mode fits better by default, and standard/detail views give workflows full-width room
-
-## 🔥 Previously in v1.2.3
-
-- **Email OTP auth** — dashboard now supports a secure email-code login mode for single-user hosted or operator-managed installs, in addition to GitHub OAuth and bypass
-- **Developer OTP flow** — local dev can use `OTP_DEV_MODE=log` and read the latest code from `.clawmax-otp-dev.json` instead of scraping logs or disabling auth
-- **50+ organization templates** — added ten new proposal templates across entertainment, astronomy, paper digests, markets, evaluation, product research, competitive analysis, rapid website creation, and blog launch
-- **25 reusable agent templates** — expanded the agent-template library with repeatable roles from events, testing, product research, markets, astronomy, and shipping flows
-- **Auth test coverage** — OTP request/verify/reuse/expiry tests now run in the normal `SYSTEM/test.sh` path
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
