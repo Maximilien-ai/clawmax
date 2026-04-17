@@ -2,6 +2,16 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.5] - 2026-04-17
+
+### Fixes — DocHub ZIP Uploads
+- **Cloud ZIP Extraction Fallback** — DocHub ZIP uploads no longer require the `unzip` binary to be present in the runtime image
+- **Python Stdlib Fallback** — when `unzip` is unavailable, ZIP listing and extraction now fall back to `python3` and the standard-library `zipfile` module
+- **Same Conflict Safety** — overwrite-conflict protection and unsafe-path rejection stay intact across both extraction paths
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/workspace-upload.test.ts`
+
 ## [v1.3.4] - 2026-04-16
 
 ### Features — DocHub Upload and Asset Review

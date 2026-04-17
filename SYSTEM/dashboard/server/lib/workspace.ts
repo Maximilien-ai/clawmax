@@ -443,6 +443,45 @@ function isIgnoredZipEntry(entryPath: string): boolean {
   return normalized.startsWith('__MACOSX/') || normalized === '__MACOSX' || normalized.endsWith('/.DS_Store') || normalized === '.DS_Store'
 }
 
+function listZipEntries(zipPath: string): string[] {
+  try {
+    return execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf-8' })
+      .split(/\r?\n/)
+      .filter(Boolean)
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+
+  return execFileSync('python3', ['-c', [
+    'import sys, zipfile',
+    'with zipfile.ZipFile(sys.argv[1]) as zf:',
+    '    for name in zf.namelist():',
+    '        print(name)',
+  ].join('\n'), zipPath], { encoding: 'utf-8' })
+    .split(/\r?\n/)
+    .filter(Boolean)
+}
+
+function extractZipToDirectory(zipPath: string, targetDir: string) {
+  try {
+    execFileSync('unzip', ['-oq', zipPath, '-d', targetDir], { stdio: 'pipe' })
+    return
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+
+  execFileSync('python3', ['-c', [
+    'import os, sys, zipfile',
+    'zip_path, target_dir = sys.argv[1], sys.argv[2]',
+    'with zipfile.ZipFile(zip_path) as zf:',
+    '    for member in zf.infolist():',
+    '        name = member.filename',
+    '        if not name or name.startswith("__MACOSX/") or name == "__MACOSX" or name.endswith("/.DS_Store") or name == ".DS_Store":',
+    '            continue',
+    '        zf.extract(member, target_dir)',
+  ].join('\n'), zipPath, targetDir], { stdio: 'pipe' })
+}
+
 export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, workspacePath = getWorkspacePath()): { ok: boolean; files?: string[]; error?: string } {
   const targetDir = resolveWorkspacePath(relDir, workspacePath)
   if (!targetDir) {
@@ -456,8 +495,7 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
     fs.mkdirSync(targetDir, { recursive: true })
     fs.writeFileSync(zipPath, zipContent)
 
-    const listing = execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf-8' })
-      .split(/\r?\n/)
+    const listing = listZipEntries(zipPath)
       .filter(Boolean)
       .filter((entry) => !isIgnoredZipEntry(entry))
 
@@ -480,7 +518,7 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       }
     }
 
-    execFileSync('unzip', ['-oq', zipPath, '-d', targetDir], { stdio: 'pipe' })
+    extractZipToDirectory(zipPath, targetDir)
 
     const files = listing
       .filter((entry) => !entry.endsWith('/'))
