@@ -2,6 +2,25 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.6] - 2026-04-17
+
+### Fixes — Template Export Round-Trip
+- **Workflow-Preserving TEMPLATE.md Export** — organization template markdown export now preserves all workflows even when workflow bodies contain internal markdown headings like `## Run Inputs`, `## Coordination`, or `## Output`
+- **Template Markdown Parser Alignment** — workflow bodies are now encoded and decoded as indented content blocks so export/import and export/reopen flows no longer collapse toward the kickoff workflow
+
+### Fixes — Anthropic AI Generation Model Selection
+- **Removed Hardcoded Anthropic Generator Model** — AI generation no longer pins Anthropic requests to a single stale model id
+- **Best Available Anthropic Model Selection** — AI generation now resolves Anthropic models by precedence: `CLAWMAX_ANTHROPIC_GENERATION_MODEL`, discovered/cached Anthropic preference, shared Anthropic fallback list, then final fallback
+- **Create Agent with AI Compatibility** — create-agent generation should no longer fail on `404 model: claude-sonnet-4-20250514` just because a given Anthropic account does not expose that exact model
+
+### Improvements — Event Planning Templates
+- **Structured Kickoff Inputs** — `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` kickoff workflows now use required structured inputs instead of prose-only placeholders
+- **Better Parallel Workflow Structure** — speaker and conference event templates now branch more cleanly after kickoff instead of forcing unnecessary serial workflow chains
+- **Clearer Final Host Handoff** — final workflows now explicitly require a concrete markdown deliverable and a short `What the host/organizer should use now` section
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/templates.test.ts`
+
 ## [v1.3.5] - 2026-04-17
 
 ### Fixes — DocHub ZIP Uploads

@@ -178,6 +178,45 @@
       "description": "Initialize the speaker event team and align on goals, format, and decision points.",
       "schedule": "manual",
       "type": "once",
+      "inputs": [
+        {
+          "name": "eventNameAndGoal",
+          "label": "Event name and goal",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "dateVenueAndFormat",
+          "label": "Date, venue, and format",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "expectedAttendees",
+          "label": "Expected attendees",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "speakerCount",
+          "label": "Speaker count",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "keyAudienceOutcome",
+          "label": "Key audience outcome",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "outputArtifact",
+          "label": "Final output artifact",
+          "type": "select",
+          "required": true,
+          "options": ["run-of-show", "speaker packet", "ops plan", "recap"]
+        }
+      ],
       "owner": "event-director",
       "targeting": {
         "communities": [],
@@ -189,7 +228,7 @@
           "event-director"
         ]
       },
-      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Project Configuration\n> **Customize these before applying:**\n\n- **Event name and goal:** [launch, salon, meetup, community talk, customer event, custom]\n- **Date, venue, and format:** [date, location, in-person, hybrid, custom]\n- **Expected attendees:** [count or range]\n- **Speaker count:** [planned speakers or panelists]\n- **Key audience outcome:** [leads, learning, community, recruiting, custom]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
+      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Run Inputs\n- **Event name and goal:** {{eventNameAndGoal}}\n- **Date, venue, and format:** {{dateVenueAndFormat}}\n- **Expected attendees:** {{expectedAttendees}}\n- **Speaker count:** {{speakerCount}}\n- **Key audience outcome:** {{keyAudienceOutcome}}\n- **Output artifact:** {{outputArtifact}}\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -250,7 +289,7 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
-        "speaker-readiness-review"
+        "speaker-event-kickoff"
       ],
       "tags": [
         "workflow",
@@ -280,6 +319,7 @@
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
+        "speaker-readiness-review",
         "run-of-show-build"
       ],
       "tags": [
@@ -306,7 +346,7 @@
           "follow-up-manager"
         ]
       },
-      "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Post the follow-up plan to Follow-Up and the executive summary to Status",
+      "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Produce a final host-facing artifact that clearly states the run-of-show, event-day operations view, and follow-up actions\n5. End with a short section titled `What the host should use now` that states exactly what was produced\n6. Post the follow-up plan and the full final artifact text to Follow-Up and the executive summary to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [

@@ -1,7 +1,14 @@
 import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
+import { getPreferredAnthropicModel } from './model-discovery'
 
 type AIProvider = 'openai' | 'anthropic'
+
+function getPreferredAnthropicGenerationModel(): string {
+  const override = process.env.CLAWMAX_ANTHROPIC_GENERATION_MODEL?.trim()
+  if (override) return override.startsWith('anthropic/') ? override.replace(/^anthropic\//, '') : override
+  return getPreferredAnthropicModel().replace(/^anthropic\//, '')
+}
 
 function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; key: string } {
   // Try BYOK keys first (passed from client request)
@@ -24,7 +31,7 @@ function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string }
         baseURL: 'https://api.anthropic.com/v1/',
         defaultHeaders: { 'anthropic-version': '2023-06-01' },
       }),
-      model: 'claude-sonnet-4-20250514',
+      model: getPreferredAnthropicGenerationModel(),
     }
   }
   return {
@@ -52,9 +59,10 @@ function resolveModel(requestedModel: string): string {
   const { provider } = getAvailableProvider(_requestByokKeys)
   if (provider === 'openai') return requestedModel
   // Map OpenAI models to Anthropic equivalents
-  if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return 'claude-sonnet-4-20250514'
-  if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return 'claude-sonnet-4-20250514'
-  return 'claude-sonnet-4-20250514'
+  const anthropicModel = getPreferredAnthropicGenerationModel()
+  if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
+  if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return anthropicModel
+  return anthropicModel
 }
 
 function getSystemOpenAiClient(): OpenAI {
@@ -384,7 +392,7 @@ export async function generateAgentMeta(description: string): Promise<{
 Available skills that can be assigned: ${availableSkills.join(', ') || 'gh-issues, github, web-search, code-review, slack, jira'}
 
 Available models:
-- anthropic/claude-sonnet-4-20250514 (best for coding, analysis, complex reasoning)
+- anthropic/${getPreferredAnthropicGenerationModel()} (best available Anthropic generation model)
 - openai/gpt-4o (best for general purpose, creative tasks)
 - openai/gpt-4o-mini (best for simple tasks, cost-efficient)
 
@@ -416,7 +424,7 @@ Rules:
   return {
     name: parsed.name || 'New Agent',
     tags: parsed.tags || [],
-    model: parsed.model || 'anthropic/claude-sonnet-4-20250514',
+    model: parsed.model || `anthropic/${getPreferredAnthropicGenerationModel()}`,
     skills: parsed.skills || [],
   }
 }

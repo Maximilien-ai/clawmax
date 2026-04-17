@@ -46,9 +46,15 @@ export function clearModelCache() {
   for (const key of Object.keys(cache)) delete cache[key]
 }
 
+export function getPreferredAnthropicModel(): string {
+  const cached = getCached('anthropic') || []
+  const preferred = [...cached, ...FALLBACK_ANTHROPIC].find((model) => model.startsWith('anthropic/claude-'))
+  return preferred || 'anthropic/claude-3-5-sonnet-20241022'
+}
+
 // ── Hardcoded fallbacks ────────────────────────────────────────────────────────
 
-const FALLBACK_ANTHROPIC = [
+export const FALLBACK_ANTHROPIC = [
   'anthropic/claude-sonnet-4-20250514',
   'anthropic/claude-opus-4-20250514',
   'anthropic/claude-haiku-4-5-20251001',
