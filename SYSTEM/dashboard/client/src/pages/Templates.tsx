@@ -897,7 +897,7 @@ export default function Templates() {
             {selectionMode && selectedTemplateKeys.size > 0 && (
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-red-50 dark:bg-red-900/200 text-white hover:bg-red-600 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 transition-colors"
               >
                 Delete Selected ({selectedTemplateKeys.size})
               </button>
@@ -1490,6 +1490,8 @@ export default function Templates() {
             showSuccess('Organization template applied successfully! Refreshing...')
             fetchTemplates()
             window.dispatchEvent(new CustomEvent('agents-updated'))
+            window.dispatchEvent(new CustomEvent('workflows-updated'))
+            window.dispatchEvent(new CustomEvent('channels-updated'))
           }}
         />
       )}
@@ -2003,7 +2005,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
               <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {isOrg ? 'Organization Template' : isWorkflow ? 'Workflow Template' : 'Agent Template'}
               </div>
-              {!isWorkflow && <div className="text-xs text-gray-400">Version {template.version}</div>}
+              <div className="text-xs text-gray-400">Version {template.version}</div>
             </div>
           </div>
 
@@ -2314,7 +2316,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
             {canDelete && (
               <button
                 onClick={onDelete}
-                className="px-4 py-2 bg-red-50 dark:bg-red-900/200 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
+                className="px-4 py-2 rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
               >
                 {isWorkflow ? 'Delete Workflow' : 'Delete Template'}
               </button>

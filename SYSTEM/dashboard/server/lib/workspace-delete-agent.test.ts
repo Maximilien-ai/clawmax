@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { deleteAgent } from './workspace'
+import { deleteAgent, parseGroups } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -140,6 +140,36 @@ async function run() {
     const remaining = (config.agents?.list || []).filter((agent: any) => agent.id === duplicateId)
     assert(remaining.length === 1, `Expected one duplicate entry to remain, got ${remaining.length}`)
     assert(remaining[0].workspace === otherAgentDir, 'Expected other workspace entry to remain registered')
+  })
+
+  await test('parseGroups supports agent membership files that use ## entry headings', () => {
+    const communitiesMd = `# Communities
+
+## CW Team
+
+Community overseeing the creation of posts.
+
+**Tags:** camera, sales
+`
+    const groupsMd = `# Groups
+
+## Content Creation
+
+Group focused on writing and editing posts.
+
+**Community:** CW Team
+
+**Tags:** writing, editing
+`
+
+    const parsedCommunities = parseGroups(communitiesMd)
+    const parsedGroups = parseGroups(groupsMd)
+
+    assert(parsedCommunities.communities.length === 1, `Expected 1 community, got ${parsedCommunities.communities.length}`)
+    assert(parsedCommunities.communities[0].name === 'CW Team', 'Expected CW Team community to parse')
+    assert(parsedGroups.groups.length === 1, `Expected 1 group, got ${parsedGroups.groups.length}`)
+    assert(parsedGroups.groups[0].name === 'Content Creation', 'Expected Content Creation group to parse')
+    assert(parsedGroups.groups[0].community === 'CW Team', 'Expected group community link to parse')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

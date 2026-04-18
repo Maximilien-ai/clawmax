@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, createGroup, deleteGroup, listAgents, deleteAgent } from '../lib/workspace'
+import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, getAgentsDir, createGroup, deleteGroup, listAgents, deleteAgent, parseGroups } from '../lib/workspace'
 import { userExecutionEnv } from '../lib/safe-env'
 import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessages, directMessageKey, type Message } from '../lib/messages'
 import { normalizeChatMessage } from '../lib/chat-normalization'
@@ -148,16 +148,43 @@ router.delete('/communities/:name', (req, res) => {
   if (cascade) {
     try {
       const allAgents = listAgents().filter((agent: any) => !agent.archived)
+      const agentsDir = getAgentsDir()
       const parsedGroupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
       const parsedGroups = fs.existsSync(parsedGroupsPath)
         ? parseGroupsWithMembers(fs.readFileSync(parsedGroupsPath, 'utf-8')).groups
         : []
       const communityGroups = parsedGroups.filter((group) => group.community === communityName)
       const groupNames = new Set(communityGroups.map((group) => group.name))
-      const agents = allAgents.filter((agent) =>
-        (agent.communities || []).some((community: any) => community?.name === communityName)
-        || (agent.groups || []).some((group: any) => groupNames.has(group?.name))
-      )
+      const agents = allAgents.filter((agent) => {
+        const indexedMembership =
+          (agent.communities || []).some((community: any) => {
+            if (typeof community === 'string') return community === communityName
+            return community?.name === communityName
+          })
+          || (agent.groups || []).some((group: any) => {
+            const groupName = typeof group === 'string' ? group : group?.name
+            return !!groupName && groupNames.has(groupName)
+          })
+
+        if (indexedMembership) return true
+
+        try {
+          const agentDir = path.join(agentsDir, agent.id)
+          const communitiesPath = path.join(agentDir, 'COMMUNITIES.md')
+          if (fs.existsSync(communitiesPath)) {
+            const parsed = parseGroups(fs.readFileSync(communitiesPath, 'utf-8')).communities
+            if (parsed.some((community) => community.name === communityName)) return true
+          }
+
+          const groupsPath = path.join(agentDir, 'GROUPS.md')
+          if (fs.existsSync(groupsPath)) {
+            const parsed = parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups
+            if (parsed.some((group) => groupNames.has(group.name) || group.community === communityName)) return true
+          }
+        } catch {}
+
+        return false
+      })
       const agentIds = new Set(agents.map((agent) => agent.id))
 
       const workflowsToDelete = listWorkflows().filter((workflow) => {
@@ -170,7 +197,7 @@ router.delete('/communities/:name', (req, res) => {
 
       const workflowResults = workflowsToDelete.map((workflow) => ({ workflowId: workflow.id, result: deleteWorkflow(workflow.id) }))
       const groupResults = communityGroups.map((group) => ({ groupName: group.name, deleted: deleteGroup('group', group.name) }))
-      const agentResults = agents.map((agent) => ({ agentId: agent.id, result: deleteAgent(agent.id, false, false) }))
+      const agentResults = agents.map((agent) => ({ agentId: agent.id, result: deleteAgent(agent.id, true, false) }))
       const communityDeleted = deleteGroup('community', communityName)
 
       if (!communityDeleted) {

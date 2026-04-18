@@ -25,6 +25,7 @@ import {
   buildWorkflowSessionId,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
+  resolveWorkflowRunInputPath,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -372,6 +373,22 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('resolveWorkflowRunInputPath resolves relative paths against workspace root', () => {
+  const workspaceRoot = '/tmp/clawmax-workspace'
+  assert(
+    resolveWorkflowRunInputPath('AGENTS/cw-items', workspaceRoot) === '/tmp/clawmax-workspace/AGENTS/cw-items',
+    'Expected bare relative path to resolve against workspace root'
+  )
+  assert(
+    resolveWorkflowRunInputPath('./AGENTS/cw-items', workspaceRoot) === '/tmp/clawmax-workspace/AGENTS/cw-items',
+    'Expected dot-relative path to resolve against workspace root'
+  )
+  assert(
+    resolveWorkflowRunInputPath('/tmp/cw-items', workspaceRoot) === '/tmp/cw-items',
+    'Expected absolute path to remain unchanged'
+  )
 })
 
 test('isWorkflowSessionLockError matches the OpenClaw lock timeout error', () => {

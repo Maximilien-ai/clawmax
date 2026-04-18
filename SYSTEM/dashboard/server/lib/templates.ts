@@ -238,6 +238,9 @@ export interface OrganizationTemplate {
 export type Template = AgentTemplate | OrganizationTemplate
 
 type TemplateSource = 'system' | 'workspace' | 'enterprise'
+export type OrganizationTemplateAgentFiles = Record<string, Record<string, string>>
+
+const ORG_TEMPLATE_AGENT_FILE_ORDER = ['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'COMMUNITIES.md', 'GROUPS.md'] as const
 
 function parseExtraTemplateRoots(): string[] {
   const raw = process.env.CLAWMAX_EXTRA_TEMPLATE_DIRS?.trim()
@@ -297,6 +300,8 @@ function normalizeTemplateForUse(template: Template): Template {
       return {
         ...workflow,
         id: normalizedId,
+        description: workflow.description || `${workflow.name || normalizedId} workflow`,
+        enabled: typeof workflow.enabled === 'boolean' ? workflow.enabled : true,
         owner: inferredOwner,
       }
     }),
@@ -473,8 +478,8 @@ export function validateTemplate(template: any): { valid: boolean; errors?: stri
 export function validateImportedTemplateMd(
   content: string,
   typeOverride?: string
-): { valid: boolean; template?: Template; errors: string[]; warnings: string[] } {
-  const template = parseTemplateMd(content)
+): { valid: boolean; template?: Template; agentFiles?: OrganizationTemplateAgentFiles; errors: string[]; warnings: string[] } {
+  const template = parseTemplateMd(content) as any
   if (!template) {
     return {
       valid: false,
@@ -486,6 +491,9 @@ export function validateImportedTemplateMd(
   if (typeOverride) {
     ;(template as any).type = typeOverride
   }
+
+  const agentFiles = template.agentFiles as OrganizationTemplateAgentFiles | undefined
+  delete template.agentFiles
 
   const validation = validateTemplate(template)
   if (!validation.valid) {
@@ -501,6 +509,7 @@ export function validateImportedTemplateMd(
   return {
     valid: true,
     template,
+    agentFiles,
     errors: [],
     warnings: refs.warnings,
   }
@@ -649,6 +658,7 @@ export function parseTemplateMd(content: string): Template | null {
       if (parsed.communities.length > 0 && !template.communities) template.communities = parsed.communities
       if (parsed.groups.length > 0 && !template.groups) template.groups = parsed.groups
       if (parsed.workflows.length > 0 && !template.workflows) template.workflows = parsed.workflows
+      if (Object.keys(parsed.agentFiles).length > 0) template.agentFiles = parsed.agentFiles
     } else if (body.trim() && !template.description) {
       // v1: body is just the description
       template.description = body.trim()
@@ -678,6 +688,36 @@ function decodeWorkflowContentBlock(lines: string[]): string {
     .trim()
 }
 
+function splitMarkdownH3Blocks(content: string): string[] {
+  const blocks: string[] = []
+  let current: string[] = []
+  let inFence = false
+
+  for (const line of content.split('\n')) {
+    if (line.trim().startsWith('```')) {
+      inFence = !inFence
+    }
+
+    if (!inFence && line.startsWith('### ')) {
+      if (current.length > 0) {
+        const block = current.join('\n').trim()
+        if (block) blocks.push(block)
+      }
+      current = [line]
+      continue
+    }
+
+    current.push(line)
+  }
+
+  if (current.length > 0) {
+    const block = current.join('\n').trim()
+    if (block) blocks.push(block)
+  }
+
+  return blocks
+}
+
 /**
  * Parse structured markdown body sections for lean TEMPLATE.md format.
  * Sections: description (before first ##), ## Agents, ## Communities, ## Groups, ## Workflows
@@ -688,16 +728,24 @@ function parseTemplateMdBody(body: string): {
   communities: any[]
   groups: any[]
   workflows: any[]
+  agentFiles: OrganizationTemplateAgentFiles
 } {
-  const result = { description: '', agents: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[] }
+  const result = { description: '', agents: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[], agentFiles: {} as OrganizationTemplateAgentFiles }
 
   // Split into sections by ## headers
   const sections: Record<string, string> = {}
   let currentSection = '_description'
   const lines = body.split('\n')
+  let inFence = false
 
   for (const line of lines) {
-    const headerMatch = line.match(/^##\s+(.+)/)
+    if (line.trim().startsWith('```')) {
+      inFence = !inFence
+      sections[currentSection] = (sections[currentSection] || '') + line + '\n'
+      continue
+    }
+
+    const headerMatch = !inFence ? line.match(/^##\s+(.+)/) : null
     if (headerMatch) {
       currentSection = headerMatch[1].trim().toLowerCase()
     } else {
@@ -772,10 +820,7 @@ function parseTemplateMdBody(body: string): {
 
   // Parse ## Workflows — verbose blocks written by templateToMarkdown
   if (sections['workflows']) {
-    const blocks = sections['workflows']
-      .split(/\n(?=###\s+)/)
-      .map((block) => block.trim())
-      .filter(Boolean)
+    const blocks = splitMarkdownH3Blocks(sections['workflows'])
 
     for (const block of blocks) {
       const lines = block.split('\n')
@@ -786,6 +831,7 @@ function parseTemplateMdBody(body: string): {
         name: header[1].trim(),
         id: slugify(header[1].trim()),
         schedule: 'manual',
+        enabled: true,
         executionMode: 'managed',
         targeting: {
           communities: [],
@@ -823,6 +869,16 @@ function parseTemplateMdBody(body: string): {
           continue
         }
 
+        const dependsOn = trimmed.match(/^- \*\*Depends On:\*\*\s*(.+)$/)
+        if (dependsOn) {
+          workflow.dependsOn = dependsOn[1]
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .map((value) => slugify(value))
+          continue
+        }
+
         const targets = trimmed.match(/^- \*\*Targets:\*\*\s*(.+)$/)
         if (targets) {
           for (const segment of targets[1].split(';').map((part) => part.trim())) {
@@ -841,6 +897,28 @@ function parseTemplateMdBody(body: string): {
     }
   }
 
+  if (sections['agent files']) {
+    const blocks = splitMarkdownH3Blocks(sections['agent files'])
+
+    for (const block of blocks) {
+      const lines = block.split('\n')
+      const header = lines[0]?.match(/^###\s+(.+)$/)
+      if (!header) continue
+      const relPath = header[1].trim()
+      const pathMatch = relPath.match(/^([^/]+)\/([^/]+)$/)
+      if (!pathMatch) continue
+      const agentId = pathMatch[1].trim()
+      const filename = pathMatch[2].trim()
+      if (!ORG_TEMPLATE_AGENT_FILE_ORDER.includes(filename as any)) continue
+
+      let fileContent = lines.slice(1).join('\n').trim()
+      const fenced = fileContent.match(/^```[a-zA-Z0-9_-]*\n([\s\S]*?)\n```$/)
+      if (fenced) fileContent = fenced[1]
+      if (!result.agentFiles[agentId]) result.agentFiles[agentId] = {}
+      result.agentFiles[agentId][filename] = fileContent
+    }
+  }
+
   return result
 }
 
@@ -848,7 +926,7 @@ function parseTemplateMdBody(body: string): {
  * Convert a template object to lean TEMPLATE.md format.
  * Minimal frontmatter + structured markdown body.
  */
-export function templateToMarkdown(template: Template): string {
+export function templateToMarkdown(template: Template, options?: { agentFiles?: OrganizationTemplateAgentFiles }): string {
   const t = template as any
   const lines: string[] = []
 
@@ -920,8 +998,14 @@ export function templateToMarkdown(template: Template): string {
     lines.push('')
     for (const w of t.workflows) {
       lines.push(`### ${w.name || w.id}`)
+      if (w.description) {
+        lines.push(`- **Description:** ${String(w.description).trim()}`)
+      }
       lines.push(`- **Schedule:** ${w.schedule || 'manual'}`)
       lines.push(`- **Mode:** ${w.executionMode || 'automated'}${w.owner ? ` (owner: ${w.owner})` : ''}`)
+      if (Array.isArray(w.dependsOn) && w.dependsOn.length > 0) {
+        lines.push(`- **Depends On:** ${w.dependsOn.join(', ')}`)
+      }
       const targets = []
       if (w.targeting?.agents?.length) targets.push(`agents: ${w.targeting.agents.join(', ')}`)
       if (w.targeting?.groups?.length) targets.push(`groups: ${w.targeting.groups.join(', ')}`)
@@ -930,6 +1014,25 @@ export function templateToMarkdown(template: Template): string {
       lines.push('')
       if (w.content) {
         lines.push(...String(w.content).split('\n').map((line) => `    ${line}`))
+        lines.push('')
+      }
+    }
+  }
+
+  const agentFiles = options?.agentFiles || {}
+  if (t.type === 'organization' && Object.keys(agentFiles).length > 0) {
+    lines.push('## Agent Files')
+    lines.push('')
+    for (const agentId of Object.keys(agentFiles).sort()) {
+      const files = agentFiles[agentId] || {}
+      for (const filename of ORG_TEMPLATE_AGENT_FILE_ORDER) {
+        const content = files[filename]
+        if (typeof content !== 'string' || !content.trim()) continue
+        lines.push(`### ${agentId}/${filename}`)
+        lines.push('')
+        lines.push('```md')
+        lines.push(content)
+        lines.push('```')
         lines.push('')
       }
     }
@@ -961,6 +1064,100 @@ function readTemplateFromDir(dir: string): Template | null {
   }
 
   return null
+}
+
+export function readOrganizationTemplateAgentFiles(templateDir: string): OrganizationTemplateAgentFiles {
+  const agentFiles: OrganizationTemplateAgentFiles = {}
+  const agentsDir = path.join(templateDir, 'agents')
+  if (!fs.existsSync(agentsDir)) return agentFiles
+
+  let agentEntries: fs.Dirent[] = []
+  try {
+    agentEntries = fs.readdirSync(agentsDir, { withFileTypes: true })
+  } catch {
+    return agentFiles
+  }
+
+  for (const entry of agentEntries) {
+    if (!entry.isDirectory()) continue
+    const agentDir = path.join(agentsDir, entry.name)
+    const files: Record<string, string> = {}
+    for (const filename of ORG_TEMPLATE_AGENT_FILE_ORDER) {
+      const filePath = path.join(agentDir, filename)
+      if (!fs.existsSync(filePath)) continue
+      try {
+        files[filename] = fs.readFileSync(filePath, 'utf-8')
+      } catch {}
+    }
+    if (Object.keys(files).length > 0) {
+      agentFiles[entry.name] = files
+    }
+  }
+
+  return agentFiles
+}
+
+export function readWorkspaceAgentFilesForOrganizationTemplate(
+  template: Template,
+  workspacePath = getWorkspacePath()
+): OrganizationTemplateAgentFiles {
+  const agentFiles: OrganizationTemplateAgentFiles = {}
+  if (template.type !== 'organization' || !Array.isArray(template.agents) || template.agents.length === 0) {
+    return agentFiles
+  }
+
+  const agentsDir = path.join(workspacePath, 'AGENTS')
+  let workspaceEntries: fs.Dirent[] = []
+  try {
+    workspaceEntries = fs.readdirSync(agentsDir, { withFileTypes: true })
+  } catch {
+    return agentFiles
+  }
+
+  const directoryNames = workspaceEntries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+
+  for (const agent of template.agents) {
+    const sourceId = String(agent.id || '').trim()
+    if (!sourceId) continue
+
+    const candidates = [
+      sourceId,
+      `${sourceId}1`,
+      ...directoryNames
+        .filter((name) => name.startsWith(sourceId))
+        .sort((a, b) => a.localeCompare(b)),
+    ]
+
+    const uniqueCandidates = Array.from(new Set(candidates))
+    let files: Record<string, string> | null = null
+
+    for (const candidate of uniqueCandidates) {
+      const candidateDir = path.join(agentsDir, candidate)
+      if (!fs.existsSync(candidateDir) || !fs.statSync(candidateDir).isDirectory()) continue
+
+      const nextFiles: Record<string, string> = {}
+      for (const filename of ORG_TEMPLATE_AGENT_FILE_ORDER) {
+        const filePath = path.join(candidateDir, filename)
+        if (!fs.existsSync(filePath)) continue
+        try {
+          nextFiles[filename] = fs.readFileSync(filePath, 'utf-8')
+        } catch {}
+      }
+
+      if (Object.keys(nextFiles).length > 0) {
+        files = nextFiles
+        break
+      }
+    }
+
+    if (files) {
+      agentFiles[sourceId] = files
+    }
+  }
+
+  return agentFiles
 }
 
 /**
@@ -2442,7 +2639,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             const result = createWorkflow({
               id: wf.id, // Preserve template's workflow ID for dependsOn references
               name: wf.name,
-              description: wf.description,
+              description: wf.description || `${wf.name} workflow`,
               schedule: wf.schedule,
               enabled: wf.enabled !== false,
               executionMode: execMode,

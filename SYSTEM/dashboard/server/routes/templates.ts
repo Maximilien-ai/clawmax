@@ -19,6 +19,10 @@ import {
   saveTemplate,
   getAgentTemplatesDir,
   getGlobalAgentTemplatesDir,
+  getOrgTemplatesDir,
+  getGlobalOrgTemplatesDir,
+  readOrganizationTemplateAgentFiles,
+  readWorkspaceAgentFilesForOrganizationTemplate,
 } from '../lib/templates'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL, setRequestByokKeys } from '../lib/ai-generator'
@@ -764,7 +768,32 @@ router.get('/:type/:slug/export-md', (req, res) => {
   const template = getTemplate(templateType, slug)
   if (!template) return res.status(404).json({ error: 'Template not found' })
 
-  const md = templateToMarkdown(template)
+  let agentFiles = undefined
+  if (templateType === 'organization') {
+    let templateDir = path.join(getOrgTemplatesDir(), slug)
+    let isWorkspaceTemplate = true
+    if (!fs.existsSync(path.join(templateDir, 'template.json')) && !fs.existsSync(path.join(templateDir, 'TEMPLATE.md'))) {
+      templateDir = path.join(getGlobalOrgTemplatesDir(), slug)
+      isWorkspaceTemplate = false
+    }
+    if (fs.existsSync(templateDir)) {
+      agentFiles = readOrganizationTemplateAgentFiles(templateDir)
+      if (isWorkspaceTemplate && (!agentFiles || Object.keys(agentFiles).length === 0)) {
+        agentFiles = readWorkspaceAgentFilesForOrganizationTemplate(template)
+        if (agentFiles && Object.keys(agentFiles).length > 0) {
+          for (const [agentId, files] of Object.entries(agentFiles)) {
+            const agentDir = path.join(templateDir, 'agents', agentId)
+            fs.mkdirSync(agentDir, { recursive: true })
+            for (const [filename, fileContent] of Object.entries(files || {})) {
+              fs.writeFileSync(path.join(agentDir, filename), fileContent, 'utf-8')
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const md = templateToMarkdown(template, { agentFiles })
   res.setHeader('Content-Type', 'text/markdown')
   res.setHeader('Content-Disposition', `attachment; filename="TEMPLATE.md"`)
   res.send(md)
@@ -790,6 +819,16 @@ router.post('/import-md', (req, res) => {
     const result = saveTemplate(validation.template)
     if (!result.ok) {
       return res.status(500).json({ error: result.error })
+    }
+
+    if (validation.template.type === 'organization' && result.path && validation.agentFiles && typeof validation.agentFiles === 'object') {
+      for (const [agentId, files] of Object.entries(validation.agentFiles)) {
+        const agentDir = path.join(result.path, 'agents', agentId)
+        fs.mkdirSync(agentDir, { recursive: true })
+        for (const [filename, fileContent] of Object.entries(files || {})) {
+          fs.writeFileSync(path.join(agentDir, filename), fileContent, 'utf-8')
+        }
+      }
     }
 
     res.json({

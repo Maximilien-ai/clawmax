@@ -55,6 +55,7 @@ export interface DocEntry {
   path: string       // relative to WORKSPACE
   section: DocSection
   kind?: 'markdown' | 'asset'
+  assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
   isAgentWorkspace?: boolean
 }
@@ -200,6 +201,16 @@ function isProtectedAgentWorkspaceFile(relPath: string): boolean {
   return PROTECTED_AGENT_WORKSPACE_FILES.has(segments[2])
 }
 
+function getAgentAssetSource(relPath: string): 'uploaded' | 'generated' {
+  const normalized = relPath.replace(/\\/g, '/')
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.length >= 3 && segments[0] === 'AGENTS') {
+    if (segments[2] === 'MEMORY.md') return 'generated'
+    if (segments[2] === 'memory') return 'generated'
+  }
+  return 'uploaded'
+}
+
 export function listDocEntries(): DocEntry[] {
   const workspacePath = getWorkspacePath()
   const agentsDir = getAgentsDir()
@@ -216,6 +227,7 @@ export function listDocEntries(): DocEntry[] {
       return {
         ...entry,
         kind: isRegisteredAgentWorkspace && isProtectedAgentFile ? 'markdown' : 'asset',
+        assetSource: isRegisteredAgentWorkspace && isProtectedAgentFile ? undefined : getAgentAssetSource(entry.path),
         canDelete: entry.section === 'AGENTS' ? !isProtectedAgentFile : false,
         isAgentWorkspace: isRegisteredAgentWorkspace && isProtectedAgentFile,
       }
@@ -243,6 +255,7 @@ export function listDocEntries(): DocEntry[] {
         path: rel,
         section: 'AGENTS',
         kind: 'asset',
+        assetSource: getAgentAssetSource(rel),
         canDelete: true,
         isAgentWorkspace: false,
       })
@@ -267,6 +280,7 @@ export function listDocEntries(): DocEntry[] {
         path: path.relative(workspacePath, full),
         section: 'AGENTS',
         kind: 'asset',
+        assetSource: getAgentAssetSource(path.relative(workspacePath, full)),
         canDelete: true,
         isAgentWorkspace: false,
       })
@@ -978,12 +992,12 @@ export function parseGroupsWithMembers(content: string): { communities: GroupWit
     }
 
     // Section headers
-    if (/^##\s+communities/i.test(trimmed)) {
+    if (/^#\s+communities/i.test(trimmed) || /^##\s+communities/i.test(trimmed)) {
       flushEntry()
       section = 'communities'
       continue
     }
-    if (/^##\s+groups/i.test(trimmed)) {
+    if (/^#\s+groups/i.test(trimmed) || /^##\s+groups/i.test(trimmed)) {
       flushEntry()
       section = 'groups'
       continue
@@ -994,8 +1008,8 @@ export function parseGroupsWithMembers(content: string): { communities: GroupWit
       continue
     }
 
-    // Verbose format: field bullets
-    if (trimmed.startsWith('-') && trimmed.includes('**')) {
+    // Verbose format: metadata lines with or without a leading dash
+    if (trimmed.includes('**')) {
       const descMatch = trimmed.match(/\*\*Description:\*\*\s*(.+)/i)
       if (descMatch) {
         currentDescription = descMatch[1].trim()
@@ -1046,7 +1060,7 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
     '💼': 'teams'
   }
 
-  // Parse verbose format (### Name with field bullets)
+  // Parse verbose format (##/### Name with field bullets)
   let currentName: string | null = null
   let currentDescription: string | null = null
   let currentTags: string[] = []
@@ -1076,32 +1090,33 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
 
-    // Verbose format: ### Name (CHECK THIS FIRST before ## checks!)
-    if (trimmed.startsWith('###')) {
-      flushEntry()
-      currentName = trimmed.replace(/^###\s+/, '').trim()
-      continue
-    }
-
     // Section headers
-    if (/^##\s+communities/i.test(trimmed)) {
+    if (/^#\s+communities/i.test(trimmed) || /^##\s+communities/i.test(trimmed)) {
       flushEntry()
       section = 'communities'
       continue
     }
-    if (/^##\s+groups/i.test(trimmed)) {
+    if (/^#\s+groups/i.test(trimmed) || /^##\s+groups/i.test(trimmed)) {
       flushEntry()
       section = 'groups'
       continue
     }
-    if (trimmed.startsWith('##')) {
+    // Verbose format: ##/### Name
+    const entryHeaderMatch = trimmed.match(/^###\s+(.+)$/) || trimmed.match(/^##\s+(.+)$/)
+    if (entryHeaderMatch) {
+      const entryName = entryHeaderMatch[1].trim()
+      if (/^(groups|communities)$/i.test(entryName)) {
+        flushEntry()
+        section = /^groups$/i.test(entryName) ? 'groups' : 'communities'
+        continue
+      }
       flushEntry()
-      section = null
+      currentName = entryName
       continue
     }
 
-    // Verbose format: field bullets
-    if (trimmed.startsWith('-') && trimmed.includes('**')) {
+    // Verbose format: metadata lines with or without a leading dash
+    if (trimmed.includes('**')) {
       const descMatch = trimmed.match(/\*\*Description:\*\*\s*(.+)/i)
       if (descMatch) {
         currentDescription = descMatch[1].trim()

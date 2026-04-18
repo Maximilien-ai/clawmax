@@ -96,6 +96,33 @@ export interface WorkflowExecution {
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
 }
 
+function expandHomePath(input: string): string {
+  const home = process.env.HOME || ''
+  if (!input.startsWith('~')) return input
+  if (input === '~') return home || input
+  if (input.startsWith('~/')) return home ? path.join(home, input.slice(2)) : input
+  return input
+}
+
+function isPathLikeRunInput(label: string, value: string): boolean {
+  const normalizedLabel = label.trim().toLowerCase()
+  if (/(^|[\s_-])(path|root|dir|directory|folder|file|files)([\s_-]|$)/i.test(normalizedLabel)) return true
+  const trimmed = value.trim()
+  return trimmed.startsWith('~/')
+    || trimmed.startsWith('./')
+    || trimmed.startsWith('../')
+    || trimmed.startsWith('/')
+    || /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]/.test(trimmed)
+}
+
+export function resolveWorkflowRunInputPath(inputValue: string, workspaceRoot: string = getWorkspacePath()): string {
+  const trimmed = inputValue.trim()
+  if (!trimmed) return trimmed
+  const expanded = expandHomePath(trimmed)
+  if (path.isAbsolute(expanded)) return path.normalize(expanded)
+  return path.resolve(workspaceRoot, expanded)
+}
+
 interface WorkflowRuntimeOverrides {
   openai?: string
   anthropic?: string
@@ -1022,6 +1049,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
 
+    const workspaceRoot = getWorkspacePath()
     const workflowSignalsPartner = (partner: 'github' | 'senso') => {
       const text = (workflow.content || '').toLowerCase()
       const requirements = workflow.secretRequirements || []
@@ -1074,6 +1102,20 @@ export function triggerWorkflow(workflowId: string, options?: {
     if (runInstructions) {
       runtimeContextLines.push(`- Run-specific instructions: ${runInstructions}`)
       runtimeContextLines.push('- Treat the run-specific instructions as the highest-priority adjustment for this execution only')
+    }
+    const resolvedPathInputs = Object.entries(executionInputs)
+      .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))
+      .map(([label, value]) => ({
+        label,
+        raw: value.trim(),
+        resolved: resolveWorkflowRunInputPath(value.trim(), workspaceRoot),
+      }))
+    if (resolvedPathInputs.length > 0) {
+      runtimeContextLines.push(`- Active workspace root: \`${workspaceRoot}\``)
+      runtimeContextLines.push('- Treat all relative run-input paths as relative to the active workspace root above')
+      for (const entry of resolvedPathInputs) {
+        runtimeContextLines.push(`- Resolved run input ${entry.label}: raw \`${entry.raw}\` -> absolute \`${entry.resolved}\``)
+      }
     }
     const executionMessage = runtimeContextLines.length > 0
       ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`

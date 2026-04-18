@@ -29,6 +29,29 @@ export interface WorkspacePathConflict {
 
 const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
 
+function extractIdentityField(content: string, field: string): string {
+  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
+  return match?.[1]?.trim() || ''
+}
+
+function isManagedAgentWorkspaceDir(agentDir: string): boolean {
+  try {
+    const stats = fs.statSync(agentDir)
+    if (!stats.isDirectory()) return false
+  } catch {
+    return false
+  }
+
+  try {
+    const identityPath = path.join(agentDir, 'IDENTITY.md')
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    const name = extractIdentityField(identity, 'Name')
+    return !!name
+  } catch {
+    return false
+  }
+}
+
 export class WorkspaceManager {
   private registryPath: string
   private registry: WorkspaceRegistry | null = null
@@ -131,7 +154,11 @@ export class WorkspaceManager {
         if (fs.existsSync(agentsDir)) {
           const entries = fs.readdirSync(agentsDir, { withFileTypes: true })
           workspace.agentCount = entries.filter(e =>
-            e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith('_') && e.name !== 'archive'
+            e.isDirectory()
+            && !e.name.startsWith('.')
+            && !e.name.startsWith('_')
+            && e.name !== 'archive'
+            && isManagedAgentWorkspaceDir(path.join(agentsDir, e.name))
           ).length
         } else {
           workspace.agentCount = 0

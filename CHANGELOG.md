@@ -2,6 +2,33 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.7] - 2026-04-17
+
+### Fixes — Template Apply and Template Markdown Round-Trip
+- **Org Template Apply Refresh** — applying an organization template from the Templates page now refreshes workflows and channels immediately instead of only refreshing agents
+- **Workflow-Preserving TEMPLATE.md Export** — exported organization template markdown now preserves every workflow even when workflow bodies contain internal markdown headings like `## Run Inputs`, `## Coordination`, or `## Output`
+- **Workflow Metadata Round-Trip** — template markdown export/import now preserves workflow descriptions and dependencies instead of flattening the workflow DAG on re-import
+- **Safer Imported Workflow Defaults** — imported/exported templates now normalize missing workflow description and enabled state so older template markdown files still apply successfully
+- **Agent Files Round-Trip** — organization `TEMPLATE.md` export/import now preserves per-agent files such as `SOUL.md`, `TOOLS.md`, `COMMUNITIES.md`, and `GROUPS.md`, including files with internal markdown headings
+- **Workspace Template Backfill** — workspace-scoped organization templates that were missing `agents/` payload now backfill agent files from the live workspace during export so subsequent imports are no longer lossy
+
+### Fixes — Community Cascade Delete
+- **Cascade Agent Removal** — deleting a community/org with cascade now also finds and removes the associated agents using both workspace membership indexes and each agent’s own `COMMUNITIES.md` / `GROUPS.md`
+- **Stronger Agent Cleanup** — cascade delete now uses full agent removal instead of preserving stale agent state directories
+
+### Fixes — Workflow Runtime and Workspace State
+- **Relative Run Input Resolution** — workflow execution now resolves relative path-like run inputs against the active workspace root before passing them to agents, so values like `AGENTS/cw-items` no longer drift to unrelated filesystem locations
+- **Workspace Switch Scheduler Sync** — switching the active workspace now resyncs scheduled workflows so stale jobs from the previous workspace stop firing
+- **Workspace Switcher Agent Count** — uploaded directories under `AGENTS/` are no longer counted as real agents in the workspace picker
+
+### Improvements — Template and Doc UX
+- **Template Detail Version Visibility** — template detail now shows version consistently for organization, agent, and workflow templates
+- **DocHub Auto Refresh After Apply** — DocHub refreshes automatically after template apply so newly created agents appear without a manual reload
+- **Generated Memory File Styling** — agent-generated `MEMORY.md` and `memory/*` entries are now visually distinguished from user-uploaded assets
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/templates.test.ts`
+
 ## [v1.3.6] - 2026-04-17
 
 ### Fixes — Template Export Round-Trip

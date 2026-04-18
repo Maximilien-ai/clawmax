@@ -11,6 +11,7 @@ import {
   validateImportedTemplateMd,
   validateAgentTemplateFiles,
   createOrganizationTemplate,
+  readWorkspaceAgentFilesForOrganizationTemplate,
   slugify,
   type OrganizationTemplate,
   type AgentTemplate
@@ -575,6 +576,7 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
       {
         id: 'kickoff',
         name: 'Kickoff',
+        description: 'Initial kickoff workflow',
         schedule: 'manual',
         enabled: true,
         targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
@@ -588,8 +590,10 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
       {
         id: 'analysis',
         name: 'Analysis',
+        description: 'Analysis workflow',
         schedule: 'manual',
         enabled: true,
+        dependsOn: ['kickoff'],
         targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
         created: '2026-04-17T00:00:00Z',
         modified: '2026-04-17T00:00:00Z',
@@ -601,8 +605,10 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
       {
         id: 'finalization',
         name: 'Finalization',
+        description: 'Finalization workflow',
         schedule: 'manual',
         enabled: true,
+        dependsOn: ['analysis'],
         targeting: { communities: [], groups: ['Status'], tags: [], agents: ['lead'] },
         created: '2026-04-17T00:00:00Z',
         modified: '2026-04-17T00:00:00Z',
@@ -618,9 +624,62 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
   const parsed = parseTemplateMd(md)
   assert(parsed !== null, 'Expected round-trip parse to succeed')
   assert((parsed.workflows || []).length === 3, `Expected 3 workflows after round-trip, got ${(parsed.workflows || []).length}`)
+  assert(parsed.workflows[0].description === 'Initial kickoff workflow', 'Expected kickoff workflow description to round-trip')
+  assert(parsed.workflows[1].description === 'Analysis workflow', 'Expected middle workflow description to round-trip')
+  assert(parsed.workflows[2].description === 'Finalization workflow', 'Expected final workflow description to round-trip')
+  assert(JSON.stringify(parsed.workflows[1].dependsOn || []) === JSON.stringify(['kickoff']), 'Expected middle workflow dependency to round-trip')
+  assert(JSON.stringify(parsed.workflows[2].dependsOn || []) === JSON.stringify(['analysis']), 'Expected final workflow dependency to round-trip')
   assert(parsed.workflows[0].content.includes('## Run Inputs'), 'Expected kickoff workflow content to preserve internal headings')
   assert(parsed.workflows[1].content.includes('## Coordination'), 'Expected middle workflow content to preserve internal headings')
   assert(parsed.workflows[2].content.includes('## Final Output'), 'Expected final workflow content to preserve internal headings')
+})
+
+test('template markdown preserves organization agent files', () => {
+  const { templateToMarkdown, validateImportedTemplateMd } = require('./templates')
+  const template = {
+    name: 'Agent Files Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'lead', role: 'Lead' }],
+  }
+  const md = templateToMarkdown(template, {
+    agentFiles: {
+      lead: {
+        'SOUL.md': '# SOUL.md\n\n## Purpose\n\nLead soul content.',
+        'TOOLS.md': '# TOOLS.md\n\n## Rules\n\nLead tools content.',
+      },
+    },
+  })
+  const imported = validateImportedTemplateMd(md)
+  assert(imported.valid === true, 'Expected imported template markdown to validate')
+  assert(imported.agentFiles?.lead?.['SOUL.md']?.includes('Lead soul content.'), 'Expected SOUL.md content to round-trip')
+  assert(imported.agentFiles?.lead?.['SOUL.md']?.includes('## Purpose'), 'Expected SOUL.md internal headings to round-trip')
+  assert(imported.agentFiles?.lead?.['TOOLS.md']?.includes('Lead tools content.'), 'Expected TOOLS.md content to round-trip')
+  assert(imported.agentFiles?.lead?.['TOOLS.md']?.includes('## Rules'), 'Expected TOOLS.md internal headings to round-trip')
+})
+
+test('workspace agent files can backfill organization template export', () => {
+  const tmpWorkspace = path.join(os.tmpdir(), `template-workspace-${Date.now()}`)
+  const agentsDir = path.join(tmpWorkspace, 'AGENTS')
+  fs.mkdirSync(path.join(agentsDir, 'content-writer1'), { recursive: true })
+  fs.writeFileSync(path.join(agentsDir, 'content-writer1', 'IDENTITY.md'), '# Writer\n\n- **Name:** Writer', 'utf-8')
+  fs.writeFileSync(path.join(agentsDir, 'content-writer1', 'COMMUNITIES.md'), '# Communities\n\n- CW Team', 'utf-8')
+  fs.writeFileSync(path.join(agentsDir, 'content-writer1', 'GROUPS.md'), '# Groups\n\n- Content', 'utf-8')
+  fs.writeFileSync(path.join(agentsDir, 'content-writer1', 'SOUL.md'), '# Soul\n\nWriter soul', 'utf-8')
+
+  const template = {
+    name: 'CW Backfill',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'content-writer', role: 'Writer' }],
+  }
+
+  const files = readWorkspaceAgentFilesForOrganizationTemplate(template as any, tmpWorkspace)
+  assert(files['content-writer']?.['IDENTITY.md']?.includes('**Name:** Writer'), 'Expected IDENTITY.md to backfill from content-writer1')
+  assert(files['content-writer']?.['SOUL.md']?.includes('Writer soul'), 'Expected SOUL.md to backfill from content-writer1')
+  assert(files['content-writer']?.['COMMUNITIES.md']?.includes('CW Team'), 'Expected COMMUNITIES.md to backfill from content-writer1')
+
+  fs.rmSync(tmpWorkspace, { recursive: true, force: true })
 })
 
 // ============================================================================

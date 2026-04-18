@@ -2,6 +2,7 @@ import express from 'express'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
 import archiver from 'archiver'
+import { syncAllWorkflows } from '../lib/scheduler'
 import {
   createWorkspaceDashboard,
   deleteWorkspaceDashboard,
@@ -89,6 +90,7 @@ router.put('/:id/activate', (req, res) => {
   try {
     const { id } = req.params
     workspaceManager.setActiveWorkspace(id)
+    syncAllWorkflows()
 
     res.json({ ok: true })
   } catch (err: any) {

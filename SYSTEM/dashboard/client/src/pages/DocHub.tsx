@@ -8,6 +8,7 @@ interface DocEntry {
   path: string
   section: DocSection
   kind?: 'markdown' | 'asset'
+  assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
   isAgentWorkspace?: boolean
 }
@@ -126,6 +127,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const treeResizeOriginRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const selectedEntry = useMemo(() => entries.find((entry) => entry.path === selected) || null, [entries, selected])
   const selectedIsAgentAsset = !!selectedEntry && selectedEntry.section === 'AGENTS' && !selectedEntry.isAgentWorkspace
+  const selectedAgentAssetSource = selectedIsAgentAsset ? (selectedEntry?.assetSource || 'uploaded') : null
   const selectedIsMarkdown = !!selected && selected.endsWith('.md')
   const selectedIsTextPreview = previewKind === 'text'
   const selectedIsImagePreview = previewKind === 'image'
@@ -449,6 +451,22 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setEntries(entriesData.entries ?? [])
   }
 
+  useEffect(() => {
+    const handleWorkspaceContentUpdate = () => {
+      refreshEntries().catch(() => setError('Failed to refresh file list'))
+    }
+
+    window.addEventListener('agents-updated', handleWorkspaceContentUpdate)
+    window.addEventListener('workflows-updated', handleWorkspaceContentUpdate)
+    window.addEventListener('channels-updated', handleWorkspaceContentUpdate)
+
+    return () => {
+      window.removeEventListener('agents-updated', handleWorkspaceContentUpdate)
+      window.removeEventListener('workflows-updated', handleWorkspaceContentUpdate)
+      window.removeEventListener('channels-updated', handleWorkspaceContentUpdate)
+    }
+  }, [])
+
   function buildUploadTargetPath() {
     const base = uploadTargetMode === 'agent' && uploadAgentId.trim()
       ? `AGENTS/${uploadAgentId.trim()}`
@@ -509,14 +527,39 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     }
   }
 
-  function getDirAssetMode(section: DocSection, dir: string, sectionEntries: DocEntry[]): 'agent' | 'asset' | 'mixed' {
+  function getAssetTone(entry?: DocEntry | null) {
+    const generated = entry?.assetSource === 'generated'
+    return generated
+      ? {
+          selected: 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 font-medium',
+          idle: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20',
+          row: 'bg-emerald-50/60 dark:bg-emerald-950/20',
+          text: 'text-emerald-700 dark:text-emerald-300',
+          badge: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300',
+          label: 'memory',
+        }
+      : {
+          selected: 'bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 font-medium',
+          idle: 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20',
+          row: 'bg-amber-50/60 dark:bg-amber-950/20',
+          text: 'text-amber-700 dark:text-amber-300',
+          badge: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300',
+          label: 'asset',
+        }
+  }
+
+  function getDirAssetMode(section: DocSection, dir: string, sectionEntries: DocEntry[]): 'agent' | 'asset' | 'generated' | 'mixed' {
     if (section !== 'AGENTS' || !dir) return 'agent'
     const prefix = `${section}/${dir}/`
     const matching = sectionEntries.filter((entry) => entry.path.startsWith(prefix))
     if (matching.length === 0) return 'agent'
     const assetCount = matching.filter((entry) => !entry.isAgentWorkspace).length
     if (assetCount === 0) return 'agent'
-    if (assetCount === matching.length) return 'asset'
+    if (assetCount === matching.length) {
+      const generatedCount = matching.filter((entry) => entry.assetSource === 'generated').length
+      if (generatedCount === matching.length) return 'generated'
+      if (generatedCount === 0) return 'asset'
+    }
     return 'mixed'
   }
 
@@ -568,24 +611,29 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     const dirKey = `${section}/${dir}`
     const isDirCollapsed = collapsedDirs.has(dirKey)
     const dirMode = getDirAssetMode(section, dir, sectionEntries)
-    const canDeleteDir = section === 'AGENTS' && dirMode === 'asset'
+    const canDeleteDir = section === 'AGENTS' && (dirMode === 'asset' || dirMode === 'generated')
     const dirDeletePath = canDeleteDir ? `${section}/${dir}` : null
     const childDirs = getChildDirectories(tree, dir)
     const files = tree[dir] || []
     const dirName = dir.split('/').pop() || dir
+    const dirTone = dirMode === 'generated'
+      ? getAssetTone({ assetSource: 'generated' } as DocEntry)
+      : dirMode === 'asset'
+        ? getAssetTone({ assetSource: 'uploaded' } as DocEntry)
+        : null
 
     return (
       <div key={dir}>
-        <div className={`w-full flex items-center justify-between px-4 py-1 mt-1 transition-colors group ${dirMode === 'asset' ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+        <div className={`w-full flex items-center justify-between px-4 py-1 mt-1 transition-colors group ${dirTone ? dirTone.row : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
           <button
             onClick={() => toggleDir(dirKey)}
             className="flex min-w-0 flex-1 items-center justify-between text-left"
             style={{ paddingLeft: `${depth * 14}px` }}
           >
-            <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 group-hover:opacity-100 ${dirMode === 'asset' ? 'text-amber-700 dark:text-amber-300' : cfg.accent}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 group-hover:opacity-100 ${dirTone ? dirTone.text : cfg.accent}`}>
               {dirName}/
             </span>
-            <span className={`text-xs opacity-40 group-hover:opacity-70 ${dirMode === 'asset' ? 'text-amber-700 dark:text-amber-300' : cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
+            <span className={`text-xs opacity-40 group-hover:opacity-70 ${dirTone ? dirTone.text : cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
           </button>
           {dirDeletePath && (
             <button
@@ -607,13 +655,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               const isPinned = actualPath.endsWith('MASTER_PLAN.md')
               const isSelected = selected === actualPath
               const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
+              const assetTone = getAssetTone(fullEntry)
               return (
                 <div
                   key={actualPath}
                   className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
                     isSelected
-                      ? (isAsset ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 font-medium' : cfg.selectedCls)
-                      : (isAsset ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20' : cfg.itemCls)
+                      ? (isAsset ? assetTone.selected : cfg.selectedCls)
+                      : (isAsset ? assetTone.idle : cfg.itemCls)
                   }`}
                   style={{ paddingLeft: `${(depth + 1) * 14 + 16}px` }}
                 >
@@ -623,7 +672,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                   >
                     {isPinned && <span className="text-xs text-amber-500">★</span>}
-                    {isAsset && <span className="text-[10px] rounded bg-amber-100 dark:bg-amber-950/40 px-1 text-amber-700 dark:text-amber-300">asset</span>}
+                    {isAsset && <span className={`text-[10px] rounded px-1 ${assetTone.badge}`}>{assetTone.label}</span>}
                     <span className="truncate">{name}</span>
                   </button>
                 </div>
@@ -841,13 +890,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                           const isPinned = actualPath.endsWith('MASTER_PLAN.md')
                           const isSelected = selected === actualPath
                           const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
+                          const assetTone = getAssetTone(fullEntry)
                           return (
                             <div
                               key={actualPath}
                               className={`w-full text-left px-4 py-1.5 text-sm transition-colors flex items-center gap-1.5 ${
                                 isSelected
-                                  ? (isAsset ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 font-medium' : cfg.selectedCls)
-                                  : (isAsset ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20' : cfg.itemCls)
+                                  ? (isAsset ? assetTone.selected : cfg.selectedCls)
+                                  : (isAsset ? assetTone.idle : cfg.itemCls)
                               }`}
                             >
                               <button
@@ -856,7 +906,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                                 className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                               >
                                 {isPinned && <span className="text-xs text-amber-500">★</span>}
-                                {isAsset && <span className="text-[10px] rounded bg-amber-100 dark:bg-amber-950/40 px-1 text-amber-700 dark:text-amber-300">asset</span>}
+                                {isAsset && <span className={`text-[10px] rounded px-1 ${assetTone.badge}`}>{assetTone.label}</span>}
                                 <span className="truncate">{name}</span>
                               </button>
                             </div>
@@ -992,11 +1042,17 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             {selectedIsAgentAsset && previewKind === 'asset' ? (
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-3xl mx-auto px-8 py-8">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-                    <div className="font-semibold">Uploaded workspace asset</div>
+                  <div className={`rounded-xl p-5 text-sm ${
+                    selectedAgentAssetSource === 'generated'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
+                      : 'border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200'
+                  }`}>
+                    <div className="font-semibold">{selectedAgentAssetSource === 'generated' ? 'Agent-generated file' : 'Uploaded workspace asset'}</div>
                     <div className="mt-2 font-mono text-xs break-all">{selectedEntry.path}</div>
                     <p className="mt-3 text-sm">
-                      Preview is not available for this file type. You can still download or delete it from DocHub if it is no longer needed.
+                      {selectedAgentAssetSource === 'generated'
+                        ? 'This file was generated by the agent runtime. Preview is not available for this file type, but you can still download or delete it from DocHub.'
+                        : 'Preview is not available for this file type. You can still download or delete it from DocHub if it is no longer needed.'}
                     </p>
                   </div>
                 </div>
@@ -1004,8 +1060,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             ) : editMode ? (
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedIsAgentAsset && (
-                  <div className="mx-8 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-                    This markdown file was uploaded into an agent workspace. You can review, edit, download, or delete it here.
+                  <div className={`mx-8 mt-4 rounded-lg px-4 py-3 text-sm ${
+                    selectedAgentAssetSource === 'generated'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
+                      : 'border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200'
+                  }`}>
+                    {selectedAgentAssetSource === 'generated'
+                      ? 'This markdown file was generated by the agent runtime. You can review, edit, download, or delete it here.'
+                      : 'This markdown file was uploaded into an agent workspace. You can review, edit, download, or delete it here.'}
                   </div>
                 )}
                 <textarea
@@ -1020,10 +1082,18 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-3xl mx-auto px-8 py-8">
                   {selectedIsAgentAsset && (
-                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-                      <div className="font-semibold">Uploaded markdown file</div>
+                    <div className={`mb-4 rounded-xl p-4 text-sm ${
+                      selectedAgentAssetSource === 'generated'
+                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
+                        : 'border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200'
+                    }`}>
+                      <div className="font-semibold">{selectedAgentAssetSource === 'generated' ? 'Agent-generated markdown file' : 'Uploaded markdown file'}</div>
                       <div className="mt-1 font-mono text-xs break-all">{selectedEntry?.path}</div>
-                      <p className="mt-2">This file was uploaded into an agent workspace. It is not part of the protected agent definition, so you can edit, download, or delete it here.</p>
+                      <p className="mt-2">
+                        {selectedAgentAssetSource === 'generated'
+                          ? 'This file was generated by the agent runtime. It is not part of the protected agent definition, so you can edit, download, or delete it here.'
+                          : 'This file was uploaded into an agent workspace. It is not part of the protected agent definition, so you can edit, download, or delete it here.'}
+                      </p>
                     </div>
                   )}
                   {selectedIsImagePreview && imageDataUrl ? (
