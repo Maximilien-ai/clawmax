@@ -2,6 +2,22 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.9] - 2026-04-19
+
+### Fixes — Notification Signal Quality
+- **Notification Burst Grouping** — near-identical agent notifications created in the same short window now collapse into a grouped summary instead of spamming one top-level row per agent
+- **Grouped Dismiss Behavior** — dismissing a grouped notification now clears the full burst instead of leaving sibling notifications behind
+- **Grouped Feed Drill-Down** — grouped artifact notifications still expose the per-agent child entries so users can open the specific file they need
+
+### Fixes — Workflow Runtime Stability
+- **Shared Config Churn Guard** — workflow and chat execution no longer snapshot and restore the entire shared `openclaw.json` during temporary model/auth overrides
+- **Serialized Model Overrides** — temporary live config mutations are now serialized so concurrent workflow participants do not race each other through the same shared config file
+- **Gateway Config Preservation** — temporary agent model overrides now preserve unrelated gateway config fields such as `gateway.auth.token`, `gateway.remote.token`, and `gateway.tailscale`
+- **No-Op Config Writes Removed** — when an execution already targets the current model, the runtime now skips rewriting shared config entirely
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/notifications.test.ts`, and `server/lib/agent-execution.test.ts`
+
 ## [v1.3.8] - 2026-04-18
 
 ### Fixes — Session Expiry and Reauthentication
