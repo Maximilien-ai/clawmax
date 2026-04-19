@@ -504,7 +504,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok || !data.ok) {
-          throw new Error(data.error || `Failed to upload ${file.name}`)
+          throw new Error(res.status === 401 ? 'Session expired. Please sign in again.' : (data.error || `Failed to upload ${file.name}`))
         }
         if (Array.isArray(data.files)) {
           uploadedPaths.push(...data.files)

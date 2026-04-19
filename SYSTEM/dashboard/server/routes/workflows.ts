@@ -15,12 +15,16 @@ import {
   parseWorkflowMd,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
-import { listAgents } from '../lib/workspace'
+import { getWorkspacePath, listAgents } from '../lib/workspace'
 import { generateCronFromText, generateWorkflowFromNL } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
+
+function getWorkflowExecutionsDir(): string {
+  return require('path').join(getWorkspacePath(), 'WORKFLOWS', 'executions')
+}
 
 /**
  * POST /api/workflows/import-md
@@ -436,10 +440,7 @@ router.get('/:id/executions/archived', (req, res) => {
 
     const fs = require('fs')
     const path = require('path')
-    const os = require('os')
-    const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace')
-    const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
-    const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
+    const EXECUTIONS_DIR = getWorkflowExecutionsDir()
     const archivedDir = path.join(EXECUTIONS_DIR, id, 'archived')
 
     if (!fs.existsSync(archivedDir)) {
@@ -501,10 +502,7 @@ router.post('/:id/executions/:executionId/archive', (req, res) => {
     // Move execution file to archived subdirectory
     const fs = require('fs')
     const path = require('path')
-    const os = require('os')
-    const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace')
-    const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
-    const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
+    const EXECUTIONS_DIR = getWorkflowExecutionsDir()
     const executionPath = path.join(EXECUTIONS_DIR, id, `${executionId}.json`)
     const archivedDir = path.join(EXECUTIONS_DIR, id, 'archived')
     const archivedPath = path.join(archivedDir, `${executionId}.json`)
@@ -547,10 +545,7 @@ router.post('/:id/executions/:executionId/unarchive', (req, res) => {
     // Move execution file from archived subdirectory back to main
     const fs = require('fs')
     const path = require('path')
-    const os = require('os')
-    const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace')
-    const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
-    const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
+    const EXECUTIONS_DIR = getWorkflowExecutionsDir()
     const archivedDir = path.join(EXECUTIONS_DIR, id, 'archived')
     const archivedPath = path.join(archivedDir, `${executionId}.json`)
     const executionPath = path.join(EXECUTIONS_DIR, id, `${executionId}.json`)
@@ -617,10 +612,7 @@ router.delete('/:id/executions/:executionId', (req, res) => {
     // Delete execution file
     const fs = require('fs')
     const path = require('path')
-    const os = require('os')
-    const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace')
-    const WORKFLOWS_DIR = path.join(WORKSPACE_DIR, 'WORKFLOWS')
-    const EXECUTIONS_DIR = path.join(WORKFLOWS_DIR, 'executions')
+    const EXECUTIONS_DIR = getWorkflowExecutionsDir()
     const executionPath = path.join(EXECUTIONS_DIR, id, `${executionId}.json`)
 
     if (!fs.existsSync(executionPath)) {

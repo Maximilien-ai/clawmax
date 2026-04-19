@@ -2,6 +2,20 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.8] - 2026-04-18
+
+### Fixes — Session Expiry and Reauthentication
+- **Generic 401 Reauth Flow** — same-origin authenticated dashboard API calls now trigger a session-expired flow on `401` instead of leaving users inside dead-end modals or stale authenticated screens
+- **Explicit Login Recovery Message** — the login screen now explains when a session expired or was cleared after a runtime restart so users know they need to sign in again
+- **DocHub Upload Recovery** — upload now benefits from the generic `401` handling path instead of surfacing only a raw `Unauthorized` error
+
+### Fixes — Active Workspace Path Resolution
+- **Workflow Execution Archive Routes** — workflow execution archive, unarchive, delete, and archived-list routes now operate against the active workspace instead of assuming the default `~/.openclaw/workspace` path
+- **Non-Default Workspace Safety** — execution history actions now stay aligned with the workspace selected in the dashboard, which is required for runtimes that relocate mutable state under a shared persistent root
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/routes/workflows.test.ts`, plus the broader automated and manual release checks already run in this batch
+
 ## [v1.3.7] - 2026-04-17
 
 ### Fixes — Template Apply and Template Markdown Round-Trip

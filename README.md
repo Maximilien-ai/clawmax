@@ -5,47 +5,45 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.6)
+[![Version](https://img.shields.io/badge/version-1.3.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.8)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.6
+## 🔥 New in v1.3.8
 
-- Template export/import is more reliable:
-  - exported `TEMPLATE.md` files now preserve all workflows even when workflow bodies contain internal markdown headings like `## Run Inputs` or `## Output`
-  - template markdown round-trip no longer collapses toward the kickoff workflow
-- Anthropic AI generation is safer:
-  - AI generation no longer hardcodes one stale Anthropic model id
-  - `Create Agent with AI` now selects the best available Anthropic generation model by precedence, with `CLAWMAX_ANTHROPIC_GENERATION_MODEL` as an explicit override
+- Session expiry handling is safer:
+  - authenticated dashboard API calls now trigger a session-expired reauth flow on `401` instead of leaving the user in dead-end modals
+  - the login screen now explicitly explains when a runtime restart or missing session requires the user to sign in again
+  - DocHub upload benefits from the same generic reauth behavior
+- Non-default workspace execution state is more correct:
+  - workflow execution archive, unarchive, delete, and archived-list routes now use the active workspace instead of assuming the default home workspace path
+  - execution history actions now stay aligned with the workspace selected in the dashboard, which matters for persistent runtime roots and relocated mutable state
+
+## 🔥 Previously in v1.3.7
+
+- Template round-trip and template-apply behavior are more reliable:
+  - org template markdown export/import now preserves workflows, dependencies, and per-agent files such as `SOUL.md`, `TOOLS.md`, `COMMUNITIES.md`, and `GROUPS.md`
+  - workspace-scoped org templates can backfill missing agent-file payload from the live workspace during export
+  - applying an org template now refreshes workflows and channels immediately instead of only refreshing agents
+- Team/workflow cleanup is more trustworthy:
+  - deleting a community/org with cascade now removes associated agents reliably
+  - workflow run inputs such as `AGENTS/cw-items` resolve against the active workspace root instead of drifting to unrelated filesystem locations
+  - workspace switching now resyncs scheduled workflows so stale jobs from the prior workspace stop firing
+- DocHub and template UX are tighter:
+  - DocHub refreshes automatically after template apply
+  - generated memory files are styled separately from user-uploaded assets
+  - template detail now shows version consistently across template types
+
+## 🔥 Previously in v1.3.6
+
+- Template and AI generation behavior improved:
+  - organization template markdown export/import preserves all workflows even when workflow bodies contain internal markdown headings
+  - AI generation no longer hardcodes one stale Anthropic model id and instead chooses the best available Anthropic generation model by precedence
 - Event planning templates are more usable:
   - `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` now use structured kickoff inputs
   - speaker and conference workflows branch more cleanly after kickoff
   - final workflows now produce clearer host/organizer-facing markdown deliverables
-
-## 🔥 Previously in v1.3.5
-
-- DocHub ZIP uploads are more robust in packaged and remote runtimes:
-  - ZIP listing and extraction no longer require the `unzip` binary in the image
-  - when `unzip` is unavailable, DocHub falls back to `python3` and the stdlib `zipfile` module
-  - overwrite-conflict protection and unsafe-path checks remain intact across both extraction paths
-
-## 🔥 Previously in v1.3.4
-
-- DocHub is now much more useful for workspace imports and review:
-  - upload files directly into the shared `AGENTS/` root or a specific agent workspace
-  - expand ZIP uploads in place, with conflict blocking instead of silent overwrite
-  - preview uploaded markdown, common text files, and common image files directly in DocHub
-  - remove uploaded AGENTS assets with a typed confirmation flow
-- Hosted/runtime setup is more stable:
-  - empty-workspace onboarding stays visible instead of disappearing during late hydration
-  - parallel workflow runs now retry boundedly when the only failure is a session lock on the same agent
-- Template and runtime checks are tighter:
-  - packaged skills such as `workspace-ls` resolve correctly in template prereq checks
-  - local/dev version reporting continues to prefer real git tags when available
-- Agent vs uploaded-asset boundaries are cleaner:
-  - uploaded AGENTS directories no longer become “real agents” just because stale runtime state exists
-  - deleting uploaded AGENTS directories also cleans up stale registration/runtime residue that would otherwise reclassify them
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.

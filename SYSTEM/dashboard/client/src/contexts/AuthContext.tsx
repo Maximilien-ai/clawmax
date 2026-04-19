@@ -36,18 +36,45 @@ interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
   config: AuthConfig | null
+  sessionExpired: boolean
   login: () => void
   requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; message?: string; devOtpFile?: string; retryAfterSeconds?: number; resendAvailableAt?: number }>
   verifyOtp: (email: string, code: string, rememberDevice: boolean) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
+  handleUnauthorized: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function notifySessionExpired() {
+  window.dispatchEvent(new CustomEvent('clawmax-session-expired'))
+}
+
+function shouldTriggerSessionExpired(input: RequestInfo | URL, response: Response): boolean {
+  if (response.status !== 401) return false
+
+  let urlString = ''
+  if (typeof input === 'string') urlString = input
+  else if (input instanceof URL) urlString = input.toString()
+  else if (typeof Request !== 'undefined' && input instanceof Request) urlString = input.url
+
+  const resolved = urlString
+    ? new URL(urlString, window.location.origin)
+    : null
+
+  if (!resolved) return false
+  if (resolved.origin !== window.location.origin) return false
+  if (!resolved.pathname.startsWith('/api/')) return false
+  if (resolved.pathname.startsWith('/api/auth/')) return false
+
+  return true
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<AuthConfig | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   // Check auth config and current session on mount
   useEffect(() => {
@@ -58,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setConfig(cfg ?? { githubEnabled: false, authDisabled: false })
       if (me?.authenticated) {
         setUser(me.user)
+        setSessionExpired(false)
       } else {
         setUser(null)
       }
@@ -69,7 +97,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setUser(null)
+      setSessionExpired(true)
+      setLoading(false)
+    }
+    window.addEventListener('clawmax-session-expired', onSessionExpired as EventListener)
+    return () => window.removeEventListener('clawmax-session-expired', onSessionExpired as EventListener)
+  }, [])
+
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init)
+      if (shouldTriggerSessionExpired(input, response)) {
+        notifySessionExpired()
+      }
+      return response
+    }
+    return () => {
+      window.fetch = originalFetch
+    }
+  }, [])
+
   const login = useCallback(() => {
+    setSessionExpired(false)
     const returnTo = encodeURIComponent(window.location.origin)
     window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
@@ -102,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await resp.json().catch(() => ({}))
     if (resp.ok && data.user) {
       setUser(data.user)
+      setSessionExpired(false)
     }
     return { ok: resp.ok, error: data.error }
   }, [])
@@ -109,8 +163,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setLoading(true)
     setUser(null)
+    setSessionExpired(false)
     const returnTo = encodeURIComponent(window.location.origin)
     window.location.replace(`/api/auth/logout?return_to=${returnTo}`)
+  }, [])
+
+  const handleUnauthorized = useCallback(() => {
+    setUser(null)
+    setSessionExpired(true)
+    setLoading(false)
   }, [])
 
   // Check URL for auth errors
@@ -125,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, config, login, requestOtp, verifyOtp, logout }}>
+    <AuthContext.Provider value={{ user, loading, config, sessionExpired, login, requestOtp, verifyOtp, logout, handleUnauthorized }}>
       {children}
     </AuthContext.Provider>
   )

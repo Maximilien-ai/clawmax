@@ -3,7 +3,7 @@ import heroBg from '../assets/clawmax-front-back-offices.jpg'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
-  const { login, requestOtp, verifyOtp, config } = useAuth()
+  const { login, requestOtp, verifyOtp, config, sessionExpired } = useAuth()
   const [email, setEmail] = React.useState('')
   const [code, setCode] = React.useState('')
   const [rememberDevice, setRememberDevice] = React.useState(true)
@@ -109,6 +109,14 @@ export default function Login() {
                   {authError === 'not_allowed'
                     ? `Access denied for GitHub user "${deniedLogin}". Contact the workspace owner.`
                     : `Authentication failed: ${decodeURIComponent(authError)}`}
+                </p>
+              </div>
+            )}
+
+            {sessionExpired && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="text-sm text-amber-100">
+                  Your session expired or was cleared after the runtime restarted. Sign in again to continue.
                 </p>
               </div>
             )}
