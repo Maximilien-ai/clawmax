@@ -43,6 +43,80 @@ export function updateAgentModelInConfigFile(
   }
 }
 
+export function readAgentModelFromConfigFile(
+  configPath: string,
+  agentId: string,
+  options?: { workspacePath?: string }
+): { ok: boolean; model?: string; error?: string } {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list
+    if (!Array.isArray(agentList)) {
+      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
+    }
+
+    const agent = typeof options?.workspacePath === 'string'
+      ? agentList.find((entry: any) => entry.id === agentId && entry.workspace === options.workspacePath)
+      : agentList.find((entry: any) => entry.id === agentId)
+    if (!agent) {
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
+    }
+
+    return { ok: true, model: typeof agent.model === 'string' ? agent.model : undefined }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
+}
+
+export function restoreAgentModelInConfigFile(
+  configPath: string,
+  agentId: string,
+  model: string | undefined,
+  options?: { workspacePath?: string }
+): { ok: boolean; error?: string } {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list
+    if (!Array.isArray(agentList)) {
+      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
+    }
+
+    const agentIndex = typeof options?.workspacePath === 'string'
+      ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
+      : agentList.findIndex((agent: any) => agent.id === agentId)
+    if (agentIndex === -1) {
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
+    }
+
+    const nextAgent = { ...agentList[agentIndex] }
+    if (model && model.trim()) {
+      nextAgent.model = model
+    } else {
+      delete nextAgent.model
+    }
+    agentList[agentIndex] = nextAgent
+
+    config.meta = {
+      ...config.meta,
+      lastTouchedVersion: 'dashboard-0.1.0',
+      lastTouchedAt: new Date().toISOString(),
+    }
+
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    return { ok: true }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
+}
+
 export function upsertAgentModelInIdentityContent(content: string, model: string): string {
   if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
     return content.replace(

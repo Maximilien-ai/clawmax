@@ -3,7 +3,7 @@ import path from 'path'
 import { createHash } from 'crypto'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
-import { updateAgentModelInConfigFile } from './agent-model'
+import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 
 interface OpenClawAgentRecord {
@@ -21,6 +21,7 @@ interface AuthProfileFile {
 }
 
 type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
+let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 
 function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: string): OpenClawAgentRecord | null {
   try {
@@ -185,9 +186,39 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)
-  const previousConfig = hadConfig ? fs.readFileSync(configPath, 'utf-8') : null
+  const workspaceOptions = { workspacePath: execution.workspace }
+  const readCurrentModel = () => {
+    if (!hadConfig) return { ok: false as const, model: undefined }
+    let current = readAgentModelFromConfigFile(configPath, agentId, workspaceOptions)
+    if (!current.ok && execution.workspace) {
+      current = readAgentModelFromConfigFile(configPath, agentId)
+    }
+    return current
+  }
+  const restoreModelOverride = (model: string | undefined) => {
+    let restore = restoreAgentModelInConfigFile(configPath, agentId, model, workspaceOptions)
+    if (!restore.ok && execution.workspace) {
+      restore = restoreAgentModelInConfigFile(configPath, agentId, model)
+    }
+    if (!restore.ok) {
+      throw new Error(restore.error || `Failed to restore model override for ${agentId}`)
+    }
+  }
+
+  const runWithConfigMutationLock = async <R>(fn: () => R | Promise<R>): Promise<R> => {
+    const previous = openClawConfigMutationLock
+    let release!: () => void
+    openClawConfigMutationLock = new Promise<void>(resolve => { release = resolve })
+    await previous
+    try {
+      return await fn()
+    } finally {
+      release()
+    }
+  }
+
   const applyModelOverride = (model: string | undefined) => {
-    if (!model || !hadConfig) return
+    if (!model || !hadConfig) return false
     let update = updateAgentModelInConfigFile(configPath, agentId, model, {
       workspacePath: execution.workspace,
     })
@@ -197,17 +228,30 @@ export async function withTemporaryAgentAuthProfiles<T>(
     if (!update.ok) {
       throw new Error(update.error || `Failed to apply temporary model override for ${agentId}`)
     }
+    return true
   }
 
   if (preferredProvider === 'ollama') {
-    applyModelOverride(preferredModel)
-    try {
+    const currentConfigModel = readCurrentModel()
+    const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
+    const shouldOverrideModel = Boolean(
+      hadConfig &&
+      preferredModel &&
+      preferredModel !== previousModel
+    )
+
+    if (!shouldOverrideModel) {
       return await fn()
-    } finally {
-      if (previousConfig !== null) {
-        fs.writeFileSync(configPath, previousConfig, 'utf-8')
-      }
     }
+
+    return await runWithConfigMutationLock(async () => {
+      applyModelOverride(preferredModel)
+      try {
+        return await fn()
+      } finally {
+        restoreModelOverride(previousModel)
+      }
+    })
   }
 
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
@@ -240,14 +284,28 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
-  applyModelOverride(effectiveModel)
+  const currentConfigModel = readCurrentModel()
+  const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
+  const shouldOverrideModel = Boolean(
+    hadConfig &&
+    effectiveModel &&
+    effectiveModel !== previousModel
+  )
 
   try {
-    return await fn()
-  } finally {
-    if (previousConfig !== null) {
-      fs.writeFileSync(configPath, previousConfig, 'utf-8')
+    if (!shouldOverrideModel) {
+      return await fn()
     }
+
+    return await runWithConfigMutationLock(async () => {
+      applyModelOverride(effectiveModel)
+      try {
+        return await fn()
+      } finally {
+        restoreModelOverride(previousModel)
+      }
+    })
+  } finally {
     if (previous !== null) {
       fs.writeFileSync(authProfilePath, previous, 'utf-8')
     } else if (fs.existsSync(authProfilePath)) {

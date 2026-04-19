@@ -228,6 +228,45 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
 })
 
+test('withTemporaryAgentAuthProfiles preserves gateway config fields during temporary model override', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+      remote: { token: 'stable-token' },
+      tailscale: { enabled: true, hostname: 'stable-host' },
+    },
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir, model: 'openai/gpt-4o-mini' }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(authProfilePath, JSON.stringify({ version: 1, profiles: {}, usageStats: {} }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert(currentConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved during override')
+    assert(currentConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved during override')
+    assert(currentConfig.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved during override')
+    assert(currentConfig.agents.list[0].model === 'openai/gpt-4.1', 'Expected temporary model override applied')
+  })
+
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(restoredConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved after restore')
+  assert(restoredConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved after restore')
+  assert(restoredConfig.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved after restore')
+  assert(restoredConfig.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected prior model restored after override')
+})
+
 test('withTemporaryAgentAuthProfiles updates the matching workspace record when ids collide', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
@@ -276,10 +315,15 @@ test('withTemporaryAgentAuthProfiles updates the matching workspace record when 
   })
 
   const restored = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(JSON.stringify(restored) === JSON.stringify(before), 'Expected openclaw.json restored after temporary override')
+  const defaultEntryBefore = before.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
+  const activeEntryBefore = before.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
+  const defaultEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
+  const activeEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
+  assert(defaultEntryAfter.model === defaultEntryBefore.model, 'Expected stale default workspace model restored untouched')
+  assert(activeEntryAfter.model === activeEntryBefore.model, 'Expected active workspace model restored after temporary override')
 })
 
-test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama but still applies a temporary model override', async () => {
+test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama and skips config rewrite when model already matches', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
@@ -310,7 +354,7 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama 
     const current = fs.readFileSync(authProfilePath, 'utf-8')
     const currentConfig = fs.readFileSync(configPath, 'utf-8')
     assert(current === before, 'Expected auth profiles unchanged for Ollama')
-    assert(currentConfig.includes('"model": "ollama/qwen2.5:latest"'), 'Expected temporary Ollama model override in openclaw.json')
+    assert(currentConfig === beforeConfig, 'Expected openclaw.json untouched when Ollama model already matches')
   })
 
   const restoredConfig = fs.readFileSync(configPath, 'utf-8')
