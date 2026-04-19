@@ -15,6 +15,7 @@ import {
   resolveNotificationAction,
   getWorkflowBlockers,
   getActiveNotifications,
+  getGroupedActiveNotifications,
 } from './notifications'
 import { getWorkspacePath } from './workspace'
 
@@ -139,6 +140,57 @@ test('createNotification with progress updates existing', () => {
   const all = loadNotifications()
   const prog = all.find(n => n.fingerprint === 'test-progress-1')
   assert(prog?.progress === 75, `Progress should be 75, got ${prog?.progress}`)
+})
+
+test('getGroupedActiveNotifications groups similar agent artifact bursts', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer1 created MEMORY.md',
+    message: 'New workspace artifact from content-writer1: MEMORY.md',
+    entityId: 'content-writer1',
+    entityType: 'agent',
+    fingerprint: 'test-group-artifact-1',
+    artifactPath: 'AGENTS/content-writer1/MEMORY.md',
+  })
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer2 created MEMORY.md',
+    message: 'New workspace artifact from content-writer2: MEMORY.md',
+    entityId: 'content-writer2',
+    entityType: 'agent',
+    fingerprint: 'test-group-artifact-2',
+    artifactPath: 'AGENTS/content-writer2/MEMORY.md',
+  })
+  const grouped = getGroupedActiveNotifications()
+  assert(grouped.length === 1, `Expected 1 grouped notification, got ${grouped.length}`)
+  assert(grouped[0].grouped === true, 'Expected grouped notification')
+  assert(grouped[0].groupedCount === 2, `Expected groupedCount 2, got ${grouped[0].groupedCount}`)
+  assert(grouped[0].title.includes('2 agents'), `Expected grouped title, got ${grouped[0].title}`)
+})
+
+test('getGroupedActiveNotifications keeps unrelated agent notifications separate', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer1 created MEMORY.md',
+    message: 'New workspace artifact from content-writer1: MEMORY.md',
+    entityId: 'content-writer1',
+    entityType: 'agent',
+    fingerprint: 'test-group-separate-1',
+    artifactPath: 'AGENTS/content-writer1/MEMORY.md',
+  })
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer2 created post.md',
+    message: 'New workspace artifact from content-writer2: post.md',
+    entityId: 'content-writer2',
+    entityType: 'agent',
+    fingerprint: 'test-group-separate-2',
+    artifactPath: 'AGENTS/content-writer2/post.md',
+  })
+  const grouped = getGroupedActiveNotifications()
+  assert(grouped.length === 2, `Expected 2 notifications, got ${grouped.length}`)
 })
 
 // ============================================================================

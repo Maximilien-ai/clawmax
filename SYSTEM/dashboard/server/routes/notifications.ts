@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import {
-  getActiveNotifications,
+  getGroupedActiveNotifications,
   dismissNotification,
   dismissAllNotifications,
   resolveNotificationAction,
@@ -11,7 +11,7 @@ const router = Router()
 
 // GET /api/notifications — list active notifications
 router.get('/', (_req, res) => {
-  const notifications = getActiveNotifications()
+  const notifications = getGroupedActiveNotifications()
   const criticalCount = notifications.filter(n => n.severity === 'critical').length
   const warningCount = notifications.filter(n => n.severity === 'warning').length
 
@@ -29,7 +29,10 @@ router.post('/dismiss', (req, res) => {
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Missing notification id' })
   }
-  const ok = dismissNotification(id)
+  const groupedIds = Array.isArray(req.body.groupedIds) ? req.body.groupedIds.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0) : []
+  const ok = groupedIds.length > 0
+    ? groupedIds.map(dismissNotification).some(Boolean)
+    : dismissNotification(id)
   if (!ok) return res.status(404).json({ error: 'Notification not found or already dismissed' })
   res.json({ ok: true })
 })

@@ -61,6 +61,11 @@ export interface Notification {
   progress?: number // 0-100 for workflow-progress type
   artifactPath?: string
   artifactUrl?: string
+  grouped?: boolean
+  groupedCount?: number
+  groupedIds?: string[]
+  groupedChildren?: Notification[]
+  groupedEntityIds?: string[]
 }
 
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
@@ -106,6 +111,113 @@ export function getActiveNotifications(): Notification[] {
   return loadNotifications()
     .filter(n => !n.dismissedAt && !n.resolvedAt)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+const GROUP_WINDOW_MS = 90_000
+
+function normalizeGroupedText(notification: Notification, value: string): string {
+  let normalized = value
+  const entityId = notification.entityId?.trim()
+  if (entityId) {
+    const escaped = entityId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    normalized = normalized.replace(new RegExp(escaped, 'gi'), '{agent}')
+  }
+  normalized = normalized.replace(/\b[a-z0-9][a-z0-9_-]*\d+\b/gi, '{agent}')
+  return normalized.trim()
+}
+
+function canGroupNotification(notification: Notification): boolean {
+  if (notification.grouped) return false
+  if (notification.dismissedAt || notification.resolvedAt) return false
+  if (notification.entityType !== 'agent') return false
+  if (notification.blockerType || (notification.actions && notification.actions.length > 0)) return false
+  return notification.type === 'artifact-update' || notification.type === 'agent-error' || notification.type === 'agent-offline'
+}
+
+function buildGroupSignature(notification: Notification): string {
+  const file = extractArtifactFileName(notification) || ''
+  return [
+    notification.type,
+    notification.severity,
+    notification.workflowId || '',
+    file.toLowerCase(),
+    normalizeGroupedText(notification, notification.title),
+    normalizeGroupedText(notification, notification.message),
+  ].join('|')
+}
+
+function formatGroupedAgentList(agentIds: string[]): string {
+  if (agentIds.length <= 3) return agentIds.join(', ')
+  return `${agentIds.slice(0, 3).join(', ')} +${agentIds.length - 3} more`
+}
+
+function buildGroupedNotification(notifications: Notification[]): Notification {
+  const seed = notifications[0]
+  const agentIds = Array.from(new Set(notifications.map(notification => notification.entityId).filter((value): value is string => Boolean(value))))
+  const file = extractArtifactFileName(seed)
+  const verbMatch = seed.title.match(/\b(created|updated)\b/i)
+  const verb = verbMatch?.[1]?.toLowerCase()
+  const normalizedTitle = normalizeGroupedText(seed, seed.title).replace(/^\{agent\}\s*/i, '').trim()
+  const title = seed.type === 'artifact-update' && file && verb
+    ? `${notifications.length} agents ${verb} ${file}`
+    : `${notifications.length} agents: ${normalizedTitle || seed.title}`
+  const message = seed.type === 'artifact-update' && file
+    ? `${formatGroupedAgentList(agentIds)} ${verb || 'updated'} ${file} within the same run window.`
+    : `${formatGroupedAgentList(agentIds)} triggered similar ${seed.type.replace(/-/g, ' ')} notifications.`
+
+  return {
+    ...seed,
+    id: `group:${notifications.map(notification => notification.id).join(',')}`,
+    title,
+    message,
+    grouped: true,
+    groupedCount: notifications.length,
+    groupedIds: notifications.map(notification => notification.id),
+    groupedChildren: notifications,
+    groupedEntityIds: agentIds,
+    entityId: undefined,
+    artifactPath: undefined,
+    artifactUrl: undefined,
+  }
+}
+
+export function getGroupedActiveNotifications(): Notification[] {
+  const notifications = getActiveNotifications()
+  const grouped: Notification[] = []
+  const consumed = new Set<string>()
+
+  for (let i = 0; i < notifications.length; i++) {
+    const seed = notifications[i]
+    if (consumed.has(seed.id)) continue
+    if (!canGroupNotification(seed)) {
+      grouped.push(seed)
+      continue
+    }
+
+    const seedTime = new Date(seed.createdAt).getTime()
+    const signature = buildGroupSignature(seed)
+    const matches: Notification[] = [seed]
+
+    for (let j = i + 1; j < notifications.length; j++) {
+      const candidate = notifications[j]
+      if (consumed.has(candidate.id)) continue
+      if (!canGroupNotification(candidate)) continue
+      const candidateTime = new Date(candidate.createdAt).getTime()
+      if (Math.abs(seedTime - candidateTime) > GROUP_WINDOW_MS) continue
+      if (buildGroupSignature(candidate) !== signature) continue
+      matches.push(candidate)
+    }
+
+    if (matches.length === 1) {
+      grouped.push(seed)
+      continue
+    }
+
+    for (const match of matches) consumed.add(match.id)
+    grouped.push(buildGroupedNotification(matches))
+  }
+
+  return grouped
 }
 
 export function createNotification(params: {
