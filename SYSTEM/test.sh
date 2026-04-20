@@ -456,6 +456,37 @@ if grep -q "All tests passed" /tmp/clawmax-agent-execution.out; then
 else
   fail "Agent execution runtime unit tests"
 fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workflow routes unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/workflows.test.ts > /tmp/clawmax-workflow-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflow-routes.out; then
+  workflow_routes_count=$(grep "Tests passed:" /tmp/clawmax-workflow-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workflow routes unit tests (${workflow_routes_count:-?} tests)"
+else
+  fail "Workflow routes unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workspace delete-agent unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-delete-agent.test.ts > /tmp/clawmax-workspace-delete-agent.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-delete-agent.out; then
+  workspace_delete_agent_count=$(grep "Tests passed:" /tmp/clawmax-workspace-delete-agent.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace delete-agent unit tests (${workspace_delete_agent_count:-?} tests)"
+else
+  fail "Workspace delete-agent unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running OpenClaw agent transfer unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/openclaw-agent-transfer.test.ts > /tmp/clawmax-openclaw-agent-transfer.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-openclaw-agent-transfer.out; then
+  openclaw_transfer_count=$(grep "Tests passed:" /tmp/clawmax-openclaw-agent-transfer.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "OpenClaw agent transfer unit tests (${openclaw_transfer_count:-?} tests)"
+else
+  fail "OpenClaw agent transfer unit tests"
+fi
+
 cd ..
 echo ""
 
