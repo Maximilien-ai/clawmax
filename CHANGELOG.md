@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.11] - 2026-04-20
+
+### Fixes — Metering Display
+- **Relaxed Dashboard Instance Filter** — metering no longer drops otherwise-valid traces just because the trace metadata omits `dashboard_instance_id`
+- **OPIK Consumption Alignment** — viewer-scoped metering now accepts traces that match the current user/workspace even when dashboard-instance metadata is absent from the trace
+- **Regression Coverage** — added a focused metering test for traces with missing `dashboard_instance_id`
+
+### Improvements — Communications Default View
+- **Card View Default** — fresh dashboards now default the Communications page to the card/grid view instead of the list view when no saved preference exists
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/metering.test.ts`
+
 ## [v1.3.10] - 2026-04-20
 
 ### Fixes — Organization Template Membership and Round-Trip

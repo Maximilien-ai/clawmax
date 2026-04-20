@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/metering.test.ts
  */
 
-import { aggregateWorkspaceMeteringFromTraces, buildDailyCostSeries, summarizeCostWindows } from './metering'
+import { aggregateWorkspaceMeteringFromTraces, buildDailyCostSeries, summarizeCostWindows, traceMatchesViewer } from './metering'
 import { estimateModelCostUsd } from './model-pricing'
 
 const GREEN = '\x1b[32m'
@@ -239,6 +239,31 @@ async function run() {
     assert(metering.totalTraces === 1, 'Expected only one viewer trace after filtering')
     assert(metering.byAgent.length === 1 && metering.byAgent[0].agentId === 'one', 'Expected only the viewer agent usage')
     assert(Math.abs(metering.estimatedCostUsd - 0.1) < 0.0001, 'Expected only the viewer cost to remain')
+  })
+
+  await test('traceMatchesViewer does not reject traces that omit dashboard_instance_id', () => {
+    const trace = {
+      id: 'a3',
+      name: 'agent.chat.one',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'one',
+        user_id: 'user-a',
+        user_login: 'alpha',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      userId: 'user-a',
+      login: 'alpha',
+      dashboardInstanceId: 'https://cld-test5.example.com',
+    })
+
+    assert(allowed === true, 'Expected missing dashboard_instance_id to remain eligible for viewer-scoped metering')
   })
 
   console.log('\n========================================')

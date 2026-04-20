@@ -304,10 +304,12 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
   })
 }
 
-function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): boolean {
+export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): boolean {
   if (!viewer?.userId && !viewer?.login && !viewer?.email && !viewer?.dashboardInstanceId) return true
   const meta = trace.metadata || {}
-  if (viewer.dashboardInstanceId && String(meta.dashboard_instance_id || '').toLowerCase() !== String(viewer.dashboardInstanceId).toLowerCase()) {
+  const traceDashboardInstanceId = String(meta.dashboard_instance_id || '').trim().toLowerCase()
+  const viewerDashboardInstanceId = String(viewer.dashboardInstanceId || '').trim().toLowerCase()
+  if (viewerDashboardInstanceId && traceDashboardInstanceId && traceDashboardInstanceId !== viewerDashboardInstanceId) {
     return false
   }
   if (viewer.userId && meta.user_id && String(meta.user_id) === String(viewer.userId)) return true

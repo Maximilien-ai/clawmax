@@ -80,7 +80,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('communication-view-mode')
-    return (saved === 'list' || saved === 'grid') ? saved : 'list'
+    return (saved === 'list' || saved === 'grid') ? saved : 'grid'
   })
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())

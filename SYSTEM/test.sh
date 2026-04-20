@@ -349,6 +349,15 @@ else
   fail "Workflows unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Metering unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/metering.test.ts > /tmp/clawmax-metering.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-metering.out; then
+  metering_count=$(grep "Tests passed:" /tmp/clawmax-metering.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Metering unit tests (${metering_count:-?} tests)"
+else
+  fail "Metering unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Prereqs unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/prereqs.test.ts > /tmp/clawmax-prereqs.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-prereqs.out; then
