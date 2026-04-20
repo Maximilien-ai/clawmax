@@ -2,6 +2,27 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.10] - 2026-04-20
+
+### Fixes — Organization Template Membership and Round-Trip
+- **Agent Membership Round-Trip** — organization `TEMPLATE.md` export/import now preserves each agent’s `communities` and `groups` membership instead of dropping those fields from the agent table
+- **Stable Agent Table Parsing** — markdown import now preserves empty agent table cells so blank `tags` or `skills` fields no longer shift `communities` and `groups` into the wrong columns
+- **CW Template Apply Correctness** — fresh exported/imported CW templates now apply with agents correctly added to their work groups and community
+
+### Fixes — Workflow Timeout Behavior
+- **Longer Default Workflow Agent Timeout** — workflow participant timeout increased from `5 minutes` (`300000 ms`) to `10 minutes` (`600000 ms`) to better match heavier cloud workloads such as image-analysis steps
+- **Configurable Timeout Ceiling** — new `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS` override allows hosted runtimes to raise or tune the participant timeout without code changes
+- **Safe Timeout Fallback** — invalid or too-small timeout values now fall back to the sane `10 minute` default
+
+### Fixes — Active Workspace Config Targeting
+- **Skill Updates Prefer Active Workspace Record** — skill reads and updates now target the active workspace agent record first when duplicate agent ids exist across workspaces
+- **Agent Transfer Upsert Prefers Active Workspace Record** — import/transfer config upserts now prefer the active workspace match instead of the first matching id
+- **Gateway Field Preservation** — these config-targeting paths preserve unrelated gateway settings while updating agent-specific fields
+- **Shared Config Logging** — agent transfer now emits lightweight logs when writing shared config to help correlate runtime behavior in hosted environments
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/templates.test.ts`, `server/lib/workflows.test.ts`, `server/lib/skills.test.ts`, and `server/lib/openclaw-agent-transfer.test.ts`
+
 ## [v1.3.9] - 2026-04-19
 
 ### Fixes — Notification Signal Quality
@@ -32,51 +53,6 @@ All notable changes to ClawMax are documented here.
 ### Quality
 - **Validation Gate** — validated locally with `npm run typecheck`, `server/routes/workflows.test.ts`, plus the broader automated and manual release checks already run in this batch
 
-## [v1.3.7] - 2026-04-17
-
-### Fixes — Template Apply and Template Markdown Round-Trip
-- **Org Template Apply Refresh** — applying an organization template from the Templates page now refreshes workflows and channels immediately instead of only refreshing agents
-- **Workflow-Preserving TEMPLATE.md Export** — exported organization template markdown now preserves every workflow even when workflow bodies contain internal markdown headings like `## Run Inputs`, `## Coordination`, or `## Output`
-- **Workflow Metadata Round-Trip** — template markdown export/import now preserves workflow descriptions and dependencies instead of flattening the workflow DAG on re-import
-- **Safer Imported Workflow Defaults** — imported/exported templates now normalize missing workflow description and enabled state so older template markdown files still apply successfully
-- **Agent Files Round-Trip** — organization `TEMPLATE.md` export/import now preserves per-agent files such as `SOUL.md`, `TOOLS.md`, `COMMUNITIES.md`, and `GROUPS.md`, including files with internal markdown headings
-- **Workspace Template Backfill** — workspace-scoped organization templates that were missing `agents/` payload now backfill agent files from the live workspace during export so subsequent imports are no longer lossy
-
-### Fixes — Community Cascade Delete
-- **Cascade Agent Removal** — deleting a community/org with cascade now also finds and removes the associated agents using both workspace membership indexes and each agent’s own `COMMUNITIES.md` / `GROUPS.md`
-- **Stronger Agent Cleanup** — cascade delete now uses full agent removal instead of preserving stale agent state directories
-
-### Fixes — Workflow Runtime and Workspace State
-- **Relative Run Input Resolution** — workflow execution now resolves relative path-like run inputs against the active workspace root before passing them to agents, so values like `AGENTS/cw-items` no longer drift to unrelated filesystem locations
-- **Workspace Switch Scheduler Sync** — switching the active workspace now resyncs scheduled workflows so stale jobs from the previous workspace stop firing
-- **Workspace Switcher Agent Count** — uploaded directories under `AGENTS/` are no longer counted as real agents in the workspace picker
-
-### Improvements — Template and Doc UX
-- **Template Detail Version Visibility** — template detail now shows version consistently for organization, agent, and workflow templates
-- **DocHub Auto Refresh After Apply** — DocHub refreshes automatically after template apply so newly created agents appear without a manual reload
-- **Generated Memory File Styling** — agent-generated `MEMORY.md` and `memory/*` entries are now visually distinguished from user-uploaded assets
-
-### Quality
-- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/templates.test.ts`
-
-## [v1.3.6] - 2026-04-17
-
-### Fixes — Template Export Round-Trip
-- **Workflow-Preserving TEMPLATE.md Export** — organization template markdown export now preserves all workflows even when workflow bodies contain internal markdown headings like `## Run Inputs`, `## Coordination`, or `## Output`
-- **Template Markdown Parser Alignment** — workflow bodies are now encoded and decoded as indented content blocks so export/import and export/reopen flows no longer collapse toward the kickoff workflow
-
-### Fixes — Anthropic AI Generation Model Selection
-- **Removed Hardcoded Anthropic Generator Model** — AI generation no longer pins Anthropic requests to a single stale model id
-- **Best Available Anthropic Model Selection** — AI generation now resolves Anthropic models by precedence: `CLAWMAX_ANTHROPIC_GENERATION_MODEL`, discovered/cached Anthropic preference, shared Anthropic fallback list, then final fallback
-- **Create Agent with AI Compatibility** — create-agent generation should no longer fail on `404 model: claude-sonnet-4-20250514` just because a given Anthropic account does not expose that exact model
-
-### Improvements — Event Planning Templates
-- **Structured Kickoff Inputs** — `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` kickoff workflows now use required structured inputs instead of prose-only placeholders
-- **Better Parallel Workflow Structure** — speaker and conference event templates now branch more cleanly after kickoff instead of forcing unnecessary serial workflow chains
-- **Clearer Final Host Handoff** — final workflows now explicitly require a concrete markdown deliverable and a short `What the host/organizer should use now` section
-
-### Quality
-- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/templates.test.ts`
 
 ## [v1.3.5] - 2026-04-17
 

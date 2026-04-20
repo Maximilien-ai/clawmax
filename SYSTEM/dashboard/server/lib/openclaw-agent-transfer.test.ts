@@ -184,6 +184,51 @@ async function run() {
     assert(result.files.includes('IDENTITY.md'), 'Expected IDENTITY.md restored from ZIP')
   })
 
+  await test('importAgentFromOpenClaw prefers the active workspace record when ids collide and preserves gateway config', () => {
+    const activeWorkspace = workspace
+    const staleWorkspace = path.join(tmpHome, 'stale-workspace')
+    const staleAgentDir = path.join(staleWorkspace, 'AGENTS', 'alpha')
+    fs.mkdirSync(staleAgentDir, { recursive: true })
+    fs.writeFileSync(path.join(staleAgentDir, 'IDENTITY.md'), '# Identity\n\n**Name:** Alpha stale\n', 'utf-8')
+
+    fs.writeFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), JSON.stringify({
+      gateway: {
+        auth: { token: 'stable-token' },
+        remote: { token: 'stable-token' },
+        tailscale: { enabled: true, hostname: 'stable-host' },
+      },
+      agents: {
+        list: [
+          {
+            id: 'alpha',
+            name: 'alpha',
+            workspace: staleAgentDir,
+            agentDir: path.join(tmpHome, '.openclaw', 'agents', 'alpha', 'agent'),
+            skills: ['slack'],
+          },
+          {
+            id: 'alpha',
+            name: 'alpha',
+            workspace: path.join(activeWorkspace, 'AGENTS', 'alpha'),
+            agentDir: path.join(tmpHome, '.openclaw', 'agents', 'alpha', 'agent'),
+            skills: ['github', 'workspace-ls'],
+          }
+        ]
+      }
+    }, null, 2), 'utf-8')
+
+    const result = importAgentFromOpenClaw('alpha', 'delta')
+    assert(result.importedId === 'delta', 'Expected imported ID to be delta')
+
+    const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+    const importedConfig = config.agents.list.find((agent: any) => agent.id === 'delta')
+    assert(importedConfig, 'Expected imported delta registered in openclaw.json')
+    assert(Array.isArray(importedConfig.skills) && importedConfig.skills.includes('workspace-ls'), 'Expected active workspace skills preserved during import')
+    assert(config.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved')
+    assert(config.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved')
+    assert(config.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 

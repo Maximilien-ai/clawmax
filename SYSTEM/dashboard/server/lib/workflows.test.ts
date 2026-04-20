@@ -25,6 +25,7 @@ import {
   buildWorkflowSessionId,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
+  getWorkflowAgentTimeoutMs,
   resolveWorkflowRunInputPath,
 } from './workflows'
 
@@ -406,6 +407,39 @@ test('getWorkflowAgentRetryDelay uses bounded exponential backoff', () => {
   assert(getWorkflowAgentRetryDelay(0) === 1500, 'Expected first retry delay to be 1500ms')
   assert(getWorkflowAgentRetryDelay(1) === 3000, 'Expected second retry delay to be 3000ms')
   assert(getWorkflowAgentRetryDelay(4) === 5000, 'Expected retry delay to cap at 5000ms')
+})
+
+test('getWorkflowAgentTimeoutMs defaults to 10 minutes', () => {
+  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+  delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+  try {
+    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
+  } finally {
+    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
+  }
+})
+
+test('getWorkflowAgentTimeoutMs uses configured override when valid', () => {
+  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '900000'
+  try {
+    assert(getWorkflowAgentTimeoutMs() === 900000, `Expected 900000ms, got ${getWorkflowAgentTimeoutMs()}`)
+  } finally {
+    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
+  }
+})
+
+test('getWorkflowAgentTimeoutMs falls back on invalid values', () => {
+  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '5000'
+  try {
+    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected fallback 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
+  } finally {
+    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
+    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
+  }
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {

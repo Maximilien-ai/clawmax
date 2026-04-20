@@ -634,6 +634,49 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
   assert(parsed.workflows[2].content.includes('## Final Output'), 'Expected final workflow content to preserve internal headings')
 })
 
+test('templateToMarkdown preserves agent communities and groups across markdown round-trip', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const template = {
+    name: 'CW Membership Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [
+      {
+        id: 'image-analyst1',
+        name: 'Image Analyst 1',
+        role: 'Image review',
+        tags: ['camera-gear'],
+        skills: ['workspace-ls'],
+        communities: ['CW Team'],
+        groups: ['Image Review'],
+      },
+      {
+        id: 'content-writer1',
+        name: 'Content Writer 1',
+        role: 'Content drafting',
+        communities: ['CW Team'],
+        groups: ['Content Creation', 'Quality Control'],
+      },
+    ],
+    communities: [{ name: 'CW Team', description: 'Camera West team' }],
+    groups: [
+      { name: 'Image Review', description: 'Review images', community: 'CW Team' },
+      { name: 'Content Creation', description: 'Draft posts', community: 'CW Team' },
+      { name: 'Quality Control', description: 'QC posts', community: 'CW Team' },
+    ],
+  }
+
+  const md = templateToMarkdown(template)
+  const parsed = parseTemplateMd(md)
+
+  assert(parsed !== null, 'Expected round-trip parse to succeed')
+  assert((parsed.agents || []).length === 2, `Expected 2 agents after round-trip, got ${(parsed.agents || []).length}`)
+  assertEqual(parsed.agents[0].communities?.join(','), 'CW Team', 'Expected first agent community membership to round-trip')
+  assertEqual(parsed.agents[0].groups?.join(','), 'Image Review', 'Expected first agent group membership to round-trip')
+  assertEqual(parsed.agents[1].communities?.join(','), 'CW Team', 'Expected second agent community membership to round-trip')
+  assertEqual(parsed.agents[1].groups?.join(','), 'Content Creation,Quality Control', 'Expected second agent group membership to round-trip')
+})
+
 test('template markdown preserves organization agent files', () => {
   const { templateToMarkdown, validateImportedTemplateMd } = require('./templates')
   const template = {

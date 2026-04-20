@@ -196,6 +196,109 @@ test('getAgentSkills("nonexistent") returns empty array', () => {
   assertEqual(skills.length, 0, 'Should be empty for non-existent agent')
 })
 
+test('getAgentSkills() prefers the active workspace record when ids collide', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const defaultWorkspaceAgent = path.join(testEnv.tempHome, '.openclaw', 'workspace', 'AGENTS', 'shared-agent')
+  const activeWorkspace = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-system-test')
+  const activeWorkspaceAgent = path.join(activeWorkspace, 'AGENTS', 'shared-agent')
+
+  fs.mkdirSync(defaultWorkspaceAgent, { recursive: true })
+  fs.mkdirSync(activeWorkspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'system-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'system-test',
+        name: 'System Test',
+        path: activeWorkspace,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+      remote: { token: 'stable-token' },
+    },
+    agents: {
+      list: [
+        { id: 'shared-agent', workspace: defaultWorkspaceAgent, skills: ['github'] },
+        { id: 'shared-agent', workspace: activeWorkspaceAgent, skills: ['slack'] },
+      ]
+    }
+  }, null, 2))
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const skills = getAgentSkills('shared-agent')
+  assertEqual(JSON.stringify(skills), JSON.stringify(['slack']), 'Expected active workspace skill list')
+})
+
+test('setAgentSkills() updates only the active workspace record and preserves gateway config', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const defaultWorkspaceAgent = path.join(testEnv.tempHome, '.openclaw', 'workspace', 'AGENTS', 'shared-agent')
+  const activeWorkspace = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-system-test')
+  const activeWorkspaceAgent = path.join(activeWorkspace, 'AGENTS', 'shared-agent')
+
+  fs.mkdirSync(defaultWorkspaceAgent, { recursive: true })
+  fs.mkdirSync(activeWorkspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'system-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'system-test',
+        name: 'System Test',
+        path: activeWorkspace,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+      remote: { token: 'stable-token' },
+      tailscale: { enabled: true, hostname: 'stable-host' },
+    },
+    agents: {
+      list: [
+        { id: 'shared-agent', workspace: defaultWorkspaceAgent, skills: ['github'] },
+        { id: 'shared-agent', workspace: activeWorkspaceAgent, skills: ['slack'] },
+      ]
+    }
+  }, null, 2))
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  setAgentSkills('shared-agent', ['github', 'workspace-ls'])
+
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const defaultEntry = config.agents.list.find((entry: any) => entry.workspace === defaultWorkspaceAgent)
+  const activeEntry = config.agents.list.find((entry: any) => entry.workspace === activeWorkspaceAgent)
+  assertEqual(JSON.stringify(defaultEntry.skills), JSON.stringify(['github']), 'Expected stale workspace skills unchanged')
+  assertEqual(JSON.stringify(activeEntry.skills), JSON.stringify(['github', 'workspace-ls']), 'Expected active workspace skills updated')
+  assertEqual(config.gateway.auth.token, 'stable-token', 'Expected gateway auth token preserved')
+  assertEqual(config.gateway.remote.token, 'stable-token', 'Expected gateway remote token preserved')
+  assertEqual(config.gateway.tailscale.hostname, 'stable-host', 'Expected gateway tailscale preserved')
+})
+
 // Test 10: Skills are sorted alphabetically
 test('listAvailableSkills() returns sorted skills', () => {
   const skills = listAvailableSkills()

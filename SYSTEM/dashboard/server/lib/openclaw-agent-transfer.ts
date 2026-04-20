@@ -88,6 +88,7 @@ function saveOpenClawConfig(config: any): void {
     lastTouchedVersion: 'dashboard-0.1.0',
     lastTouchedAt: now,
   }
+  console.log(`[OpenClaw Transfer] Writing shared config: ${configPath}`)
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
 }
 
@@ -95,7 +96,16 @@ function upsertOpenClawAgentConfig(agentId: string, workspacePath: string, agent
   const config = loadOpenClawConfig()
   if (!config.agents) config.agents = {}
   if (!Array.isArray(config.agents.list)) config.agents.list = []
-  const existingIndex = config.agents.list.findIndex((agent: any) => agent.id === agentId)
+  let existingIndex = config.agents.list.findIndex((agent: any) => agent.id === agentId && agent.workspace === workspacePath)
+  if (existingIndex === -1) {
+    existingIndex = config.agents.list.findIndex((agent: any) => {
+      const workspace = String(agent.workspace || '')
+      return agent.id === agentId && workspace && workspacePath.startsWith(workspace)
+    })
+  }
+  if (existingIndex === -1) {
+    existingIndex = config.agents.list.findIndex((agent: any) => agent.id === agentId)
+  }
   const next = {
     ...(existingIndex >= 0 ? config.agents.list[existingIndex] : {}),
     id: agentId,
@@ -108,6 +118,7 @@ function upsertOpenClawAgentConfig(agentId: string, workspacePath: string, agent
   if (existingIndex >= 0) config.agents.list[existingIndex] = next
   else config.agents.list.push(next)
 
+  console.log(`[OpenClaw Transfer] Upserting agent "${agentId}" for workspace "${workspacePath}"`)
   saveOpenClawConfig(config)
 }
 

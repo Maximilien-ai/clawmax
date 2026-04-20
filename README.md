@@ -5,12 +5,38 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.8)
+[![Version](https://img.shields.io/badge/version-1.3.10-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.10)
 [![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.8
+## 🔥 New in v1.3.10
+
+- Organization template markdown round-trip is more correct:
+  - agent `communities` and `groups` memberships now survive export → import → apply
+  - agent table parsing now preserves empty cells, so blank `tags` or `skills` fields no longer corrupt later membership columns
+  - fresh exported/imported CW templates now add agents to the correct work groups and community
+- Workflow timeout behavior is safer for heavier hosted runs:
+  - workflow participant timeout default increased from `5 minutes` to `10 minutes`
+  - hosted runtimes can override it with `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`
+- Active-workspace config targeting is tighter:
+  - skill updates and agent-transfer upserts now prefer the active workspace record when duplicate agent ids exist
+  - those paths preserve unrelated gateway settings while updating agent-specific config
+  - lightweight shared-config logging was added to the transfer path for hosted debugging
+
+## 🔥 Previously in v1.3.9
+
+- Notification noise is reduced:
+  - near-identical agent notifications created in the same burst now collapse into one grouped summary
+  - dismissing a grouped notification clears the whole burst
+  - grouped artifact rows still expose per-agent drill-down
+- Workflow/chat shared-config churn is reduced:
+  - temporary model overrides no longer snapshot and restore the entire shared `openclaw.json`
+  - config mutations are serialized
+  - unrelated gateway fields are preserved
+  - no-op config rewrites are skipped
+
+## 🔥 Previously in v1.3.8
 
 - Session expiry handling is safer:
   - authenticated dashboard API calls now trigger a session-expired reauth flow on `401` instead of leaving the user in dead-end modals
@@ -19,31 +45,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Non-default workspace execution state is more correct:
   - workflow execution archive, unarchive, delete, and archived-list routes now use the active workspace instead of assuming the default home workspace path
   - execution history actions now stay aligned with the workspace selected in the dashboard, which matters for persistent runtime roots and relocated mutable state
-
-## 🔥 Previously in v1.3.7
-
-- Template round-trip and template-apply behavior are more reliable:
-  - org template markdown export/import now preserves workflows, dependencies, and per-agent files such as `SOUL.md`, `TOOLS.md`, `COMMUNITIES.md`, and `GROUPS.md`
-  - workspace-scoped org templates can backfill missing agent-file payload from the live workspace during export
-  - applying an org template now refreshes workflows and channels immediately instead of only refreshing agents
-- Team/workflow cleanup is more trustworthy:
-  - deleting a community/org with cascade now removes associated agents reliably
-  - workflow run inputs such as `AGENTS/cw-items` resolve against the active workspace root instead of drifting to unrelated filesystem locations
-  - workspace switching now resyncs scheduled workflows so stale jobs from the prior workspace stop firing
-- DocHub and template UX are tighter:
-  - DocHub refreshes automatically after template apply
-  - generated memory files are styled separately from user-uploaded assets
-  - template detail now shows version consistently across template types
-
-## 🔥 Previously in v1.3.6
-
-- Template and AI generation behavior improved:
-  - organization template markdown export/import preserves all workflows even when workflow bodies contain internal markdown headings
-  - AI generation no longer hardcodes one stale Anthropic model id and instead chooses the best available Anthropic generation model by precedence
-- Event planning templates are more usable:
-  - `Small Event Planning Desk`, `Speaker Event Studio`, and `Conference Ops Hub` now use structured kickoff inputs
-  - speaker and conference workflows branch more cleanly after kickoff
-  - final workflows now produce clearer host/organizer-facing markdown deliverables
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.

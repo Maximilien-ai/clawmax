@@ -356,7 +356,14 @@ export function updateSkillContent(skillId: string, content: string): { skill: O
 export function getAgentSkills(agentId: string): string[] {
   try {
     const config = loadOpenClawConfig()
-    const agent = config.agents?.list?.find((a: any) => a.id === agentId)
+    const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+    const records = (config.agents?.list || []).filter((a: any) => a.id === agentId)
+    const agent = records.find((entry: any) => entry.workspace === activeWorkspaceAgentDir)
+      || records.find((entry: any) => {
+        const workspace = String(entry.workspace || '')
+        return workspace && activeWorkspaceAgentDir.startsWith(workspace)
+      })
+      || records[0]
 
     if (!agent) {
       return []
@@ -386,13 +393,25 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
       throw new Error('Invalid openclaw.json structure')
     }
 
-    const agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
+    const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+    let agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId && a.workspace === activeWorkspaceAgentDir)
+    if (agentIndex === -1) {
+      agentIndex = config.agents.list.findIndex((a: any) => {
+        const workspace = String(a.workspace || '')
+        return a.id === agentId && workspace && activeWorkspaceAgentDir.startsWith(workspace)
+      })
+    }
+    if (agentIndex === -1) {
+      agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
+    }
     if (agentIndex === -1) {
       throw new Error(`Agent ${agentId} not found in openclaw.json`)
     }
 
-    // Update skills
-    config.agents.list[agentIndex].skills = skillIds
+    config.agents.list[agentIndex] = {
+      ...config.agents.list[agentIndex],
+      skills: skillIds,
+    }
 
     // Stamp metadata (critical for OpenClaw compatibility)
     const now = new Date().toISOString()

@@ -758,16 +758,17 @@ function parseTemplateMdBody(body: string): {
   // Parse ## Agents section — expects table or YAML list
   if (sections['agents']) {
     const agentLines = sections['agents'].trim().split('\n')
-    // Try table format: | id | name | role | tags | skills |
+    // Try table format: | id | name | role | tags | skills | communities | groups |
     const tableRows = agentLines.filter(l => l.startsWith('|') && !l.match(/^\|[\s-]+\|/))
     if (tableRows.length > 1) {
-      const headers = tableRows[0].split('|').map(h => h.trim().toLowerCase()).filter(Boolean)
+      const parseTableRow = (row: string) => row.split('|').slice(1, -1).map((cell) => cell.trim())
+      const headers = parseTableRow(tableRows[0]).map((header) => header.toLowerCase())
       for (let i = 1; i < tableRows.length; i++) {
-        const cells = tableRows[i].split('|').map(c => c.trim()).filter(Boolean)
+        const cells = parseTableRow(tableRows[i])
         const agent: any = {}
         headers.forEach((h, idx) => {
           const val = cells[idx] || ''
-          if (h === 'tags' || h === 'skills') {
+          if (h === 'tags' || h === 'skills' || h === 'communities' || h === 'groups') {
             agent[h] = val.split(',').map((s: string) => s.trim()).filter(Boolean)
           } else {
             agent[h] = val
@@ -961,12 +962,14 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
   if (t.agents?.length) {
     lines.push('## Agents')
     lines.push('')
-    lines.push('| id | name | role | tags | skills |')
-    lines.push('|----|------|------|------|--------|')
+    lines.push('| id | name | role | tags | skills | communities | groups |')
+    lines.push('|----|------|------|------|--------|-------------|--------|')
     for (const a of t.agents) {
       const tags = (a.tags || []).join(', ')
       const skills = (a.skills || []).join(', ')
-      lines.push(`| ${a.id} | ${a.name || a.id} | ${a.role || ''} | ${tags} | ${skills} |`)
+      const communities = (a.communities || []).join(', ')
+      const groups = (a.groups || []).join(', ')
+      lines.push(`| ${a.id} | ${a.name || a.id} | ${a.role || ''} | ${tags} | ${skills} | ${communities} | ${groups} |`)
     }
     lines.push('')
   }

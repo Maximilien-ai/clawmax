@@ -204,6 +204,16 @@ export function buildWorkflowSessionId(executionId: string, agentId: string): st
   return `workflow-${executionId}-${agentId}`
 }
 
+const DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS = 10 * 60 * 1000
+
+export function getWorkflowAgentTimeoutMs(): number {
+  const raw = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS?.trim()
+  if (!raw) return DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < 30_000) return DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS
+  return Math.floor(parsed)
+}
+
 const workflowAgentLocks = new Map<string, Promise<void>>()
 const WORKFLOW_AGENT_SESSION_LOCK_RETRIES = 2
 
@@ -1192,7 +1202,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                 const proc = spawn('openclaw', args, { env: executionEnv })
                 let stdout = ''
                 let stderr = ''
-                const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, 300000) // 5 min
+                const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, getWorkflowAgentTimeoutMs())
 
                 let progressTicks = 0
                 proc.stdout.on('data', (d: Buffer) => {
