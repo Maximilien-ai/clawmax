@@ -2,6 +2,21 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.12] - 2026-04-20
+
+### Fixes — Dashboard Token Logging
+- **No Full Token Leak on First Run** — dashboard startup no longer prints the full generated API token to stdout on first-run token creation
+- **Redacted Token Preview Only** — startup now logs only that the token was generated, the token file path, and a short redacted preview
+- **Regression Coverage** — added a focused auth helper test for dashboard token preview redaction
+
+### Improvements — Setup and Release Hygiene
+- **Setup Script Alignment** — `setup.sh` now reflects the current `v1.3.x` line, writes `DASHBOARD_PUBLIC_URL`, documents `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`, and normalizes `OPIK_PROJECT_NAME=clawmax`
+- **Visible Test Summary Coverage** — `SYSTEM/test.sh` now surfaces additional focused suites in the visible summary, including dashboard auth helper coverage
+- **Docs Cleanup** — README and backlog were refreshed to match the current release line and current open follow-through items
+
+### Quality
+- **Validation Gate** — validated locally with `npm run typecheck`, `npx ts-node --transpileOnly server/lib/auth.test.ts`, `bash -n SYSTEM/test.sh`, and `bash -n setup.sh`
+
 ## [v1.3.11] - 2026-04-20
 
 ### Fixes — Metering Display

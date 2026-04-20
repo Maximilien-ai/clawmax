@@ -174,7 +174,7 @@ cat << "EOF"
   Multiagent Orchestration Platform
 EOF
 echo -e "${NC}"
-print_info "ClawMax v1.2.x Setup"
+print_info "ClawMax v1.3.x Setup"
 echo ""
 
 # Must be in ClawMax directory
@@ -619,6 +619,7 @@ NODE_ENV=development
 DASHBOARD_PORT=3001
 CORS_ORIGIN=http://localhost:5173
 DASHBOARD_APP_URL=http://localhost:5173
+DASHBOARD_PUBLIC_URL=http://localhost:3001
 
 # Auth mode
 ENVEOF
@@ -686,6 +687,9 @@ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
 
 # BYOK: users can also provide keys in-browser via the BYOK wizard
 
+# Workflow execution timeout (defaults to 10 minutes in current releases)
+# CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS=600000
+
 # Partner integrations shown in Workspaces Integrations (comma-separated)
 WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 
@@ -701,7 +705,7 @@ if [ -n "$OPIK_KEY" ]; then
 # Comet Opik — agent monitoring and cost tracking
 OPIK_API_KEY=$OPIK_KEY
 OPIK_WORKSPACE="${OPIK_WORKSPACE:-clawmax}"
-OPIK_PROJECT_NAME="ClawMax"
+OPIK_PROJECT_NAME="clawmax"
 ENVEOF
 else
   cat >> "$ENV_FILE" << 'ENVEOF'
@@ -709,7 +713,7 @@ else
 # Comet Opik — optional monitoring (https://www.comet.com/signup)
 # OPIK_API_KEY=
 # OPIK_WORKSPACE=clawmax
-# OPIK_PROJECT_NAME=ClawMax
+# OPIK_PROJECT_NAME=clawmax
 ENVEOF
 fi
 

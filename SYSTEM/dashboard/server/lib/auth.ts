@@ -9,6 +9,13 @@ import path from 'path'
 
 const TOKEN_FILE = path.join(__dirname, '..', '.dashboard-token')
 
+export function formatDashboardTokenPreview(token: string): string {
+  const trimmed = String(token || '').trim()
+  if (!trimmed) return '(empty)'
+  if (trimmed.length <= 12) return `${trimmed.slice(0, 4)}…${trimmed.slice(-2)}`
+  return `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`
+}
+
 /**
  * Gets or generates the dashboard auth token.
  * Priority:
@@ -38,8 +45,9 @@ export function getOrCreateToken(): string {
   try {
     fs.writeFileSync(TOKEN_FILE, newToken, { mode: 0o600 })
     console.log('\n' + '='.repeat(70))
-    console.log('🔐 DASHBOARD TOKEN (save this for API access):')
-    console.log(newToken)
+    console.log('🔐 Dashboard token generated for API access')
+    console.log(`   file: ${TOKEN_FILE}`)
+    console.log(`   preview: ${formatDashboardTokenPreview(newToken)}`)
     console.log('='.repeat(70) + '\n')
   } catch (err) {
     console.error('Failed to write token file:', err)

@@ -5,12 +5,34 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.10-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.10)
-[![Tests](https://img.shields.io/badge/tests-212%20passing-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.3.12-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.12)
+[![Tests](https://img.shields.io/badge/tests-159%20visible-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.10
+## 🔥 New in v1.3.12
+
+- Dashboard token handling is safer:
+  - first-run token generation no longer prints the full API token into stdout or container logs
+  - startup now logs only that the token was created, where it was written, and a short redacted preview
+- Setup/bootstrap defaults are more current:
+  - `setup.sh` now writes `DASHBOARD_PUBLIC_URL`
+  - it documents `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`
+  - and it normalizes `OPIK_PROJECT_NAME=clawmax`
+- Visible test summary coverage is broader:
+  - `SYSTEM/test.sh` now includes the dashboard auth helper suite in the visible count, so the release summary reflects more of the recent dashboard hardening work
+
+## 🔥 Previously in v1.3.11
+
+- Metering display is more reliable:
+  - ClawMax metering no longer drops otherwise-valid OPIK traces just because `dashboard_instance_id` is missing from trace metadata
+  - viewer/workspace metering still stays scoped correctly while accepting older or partially-populated traces
+- Communications opens in the better default mode:
+  - fresh dashboards now default the Communications page to the card/grid view when no saved preference exists
+- Test visibility is better:
+  - `SYSTEM/test.sh` now includes metering, workflow-routes, workspace delete-agent, and OpenClaw agent-transfer suites in the visible summary count
+
+## 🔥 Previously in v1.3.10
 
 - Organization template markdown round-trip is more correct:
   - agent `communities` and `groups` memberships now survive export → import → apply
@@ -35,16 +57,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - config mutations are serialized
   - unrelated gateway fields are preserved
   - no-op config rewrites are skipped
-
-## 🔥 Previously in v1.3.8
-
-- Session expiry handling is safer:
-  - authenticated dashboard API calls now trigger a session-expired reauth flow on `401` instead of leaving the user in dead-end modals
-  - the login screen now explicitly explains when a runtime restart or missing session requires the user to sign in again
-  - DocHub upload benefits from the same generic reauth behavior
-- Non-default workspace execution state is more correct:
-  - workflow execution archive, unarchive, delete, and archived-list routes now use the active workspace instead of assuming the default home workspace path
-  - execution history actions now stay aligned with the workspace selected in the dashboard, which matters for persistent runtime roots and relocated mutable state
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.

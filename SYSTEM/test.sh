@@ -449,6 +449,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Dashboard auth helper unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/auth.test.ts > /tmp/clawmax-auth-helper.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-auth-helper.out; then
+  auth_helper_count=$(grep "Passed:" /tmp/clawmax-auth-helper.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Dashboard auth helper unit tests (${auth_helper_count:-?} tests)"
+else
+  fail "Dashboard auth helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent execution runtime unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-execution.test.ts > /tmp/clawmax-agent-execution.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-execution.out; then
