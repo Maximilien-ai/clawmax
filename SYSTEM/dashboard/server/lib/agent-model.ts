@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
 
 export function updateAgentModelInConfigFile(
   configPath: string,
@@ -30,13 +31,7 @@ export function updateAgentModelInConfigFile(
       model,
     }
 
-    config.meta = {
-      ...config.meta,
-      lastTouchedVersion: 'dashboard-0.1.0',
-      lastTouchedAt: new Date().toISOString(),
-    }
-
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentModelInConfigFile(${agentId})`)
     return { ok: true }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
@@ -104,13 +99,7 @@ export function restoreAgentModelInConfigFile(
     }
     agentList[agentIndex] = nextAgent
 
-    config.meta = {
-      ...config.meta,
-      lastTouchedVersion: 'dashboard-0.1.0',
-      lastTouchedAt: new Date().toISOString(),
-    }
-
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentModelInConfigFile(${agentId})`)
     return { ok: true }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }

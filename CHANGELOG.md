@@ -2,6 +2,18 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.13] - 2026-04-21
+
+### Fixes — Gateway Config Churn Hardening
+- **Protected Gateway Field Preservation** — dashboard-managed `openclaw.json` writes now preserve the latest on-disk `gateway` block instead of replaying stale in-memory values over `gateway.auth.token`, `gateway.remote.token`, or `gateway.tailscale`
+- **Shared Config Writer Coverage** — this preservation guard now covers agent model override writes, skills updates, OpenClaw agent transfer/import writes, and the profile-mode agent registration path
+- **Explicit Churn Diagnostics** — dashboard logs now warn when one of those write paths attempted to change protected gateway fields, making the remaining churn source easier to attribute in cloud logs
+
+### Quality
+- **Regression Coverage** — added focused OpenClaw config helper tests to prove gateway fields are preserved while non-gateway agent updates still persist
+- **Visible Test Summary Coverage** — `SYSTEM/test.sh` now includes the OpenClaw config helper suite so the aggregate visible count increases again for this hardening line
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/openclaw-config.test.ts`, `server/lib/skills.test.ts`, `server/lib/openclaw-agent-transfer.test.ts`, and `bash -n SYSTEM/test.sh`
+
 ## [v1.3.12] - 2026-04-20
 
 ### Fixes — Dashboard Token Logging

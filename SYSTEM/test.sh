@@ -313,6 +313,15 @@ else
   fail "Notifications unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace artifact notification unit tests...${NC}"
+OPENCLAW_WORKSPACE=/tmp/clawmax-workspace-artifact-notifications npx ts-node --transpileOnly server/lib/workspace-artifact-notifications.test.ts > /tmp/clawmax-workspace-artifact-notifications.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-artifact-notifications.out; then
+  workspace_artifact_notif_count=$(grep "Passed:" /tmp/clawmax-workspace-artifact-notifications.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Workspace artifact notification unit tests (${workspace_artifact_notif_count:-?} tests)"
+else
+  fail "Workspace artifact notification unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Local secrets unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/localSecrets.test.ts > /tmp/clawmax-local-secrets.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-local-secrets.out; then
@@ -456,6 +465,16 @@ if grep -q "All tests passed" /tmp/clawmax-auth-helper.out; then
   pass "Dashboard auth helper unit tests (${auth_helper_count:-?} tests)"
 else
   fail "Dashboard auth helper unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running OpenClaw config helper unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/openclaw-config.test.ts > /tmp/clawmax-openclaw-config.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-openclaw-config.out; then
+  openclaw_config_count=$(grep "Passed:" /tmp/clawmax-openclaw-config.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "OpenClaw config helper unit tests (${openclaw_config_count:-?} tests)"
+else
+  fail "OpenClaw config helper unit tests"
 fi
 
 echo ""

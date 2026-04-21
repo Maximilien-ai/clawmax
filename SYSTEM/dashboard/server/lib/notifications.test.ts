@@ -193,6 +193,22 @@ test('getGroupedActiveNotifications keeps unrelated agent notifications separate
   assert(grouped.length === 2, `Expected 2 notifications, got ${grouped.length}`)
 })
 
+test('artifact notifications for uploaded AGENTS asset dirs do not pretend the dir is an agent', () => {
+  const { createNotification } = require('./notifications')
+  const assetNotification = createNotification({
+    type: 'artifact-update',
+    title: 'agents updated cw-items/image-review-report.md',
+    message: 'Updated agent-created workspace artifact in cw-items: image-review-report.md',
+    fingerprint: 'test-asset-dir-artifact-1',
+    artifactPath: 'AGENTS/cw-items/image-review-report.md',
+  })
+  assert(assetNotification !== null, 'Should create asset notification')
+  assert(assetNotification!.entityId === undefined, 'Uploaded asset dir notification should not pretend to be from an agent entity')
+  assert(assetNotification!.entityType === undefined, 'Uploaded asset dir notification should not use agent entity type')
+  assert(assetNotification!.title.startsWith('agents updated cw-items/'), `Unexpected title: ${assetNotification!.title}`)
+  assert(assetNotification!.message.includes('agent-created workspace artifact in cw-items'), `Unexpected message: ${assetNotification!.message}`)
+})
+
 // ============================================================================
 // Dismiss
 // ============================================================================

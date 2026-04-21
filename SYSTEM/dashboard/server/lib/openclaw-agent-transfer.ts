@@ -4,6 +4,7 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import { getAgentsDir, getWorkspacePath, listAgents, updateGroupMembers, parseGroupsWithMembers } from './workspace'
 import { getAgentSkills } from './skills'
+import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
 
 interface TransferGroupEntry {
   name: string
@@ -82,14 +83,8 @@ function loadOpenClawConfig(): any {
 function saveOpenClawConfig(config: any): void {
   const configPath = path.join(getOpenClawRoot(), 'openclaw.json')
   fs.mkdirSync(path.dirname(configPath), { recursive: true })
-  const now = new Date().toISOString()
-  config.meta = {
-    ...(config.meta || {}),
-    lastTouchedVersion: 'dashboard-0.1.0',
-    lastTouchedAt: now,
-  }
   console.log(`[OpenClaw Transfer] Writing shared config: ${configPath}`)
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  writeDashboardManagedOpenClawConfig(configPath, config, 'openclaw-agent-transfer')
 }
 
 function upsertOpenClawAgentConfig(agentId: string, workspacePath: string, agentDir: string, skills: string[]) {

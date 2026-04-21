@@ -17,6 +17,7 @@ import { discoverModels, getAvailableModelsCached, clearModelCache } from '../li
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
+import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -136,15 +137,7 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
       if (!config.agents.list) config.agents.list = []
       config.agents.list.push(newAgent)
 
-      // Add metadata stamping for profile mode
-      const now = new Date().toISOString()
-      config.meta = {
-        ...config.meta,
-        lastTouchedVersion: 'dashboard-0.1.0',
-        lastTouchedAt: now
-      }
-
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+      writeDashboardManagedOpenClawConfig(configPath, config, `registerAgentInConfig(profile:${agentId})`)
       return { ok: true }
     }
 

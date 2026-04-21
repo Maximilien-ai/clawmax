@@ -11,6 +11,8 @@ interface DocEntry {
   assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
   isAgentWorkspace?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 interface AgentSummary {
@@ -104,6 +106,27 @@ function stripPrefix(fullPath: string, section: DocSection): string {
   return fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath
 }
 
+function formatDocTimestamp(value?: string): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString()
+}
+
+function getAssetRecencyLabel(entry?: DocEntry | null): 'new' | 'updated' | null {
+  if (!entry?.updatedAt) return null
+  if (!entry.createdAt) return 'updated'
+  const created = new Date(entry.createdAt).getTime()
+  const updated = new Date(entry.updatedAt).getTime()
+  if (Number.isNaN(created) || Number.isNaN(updated)) return null
+  const ageMs = Date.now() - updated
+  const isFreshToday = ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000
+  if (Math.abs(updated - created) < 1000) {
+    return isFreshToday ? 'new' : null
+  }
+  return 'updated'
+}
+
 export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [entries, setEntries] = useState<DocEntry[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -131,6 +154,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const selectedIsMarkdown = !!selected && selected.endsWith('.md')
   const selectedIsTextPreview = previewKind === 'text'
   const selectedIsImagePreview = previewKind === 'image'
+  const selectedCreatedLabel = formatDocTimestamp(selectedEntry?.createdAt)
+  const selectedUpdatedLabel = formatDocTimestamp(selectedEntry?.updatedAt)
 
   function toggleDir(key: string) {
     setCollapsedDirs(prev => {
@@ -656,6 +681,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               const isSelected = selected === actualPath
               const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
               const assetTone = getAssetTone(fullEntry)
+              const assetRecencyLabel = isAsset ? getAssetRecencyLabel(fullEntry) : null
               return (
                 <div
                   key={actualPath}
@@ -674,6 +700,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     {isPinned && <span className="text-xs text-amber-500">★</span>}
                     {isAsset && <span className={`text-[10px] rounded px-1 ${assetTone.badge}`}>{assetTone.label}</span>}
                     <span className="truncate">{name}</span>
+                    {assetRecencyLabel && (
+                      <span className="shrink-0 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        {assetRecencyLabel}
+                      </span>
+                    )}
                   </button>
                 </div>
               )
@@ -891,6 +922,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                           const isSelected = selected === actualPath
                           const isAsset = !!fullEntry && fullEntry.section === 'AGENTS' && !fullEntry.isAgentWorkspace
                           const assetTone = getAssetTone(fullEntry)
+                          const assetRecencyLabel = isAsset ? getAssetRecencyLabel(fullEntry) : null
                           return (
                             <div
                               key={actualPath}
@@ -908,6 +940,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                                 {isPinned && <span className="text-xs text-amber-500">★</span>}
                                 {isAsset && <span className={`text-[10px] rounded px-1 ${assetTone.badge}`}>{assetTone.label}</span>}
                                 <span className="truncate">{name}</span>
+                                {assetRecencyLabel && (
+                                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                                    {assetRecencyLabel}
+                                  </span>
+                                )}
                               </button>
                             </div>
                           )
@@ -1049,6 +1086,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   }`}>
                     <div className="font-semibold">{selectedAgentAssetSource === 'generated' ? 'Agent-generated file' : 'Uploaded workspace asset'}</div>
                     <div className="mt-2 font-mono text-xs break-all">{selectedEntry.path}</div>
+                    {(selectedCreatedLabel || selectedUpdatedLabel) && (
+                      <div className="mt-3 space-y-1 text-xs">
+                        {selectedCreatedLabel && <div><span className="font-semibold">Created:</span> {selectedCreatedLabel}</div>}
+                        {selectedUpdatedLabel && <div><span className="font-semibold">Last updated:</span> {selectedUpdatedLabel}</div>}
+                      </div>
+                    )}
                     <p className="mt-3 text-sm">
                       {selectedAgentAssetSource === 'generated'
                         ? 'This file was generated by the agent runtime. Preview is not available for this file type, but you can still download or delete it from DocHub.'
@@ -1089,6 +1132,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     }`}>
                       <div className="font-semibold">{selectedAgentAssetSource === 'generated' ? 'Agent-generated markdown file' : 'Uploaded markdown file'}</div>
                       <div className="mt-1 font-mono text-xs break-all">{selectedEntry?.path}</div>
+                      {(selectedCreatedLabel || selectedUpdatedLabel) && (
+                        <div className="mt-3 space-y-1 text-xs">
+                          {selectedCreatedLabel && <div><span className="font-semibold">Created:</span> {selectedCreatedLabel}</div>}
+                          {selectedUpdatedLabel && <div><span className="font-semibold">Last updated:</span> {selectedUpdatedLabel}</div>}
+                        </div>
+                      )}
                       <p className="mt-2">
                         {selectedAgentAssetSource === 'generated'
                           ? 'This file was generated by the agent runtime. It is not part of the protected agent definition, so you can edit, download, or delete it here.'

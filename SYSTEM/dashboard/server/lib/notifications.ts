@@ -7,7 +7,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
-import { getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups } from './workspace'
+import { getAgentsDir, getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups, isManagedAgentWorkspaceDir } from './workspace'
 import { listWorkflows, listExecutions, WorkflowExecution } from './workflows'
 import { getBudgetStatus } from './budget'
 import { getMessages } from './messages'
@@ -178,6 +178,38 @@ function buildGroupedNotification(notifications: Notification[]): Notification {
     entityId: undefined,
     artifactPath: undefined,
     artifactUrl: undefined,
+  }
+}
+
+export function buildWorkspaceArtifactNotification(entry: { agentId: string; file: string; mtime: string }, isNew: boolean): {
+  title: string
+  message: string
+  entityId?: string
+  entityType?: 'agent'
+  artifactPath: string
+} {
+  const artifactPath = `AGENTS/${entry.agentId}/${entry.file}`
+  const workspaceDir = path.join(getAgentsDir(), entry.agentId)
+  const isManagedAgentDir = isManagedAgentWorkspaceDir(workspaceDir)
+
+  if (isManagedAgentDir) {
+    return {
+      title: isNew ? `${entry.agentId} created ${entry.file}` : `${entry.agentId} updated ${entry.file}`,
+      message: isNew
+        ? `New workspace artifact from ${entry.agentId}: ${entry.file}`
+        : `Updated workspace artifact from ${entry.agentId}: ${entry.file}`,
+      entityId: entry.agentId,
+      entityType: 'agent',
+      artifactPath,
+    }
+  }
+
+  return {
+    title: isNew ? `agents created ${entry.agentId}/${entry.file}` : `agents updated ${entry.agentId}/${entry.file}`,
+    message: isNew
+      ? `New agent-created workspace artifact in ${entry.agentId}: ${entry.file}`
+      : `Updated agent-created workspace artifact in ${entry.agentId}: ${entry.file}`,
+    artifactPath,
   }
 }
 
@@ -648,16 +680,15 @@ async function runMonitorScan(): Promise<void> {
         if (!changed) continue
 
         const fingerprint = `artifact-update:${entry.agentId}:${entry.file}:${entry.mtime}`
+        const artifactNotification = buildWorkspaceArtifactNotification(entry, isNew)
         createNotification({
           type: 'artifact-update',
-          title: isNew ? `${entry.agentId} created ${entry.file}` : `${entry.agentId} updated ${entry.file}`,
-          message: isNew
-            ? `New workspace artifact from ${entry.agentId}: ${entry.file}`
-            : `Updated workspace artifact from ${entry.agentId}: ${entry.file}`,
-          entityId: entry.agentId,
-          entityType: 'agent',
+          title: artifactNotification.title,
+          message: artifactNotification.message,
+          entityId: artifactNotification.entityId,
+          entityType: artifactNotification.entityType,
           fingerprint,
-          artifactPath: `AGENTS/${entry.agentId}/${entry.file}`,
+          artifactPath: artifactNotification.artifactPath,
         })
       }
       artifactScanPrimed = true

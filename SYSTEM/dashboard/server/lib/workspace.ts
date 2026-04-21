@@ -58,6 +58,8 @@ export interface DocEntry {
   assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
   isAgentWorkspace?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
@@ -215,6 +217,18 @@ export function listDocEntries(): DocEntry[] {
   const workspacePath = getWorkspacePath()
   const agentsDir = getAgentsDir()
   const registeredAgentDirs = getRegisteredAgentDirectoryNames()
+  function readTimestamps(fullPath: string): { createdAt?: string; updatedAt?: string } {
+    try {
+      const stats = fs.statSync(fullPath)
+      return {
+        createdAt: stats.birthtime?.toISOString?.(),
+        updatedAt: stats.mtime?.toISOString?.(),
+      }
+    } catch {
+      return {}
+    }
+  }
+
   const results: DocEntry[] = listMarkdownFiles()
     .filter((entry) => !entry.path.startsWith('AGENTS/__MACOSX/') && entry.path !== 'AGENTS/__MACOSX')
     .map((entry) => {
@@ -224,12 +238,15 @@ export function listDocEntries(): DocEntry[] {
       const topLevelAgentDir = relativeAgentPath ? relativeAgentPath.split(/[\\/]/)[0] : ''
       const isRegisteredAgentWorkspace = entry.section === 'AGENTS' && !!topLevelAgentDir && registeredAgentDirs.has(topLevelAgentDir)
       const isProtectedAgentFile = isRegisteredAgentWorkspace && isProtectedAgentWorkspaceFile(entry.path)
+      const timestamps = readTimestamps(path.join(workspacePath, entry.path))
       return {
         ...entry,
         kind: isRegisteredAgentWorkspace && isProtectedAgentFile ? 'markdown' : 'asset',
         assetSource: isRegisteredAgentWorkspace && isProtectedAgentFile ? undefined : getAgentAssetSource(entry.path),
         canDelete: entry.section === 'AGENTS' ? !isProtectedAgentFile : false,
         isAgentWorkspace: isRegisteredAgentWorkspace && isProtectedAgentFile,
+        createdAt: timestamps.createdAt,
+        updatedAt: timestamps.updatedAt,
       }
     })
 
@@ -251,6 +268,7 @@ export function listDocEntries(): DocEntry[] {
       }
       if (!entry.isFile()) continue
       if (entry.name.endsWith('.md')) continue
+      const timestamps = readTimestamps(full)
       results.push({
         path: rel,
         section: 'AGENTS',
@@ -258,6 +276,8 @@ export function listDocEntries(): DocEntry[] {
         assetSource: getAgentAssetSource(rel),
         canDelete: true,
         isAgentWorkspace: false,
+        createdAt: timestamps.createdAt,
+        updatedAt: timestamps.updatedAt,
       })
     }
   }
@@ -276,13 +296,17 @@ export function listDocEntries(): DocEntry[] {
       }
       if (!entry.isFile()) continue
       if (entry.name.endsWith('.md')) continue
+      const relPath = path.relative(workspacePath, full)
+      const timestamps = readTimestamps(full)
       results.push({
-        path: path.relative(workspacePath, full),
+        path: relPath,
         section: 'AGENTS',
         kind: 'asset',
-        assetSource: getAgentAssetSource(path.relative(workspacePath, full)),
+        assetSource: getAgentAssetSource(relPath),
         canDelete: true,
         isAgentWorkspace: false,
+        createdAt: timestamps.createdAt,
+        updatedAt: timestamps.updatedAt,
       })
     }
   } catch {}

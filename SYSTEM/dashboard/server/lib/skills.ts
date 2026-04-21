@@ -4,6 +4,7 @@ import os from 'os'
 import matter from 'gray-matter'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
+import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { REPO_ROOT } from './paths'
 
 /**
@@ -625,12 +626,7 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
     const backupPath = `${OPENCLAW_CONFIG_PATH}.bak`
     fs.copyFileSync(OPENCLAW_CONFIG_PATH, backupPath)
 
-    // Write config with pretty formatting
-    fs.writeFileSync(
-      OPENCLAW_CONFIG_PATH,
-      JSON.stringify(config, null, 2),
-      'utf-8'
-    )
+    writeDashboardManagedOpenClawConfig(OPENCLAW_CONFIG_PATH, config, 'setAgentSkills')
 
     console.log('Successfully saved openclaw.json (DEPRECATED PATH)')
   } catch (err) {
