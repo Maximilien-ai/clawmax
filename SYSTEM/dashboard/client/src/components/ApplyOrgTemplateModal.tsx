@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
+import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
 interface TemplateParameter {
@@ -374,14 +375,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
       })
       .catch(() => {})
-    fetch('/api/channels/groups')
+    fetch(CHANNEL_API_ENDPOINTS.groups)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const names = Array.isArray(data?.groups) ? data.groups.map((group: any) => group?.name).filter((name: unknown): name is string => typeof name === 'string') : []
         setExistingGroupNames(names)
       })
       .catch(() => {})
-    fetch('/api/channels/communities')
+    fetch(CHANNEL_API_ENDPOINTS.communities)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const names = Array.isArray(data?.communities) ? data.communities.map((community: any) => community?.name).filter((name: unknown): name is string => typeof name === 'string') : []

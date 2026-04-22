@@ -94,8 +94,10 @@ const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .filter(Boolean)
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
+const shouldServeBuiltClient = process.env.NODE_ENV === 'production'
+
 // Serve static assets BEFORE any other middleware — no CORS/auth needed for files
-const earlyClientDist = resolveClientDist()
+const earlyClientDist = shouldServeBuiltClient ? resolveClientDist() : null
 if (earlyClientDist) {
   app.use(express.static(earlyClientDist, {
     // Set proper MIME types and cache headers
@@ -571,7 +573,7 @@ if (earlyClientDist) {
   app.get('*', (_req, res) => {
     res.sendFile(path.join(earlyClientDist, 'index.html'))
   })
-} else if (process.env.NODE_ENV === 'production') {
+} else if (shouldServeBuiltClient) {
   console.warn('[Static] No built dashboard client found. Root route will not serve the UI.')
 } else {
   app.get('/', (_req, res) => {

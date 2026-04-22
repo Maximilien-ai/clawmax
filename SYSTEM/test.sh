@@ -372,6 +372,24 @@ else
   fail "Communication bulk actions unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/channelApi.test.ts > /tmp/clawmax-channel-api.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-channel-api.out; then
+  channel_api_count=$(grep "Tests passed:" /tmp/clawmax-channel-api.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Channel API helper unit tests (${channel_api_count:-?} tests)"
+else
+  fail "Channel API helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/maintenanceBannerView.test.ts > /tmp/clawmax-maintenance-banner-view.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then
+  maintenance_banner_view_count=$(grep "Tests passed:" /tmp/clawmax-maintenance-banner-view.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Maintenance banner view unit tests (${maintenance_banner_view_count:-?} tests)"
+else
+  fail "Maintenance banner view unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/dashboard-env.test.ts > /tmp/clawmax-dashboard-env.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-dashboard-env.out; then
