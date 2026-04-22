@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-08
-**Current Version**: main
+**Last Updated**: 2026-04-22
+**Current Version**: v1.3.14 / main
 
 ---
 

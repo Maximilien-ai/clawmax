@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: April 20, 2026
+> Last updated: April 22, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
@@ -148,6 +148,7 @@
 - [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
 
 ### Launch Readiness
+- [ ] **Maintenance status page handoff / review** — web-team issue opened in `Maximilien-ai/clawmax-ai-web#19` for the status/details page linked from the new dashboard maintenance banner. Follow through on final URL, ownership, scheduled/in-progress/completed copy, and precise data-safety wording before broader operator rollout.
 - [ ] **Deployment handoff verification** — verify the public repo Docker/Podman contract is sufficient for downstream deployment teams and document any gaps without forking the contract
 - [ ] **Launch smoke checklist** — define and run one short end-to-end smoke path covering login, template apply, workflow trigger, dashboards, and integrations save/apply
 - [ ] **Signup/invite path verification** — verify the user-facing signup and invitation path is coherent from ClawMax.ai through first dashboard access
