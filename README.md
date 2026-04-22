@@ -5,58 +5,58 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.12-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.12)
-[![Tests](https://img.shields.io/badge/tests-159%20visible-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.3.13-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.13)
+[![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 New in v1.3.12
+## 🔥 Recent Stability Work (v1.3.12–v1.3.14 line)
 
-- Dashboard token handling is safer:
-  - first-run token generation no longer prints the full API token into stdout or container logs
-  - startup now logs only that the token was created, where it was written, and a short redacted preview
+- Setup, auth, and operator hygiene improved:
+  - first-run token generation no longer prints the full dashboard API token into stdout/container logs
+  - `setup.sh` now writes `DASHBOARD_PUBLIC_URL`, documents `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`, and normalizes `OPIK_PROJECT_NAME=clawmax`
+  - Communications now defaults to the card/grid view on fresh dashboards
+- Workflow and template reliability improved:
+  - organization template markdown round-trip now preserves agent `communities` and `groups`
+  - heavier workflows use a safer default agent timeout (`10 minutes`) with `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS` override support
+  - workflow-created artifact notifications are moving away from fake asset-dir actors toward real agent attribution where the runner can identify the writer
+- Activity, metering, and day-to-day dashboard use improved:
+  - metering no longer drops valid OPIK traces just because `dashboard_instance_id` is missing from the trace metadata
+  - `Activity & Budget` refreshes when you switch back to it instead of requiring a browser refresh
+  - DocHub now shows created/updated timestamps and light `new` / `updated` hints for asset files
+  - Communications selection mode now supports bulk clear-history in addition to bulk delete
+  - a generic env-driven maintenance banner contract is available for planned maintenance messaging without hardcoding ClawMax.ai-specific behavior
+- Validation is safer by default:
+  - plain `./SYSTEM/test.sh` is now read-only against a live dashboard
+  - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
+  - the visible default-safe test summary continues to grow as focused suites are added
+
+## 🔥 Latest Release: v1.3.13
+
+- Gateway-config hardening on dashboard-managed `openclaw.json` writes:
+  - protected gateway fields are preserved instead of replaying stale in-memory values
+  - covered write paths now include model overrides, skills updates, transfer/import writes, and profile-mode registration
+- Better artifact visibility:
+  - uploaded AGENTS asset directories like `cw-items` no longer appear as fake agents in notifications
+  - DocHub shows created / last updated timestamps and compact freshness hints for asset files
+- More visible tests:
+  - `SYSTEM/test.sh` now surfaces dedicated workspace-artifact notification coverage
+
+## 🔥 Previous Release: v1.3.12
+
+- Dashboard token logging is safer:
+  - first-run token generation logs only token creation, token file path, and a redacted preview
 - Setup/bootstrap defaults are more current:
-  - `setup.sh` now writes `DASHBOARD_PUBLIC_URL`
-  - it documents `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`
-  - and it normalizes `OPIK_PROJECT_NAME=clawmax`
-- Visible test summary coverage is broader:
-  - `SYSTEM/test.sh` now includes the dashboard auth helper suite in the visible count, so the release summary reflects more of the recent dashboard hardening work
+  - `setup.sh` aligns with the current `v1.3.x` line and current runtime guidance
+- Release/test hygiene improved:
+  - visible `SYSTEM/test.sh` coverage expanded again to include newer focused suites
 
-## 🔥 Previously in v1.3.11
+## 🔥 Previous Release: v1.3.11
 
 - Metering display is more reliable:
-  - ClawMax metering no longer drops otherwise-valid OPIK traces just because `dashboard_instance_id` is missing from trace metadata
-  - viewer/workspace metering still stays scoped correctly while accepting older or partially-populated traces
+  - ClawMax metering no longer drops valid OPIK traces just because `dashboard_instance_id` is missing from trace metadata
 - Communications opens in the better default mode:
-  - fresh dashboards now default the Communications page to the card/grid view when no saved preference exists
-- Test visibility is better:
-  - `SYSTEM/test.sh` now includes metering, workflow-routes, workspace delete-agent, and OpenClaw agent-transfer suites in the visible summary count
-
-## 🔥 Previously in v1.3.10
-
-- Organization template markdown round-trip is more correct:
-  - agent `communities` and `groups` memberships now survive export → import → apply
-  - agent table parsing now preserves empty cells, so blank `tags` or `skills` fields no longer corrupt later membership columns
-  - fresh exported/imported CW templates now add agents to the correct work groups and community
-- Workflow timeout behavior is safer for heavier hosted runs:
-  - workflow participant timeout default increased from `5 minutes` to `10 minutes`
-  - hosted runtimes can override it with `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`
-- Active-workspace config targeting is tighter:
-  - skill updates and agent-transfer upserts now prefer the active workspace record when duplicate agent ids exist
-  - those paths preserve unrelated gateway settings while updating agent-specific config
-  - lightweight shared-config logging was added to the transfer path for hosted debugging
-
-## 🔥 Previously in v1.3.9
-
-- Notification noise is reduced:
-  - near-identical agent notifications created in the same burst now collapse into one grouped summary
-  - dismissing a grouped notification clears the whole burst
-  - grouped artifact rows still expose per-agent drill-down
-- Workflow/chat shared-config churn is reduced:
-  - temporary model overrides no longer snapshot and restore the entire shared `openclaw.json`
-  - config mutations are serialized
-  - unrelated gateway fields are preserved
-  - no-op config rewrites are skipped
+  - fresh dashboards default to card/grid view when no saved preference exists
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.

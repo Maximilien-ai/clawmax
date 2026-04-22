@@ -2,6 +2,26 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.14] - pending
+
+### Improvements — Workflow Artifact Attribution and Diagnostics
+- **Writer-Attributed Artifact Notifications** — workflow-created file notifications now prefer the real participant/agent identity when the workflow runner can resolve the produced workspace file paths from agent output
+- **Generic Fallback Suppression** — once a workflow emits a writer-attributed artifact notification, the later filesystem scan suppresses the duplicate generic `agents updated ...` artifact notification for the same file
+- **Bare Filename Resolution** — artifact attribution now handles common workflow reports that mention only bare filenames like `kickoff-plan.md` by resolving them to a unique recent workspace artifact when possible
+- **Gateway Instability Diagnostics** — the dashboard now detects and surfaces concrete gateway restart-loop and session-drift patterns in the agent status UI instead of only vague auth/unavailable wording
+
+### Improvements — Activity, Communications, and Operator UX
+- **Activity & Budget Activation Refresh** — switching back to `Activity & Budget` now refreshes activity feed, metering, budget, and agent cost limits automatically with a short cooldown to avoid churn
+- **Communications Bulk History Clear** — selection mode now supports bulk clear-history for communities/groups using the existing archive-first message-clear backend path
+- **Generic Maintenance Banner Contract** — dashboard now supports a default-off OSS-safe maintenance banner driven by environment variables (`MAINTENANCE_BANNER_ENABLED`, `TEXT`, `LEVEL`, `START_AT`, `END_AT`, optional `LINK`, and `DISMISSIBLE`)
+- **Read-Only Default Test Runner** — plain `SYSTEM/test.sh` now avoids workspace switching and live dashboard mutations; destructive/live dashboard checks remain under `SYSTEM/test.sh integration`
+
+### Quality
+- **Focused Communication Bulk Action Coverage** — added a dedicated Communications bulk-actions unit suite and surfaced it in the visible default test summary
+- **Gateway Diagnostics Coverage** — added focused client tests for restart-loop detection, session-drift detection, and healthy-log no-op behavior
+- **Artifact Notification Coverage** — expanded workspace artifact notification tests to cover real-writer attribution, duplicate suppression, and bare-filename resolution
+- **Validation Gate** — current local batch validated with `npm run typecheck`, `client/src/lib/communicationBulkActions.test.ts`, `client/src/lib/gatewayDiagnostics.test.ts`, `server/lib/workspace-artifact-notifications.test.ts`, and `bash -n SYSTEM/test.sh`
+
 ## [v1.3.13] - 2026-04-21
 
 ### Fixes — Gateway Config Churn Hardening

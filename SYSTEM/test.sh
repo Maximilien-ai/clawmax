@@ -132,9 +132,12 @@ echo ""
 
 # Parse flags - validation tests are SKIPPED by default
 SKIP_VALIDATION=true
+RUN_INTEGRATION=false
 for arg in "$@"; do
   if [ "$arg" = "--with-validation" ]; then
     SKIP_VALIDATION=false
+  elif [ "$arg" = "integration" ]; then
+    RUN_INTEGRATION=true
   fi
 done
 
@@ -149,11 +152,13 @@ echo "Frontend: $FRONTEND_URL"
 echo "API: $API_BASE"
 echo ""
 
-# Save current active workspace so we can restore it after tests
-ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || echo "")
-
-# Ensure tests run on the correct workspace (default workspace for this repo)
-apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
+# Integration mode is the only mode allowed to mutate dashboard state or switch
+# the active workspace. Plain ./test.sh stays read-only against the live server.
+ORIGINAL_WORKSPACE_ID=""
+if [ "$RUN_INTEGRATION" = true ]; then
+  ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || echo "")
+  apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
+fi
 
 # Helper functions
 pass() {
@@ -322,6 +327,15 @@ else
   fail "Workspace artifact notification unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace DocHub entry filtering unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-doc-entries.test.ts > /tmp/clawmax-workspace-doc-entries.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-doc-entries.out; then
+  workspace_doc_entries_count=$(grep "Passed:" /tmp/clawmax-workspace-doc-entries.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Workspace DocHub entry filtering unit tests (${workspace_doc_entries_count:-?} tests)"
+else
+  fail "Workspace DocHub entry filtering unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Local secrets unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/localSecrets.test.ts > /tmp/clawmax-local-secrets.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-local-secrets.out; then
@@ -338,6 +352,24 @@ if grep -q "All tests passed" /tmp/clawmax-byok.out; then
   pass "BYOK helper unit tests (${byok_count:-?} tests)"
 else
   fail "BYOK helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway diagnostics unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/gatewayDiagnostics.test.ts > /tmp/clawmax-gateway-diagnostics.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-diagnostics.out; then
+  gateway_diagnostics_count=$(grep "Passed:" /tmp/clawmax-gateway-diagnostics.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Gateway diagnostics unit tests (${gateway_diagnostics_count:-?} tests)"
+else
+  fail "Gateway diagnostics unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Communication bulk actions unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/communicationBulkActions.test.ts > /tmp/clawmax-communication-bulk-actions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-communication-bulk-actions.out; then
+  communication_bulk_actions_count=$(grep "Tests passed:" /tmp/clawmax-communication-bulk-actions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Communication bulk actions unit tests (${communication_bulk_actions_count:-?} tests)"
+else
+  fail "Communication bulk actions unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
@@ -754,6 +786,14 @@ test_api "List groups" "/api/groups"
 test_json_field "Groups array exists" "/api/groups" ".groups"
 
 echo ""
+
+# =========================================
+# Non-integration boundary
+# =========================================
+if [ "$RUN_INTEGRATION" != true ]; then
+  warn "Skipping live dashboard mutation sections. Use ./test.sh integration for disruptive or destructive API tests."
+  echo ""
+else
 
 # =========================================
 # Section 9: Group Chat APIs
@@ -2312,9 +2352,10 @@ echo ""
 
 fi
 # End integration tests
+fi # End live dashboard mutation sections
 
 # Restore original workspace if it was different from default
-if [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
+if [ "$RUN_INTEGRATION" = true ] && [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
   apicurl -X PUT "${API_BASE}/api/workspaces/${ORIGINAL_WORKSPACE_ID}/activate" > /dev/null 2>&1
   echo -e "${GREEN}✓${NC} Restored active workspace: $ORIGINAL_WORKSPACE_ID"
 fi

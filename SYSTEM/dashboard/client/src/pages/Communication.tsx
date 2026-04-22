@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
 
 interface GroupEntry {
   name: string
@@ -531,6 +532,44 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     })
   }
 
+  const handleBulkClearChannelHistory = async () => {
+    if (selectedChannelKeys.size === 0) return
+
+    const channelsToClear = buildBulkHistoryClearPlan(sortedChannels, selectedChannelKeys)
+    setDeleteDialog({
+      itemName: `${channelsToClear.length} channel histories`,
+      itemType: 'History',
+      warningMessage: 'Clearing channel history removes the active message timeline for the selected channels. Existing messages are archived first and can still be recovered from archives.',
+      consequences: channelsToClear.map(channel => {
+        const typeLabel = channel.type === 'community' ? 'Community' : 'Group'
+        return `${typeLabel}: ${channel.name}`
+      }),
+      onConfirm: async () => {
+        try {
+          await Promise.all(channelsToClear.map(channel => {
+            const endpoint = getChannelHistoryClearEndpoint(channel)
+            return fetch(endpoint, { method: 'DELETE' }).then(response => {
+              if (!response.ok) throw new Error(`Failed to clear history for ${channel.name}`)
+            })
+          }))
+
+          setUnreadCounts(prev => {
+            const next = { ...prev }
+            channelsToClear.forEach(channel => {
+              delete next[`${channel.type}:${channel.name}`]
+            })
+            return next
+          })
+          showSuccess(`Cleared history for ${channelsToClear.length} channel${channelsToClear.length !== 1 ? 's' : ''}`)
+          setDeleteDialog(null)
+          fetchAgents()
+        } catch (err) {
+          console.error('Bulk clear history failed:', err)
+        }
+      },
+    })
+  }
+
   const selectVisibleChannelsByType = (type: ChannelType) => {
     const visibleKeys = sortedChannels
       .filter(channel => channel.type === type)
@@ -633,8 +672,16 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           )}
           {selectionMode && selectedChannelKeys.size > 0 && (
             <button
+              onClick={handleBulkClearChannelHistory}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+            >
+              Clear History ({selectedChannelKeys.size})
+            </button>
+          )}
+          {selectionMode && selectedChannelKeys.size > 0 && (
+            <button
               onClick={handleBulkDeleteChannels}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/200 text-white hover:bg-red-600 transition-colors"
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
             >
               Delete Selected ({selectedChannelKeys.size})
             </button>
@@ -924,7 +971,13 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             onClick={() => setSelectedChannelKeys(new Set())}
             className="px-3 py-1 bg-blue-700 hover:bg-blue-800 rounded transition-colors text-sm whitespace-nowrap"
           >
-            Clear
+            Deselect
+          </button>
+          <button
+            onClick={handleBulkClearChannelHistory}
+            className="px-3 py-1 bg-amber-500 hover:bg-amber-600 rounded transition-colors text-sm whitespace-nowrap text-white"
+          >
+            Clear History
           </button>
           <button
             onClick={handleBulkDeleteChannels}

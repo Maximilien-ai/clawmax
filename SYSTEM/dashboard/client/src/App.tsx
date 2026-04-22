@@ -32,6 +32,15 @@ interface SystemInfo {
   onlineCount: number
   version: string
   orgName: string | null
+  maintenanceBanner?: {
+    enabled: boolean
+    text: string
+    level: 'info' | 'warning' | 'critical'
+    startAt?: string
+    endAt?: string
+    link?: string
+    dismissible: boolean
+  } | null
 }
 
 interface NavItem {
@@ -189,6 +198,7 @@ export default function App() {
     // Fall back to browser preference
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
+  const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(() => localStorage.getItem('maintenance-banner-dismissed'))
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -199,6 +209,12 @@ export default function App() {
     }
     localStorage.setItem('dark-mode', String(darkMode))
   }, [darkMode])
+
+  const maintenanceBanner = system?.maintenanceBanner || null
+  const maintenanceBannerKey = maintenanceBanner
+    ? [maintenanceBanner.text, maintenanceBanner.startAt || '', maintenanceBanner.endAt || '', maintenanceBanner.link || ''].join('|')
+    : null
+  const visibleMaintenanceBanner = maintenanceBanner && (!maintenanceBanner.dismissible || dismissedMaintenanceKey !== maintenanceBannerKey)
 
   useEffect(() => {
     const load = () =>
@@ -432,6 +448,15 @@ export default function App() {
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
               onOpenPartners={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
             />
+            {visibleMaintenanceBanner && maintenanceBannerKey && (
+              <MaintenanceBanner
+                banner={visibleMaintenanceBanner}
+                onDismiss={visibleMaintenanceBanner.dismissible ? () => {
+                  localStorage.setItem('maintenance-banner-dismissed', maintenanceBannerKey)
+                  setDismissedMaintenanceKey(maintenanceBannerKey)
+                } : undefined}
+              />
+            )}
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
@@ -489,7 +514,7 @@ export default function App() {
               />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
-              <Activity onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
+              <Activity isActive={page === 'activity'} onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
             </div>
             <div className={`flex-1 overflow-auto ${page === 'logs' ? '' : 'hidden'}`}>
               <Logs />
@@ -504,6 +529,85 @@ export default function App() {
         </AuthGate>
       </AuthProvider>
     </ErrorBoundary>
+  )
+}
+
+function MaintenanceBanner({
+  banner,
+  onDismiss,
+}: {
+  banner: NonNullable<SystemInfo['maintenanceBanner']>
+  onDismiss?: () => void
+}) {
+  const formatWindow = (value?: string) => value ? new Date(value).toLocaleString() : null
+  const startLabel = formatWindow(banner.startAt)
+  const endLabel = formatWindow(banner.endAt)
+  const windowLabel = startLabel && endLabel
+    ? `${startLabel} to ${endLabel}`
+    : startLabel
+      ? `Starts ${startLabel}`
+      : endLabel
+        ? `Until ${endLabel}`
+        : null
+
+  const tone = banner.level === 'critical'
+    ? {
+        wrap: 'border-red-300 bg-red-100 text-red-950 shadow-sm dark:border-red-900/70 dark:bg-red-950/70 dark:text-red-50',
+        link: 'text-red-900 underline hover:text-red-950 dark:text-red-100 dark:hover:text-white',
+        chip: 'bg-red-700 text-white dark:bg-red-500 dark:text-red-950',
+        title: 'Critical Maintenance',
+      }
+    : banner.level === 'warning'
+      ? {
+          wrap: 'border-amber-300 bg-amber-100 text-amber-950 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/70 dark:text-amber-50',
+          link: 'text-amber-900 underline hover:text-amber-950 dark:text-amber-100 dark:hover:text-white',
+          chip: 'bg-amber-600 text-white dark:bg-amber-400 dark:text-amber-950',
+          title: 'Planned Maintenance',
+        }
+      : {
+          wrap: 'border-sky-300 bg-sky-100 text-sky-950 shadow-sm dark:border-sky-900/70 dark:bg-sky-950/70 dark:text-sky-50',
+          link: 'text-sky-900 underline hover:text-sky-950 dark:text-sky-100 dark:hover:text-white',
+          chip: 'bg-sky-700 text-white dark:bg-sky-400 dark:text-sky-950',
+          title: 'Maintenance Notice',
+        }
+
+  return (
+    <div className={`border-y px-4 py-3 text-sm ${tone.wrap}`}>
+      <div className="mx-auto flex max-w-6xl items-start gap-3">
+        <span className={`mt-0.5 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone.chip}`}>
+          {banner.level}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="font-semibold">{tone.title}</div>
+            {windowLabel && (
+              <div className="text-xs font-medium opacity-90">
+                Window: {windowLabel}
+              </div>
+            )}
+          </div>
+          <div className="mt-1 whitespace-pre-wrap font-medium">{banner.text}</div>
+          {banner.link && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-90">
+              {banner.link && (
+                <a href={banner.link} target="_blank" rel="noreferrer" className={tone.link}>
+                  Status / details
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="text-xs font-medium opacity-80 transition-opacity hover:opacity-100"
+            title="Dismiss maintenance notice"
+          >
+            Dismiss
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 

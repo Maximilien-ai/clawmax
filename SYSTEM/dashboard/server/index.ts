@@ -30,7 +30,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthC
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -210,6 +210,7 @@ app.get('/api/system', protect, (_req, res) => {
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
+    maintenanceBanner: getMaintenanceBanner(rawEnv),
     orgName: getOrgName() ?? null,
   })
 })

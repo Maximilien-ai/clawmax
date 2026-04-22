@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { detectGatewayDiagnostics } from '../lib/gatewayDiagnostics'
 
 interface Props {
   agentId: string
@@ -112,6 +113,8 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
     )
   }
 
+  const gatewayDiagnostics = detectGatewayDiagnostics(logs, gatewayStatus)
+
   const statusCopy = (() => {
     switch (gatewayStatus?.code) {
       case 'gateway_not_configured':
@@ -168,6 +171,17 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
             <p className="text-sm text-gray-500 mb-2">
               {statusCopy.detail}
             </p>
+            {gatewayDiagnostics && (
+              <div className={`mb-3 rounded-lg border px-3 py-2 text-left text-xs ${
+                gatewayDiagnostics.severity === 'critical'
+                  ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200'
+                  : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+              }`}>
+                <div className="font-semibold">{gatewayDiagnostics.title}</div>
+                <div className="mt-1">{gatewayDiagnostics.detail}</div>
+                <div className="mt-1 opacity-80">{gatewayDiagnostics.hint}</div>
+              </div>
+            )}
             <p className="text-xs text-gray-400 mb-3">
               {statusCopy.hint}
             </p>
@@ -216,6 +230,17 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
       {/* Gateway Status */}
       <div className="px-6 py-4 border-b border-gray-200 shrink-0 dark:border-gray-700">
         <div className="space-y-3">
+          {gatewayDiagnostics && (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${
+              gatewayDiagnostics.severity === 'critical'
+                ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200'
+                : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+            }`}>
+              <div className="font-semibold">{gatewayDiagnostics.title}</div>
+              <div className="mt-1">{gatewayDiagnostics.detail}</div>
+              <div className="mt-1 opacity-80">{gatewayDiagnostics.hint}</div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500">Status</span>
             <div className="flex items-center gap-2">

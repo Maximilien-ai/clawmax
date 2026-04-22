@@ -114,6 +114,126 @@ export function getActiveNotifications(): Notification[] {
 }
 
 const GROUP_WINDOW_MS = 90_000
+const WRITER_ATTRIBUTION_SUPPRESSION_MS = 10 * 60 * 1000
+const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g
+const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/g
+const NOISE_FILE_NAMES = new Set(['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'GROUPS.md', 'COMMUNITIES.md', 'HEARTBEAT.md', 'USER.md', 'AGENTS.md'])
+const recentlyAttributedArtifacts = new Map<string, number>()
+
+function pruneRecentlyAttributedArtifacts(now = Date.now()): void {
+  for (const [artifactPath, timestamp] of recentlyAttributedArtifacts.entries()) {
+    if (now - timestamp > WRITER_ATTRIBUTION_SUPPRESSION_MS) {
+      recentlyAttributedArtifacts.delete(artifactPath)
+    }
+  }
+}
+
+function normalizeWorkspaceFileTarget(target: string): string {
+  const absoluteMatch = target.match(/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/)
+  if (absoluteMatch) return absoluteMatch[1]
+  return target
+}
+
+function isNoiseWorkspaceFile(target: string): boolean {
+  const normalized = normalizeWorkspaceFileTarget(target)
+  const base = normalized.split('/').pop() || normalized
+  if (NOISE_FILE_NAMES.has(base)) return true
+  if (/^WORKFLOWS\/executions\/.+\.json$/i.test(normalized)) return true
+  if (/^SYSTEM\/messages\/.+\.json$/i.test(normalized)) return true
+  if (/^SYSTEM\/(?:agent-state|budget|notifications|workspace-dashboards)\.json$/i.test(normalized)) return true
+  return false
+}
+
+function resolveWorkspaceArtifactTarget(target: string, workspaceRoot: string): string | null {
+  const normalized = normalizeWorkspaceFileTarget(target)
+  if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(normalized)) {
+    return isNoiseWorkspaceFile(normalized) ? null : normalized
+  }
+
+  if (!normalized.includes('/')) {
+    const matchingActivityEntries = getWorkspaceActivity(500).filter((entry) => entry.file === normalized)
+    if (matchingActivityEntries.length === 1) {
+      const activityTarget = `AGENTS/${matchingActivityEntries[0].agentId}/${matchingActivityEntries[0].file}`
+      return isNoiseWorkspaceFile(activityTarget) ? null : activityTarget
+    }
+  }
+
+  const candidates = [
+    path.resolve(workspaceRoot, normalized),
+    path.resolve(workspaceRoot, 'AGENTS', normalized),
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      const stats = fs.statSync(candidate)
+      if (!stats.isFile()) continue
+      const rel = path.relative(workspaceRoot, candidate).replace(/\\/g, '/')
+      if (!/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(rel)) continue
+      if (isNoiseWorkspaceFile(rel)) return null
+      return rel
+    } catch {}
+  }
+
+  return null
+}
+
+export function extractWorkspaceArtifactMentions(content: string, workspaceRoot: string = getWorkspacePath()): string[] {
+  const matches: string[] = []
+
+  for (const match of content.matchAll(ABSOLUTE_WORKSPACE_FILE_REGEX)) {
+    matches.push(match[1])
+  }
+
+  for (const match of content.matchAll(WORKSPACE_FILE_REGEX)) {
+    matches.push(match[0])
+  }
+
+  return Array.from(new Set(matches.map((target) => resolveWorkspaceArtifactTarget(target, workspaceRoot)).filter((target): target is string => Boolean(target))))
+}
+
+export function rememberAttributedArtifact(artifactPath: string): void {
+  pruneRecentlyAttributedArtifacts()
+  recentlyAttributedArtifacts.set(artifactPath, Date.now())
+}
+
+function shouldSuppressGenericArtifactNotification(artifactPath: string): boolean {
+  pruneRecentlyAttributedArtifacts()
+  return recentlyAttributedArtifacts.has(artifactPath)
+}
+
+export function shouldSuppressArtifactNotification(artifactPath: string): boolean {
+  return shouldSuppressGenericArtifactNotification(artifactPath)
+}
+
+export function createWriterAttributedArtifactNotification(params: {
+  agentId: string
+  artifactPath: string
+  workflowId?: string
+}): Notification | null {
+  const fullPath = path.join(getWorkspacePath(), params.artifactPath)
+  let stats: fs.Stats
+  try {
+    stats = fs.statSync(fullPath)
+    if (!stats.isFile()) return null
+  } catch {
+    return null
+  }
+
+  const createdRecently = Math.abs(stats.mtimeMs - stats.birthtimeMs) < 5_000
+  const verb = createdRecently ? 'created' : 'updated'
+  rememberAttributedArtifact(params.artifactPath)
+
+  return createNotification({
+    type: 'artifact-update',
+    title: `${params.agentId} ${verb} ${path.basename(params.artifactPath)}`,
+    message: `${createdRecently ? 'New' : 'Updated'} workspace artifact from ${params.agentId}: ${params.artifactPath}`,
+    entityId: params.agentId,
+    entityType: 'agent',
+    fingerprint: `writer-artifact:${params.workflowId || 'workflow'}:${params.agentId}:${params.artifactPath}:${stats.mtimeMs}`,
+    workflowId: params.workflowId,
+    artifactPath: params.artifactPath,
+  })
+}
 
 function normalizeGroupedText(notification: Notification, value: string): string {
   let normalized = value
@@ -681,6 +801,7 @@ async function runMonitorScan(): Promise<void> {
 
         const fingerprint = `artifact-update:${entry.agentId}:${entry.file}:${entry.mtime}`
         const artifactNotification = buildWorkspaceArtifactNotification(entry, isNew)
+        if (shouldSuppressGenericArtifactNotification(artifactNotification.artifactPath)) continue
         createNotification({
           type: 'artifact-update',
           title: artifactNotification.title,

@@ -1259,7 +1259,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           )
 
           // Detect blockers/questions from agent output
-          const { createNotification } = require('./notifications')
+          const { createNotification, createWriterAttributedArtifactNotification, extractWorkspaceArtifactMentions } = require('./notifications')
           const textLower = agentText.toLowerCase()
           const isQuestion = /\?\s*$/.test(agentText.trim()) || /what should|which (one|option)|ready for.*planning|need.*decision|waiting for|blocked by|please (choose|decide|confirm|approve)/i.test(agentText)
           const isError = /error|failed|cannot|unable to|permission denied|access denied|rate limit/i.test(textLower) && agentText.length < 500
@@ -1308,6 +1308,14 @@ export function triggerWorkflow(workflowId: string, options?: {
               fingerprint: `github-result:${workflowId}:${participant.agentId}:${githubLink}`,
               workflowId,
               artifactUrl: githubLink,
+            })
+          }
+
+          for (const artifactPath of extractWorkspaceArtifactMentions(agentText, getWorkspacePath())) {
+            createWriterAttributedArtifactNotification({
+              agentId: participant.agentId,
+              artifactPath,
+              workflowId,
             })
           }
 

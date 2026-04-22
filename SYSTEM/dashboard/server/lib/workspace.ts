@@ -64,6 +64,10 @@ export interface DocEntry {
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
 
+function shouldSkipDocHubEntryName(name: string): boolean {
+  return name === '__MACOSX' || name.startsWith('.') || name.startsWith('_') || name === 'archive'
+}
+
 /** Return all .md file paths with section classification, sorted by section then path.
  *  ORG/ → ORG, AGENTS/ → AGENTS (per-agent docs), WORKFLOWS/ → WORKFLOWS, SYSTEM/ → SYSTEM, root → SYSTEM fallback */
 export function listMarkdownFiles(): DocEntry[] {
@@ -89,8 +93,10 @@ export function listMarkdownFiles(): DocEntry[] {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue
+        if (shouldSkipDocHubEntryName(entry.name)) continue
         walk(full)
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        if (shouldSkipDocHubEntryName(entry.name)) continue
         const rel = path.relative(workspacePath, full)
         results.push({ path: rel, section: sectionFor(rel) })
       }
@@ -107,9 +113,11 @@ export function listMarkdownFiles(): DocEntry[] {
     for (const entry of entries) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
+        if (shouldSkipDocHubEntryName(entry.name)) continue
         if (['node_modules', '.git', 'dist'].includes(entry.name)) continue
         walkAgents(full)
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        if (shouldSkipDocHubEntryName(entry.name)) continue
         results.push({ path: path.relative(workspacePath, full), section: 'AGENTS' })
       }
     }
@@ -259,7 +267,7 @@ export function listDocEntries(): DocEntry[] {
     }
 
     for (const entry of entries) {
-      if (entry.name === '__MACOSX') continue
+      if (shouldSkipDocHubEntryName(entry.name)) continue
       const full = path.join(currentDir, entry.name)
       const rel = path.relative(workspacePath, full)
       if (entry.isDirectory()) {
@@ -285,8 +293,7 @@ export function listDocEntries(): DocEntry[] {
   try {
     const topLevelEntries = fs.readdirSync(agentsDir, { withFileTypes: true })
     for (const entry of topLevelEntries) {
-      if (entry.name === '__MACOSX') continue
-      if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
+      if (shouldSkipDocHubEntryName(entry.name)) continue
       const full = path.join(agentsDir, entry.name)
       if (entry.isDirectory()) {
         if (!registeredAgentDirs.has(entry.name)) {

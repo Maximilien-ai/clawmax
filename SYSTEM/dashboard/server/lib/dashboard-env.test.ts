@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/dashboard-env.test.ts
  */
 
-import { getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './dashboard-env'
+import { getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './dashboard-env'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -62,6 +62,68 @@ test('explicit DASHBOARD_ENABLE_OLLAMA=true enables Ollama UI even in managed ru
 
 test('explicit DASHBOARD_ENABLE_OLLAMA=false disables Ollama UI in local runtime', () => {
   assert(isOllamaUiEnabled({ DASHBOARD_PORT: '3001', DASHBOARD_ENABLE_OLLAMA: 'false' }) === false, 'Expected explicit false to disable Ollama UI')
+})
+
+test('maintenance banner stays disabled by default when env is unset', () => {
+  const previous = {
+    enabled: process.env.MAINTENANCE_BANNER_ENABLED,
+    text: process.env.MAINTENANCE_BANNER_TEXT,
+    level: process.env.MAINTENANCE_BANNER_LEVEL,
+    startAt: process.env.MAINTENANCE_BANNER_START_AT,
+    endAt: process.env.MAINTENANCE_BANNER_END_AT,
+    link: process.env.MAINTENANCE_BANNER_LINK,
+    dismissible: process.env.MAINTENANCE_BANNER_DISMISSIBLE,
+  }
+  delete process.env.MAINTENANCE_BANNER_ENABLED
+  delete process.env.MAINTENANCE_BANNER_TEXT
+  delete process.env.MAINTENANCE_BANNER_LEVEL
+  delete process.env.MAINTENANCE_BANNER_START_AT
+  delete process.env.MAINTENANCE_BANNER_END_AT
+  delete process.env.MAINTENANCE_BANNER_LINK
+  delete process.env.MAINTENANCE_BANNER_DISMISSIBLE
+  try {
+    assert(getMaintenanceBanner({}) === null, 'Expected no maintenance banner by default')
+  } finally {
+    if (previous.enabled === undefined) delete process.env.MAINTENANCE_BANNER_ENABLED
+    else process.env.MAINTENANCE_BANNER_ENABLED = previous.enabled
+    if (previous.text === undefined) delete process.env.MAINTENANCE_BANNER_TEXT
+    else process.env.MAINTENANCE_BANNER_TEXT = previous.text
+    if (previous.level === undefined) delete process.env.MAINTENANCE_BANNER_LEVEL
+    else process.env.MAINTENANCE_BANNER_LEVEL = previous.level
+    if (previous.startAt === undefined) delete process.env.MAINTENANCE_BANNER_START_AT
+    else process.env.MAINTENANCE_BANNER_START_AT = previous.startAt
+    if (previous.endAt === undefined) delete process.env.MAINTENANCE_BANNER_END_AT
+    else process.env.MAINTENANCE_BANNER_END_AT = previous.endAt
+    if (previous.link === undefined) delete process.env.MAINTENANCE_BANNER_LINK
+    else process.env.MAINTENANCE_BANNER_LINK = previous.link
+    if (previous.dismissible === undefined) delete process.env.MAINTENANCE_BANNER_DISMISSIBLE
+    else process.env.MAINTENANCE_BANNER_DISMISSIBLE = previous.dismissible
+  }
+})
+
+test('maintenance banner returns normalized config when enabled and in window', () => {
+  const banner = getMaintenanceBanner({
+    MAINTENANCE_BANNER_ENABLED: 'true',
+    MAINTENANCE_BANNER_TEXT: 'Planned maintenance at 9pm UTC',
+    MAINTENANCE_BANNER_LEVEL: 'warning',
+    MAINTENANCE_BANNER_DISMISSIBLE: 'true',
+    MAINTENANCE_BANNER_START_AT: '2026-04-20T00:00:00Z',
+    MAINTENANCE_BANNER_END_AT: '2099-04-20T00:00:00Z',
+    MAINTENANCE_BANNER_LINK: 'https://status.example.com',
+  })
+  assert(!!banner, 'Expected maintenance banner config')
+  assert(banner?.level === 'warning', 'Expected warning level')
+  assert(banner?.dismissible === true, 'Expected dismissible=true')
+  assert(banner?.link === 'https://status.example.com', 'Expected status link')
+})
+
+test('maintenance banner does not show before start window', () => {
+  const banner = getMaintenanceBanner({
+    MAINTENANCE_BANNER_ENABLED: 'true',
+    MAINTENANCE_BANNER_TEXT: 'Future maintenance',
+    MAINTENANCE_BANNER_START_AT: '2099-04-20T00:00:00Z',
+  })
+  assert(banner === null, 'Expected future maintenance banner to stay hidden')
 })
 
 console.log('\n========================================')

@@ -3,8 +3,9 @@
 #
 # Usage:
 #   ./SYSTEM/start.sh            - Start in background, logs to /tmp/dashboard.log
-#   ./SYSTEM/start.sh --follow   - Start in foreground with live logs
+#   ./SYSTEM/start.sh --follow   - Start in foreground with live logs and restart stale dev servers on the target ports
 #   ./SYSTEM/start.sh -f         - Same as --follow
+#   ./SYSTEM/start.sh --restart  - Force-restart dashboard processes on the target ports before starting
 #   ./SYSTEM/start.sh --ngrok    - Start with ngrok tunnel on drmaximilien.ngrok.dev
 #   ./SYSTEM/start.sh -n         - Same as --ngrok
 
@@ -31,9 +32,13 @@ fi
 # Parse arguments
 FOLLOW_LOGS=false
 USE_NGROK=false
+FORCE_RESTART=false
 for arg in "$@"; do
   if [[ "$arg" == "--follow" ]] || [[ "$arg" == "-f" ]]; then
     FOLLOW_LOGS=true
+    FORCE_RESTART=true
+  elif [[ "$arg" == "--restart" ]]; then
+    FORCE_RESTART=true
   elif [[ "$arg" == "--ngrok" ]] || [[ "$arg" == "-n" ]]; then
     USE_NGROK=true
   fi
@@ -51,6 +56,16 @@ echo "Workspace: $OPENCLAW_WORKSPACE"
 echo "Backend: $API_ORIGIN"
 echo "Frontend: $FRONTEND_ORIGIN"
 echo ""
+
+restart_port_if_needed() {
+  local port="$1"
+  local label="$2"
+  if lsof -ti:"$port" > /dev/null 2>&1; then
+    echo "↻ Restart requested — stopping existing $label process on port $port"
+    lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
+    sleep 1
+  fi
+}
 
 if [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
   WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
@@ -81,6 +96,12 @@ if [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
 EOF
   launchctl unload "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
   launchctl load "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
+fi
+
+# Force-restart before checking port state so stale dev servers do not keep serving old bundles
+if [ "$FORCE_RESTART" = true ]; then
+  restart_port_if_needed "$BACKEND_PORT" "backend"
+  restart_port_if_needed "$FRONTEND_PORT" "frontend"
 fi
 
 # Check if already running

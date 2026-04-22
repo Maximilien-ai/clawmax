@@ -5,6 +5,7 @@
 
 ## Top Priority
 
+- [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration.
 - [ ] **Template markdown integrity manifest / checksum follow-through** — explore adding a lightweight integrity marker to exported `TEMPLATE.md` / agent template markdown (for example a hash over canonicalized sections or per-section checksums) so import can detect lossy edits, broken round-trips, or missing agent/workflow blocks before save/apply. Keep this generic: the goal is not to block legitimate user edits by default, but to warn clearly when markdown no longer matches a structurally sound template payload.
 - [x] **Workspace Integrations redesign for optional partner pages** — shipped first pass: preserved current model/API-key setup, added partner selection plus partner-specific pages, and kept Senso / Opik / GitHub working while exposing Blaxel and Redis through the same flow.
 - [x] **Partner definition contract + loader** — shipped first pass with machine-readable partner metadata plus markdown copy/assets under `PARTNERS/<slug>/partner.json` + `PARTNERS/<slug>/PARTNER.md`, env allowlist support, and optional extra partner roots.

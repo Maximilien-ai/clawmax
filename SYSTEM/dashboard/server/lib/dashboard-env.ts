@@ -8,6 +8,16 @@ export interface ProviderKeys {
   gemini?: string
 }
 
+export interface MaintenanceBannerConfig {
+  enabled: boolean
+  text: string
+  level: 'info' | 'warning' | 'critical'
+  startAt?: string
+  endAt?: string
+  link?: string
+  dismissible: boolean
+}
+
 // Try multiple paths to find .env — handles different working directories
 function findEnvPath(): string {
   const candidates = [
@@ -59,12 +69,57 @@ function hasAnyProviderKey(keys: ProviderKeys): boolean {
   return !!(keys.openai || keys.anthropic || keys.gemini)
 }
 
+function parseBooleanFlag(value?: string): boolean {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on'
+}
+
+function normalizeMaintenanceLevel(value?: string): 'info' | 'warning' | 'critical' {
+  const normalized = value?.trim().toLowerCase()
+  if (normalized === 'critical') return 'critical'
+  if (normalized === 'warning') return 'warning'
+  return 'info'
+}
+
+function parseIsoWindow(value?: string): string | undefined {
+  if (!value?.trim()) return undefined
+  const parsed = new Date(value.trim())
+  if (Number.isNaN(parsed.getTime())) return undefined
+  return parsed.toISOString()
+}
+
 export function getDashboardEnvRaw(): Record<string, string> {
   return { ...dashboardEnv }
 }
 
 export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv): boolean {
   return Object.keys(rawEnv).length === 0
+}
+
+export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardEnv): MaintenanceBannerConfig | null {
+  const enabled = parseBooleanFlag(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_ENABLED') || process.env.MAINTENANCE_BANNER_ENABLED)
+  const text = (firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_TEXT') || process.env.MAINTENANCE_BANNER_TEXT || '').trim()
+  if (!enabled || !text) return null
+
+  const startAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_START_AT') || process.env.MAINTENANCE_BANNER_START_AT)
+  const endAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_END_AT') || process.env.MAINTENANCE_BANNER_END_AT)
+  const now = Date.now()
+  if (startAt && now < Date.parse(startAt)) return null
+  if (endAt && now > Date.parse(endAt)) return null
+
+  const link = (firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_LINK') || process.env.MAINTENANCE_BANNER_LINK || '').trim() || undefined
+  const dismissible = parseBooleanFlag(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_DISMISSIBLE') || process.env.MAINTENANCE_BANNER_DISMISSIBLE)
+
+  return {
+    enabled: true,
+    text,
+    level: normalizeMaintenanceLevel(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_LEVEL') || process.env.MAINTENANCE_BANNER_LEVEL),
+    startAt,
+    endAt,
+    link,
+    dismissible,
+  }
 }
 
 export function isOllamaUiEnabled(rawEnv: Record<string, string> = dashboardEnv): boolean {

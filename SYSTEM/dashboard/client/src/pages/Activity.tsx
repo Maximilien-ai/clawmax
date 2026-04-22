@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 
 interface MeteringData {
@@ -97,9 +97,10 @@ function SortIndicator({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortC
 
 interface ActivityProps {
   onNavigateToDoc?: (file: string) => void
+  isActive?: boolean
 }
 
-export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
+export default function Activity({ onNavigateToDoc, isActive = false }: ActivityProps = {}) {
   const [feed, setFeed] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -120,6 +121,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
+  const lastActivationRefreshRef = useRef(0)
 
   const isBudgetResponse = (value: any): value is {
     config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }
@@ -153,8 +155,8 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       })
   }, [])
 
-  useEffect(() => {
-    fetchFeed()
+  const fetchMetering = useCallback(() => {
+    setMeteringLoading(true)
     fetch('/api/metering')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -170,10 +172,16 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
       })
       .catch(() => setMetering(EMPTY_METERING))
       .finally(() => setMeteringLoading(false))
+  }, [])
+
+  const fetchAgentCostLimits = useCallback(() => {
     fetch('/api/agents/cost-limits')
       .then(r => r.ok ? r.json() : null)
       .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
       .catch(() => setAgentCostLimits({}))
+  }, [])
+
+  const fetchBudget = useCallback(() => {
     fetch('/api/budget')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -187,9 +195,28 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
         }
       })
       .catch(() => {})
+  }, [])
+
+  const refreshActivityPage = useCallback(() => {
+    fetchFeed()
+    fetchMetering()
+    fetchAgentCostLimits()
+    fetchBudget()
+  }, [fetchFeed, fetchMetering, fetchAgentCostLimits, fetchBudget])
+
+  useEffect(() => {
+    refreshActivityPage()
     const interval = setInterval(fetchFeed, 30000)
     return () => clearInterval(interval)
-  }, [fetchFeed])
+  }, [fetchFeed, refreshActivityPage])
+
+  useEffect(() => {
+    if (!isActive) return
+    const now = Date.now()
+    if (now - lastActivationRefreshRef.current < 5000) return
+    lastActivationRefreshRef.current = now
+    refreshActivityPage()
+  }, [isActive, refreshActivityPage])
 
   useEffect(() => {
     const ticker = setInterval(() => {
@@ -202,7 +229,7 @@ export default function Activity({ onNavigateToDoc }: ActivityProps = {}) {
   const handleRefresh = () => {
     if (cooling) return
     setCooling(true)
-    fetchFeed()
+    refreshActivityPage()
     setTimeout(() => setCooling(false), 3000)
   }
 
