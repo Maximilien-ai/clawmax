@@ -201,7 +201,7 @@ export default function App() {
     // Fall back to browser preference
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
-  const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(() => localStorage.getItem('maintenance-banner-dismissed'))
+  const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -459,7 +459,6 @@ export default function App() {
               <MaintenanceBanner
                 banner={maintenanceBanner}
                 onDismiss={maintenanceBanner.dismissible ? () => {
-                  localStorage.setItem('maintenance-banner-dismissed', maintenanceBannerKey)
                   setDismissedMaintenanceKey(maintenanceBannerKey)
                 } : undefined}
               />

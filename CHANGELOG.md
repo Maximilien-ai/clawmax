@@ -2,7 +2,7 @@
 
 All notable changes to ClawMax are documented here.
 
-## [v1.3.14] - pending
+## [v1.3.14] - 2026-04-22
 
 ### Improvements — Workflow Artifact Attribution and Diagnostics
 - **Writer-Attributed Artifact Notifications** — workflow-created file notifications now prefer the real participant/agent identity when the workflow runner can resolve the produced workspace file paths from agent output
@@ -13,8 +13,14 @@ All notable changes to ClawMax are documented here.
 ### Improvements — Activity, Communications, and Operator UX
 - **Activity & Budget Activation Refresh** — switching back to `Activity & Budget` now refreshes activity feed, metering, budget, and agent cost limits automatically with a short cooldown to avoid churn
 - **Communications Bulk History Clear** — selection mode now supports bulk clear-history for communities/groups using the existing archive-first message-clear backend path
+- **Communications Endpoint Alignment** — dashboard reads for communities and groups now use the current `/api/communities` and `/api/groups` routes instead of stale `/api/channels/*` paths
 - **Generic Maintenance Banner Contract** — dashboard now supports a default-off OSS-safe maintenance banner driven by environment variables (`MAINTENANCE_BANNER_ENABLED`, `TEXT`, `LEVEL`, `START_AT`, `END_AT`, optional `LINK`, and `DISMISSIBLE`)
+- **Session-Scoped Maintenance Dismissal** — dismissing a maintenance banner now hides it only for the current page session; refreshing the dashboard shows the active notice again
 - **Read-Only Default Test Runner** — plain `SYSTEM/test.sh` now avoids workspace switching and live dashboard mutations; destructive/live dashboard checks remain under `SYSTEM/test.sh integration`
+
+### Fixes — Dashboard Runtime Behavior
+- **Dev/Prod Static Serving Separation** — the dashboard server now serves built client assets only in production so local Vite development no longer risks stale static HTML taking precedence
+- **Restart Follow-Mode Reliability** — `SYSTEM/start.sh --restart -f` now reliably tears down old frontend and backend processes before starting fresh tails
 
 ### Quality
 - **Focused Communication Bulk Action Coverage** — added a dedicated Communications bulk-actions unit suite and surfaced it in the visible default test summary

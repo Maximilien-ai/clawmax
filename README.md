@@ -5,7 +5,7 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.13-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.13)
+[![Version](https://img.shields.io/badge/version-1.3.14-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.14)
 [![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
@@ -31,7 +31,20 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
   - the visible default-safe test summary continues to grow as focused suites are added
 
-## 🔥 Latest Release: v1.3.13
+## 🔥 Latest Release: v1.3.14
+
+- Workflow/operator reliability improved:
+  - workflow-created artifact notifications now attribute files to the actual agent when possible and suppress duplicate generic follow-up notifications
+  - agent status surfaces concrete gateway restart-loop and session-drift diagnostics instead of vague unavailable/auth wording
+- Dashboard day-to-day UX improved:
+  - `Activity & Budget` refreshes automatically when you switch back to it
+  - Communications supports bulk clear-history and now uses the current communities/groups API paths
+  - the maintenance banner is env-driven, renders correctly in dev, and dismisses only until refresh
+- Safer runtime behavior:
+  - production static serving is separated from local Vite dev serving
+  - `SYSTEM/start.sh --restart -f` now reliably restarts old frontend/backend processes before tailing logs
+
+## 🔥 Previous Release: v1.3.13
 
 - Gateway-config hardening on dashboard-managed `openclaw.json` writes:
   - protected gateway fields are preserved instead of replaying stale in-memory values
@@ -50,13 +63,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - `setup.sh` aligns with the current `v1.3.x` line and current runtime guidance
 - Release/test hygiene improved:
   - visible `SYSTEM/test.sh` coverage expanded again to include newer focused suites
-
-## 🔥 Previous Release: v1.3.11
-
-- Metering display is more reliable:
-  - ClawMax metering no longer drops valid OPIK traces just because `dashboard_instance_id` is missing from trace metadata
-- Communications opens in the better default mode:
-  - fresh dashboards default to card/grid view when no saved preference exists
 
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.

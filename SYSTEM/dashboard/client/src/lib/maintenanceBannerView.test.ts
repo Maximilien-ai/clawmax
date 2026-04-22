@@ -75,6 +75,34 @@ test('visible banner helper hides dismissed dismissible banner', () => {
   assert(visible === null, 'Expected dismissed banner to be hidden')
 })
 
+test('visible banner helper keeps started maintenance hidden after dismissal in the current session', () => {
+  const banner = {
+    enabled: true,
+    text: 'Planned maintenance test banner',
+    level: 'warning' as const,
+    startAt: '2026-04-22T00:00:00.000Z',
+    dismissible: true,
+  }
+  const visible = getVisibleMaintenanceBanner(
+    banner,
+    'banner-key',
+    'banner-key',
+  )
+  assert(visible === null, 'Expected dismissed banner to stay hidden until refresh')
+})
+
+test('visible banner helper shows same banner again after refresh when dismissal state resets', () => {
+  const banner = {
+    enabled: true,
+    text: 'Planned maintenance test banner',
+    level: 'warning' as const,
+    startAt: '2026-04-22T00:00:00.000Z',
+    dismissible: true,
+  }
+  const visible = getVisibleMaintenanceBanner(banner, null, 'banner-key')
+  assert(visible === banner, 'Expected banner to show again when dismissal state is reset')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
