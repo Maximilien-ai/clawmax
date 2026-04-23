@@ -2,6 +2,17 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.16] - 2026-04-23
+
+### Fixes — Maintenance Status Banner Hardening
+- **Robust Instance Resolution** — maintenance/status banner lookup is now more resilient when explicit instance-key configuration is missing
+- **Request-Host Fallback** — dashboard status resolution can now infer the instance from the incoming request host before falling back to static dashboard URL configuration
+- **Safer Status Mapping** — active scheduled maintenance now resolves more reliably into the dashboard banner path instead of dropping out early when one source of instance metadata is absent
+
+### Quality
+- **Live-Failure Regression Coverage** — added focused server-side coverage for the missing-instance-key path so request-host fallback is exercised directly
+- **Validation Gate** — validated locally with `npm run typecheck` and `server/lib/cloud-maintenance-status.test.ts`
+
 ## [v1.3.15] - 2026-04-23
 
 ### Fixes — Dynamic Maintenance Banner Source

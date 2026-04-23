@@ -5,12 +5,12 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.15-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.15)
+[![Version](https://img.shields.io/badge/version-1.3.16-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.16)
 [![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Recent Stability Work (v1.3.12–v1.3.15 line)
+## 🔥 Recent Stability Work (v1.3.12–v1.3.16 line)
 
 - Setup, auth, and operator hygiene improved:
   - first-run token generation no longer prints the full dashboard API token into stdout/container logs
@@ -31,7 +31,16 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
   - the visible default-safe test summary continues to grow as focused suites are added
 
-## 🔥 Latest Release: v1.3.15
+## 🔥 Latest Release: v1.3.16
+
+- Maintenance/status banner resolution is more robust:
+  - instance resolution now survives missing explicit instance-key configuration more reliably
+  - request-host fallback helps the dashboard keep resolving active maintenance state when one configuration path is absent
+- Safer banner mapping:
+  - active scheduled maintenance now reaches the banner path more reliably
+  - existing fallback behavior remains intact when the primary status source is unavailable
+
+## 🔥 Previous Release: v1.3.15
 
 - Maintenance banner behavior is more flexible:
   - scheduled maintenance now renders before the maintenance window starts

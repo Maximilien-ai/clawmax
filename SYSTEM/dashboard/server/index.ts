@@ -189,7 +189,7 @@ app.use('/api/workspace-dashboards', workspaceDashboardsRouter)
 const protect = requireGitHubAuth
 
 // Workspace system info — installation identity card
-app.get('/api/system', protect, async (_req, res) => {
+app.get('/api/system', protect, async (req, res) => {
   const workspacePath = getWorkspacePath()
   const rawEnv = getDashboardEnvRaw()
   const managedRuntime = isManagedRuntime(rawEnv)
@@ -201,7 +201,8 @@ app.get('/api/system', protect, async (_req, res) => {
 
   const agents = listAgents()
   const activeAgents = agents.filter(a => !a.paused)
-  const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv)
+  const requestHost = req.get('x-forwarded-host') || req.get('host') || ''
+  const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
   res.json({
     workspace: workspacePath,
     hostname: os.hostname(),

@@ -34,6 +34,8 @@ const originalToken = process.env.TEMPLATE_FEEDBACK_TOKEN
 const originalPublicUrl = process.env.DASHBOARD_PUBLIC_URL
 const originalAppUrl = process.env.DASHBOARD_APP_URL
 const originalInstanceKey = process.env.CLAWMAX_INSTANCE_KEY
+const originalDashboardInstanceKey = process.env.DASHBOARD_INSTANCE_KEY
+const originalGenericInstanceKey = process.env.INSTANCE_KEY
 
 async function run() {
   await test('resolved maintenance banner prefers cloud active scheduled status over env fallback', async () => {
@@ -118,6 +120,45 @@ async function run() {
     assert(banner?.startAt === '2026-04-23T16:00:00.000Z', 'Expected fallback startAt to be preserved')
   })
 
+  await test('resolved maintenance banner derives instance key from request host when env keys are missing', async () => {
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
+    delete process.env.CLAWMAX_INSTANCE_KEY
+    delete process.env.DASHBOARD_INSTANCE_KEY
+    delete process.env.INSTANCE_KEY
+    delete process.env.DASHBOARD_PUBLIC_URL
+    delete process.env.DASHBOARD_APP_URL
+
+    let requestedUrl = ''
+    globalThis.fetch = (async (input: any) => {
+      requestedUrl = String(input)
+      return {
+        ok: true,
+        json: async () => ({
+          maintenance: {
+            active: true,
+            state: 'scheduled',
+            starts_at: '2026-04-23T18:05:00.000Z',
+            message: 'Planned ClawMax maintenance for test5.',
+          },
+        }),
+      } as any
+    }) as any
+
+    const banner = await getResolvedMaintenanceBanner(
+      {
+        MAINTENANCE_STATE: 'none',
+      },
+      'cld-test5-mo1tnk3v.cloud.clawmax.ai',
+    )
+
+    assert(!!banner, 'Expected cloud maintenance banner from request-host-derived instance key')
+    assert(
+      requestedUrl.includes('/api/runtime/cloud-maintenance-status?instance_key=cld-test5-mo1tnk3v'),
+      `Expected request host to derive cld-test5-mo1tnk3v instance key, got: ${requestedUrl}`,
+    )
+  })
+
   globalThis.fetch = originalFetch
   if (originalSummaryUrl === undefined) delete process.env.TEMPLATE_FEEDBACK_SUMMARY_URL
   else process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = originalSummaryUrl
@@ -129,6 +170,10 @@ async function run() {
   else process.env.DASHBOARD_APP_URL = originalAppUrl
   if (originalInstanceKey === undefined) delete process.env.CLAWMAX_INSTANCE_KEY
   else process.env.CLAWMAX_INSTANCE_KEY = originalInstanceKey
+  if (originalDashboardInstanceKey === undefined) delete process.env.DASHBOARD_INSTANCE_KEY
+  else process.env.DASHBOARD_INSTANCE_KEY = originalDashboardInstanceKey
+  if (originalGenericInstanceKey === undefined) delete process.env.INSTANCE_KEY
+  else process.env.INSTANCE_KEY = originalGenericInstanceKey
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

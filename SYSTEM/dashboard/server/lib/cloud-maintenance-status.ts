@@ -31,6 +31,35 @@ let cachedBanner: MaintenanceBannerConfig | null | undefined
 let cachedAt = 0
 let inflight: Promise<MaintenanceBannerConfig | null> | null = null
 
+function extractHostnameLabel(hostname: string): string {
+  const normalized = hostname.trim().toLowerCase()
+  if (!normalized || normalized === 'localhost' || normalized === '127.0.0.1') return ''
+  return normalized.split('.')[0] || normalized
+}
+
+function extractHostnameFromRequestHost(requestHost?: string): string {
+  const raw = (requestHost || '').trim()
+  if (!raw) return ''
+
+  const firstHost = raw.split(',')[0]?.trim() || ''
+  if (!firstHost) return ''
+
+  if (firstHost.startsWith('[')) {
+    const closingBracket = firstHost.indexOf(']')
+    if (closingBracket > 0) return firstHost.slice(1, closingBracket)
+  }
+
+  return firstHost.replace(/:\d+$/, '')
+}
+
+function extractHostnameFromUrl(candidate: string): string {
+  try {
+    return new URL(candidate).hostname.trim().toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 function getStatusBaseUrl(): string {
   const explicit = (process.env.CLOUD_MAINTENANCE_STATUS_URL || '').trim()
   if (explicit) return explicit
@@ -52,7 +81,7 @@ function getStatusBaseUrl(): string {
   return ''
 }
 
-function deriveInstanceKey(): string {
+function deriveInstanceKey(requestHost?: string): string {
   const explicit = (
     process.env.CLAWMAX_INSTANCE_KEY ||
     process.env.DASHBOARD_INSTANCE_KEY ||
@@ -61,17 +90,17 @@ function deriveInstanceKey(): string {
   ).trim()
   if (explicit) return explicit
 
+  const requestLabel = extractHostnameLabel(extractHostnameFromRequestHost(requestHost))
+  if (requestLabel) return requestLabel
+
   const candidates = [
     (process.env.DASHBOARD_PUBLIC_URL || '').trim(),
     (process.env.DASHBOARD_APP_URL || '').trim(),
   ].filter(Boolean)
 
   for (const candidate of candidates) {
-    try {
-      const hostname = new URL(candidate).hostname.trim().toLowerCase()
-      if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') continue
-      return hostname.split('.')[0] || hostname
-    } catch {}
+    const label = extractHostnameLabel(extractHostnameFromUrl(candidate))
+    if (label) return label
   }
 
   return ''
@@ -112,10 +141,10 @@ function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBa
   }
 }
 
-async function fetchCloudMaintenanceBanner(): Promise<CloudMaintenanceResolution> {
+async function fetchCloudMaintenanceBanner(requestHost?: string): Promise<CloudMaintenanceResolution> {
   const statusUrl = getStatusBaseUrl()
   const token = (process.env.TEMPLATE_FEEDBACK_TOKEN || '').trim()
-  const instanceKey = deriveInstanceKey()
+  const instanceKey = deriveInstanceKey(requestHost)
   if (!statusUrl || !token || !instanceKey) return { resolved: false, banner: null }
 
   const url = new URL(statusUrl)
@@ -139,7 +168,10 @@ async function fetchCloudMaintenanceBanner(): Promise<CloudMaintenanceResolution
   }
 }
 
-export async function getResolvedMaintenanceBanner(rawEnv: Record<string, string>): Promise<MaintenanceBannerConfig | null> {
+export async function getResolvedMaintenanceBanner(
+  rawEnv: Record<string, string>,
+  requestHost?: string,
+): Promise<MaintenanceBannerConfig | null> {
   const now = Date.now()
   if (typeof cachedBanner !== 'undefined' && now - cachedAt < CACHE_TTL_MS) {
     return cachedBanner
@@ -148,7 +180,7 @@ export async function getResolvedMaintenanceBanner(rawEnv: Record<string, string
   if (!inflight) {
     inflight = (async () => {
       try {
-        const cloudResolution = await fetchCloudMaintenanceBanner()
+        const cloudResolution = await fetchCloudMaintenanceBanner(requestHost)
         if (cloudResolution.resolved) return cloudResolution.banner
         return getMaintenanceBanner(rawEnv)
       } catch {
