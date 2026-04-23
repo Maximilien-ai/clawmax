@@ -159,6 +159,32 @@ async function run() {
     )
   })
 
+  await test('resolved maintenance banner deduplicates identical message and operator note', async () => {
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
+    process.env.CLAWMAX_INSTANCE_KEY = 'test7'
+
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({
+        maintenance: {
+          active: true,
+          state: 'scheduled',
+          starts_at: '2026-04-23T16:00:00.000Z',
+          message: 'Same note from upstream.',
+          operator_note: 'Same note from upstream.',
+        },
+      }),
+    }) as any) as any
+
+    const banner = await getResolvedMaintenanceBanner({
+      MAINTENANCE_STATE: 'none',
+    })
+
+    assert(!!banner, 'Expected cloud maintenance banner')
+    assert(banner?.text === 'Same note from upstream.', 'Expected duplicate body parts to collapse to one message')
+  })
+
   globalThis.fetch = originalFetch
   if (originalSummaryUrl === undefined) delete process.env.TEMPLATE_FEEDBACK_SUMMARY_URL
   else process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = originalSummaryUrl

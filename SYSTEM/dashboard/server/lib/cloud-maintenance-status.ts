@@ -120,6 +120,10 @@ function mapStateToLevel(state: CloudMaintenanceState): MaintenanceBannerConfig[
   return normalizeMaintenanceBannerLevel(undefined)
 }
 
+function normalizeBannerBodyPart(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
 function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBannerConfig | null {
   const maintenance = payload?.maintenance
   if (!maintenance?.active) return null
@@ -128,7 +132,17 @@ function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBa
 
   const message = typeof maintenance?.message === 'string' ? maintenance.message.trim() : ''
   const operatorNote = typeof maintenance?.operator_note === 'string' ? maintenance.operator_note.trim() : ''
-  const text = [message, operatorNote].filter(Boolean).join('\n\n').trim()
+  const seen = new Set<string>()
+  const text = [message, operatorNote]
+    .filter(Boolean)
+    .filter((part) => {
+      const normalized = normalizeBannerBodyPart(part)
+      if (!normalized || seen.has(normalized)) return false
+      seen.add(normalized)
+      return true
+    })
+    .join('\n\n')
+    .trim()
   if (!text) return null
 
   return {
