@@ -19,7 +19,12 @@ type CloudMaintenancePayload = {
   }
 }
 
-const CACHE_TTL_MS = 15_000
+type CloudMaintenanceResolution = {
+  resolved: boolean
+  banner: MaintenanceBannerConfig | null
+}
+
+const CACHE_TTL_MS = 5_000
 const STATUS_PATH = '/api/runtime/cloud-maintenance-status'
 
 let cachedBanner: MaintenanceBannerConfig | null | undefined
@@ -88,6 +93,7 @@ function mapStateToLevel(state: CloudMaintenanceState): MaintenanceBannerConfig[
 
 function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBannerConfig | null {
   const maintenance = payload?.maintenance
+  if (!maintenance?.active) return null
   const state = normalizeState(maintenance?.state, maintenance?.active)
   if (state === 'none') return null
 
@@ -106,11 +112,11 @@ function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBa
   }
 }
 
-async function fetchCloudMaintenanceBanner(): Promise<MaintenanceBannerConfig | null> {
+async function fetchCloudMaintenanceBanner(): Promise<CloudMaintenanceResolution> {
   const statusUrl = getStatusBaseUrl()
   const token = (process.env.TEMPLATE_FEEDBACK_TOKEN || '').trim()
   const instanceKey = deriveInstanceKey()
-  if (!statusUrl || !token || !instanceKey) return null
+  if (!statusUrl || !token || !instanceKey) return { resolved: false, banner: null }
 
   const url = new URL(statusUrl)
   url.searchParams.set('instance_key', instanceKey)
@@ -127,7 +133,10 @@ async function fetchCloudMaintenanceBanner(): Promise<MaintenanceBannerConfig | 
   }
 
   const data = await response.json().catch(() => ({} as CloudMaintenancePayload))
-  return buildBannerFromPayload(data as CloudMaintenancePayload)
+  return {
+    resolved: true,
+    banner: buildBannerFromPayload(data as CloudMaintenancePayload),
+  }
 }
 
 export async function getResolvedMaintenanceBanner(rawEnv: Record<string, string>): Promise<MaintenanceBannerConfig | null> {
@@ -139,8 +148,9 @@ export async function getResolvedMaintenanceBanner(rawEnv: Record<string, string
   if (!inflight) {
     inflight = (async () => {
       try {
-        const cloudBanner = await fetchCloudMaintenanceBanner()
-        return cloudBanner || getMaintenanceBanner(rawEnv)
+        const cloudResolution = await fetchCloudMaintenanceBanner()
+        if (cloudResolution.resolved) return cloudResolution.banner
+        return getMaintenanceBanner(rawEnv)
       } catch {
         return getMaintenanceBanner(rawEnv)
       }

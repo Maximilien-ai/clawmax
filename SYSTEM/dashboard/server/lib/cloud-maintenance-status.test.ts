@@ -36,7 +36,7 @@ const originalAppUrl = process.env.DASHBOARD_APP_URL
 const originalInstanceKey = process.env.CLAWMAX_INSTANCE_KEY
 
 async function run() {
-  await test('resolved maintenance banner prefers cloud scheduled status over env fallback', async () => {
+  await test('resolved maintenance banner prefers cloud active scheduled status over env fallback', async () => {
     process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
     process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
     process.env.CLAWMAX_INSTANCE_KEY = 'test7'
@@ -50,7 +50,7 @@ async function run() {
         ok: true,
         json: async () => ({
           maintenance: {
-            active: false,
+            active: true,
             state: 'scheduled',
             starts_at: '2026-04-23T16:00:00.000Z',
             message: 'Planned ClawMax maintenance',
@@ -72,6 +72,30 @@ async function run() {
     )
     assert(requestedUrl.includes('/api/runtime/cloud-maintenance-status?instance_key=test7'), `Unexpected status URL: ${requestedUrl}`)
     assert(authHeader === 'Bearer test-token', `Unexpected auth header: ${authHeader}`)
+  })
+
+  await test('resolved maintenance banner does not render when cloud reports active=false', async () => {
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
+    process.env.CLAWMAX_INSTANCE_KEY = 'test7'
+
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({
+        maintenance: {
+          active: false,
+          state: 'scheduled',
+          starts_at: '2026-04-23T16:00:00.000Z',
+          message: 'Planned ClawMax maintenance',
+        },
+      }),
+    }) as any) as any
+
+    const banner = await getResolvedMaintenanceBanner({
+      MAINTENANCE_STATE: 'none',
+    })
+
+    assert(banner === null, 'Expected active=false cloud status to suppress the banner')
   })
 
   await test('resolved maintenance banner falls back to env state when cloud request fails', async () => {
