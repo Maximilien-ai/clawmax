@@ -82,6 +82,26 @@ function normalizeMaintenanceLevel(value?: string): 'info' | 'warning' | 'critic
   return 'info'
 }
 
+export function parseMaintenanceBooleanFlag(value?: string): boolean {
+  return parseBooleanFlag(value)
+}
+
+export function resolveMaintenanceBannerLink(rawEnv: Record<string, string> = dashboardEnv): string | undefined {
+  return (firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_LINK') || process.env.MAINTENANCE_BANNER_LINK || '').trim() || undefined
+}
+
+export function resolveMaintenanceBannerDismissible(rawEnv: Record<string, string> = dashboardEnv): boolean {
+  return parseBooleanFlag(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_DISMISSIBLE') || process.env.MAINTENANCE_BANNER_DISMISSIBLE)
+}
+
+export function normalizeMaintenanceBannerLevel(value?: string): 'info' | 'warning' | 'critical' {
+  return normalizeMaintenanceLevel(value)
+}
+
+export function parseMaintenanceIsoWindow(value?: string): string | undefined {
+  return parseIsoWindow(value)
+}
+
 function parseIsoWindow(value?: string): string | undefined {
   if (!value?.trim()) return undefined
   const parsed = new Date(value.trim())
@@ -98,6 +118,19 @@ export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv):
 }
 
 export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardEnv): MaintenanceBannerConfig | null {
+  const fallbackState = (firstNonEmpty(rawEnv, 'MAINTENANCE_STATE') || process.env.MAINTENANCE_STATE || '').trim().toLowerCase()
+  const fallbackMessage = (firstNonEmpty(rawEnv, 'MAINTENANCE_MESSAGE') || process.env.MAINTENANCE_MESSAGE || '').trim()
+  if (fallbackState && fallbackState !== 'none' && fallbackMessage) {
+    return {
+      enabled: true,
+      text: fallbackMessage,
+      level: fallbackState === 'in_progress' ? 'critical' : 'warning',
+      startAt: parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_STARTS_AT') || process.env.MAINTENANCE_STARTS_AT),
+      link: resolveMaintenanceBannerLink(rawEnv),
+      dismissible: resolveMaintenanceBannerDismissible(rawEnv),
+    }
+  }
+
   const enabled = parseBooleanFlag(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_ENABLED') || process.env.MAINTENANCE_BANNER_ENABLED)
   const text = (firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_TEXT') || process.env.MAINTENANCE_BANNER_TEXT || '').trim()
   if (!enabled || !text) return null
@@ -105,11 +138,7 @@ export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardE
   const startAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_START_AT') || process.env.MAINTENANCE_BANNER_START_AT)
   const endAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_END_AT') || process.env.MAINTENANCE_BANNER_END_AT)
   const now = Date.now()
-  if (startAt && now < Date.parse(startAt)) return null
   if (endAt && now > Date.parse(endAt)) return null
-
-  const link = (firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_LINK') || process.env.MAINTENANCE_BANNER_LINK || '').trim() || undefined
-  const dismissible = parseBooleanFlag(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_DISMISSIBLE') || process.env.MAINTENANCE_BANNER_DISMISSIBLE)
 
   return {
     enabled: true,
@@ -117,8 +146,8 @@ export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardE
     level: normalizeMaintenanceLevel(firstNonEmpty(rawEnv, 'MAINTENANCE_BANNER_LEVEL') || process.env.MAINTENANCE_BANNER_LEVEL),
     startAt,
     endAt,
-    link,
-    dismissible,
+    link: resolveMaintenanceBannerLink(rawEnv),
+    dismissible: resolveMaintenanceBannerDismissible(rawEnv),
   }
 }
 

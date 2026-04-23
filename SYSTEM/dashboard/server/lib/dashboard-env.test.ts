@@ -117,13 +117,22 @@ test('maintenance banner returns normalized config when enabled and in window', 
   assert(banner?.link === 'https://status.example.com', 'Expected status link')
 })
 
-test('maintenance banner does not show before start window', () => {
+test('maintenance banner shows scheduled fallback state before start window', () => {
   const banner = getMaintenanceBanner({
-    MAINTENANCE_BANNER_ENABLED: 'true',
-    MAINTENANCE_BANNER_TEXT: 'Future maintenance',
-    MAINTENANCE_BANNER_START_AT: '2099-04-20T00:00:00Z',
+    MAINTENANCE_STATE: 'scheduled',
+    MAINTENANCE_MESSAGE: 'Future maintenance',
+    MAINTENANCE_STARTS_AT: '2099-04-20T00:00:00Z',
   })
-  assert(banner === null, 'Expected future maintenance banner to stay hidden')
+  assert(!!banner, 'Expected scheduled maintenance fallback banner to show before start')
+  assert(banner?.startAt === '2099-04-20T00:00:00.000Z', 'Expected scheduled start time to be normalized')
+})
+
+test('maintenance banner fallback maps in_progress to critical severity', () => {
+  const banner = getMaintenanceBanner({
+    MAINTENANCE_STATE: 'in_progress',
+    MAINTENANCE_MESSAGE: 'Maintenance is underway',
+  })
+  assert(banner?.level === 'critical', 'Expected in_progress fallback to map to critical severity')
 })
 
 console.log('\n========================================')

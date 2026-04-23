@@ -30,7 +30,8 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthC
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
+import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -188,7 +189,7 @@ app.use('/api/workspace-dashboards', workspaceDashboardsRouter)
 const protect = requireGitHubAuth
 
 // Workspace system info — installation identity card
-app.get('/api/system', protect, (_req, res) => {
+app.get('/api/system', protect, async (_req, res) => {
   const workspacePath = getWorkspacePath()
   const rawEnv = getDashboardEnvRaw()
   const managedRuntime = isManagedRuntime(rawEnv)
@@ -200,6 +201,7 @@ app.get('/api/system', protect, (_req, res) => {
 
   const agents = listAgents()
   const activeAgents = agents.filter(a => !a.paused)
+  const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv)
   res.json({
     workspace: workspacePath,
     hostname: os.hostname(),
@@ -212,7 +214,7 @@ app.get('/api/system', protect, (_req, res) => {
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
-    maintenanceBanner: getMaintenanceBanner(rawEnv),
+    maintenanceBanner,
     orgName: getOrgName() ?? null,
   })
 })

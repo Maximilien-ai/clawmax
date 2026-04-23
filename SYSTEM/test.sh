@@ -399,6 +399,15 @@ else
   fail "Dashboard env unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Cloud maintenance status unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/cloud-maintenance-status.test.ts > /tmp/clawmax-cloud-maintenance-status.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-cloud-maintenance-status.out; then
+  cloud_maintenance_status_count=$(grep "Tests passed:" /tmp/clawmax-cloud-maintenance-status.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Cloud maintenance status unit tests (${cloud_maintenance_status_count:-?} tests)"
+else
+  fail "Cloud maintenance status unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
