@@ -33,13 +33,12 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Release: v1.3.15
 
-- Dynamic maintenance status is now first-class:
-  - dashboard now prefers the runtime maintenance-status endpoint instead of static env as the primary source
-  - the existing `TEMPLATE_FEEDBACK_TOKEN` auth path is reused for maintenance polling
+- Maintenance banner behavior is more flexible:
   - scheduled maintenance now renders before the maintenance window starts
-- Safer maintenance fallback behavior:
-  - env remains as fallback through `MAINTENANCE_STATE`, `MAINTENANCE_STARTS_AT`, and `MAINTENANCE_MESSAGE`
-  - server-side caching/debounce reduces repeated upstream maintenance-status fetches from `/api/system`
+  - banner state can be sourced dynamically, while environment variables remain available as a fallback path
+- Safer banner resolution:
+  - inactive maintenance state no longer renders a banner accidentally
+  - lightweight server-side caching reduces repeated banner-source lookups
 
 ## 🔥 Previous Release: v1.3.14
 
