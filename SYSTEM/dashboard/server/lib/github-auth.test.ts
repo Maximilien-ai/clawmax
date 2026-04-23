@@ -6,7 +6,12 @@
 
 import fs from 'fs'
 import path from 'path'
-import { createAuthRouter, isOtpAuthConfigured } from './github-auth'
+import {
+  createAuthRouter,
+  getOtpProviderDiagnosticContext,
+  isOtpAuthConfigured,
+  summarizeOtpProviderError,
+} from './github-auth'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -227,6 +232,39 @@ async function run() {
       const after = fs.readFileSync(otpDevFilePath, 'utf-8')
       assert(after === before, 'Expected disallowed email request not to rewrite existing dev OTP file')
     }
+  })
+
+  await test('OTP provider diagnostic context redacts API key and extracts sender domain', () => {
+    const context = getOtpProviderDiagnosticContext(
+      're_test_secret_123456789',
+      'Max <max@send.clawmax.ai>',
+      'Your ClawMax login code',
+    )
+
+    assert(context.provider === 'resend', 'Expected resend provider label')
+    assert(context.senderAddress === 'max@send.clawmax.ai', 'Expected sender address extraction')
+    assert(context.senderDomain === 'send.clawmax.ai', 'Expected sender domain extraction')
+    assert(context.apiKeyFingerprint !== 're_test_secret_123456789', 'Expected API key to be fingerprinted')
+    assert(context.apiKeyFingerprint.length === 12, 'Expected short API key fingerprint')
+  })
+
+  await test('OTP provider error summary keeps safe transport metadata', () => {
+    const summary = summarizeOtpProviderError({
+      name: 'application_error',
+      type: 'provider_error',
+      code: 'internal_error',
+      statusCode: 500,
+      message: 'Internal server error. We are unable to process your request right now, please try again later.',
+    })
+
+    assert(summary.name === 'application_error', 'Expected error name in summary')
+    assert(summary.type === 'provider_error', 'Expected error type in summary')
+    assert(summary.code === 'internal_error', 'Expected error code in summary')
+    assert(summary.statusCode === 500, 'Expected status code in summary')
+    assert(
+      summary.message.includes('Internal server error'),
+      'Expected provider message in summary',
+    )
   })
 
   await test('OTP verify creates session cookie and authenticates user', async () => {

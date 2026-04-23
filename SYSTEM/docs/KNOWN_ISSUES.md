@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-22
-**Current Version**: v1.3.14 / main
+**Last Updated**: 2026-04-23
+**Current Version**: v1.3.16 / main
 
 ---
 
@@ -103,6 +103,32 @@ Planned fix:
 
 - harden system-test teardown so communities/groups/org artifacts are removed deterministically
 - verify all organization/channel reads are scoped strictly to the active workspace
+
+---
+
+### 7. OTP email delivery can fail transiently at the provider layer
+**Severity**: Medium
+**Status**: Known operational limitation
+
+In `email_otp` mode, the login request can reach the dashboard successfully but the provider can still reject the outbound email send with a transient server-side error.
+
+Observed symptom:
+
+- dashboard logs `Resend rejected OTP email`
+- login returns a server-side OTP send failure even though OTP env looks correct
+
+What this usually means:
+
+- provider-side transient failure
+- sender/domain state problem
+- or instance-specific secret/account mismatch
+
+Workaround:
+
+- retry once to rule out a transient provider incident
+- compare the logged OTP provider key fingerprint between working and failing instances
+- verify `OTP_FROM_EMAIL` / `SIGNUP_FROM_EMAIL` sender-domain state for the account behind the current API key
+- use `OTP_DEV_MODE=log` for local/dev validation when you need to separate UI flow testing from live email delivery
 
 ---
 

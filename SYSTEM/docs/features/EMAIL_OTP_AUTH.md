@@ -213,6 +213,20 @@ Template should be minimal:
 - expiry
 - note to ignore if unexpected
 
+### Troubleshooting delivery failures
+
+If the OTP submit reaches the dashboard but the email is not delivered:
+
+- check dashboard logs for `Resend rejected OTP email`
+- compare the logged API-key fingerprint across working and failing instances
+- verify the sender/domain state for the configured `OTP_FROM_EMAIL` or `SIGNUP_FROM_EMAIL`
+- retry once before escalating; transient provider-side failures can clear without a code change
+
+Important:
+
+- this class of failure is usually server-side provider rejection, not a frontend form bug
+- the dashboard now logs a safe provider context and a redacted key fingerprint to speed up comparison without exposing secrets
+
 ## Dev mode
 
 Do not special-case dev into insecure auth.
@@ -298,6 +312,8 @@ For dev/log mode:
 
 - keep the same UX
 - code just appears in server logs
+
+If live email delivery is unstable during testing, prefer `OTP_DEV_MODE=log` for local/dev verification and treat live-provider checks as a separate operational validation step.
 
 ## Not Recommended
 

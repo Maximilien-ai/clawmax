@@ -263,6 +263,51 @@ function createOtpCode(): string {
   return String(value).padStart(6, '0')
 }
 
+function hashFingerprint(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex').slice(0, 12)
+}
+
+function extractEmailAddress(from: string): string {
+  const trimmed = from.trim()
+  const bracketMatch = trimmed.match(/<([^>]+)>/)
+  if (bracketMatch?.[1]) return bracketMatch[1].trim().toLowerCase()
+  return trimmed.replace(/^"+|"+$/g, '').toLowerCase()
+}
+
+function extractEmailDomain(address: string): string | null {
+  const normalized = address.trim().toLowerCase()
+  const atIndex = normalized.lastIndexOf('@')
+  if (atIndex <= 0 || atIndex === normalized.length - 1) return null
+  return normalized.slice(atIndex + 1)
+}
+
+export function getOtpProviderDiagnosticContext(apiKey: string, from: string, subject: string) {
+  const senderAddress = extractEmailAddress(from)
+  return {
+    provider: 'resend',
+    from,
+    subject,
+    senderAddress,
+    senderDomain: extractEmailDomain(senderAddress),
+    apiKeyFingerprint: hashFingerprint(apiKey),
+  }
+}
+
+export function summarizeOtpProviderError(error: any) {
+  return {
+    name: typeof error?.name === 'string' ? error.name : null,
+    type: typeof error?.type === 'string' ? error.type : null,
+    code: typeof error?.code === 'string' || typeof error?.code === 'number' ? error.code : null,
+    statusCode:
+      typeof error?.statusCode === 'number'
+        ? error.statusCode
+        : typeof error?.status === 'number'
+          ? error.status
+          : null,
+    message: typeof error?.message === 'string' ? error.message : 'Failed to send OTP email',
+  }
+}
+
 function computeOtpCooldownMs(sendCount: number): number {
   if (sendCount <= 3) return OTP_RESEND_BASE_MS
   if (sendCount <= 5) return 60 * 1000
@@ -395,6 +440,7 @@ async function sendOtpEmail(email: string, code: string): Promise<void> {
 
   const resend = new Resend(apiKey)
   const subject = process.env.OTP_EMAIL_SUBJECT || 'Your ClawMax login code'
+  const providerContext = getOtpProviderDiagnosticContext(apiKey, from, subject)
   const sendResult = await resend.emails.send({
     from,
     to: [email],
@@ -405,20 +451,19 @@ async function sendOtpEmail(email: string, code: string): Promise<void> {
 
   if ((sendResult as any)?.error) {
     const error = (sendResult as any).error
-    const message = typeof error?.message === 'string' ? error.message : 'Failed to send OTP email'
+    const summarizedError = summarizeOtpProviderError(error)
     console.error('[Auth][OTP] Resend rejected OTP email', {
       email,
-      from,
-      subject,
-      error,
+      ...providerContext,
+      error: summarizedError,
+      note: 'If this is instance-specific, compare key fingerprint and sender-domain state before treating it as a frontend issue.',
     })
-    throw new Error(message)
+    throw new Error(summarizedError.message)
   }
 
   console.log('[Auth][OTP] Resend accepted OTP email', {
     email,
-    from,
-    subject,
+    ...providerContext,
     id: (sendResult as any)?.data?.id || null,
   })
 }
