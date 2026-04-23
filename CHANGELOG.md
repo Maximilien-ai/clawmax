@@ -5,11 +5,11 @@ All notable changes to ClawMax are documented here.
 ## [v1.3.15] - 2026-04-23
 
 ### Fixes — Dynamic Maintenance Banner Source
-- **Runtime Maintenance Status Preference** — dashboard maintenance banners now prefer the dynamic runtime maintenance status endpoint instead of relying on static env as the primary source
-- **Existing Token Path Reuse** — the runtime maintenance status fetch reuses the existing `TEMPLATE_FEEDBACK_TOKEN` auth path, so no new token type is required for polling
+- **Dynamic Banner Source Support** — dashboard maintenance banners can now resolve from a dynamic status source instead of relying only on static environment configuration
 - **Scheduled Pre-Window Visibility** — `scheduled` maintenance now renders before the start window instead of remaining hidden until `START_AT` has already passed
-- **Fallback Env Compatibility** — env remains as a fallback path using `MAINTENANCE_STATE`, `MAINTENANCE_STARTS_AT`, and `MAINTENANCE_MESSAGE`
-- **Load-Shedding Cache** — dashboard server-side polling now uses a small cache/inflight debounce so repeated `/api/system` requests do not hammer the upstream maintenance status endpoint
+- **Fallback Env Compatibility** — environment variables remain available as a fallback maintenance-banner path
+- **Safer Inactive-State Handling** — inactive maintenance state no longer renders a banner accidentally
+- **Lightweight Banner Caching** — dashboard banner resolution now uses a small cache/inflight debounce to avoid excessive repeated lookups
 
 ### Quality
 - **Coverage** — added focused server-side coverage for runtime maintenance status resolution and fallback behavior
