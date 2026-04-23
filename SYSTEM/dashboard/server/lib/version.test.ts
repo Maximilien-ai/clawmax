@@ -43,7 +43,7 @@ async function run() {
   await test('getDashboardVersion ignores placeholder env values and prefers git/source version', () => {
     process.env.CLAWMAX_VERSION = 'dev'
     const resolved = getDashboardVersion()
-    assert(resolved.startsWith('v') || resolved === '1.3.14', `Expected a real fallback version, got ${resolved}`)
+    assert(resolved.startsWith('v') || resolved === '1.3.15', `Expected a real fallback version, got ${resolved}`)
   })
 
   if (typeof originalVersion === 'undefined') delete process.env.CLAWMAX_VERSION

@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.15] - 2026-04-23
+
+### Fixes — Dynamic Maintenance Banner Source
+- **Runtime Maintenance Status Preference** — dashboard maintenance banners now prefer the dynamic runtime maintenance status endpoint instead of relying on static env as the primary source
+- **Existing Token Path Reuse** — the runtime maintenance status fetch reuses the existing `TEMPLATE_FEEDBACK_TOKEN` auth path, so no new token type is required for polling
+- **Scheduled Pre-Window Visibility** — `scheduled` maintenance now renders before the start window instead of remaining hidden until `START_AT` has already passed
+- **Fallback Env Compatibility** — env remains as a fallback path using `MAINTENANCE_STATE`, `MAINTENANCE_STARTS_AT`, and `MAINTENANCE_MESSAGE`
+- **Load-Shedding Cache** — dashboard server-side polling now uses a small cache/inflight debounce so repeated `/api/system` requests do not hammer the upstream maintenance status endpoint
+
+### Quality
+- **Coverage** — added focused server-side coverage for runtime maintenance status resolution and fallback behavior
+- **Validation Gate** — validated locally with `npm run typecheck`, `server/lib/dashboard-env.test.ts`, `server/lib/cloud-maintenance-status.test.ts`, and `bash -n SYSTEM/test.sh`
+
 ## [v1.3.14] - 2026-04-22
 
 ### Improvements — Workflow Artifact Attribution and Diagnostics

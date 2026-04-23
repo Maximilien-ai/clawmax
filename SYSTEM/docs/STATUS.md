@@ -1,14 +1,16 @@
 # ClawMax Status
 
-**Current Version**: v1.3.14
-**Last Updated**: April 22, 2026
-**Status**: `v1.3.14` is the latest release on `main`
+**Current Version**: v1.3.15
+**Last Updated**: April 23, 2026
+**Status**: `v1.3.15` is the latest release on `main`
 
 ---
 
 ## Current State
 
-- `main` now includes the `v1.3.14` dashboard reliability line
+- `main` now includes the `v1.3.15` dynamic maintenance-status line
+- dashboard now prefers the runtime maintenance-status endpoint for banners and keeps env only as fallback
+- scheduled maintenance now renders before the configured start window instead of remaining hidden until start time
 - workflow artifact notifications prefer the real writer identity and suppress duplicate generic follow-up notifications
 - agent status panels surface gateway restart-loop and session-drift diagnostics directly in the dashboard
 - `Activity & Budget` refreshes on return, and Communications supports bulk clear-history using the archive-first backend path

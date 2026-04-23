@@ -5,12 +5,12 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.14-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.14)
+[![Version](https://img.shields.io/badge/version-1.3.15-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.15)
 [![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Recent Stability Work (v1.3.12–v1.3.14 line)
+## 🔥 Recent Stability Work (v1.3.12–v1.3.15 line)
 
 - Setup, auth, and operator hygiene improved:
   - first-run token generation no longer prints the full dashboard API token into stdout/container logs
@@ -31,7 +31,17 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
   - the visible default-safe test summary continues to grow as focused suites are added
 
-## 🔥 Latest Release: v1.3.14
+## 🔥 Latest Release: v1.3.15
+
+- Dynamic maintenance status is now first-class:
+  - dashboard now prefers the runtime maintenance-status endpoint instead of static env as the primary source
+  - the existing `TEMPLATE_FEEDBACK_TOKEN` auth path is reused for maintenance polling
+  - scheduled maintenance now renders before the maintenance window starts
+- Safer maintenance fallback behavior:
+  - env remains as fallback through `MAINTENANCE_STATE`, `MAINTENANCE_STARTS_AT`, and `MAINTENANCE_MESSAGE`
+  - server-side caching/debounce reduces repeated upstream maintenance-status fetches from `/api/system`
+
+## 🔥 Previous Release: v1.3.14
 
 - Workflow/operator reliability improved:
   - workflow-created artifact notifications now attribute files to the actual agent when possible and suppress duplicate generic follow-up notifications
