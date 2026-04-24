@@ -11,7 +11,11 @@ import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecutio
 import { isGatewayRunning } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
-import { resolveAgentExecutionConfig, withTemporaryAgentAuthProfiles } from './agent-execution'
+import {
+  resolveAgentExecutionConfig,
+  runExclusiveAgentExecution,
+  withTemporaryAgentAuthProfiles,
+} from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 // Use dynamic workspace path to support multi-workspace
@@ -214,57 +218,10 @@ export function getWorkflowAgentTimeoutMs(): number {
   return Math.floor(parsed)
 }
 
-const workflowAgentLocks = new Map<string, Promise<void>>()
-const WORKFLOW_AGENT_SESSION_LOCK_RETRIES = 2
-
-export function isWorkflowSessionLockError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error || '')
-  return /session file locked/i.test(message)
-}
-
-export function getWorkflowAgentRetryDelay(attempt: number): number {
-  return Math.min(1500 * 2 ** attempt, 5000)
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function withWorkflowAgentLock<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
-  const previous = workflowAgentLocks.get(agentId) || Promise.resolve()
-  let release!: () => void
-  const current = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  workflowAgentLocks.set(agentId, previous.then(() => current))
-
-  await previous
-  try {
-    return await fn()
-  } finally {
-    release()
-    if (workflowAgentLocks.get(agentId) === current) {
-      workflowAgentLocks.delete(agentId)
-    }
-  }
-}
-
-async function runWorkflowAgentWithRetry<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
-  return withWorkflowAgentLock(agentId, async () => {
-    let attempt = 0
-    while (true) {
-      try {
-        return await fn()
-      } catch (error) {
-        if (!isWorkflowSessionLockError(error) || attempt >= WORKFLOW_AGENT_SESSION_LOCK_RETRIES) {
-          throw error
-        }
-        await wait(getWorkflowAgentRetryDelay(attempt))
-        attempt++
-      }
-    }
-  })
-}
+export {
+  getAgentExecutionRetryDelay as getWorkflowAgentRetryDelay,
+  isOpenClawSessionLockError as isWorkflowSessionLockError,
+} from './agent-execution'
 
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
@@ -1183,7 +1140,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
 
           // Call agent via CLI
-          const agentResponse = await runWorkflowAgentWithRetry(participant.agentId, () => new Promise<string>((resolve, reject) => {
+          const agentResponse = await runExclusiveAgentExecution(participant.agentId, () => new Promise<string>((resolve, reject) => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {

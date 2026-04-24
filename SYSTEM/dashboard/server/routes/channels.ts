@@ -9,7 +9,12 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
-import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import {
+  resolveAgentExecutionConfig,
+  runExclusiveAgentExecution,
+  scopeSessionIdToModel,
+  withTemporaryAgentAuthProfiles,
+} from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
@@ -320,7 +325,7 @@ async function callAgent(
     throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
   }
 
-  return withTemporaryAgentAuthProfiles(agentId, {
+  return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     gemini: executionEnv.GEMINI_API_KEY,
@@ -453,7 +458,7 @@ async function callAgent(
       reject(err)
     })
   })
-  })
+  }))
 }
 
 // Update community tags

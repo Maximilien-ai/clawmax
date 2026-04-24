@@ -18,6 +18,7 @@ import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgent
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
+import { runExclusiveAgentExecution } from '../lib/agent-execution'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -1553,54 +1554,56 @@ router.post('/:id/chat/messages', async (req, res) => {
     // Use the actual UUID session ID if found, otherwise use the key (will create new session)
     const sessionId = actualSessionId || sessionKey
 
-    // Run the agent turn with the message
-    const useLocal = !isGatewayConfigured()
-    const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
-    const proc = spawn('openclaw', args, { env: safeEnv() })
+    runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
+      const useLocal = !isGatewayConfigured()
+      const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+      const proc = spawn('openclaw', args, { env: safeEnv() })
 
-    let stdout = ''
-    let stderr = ''
-    const timer = setTimeout(() => { proc.kill(); }, 600000) // 10 min timeout
+      let stdout = ''
+      let stderr = ''
+      const timer = setTimeout(() => { proc.kill() }, 600000) // 10 min timeout
 
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
 
-    proc.on('close', (code: number) => {
-      clearTimeout(timer)
-      if (code !== 0) {
-        return res.status(500).json({ error: `Agent command failed: ${stderr}` })
-      }
-
-      try {
-        const result = JSON.parse(stdout)
-        // Extract the response text and sessionId from the payloads
-        const responseText = result?.result?.payloads?.[0]?.text || 'No response from agent'
-        const actualSessionId = result?.result?.meta?.agentMeta?.sessionId
-
-        // If we got a sessionId, save it to sessions.json for future retrieval
-        if (actualSessionId) {
-          try {
-            let sessions: Record<string, any> = {}
-            if (fs.existsSync(sessionsPath)) {
-              sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-            }
-            // Save using sessionKey as the key, with actualSessionId as the value
-            sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
-            fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
-          } catch (e) {
-            console.error('Failed to update sessions.json:', e)
-          }
+      proc.on('close', (code: number) => {
+        clearTimeout(timer)
+        if (code !== 0) {
+          reject(new Error(`Agent command failed: ${stderr}`))
+          return
         }
 
-        res.json({ ok: true, result: { response: responseText } })
-      } catch {
-        res.status(500).json({ error: `Invalid JSON from agent: ${stdout}` })
-      }
-    })
+        try {
+          const result = JSON.parse(stdout)
+          const responseText = result?.result?.payloads?.[0]?.text || 'No response from agent'
+          const actualSessionId = result?.result?.meta?.agentMeta?.sessionId
 
-    proc.on('error', (err: Error) => {
-      clearTimeout(timer)
-      res.status(500).json({ error: String(err) })
+          if (actualSessionId) {
+            try {
+              let sessions: Record<string, any> = {}
+              if (fs.existsSync(sessionsPath)) {
+                sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+              }
+              sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
+              fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
+            } catch (e) {
+              console.error('Failed to update sessions.json:', e)
+            }
+          }
+
+          res.json({ ok: true, result: { response: responseText } })
+          resolve()
+        } catch {
+          reject(new Error(`Invalid JSON from agent: ${stdout}`))
+        }
+      })
+
+      proc.on('error', (err: Error) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+    })).catch((err) => {
+      res.status(500).json({ error: String(err?.message || err) })
     })
   } catch (err) {
     res.status(500).json({ error: String(err) })

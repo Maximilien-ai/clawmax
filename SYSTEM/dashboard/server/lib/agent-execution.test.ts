@@ -7,7 +7,14 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from './agent-execution'
+import {
+  getAgentExecutionRetryDelay,
+  isOpenClawSessionLockError,
+  resolveAgentExecutionConfig,
+  runExclusiveAgentExecution,
+  scopeSessionIdToModel,
+  withTemporaryAgentAuthProfiles,
+} from './agent-execution'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -185,6 +192,51 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
   assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
+})
+
+test('isOpenClawSessionLockError matches lock timeout errors', () => {
+  assert(
+    isOpenClawSessionLockError(new Error('session file locked (timeout 10000ms)')),
+    'Expected lock timeout error to be recognized'
+  )
+  assert(
+    !isOpenClawSessionLockError(new Error('Agent timeout')),
+    'Expected non-lock error to be ignored'
+  )
+})
+
+test('getAgentExecutionRetryDelay uses bounded exponential backoff', () => {
+  assert(getAgentExecutionRetryDelay(0) === 1500, 'Expected first retry delay to be 1500ms')
+  assert(getAgentExecutionRetryDelay(1) === 3000, 'Expected second retry delay to be 3000ms')
+  assert(getAgentExecutionRetryDelay(4) === 5000, 'Expected retry delay to cap at 5000ms')
+})
+
+test('runExclusiveAgentExecution serializes same-agent executions', async () => {
+  const order: string[] = []
+  let active = 0
+  let maxActive = 0
+
+  await Promise.all([
+    runExclusiveAgentExecution('same-agent', async () => {
+      active++
+      maxActive = Math.max(maxActive, active)
+      order.push('start-1')
+      await new Promise(resolve => setTimeout(resolve, 20))
+      order.push('end-1')
+      active--
+    }),
+    runExclusiveAgentExecution('same-agent', async () => {
+      active++
+      maxActive = Math.max(maxActive, active)
+      order.push('start-2')
+      await new Promise(resolve => setTimeout(resolve, 5))
+      order.push('end-2')
+      active--
+    }),
+  ])
+
+  assert(maxActive === 1, `Expected same-agent executions to serialize, saw concurrency ${maxActive}`)
+  assert(order.join(',') === 'start-1,end-1,start-2,end-2', `Expected serialized order, got ${order.join(',')}`)
 })
 
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {

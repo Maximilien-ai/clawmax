@@ -22,6 +22,51 @@ interface AuthProfileFile {
 
 type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
+const agentExecutionLocks = new Map<string, Promise<void>>()
+const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
+
+export function isOpenClawSessionLockError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /session file locked/i.test(message)
+}
+
+export function getAgentExecutionRetryDelay(attempt: number): number {
+  return Math.min(1500 * 2 ** attempt, 5000)
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function runExclusiveAgentExecution<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
+  const previous = agentExecutionLocks.get(agentId) || Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  agentExecutionLocks.set(agentId, previous.then(() => current))
+
+  await previous
+  try {
+    let attempt = 0
+    while (true) {
+      try {
+        return await fn()
+      } catch (error) {
+        if (!isOpenClawSessionLockError(error) || attempt >= AGENT_EXECUTION_SESSION_LOCK_RETRIES) {
+          throw error
+        }
+        await wait(getAgentExecutionRetryDelay(attempt))
+        attempt++
+      }
+    }
+  } finally {
+    release()
+    if (agentExecutionLocks.get(agentId) === current) {
+      agentExecutionLocks.delete(agentId)
+    }
+  }
+}
 
 function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: string): OpenClawAgentRecord | null {
   try {

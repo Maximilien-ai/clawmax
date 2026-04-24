@@ -11,7 +11,12 @@ import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
-import { resolveAgentExecutionConfig, scopeSessionIdToModel, withTemporaryAgentAuthProfiles } from '../lib/agent-execution'
+import {
+  resolveAgentExecutionConfig,
+  runExclusiveAgentExecution,
+  scopeSessionIdToModel,
+  withTemporaryAgentAuthProfiles,
+} from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
@@ -256,7 +261,7 @@ router.post('/:id/chat', (req, res) => {
   let fullOutput = ''
   let stderrOutput = ''
 
-  withTemporaryAgentAuthProfiles(id, {
+  runExclusiveAgentExecution(id, () => withTemporaryAgentAuthProfiles(id, {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     gemini: executionEnv.GEMINI_API_KEY,
@@ -327,7 +332,7 @@ router.post('/:id/chat', (req, res) => {
         resolve()
       })
     })
-  }).catch((err) => {
+  })).catch((err) => {
     console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
     clearInterval(keepalive)
     send('error', `Failed to prepare agent execution: ${err.message}`)
