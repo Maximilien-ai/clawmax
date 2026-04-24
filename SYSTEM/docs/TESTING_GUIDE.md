@@ -199,6 +199,29 @@ GitHub Actions: `.github/workflows/ci.yml`
 - Integration tests (`./SYSTEM/test.sh integration`) are NOT run in CI because they require live model access and keys
 - The remaining clean-room gap is still a truly fresh-machine run with no prior OpenClaw or ClawMax state
 
+### Clean-Room Setup Validation
+
+For a repeatable fresh-state bootstrap check, use:
+
+```bash
+./SYSTEM/scripts/setup-contract-test.sh
+```
+
+This verifies the setup contract on a fresh copied repo + fresh `HOME`:
+- `setup.sh --non-interactive` completes
+- generated `.env` respects overridden dashboard ports/URLs
+- OTP subject output is shell-safe
+- the canonical dashboard token is written to `SYSTEM/dashboard/.dashboard-token`
+- the legacy workspace token copy still matches for compatibility
+
+For a heavier isolation path, there is also a Podman harness:
+
+```bash
+./SYSTEM/scripts/cleanroom-podman-setup-test.sh
+```
+
+That script is intended to exercise the same setup/start/test contract inside a disposable Linux container instead of the current host environment.
+
 ## Pre-flight Checks
 
 `test.sh` validates before running:

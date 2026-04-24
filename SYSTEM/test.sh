@@ -106,8 +106,18 @@ else
   echo -e "  ${GREEN}✓${NC} OpenClaw config"
 fi
 
-# Check dashboard server is running
-if ! curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
+# Check dashboard server is running. Fresh setup/start flows can take a moment
+# to settle even after the port is bound, so retry briefly before failing.
+dashboard_ready=false
+for _ in $(seq 1 10); do
+  if curl -s --connect-timeout 3 --max-time 5 "$API_BASE/api/health" > /dev/null 2>&1; then
+    dashboard_ready=true
+    break
+  fi
+  sleep 1
+done
+
+if [ "$dashboard_ready" = false ]; then
   echo -e "  ${RED}✗${NC} Dashboard server not running on $API_BASE"
   echo -e "    Start it with: ${YELLOW}DASHBOARD_PORT=${BACKEND_PORT} DASHBOARD_CLIENT_PORT=${FRONTEND_PORT} DASHBOARD_APP_URL=${FRONTEND_URL} ./SYSTEM/start.sh${NC}"
   preflight_ok=false

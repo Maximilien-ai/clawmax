@@ -211,11 +211,11 @@ if [ "$FOLLOW_LOGS" = true ]; then
 else
   # Run in background and log to file
   if [ "$BACKEND_RUNNING" = false ] && [ "$FRONTEND_RUNNING" = false ]; then
-    npm run dev > /tmp/dashboard.log 2>&1 &
+    nohup npm run dev > /tmp/dashboard.log 2>&1 < /dev/null &
   elif [ "$BACKEND_RUNNING" = false ]; then
-    npm run dev:server > /tmp/dashboard.log 2>&1 &
+    nohup npm run dev:server > /tmp/dashboard.log 2>&1 < /dev/null &
   else
-    npm run dev:client > /tmp/dashboard.log 2>&1 &
+    nohup npm run dev:client > /tmp/dashboard.log 2>&1 < /dev/null &
   fi
   DASHBOARD_PID=$!
 

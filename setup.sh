@@ -183,6 +183,11 @@ if [ ! -d "SYSTEM/dashboard" ]; then
   exit 1
 fi
 CLAWMAX_DIR="$(pwd)"
+SETUP_BACKEND_PORT="${DASHBOARD_PORT:-3001}"
+SETUP_FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
+SETUP_FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${SETUP_FRONTEND_PORT}}"
+SETUP_PUBLIC_URL="${DASHBOARD_PUBLIC_URL:-http://localhost:${SETUP_BACKEND_PORT}}"
+SETUP_CORS_ORIGIN="${CORS_ORIGIN:-$SETUP_FRONTEND_URL}"
 
 # ============================================================================
 # 1. Prerequisites
@@ -616,10 +621,10 @@ cat > "$ENV_FILE" << ENVEOF
 # Workspace
 OPENCLAW_WORKSPACE=$WORKSPACE
 NODE_ENV=development
-DASHBOARD_PORT=3001
-CORS_ORIGIN=http://localhost:5173
-DASHBOARD_APP_URL=http://localhost:5173
-DASHBOARD_PUBLIC_URL=http://localhost:3001
+DASHBOARD_PORT=$SETUP_BACKEND_PORT
+CORS_ORIGIN=$SETUP_CORS_ORIGIN
+DASHBOARD_APP_URL=$SETUP_FRONTEND_URL
+DASHBOARD_PUBLIC_URL=$SETUP_PUBLIC_URL
 
 # Auth mode
 ENVEOF
@@ -639,7 +644,7 @@ BYPASS_OAUTH=false
 OTP_ALLOWED_EMAILS=$OTP_ALLOWED_EMAILS
 OTP_EXPIRY_MINUTES=15
 OTP_FROM_EMAIL=max@clawmax.ai
-OTP_EMAIL_SUBJECT=Your ClawMax login code
+OTP_EMAIL_SUBJECT="Your ClawMax login code"
 JWT_SECRET=$JWT_SECRET
 ENVEOF
   if [ "$OTP_DEV_MODE" = "log" ]; then
@@ -727,15 +732,24 @@ if [ "$AUTH_MODE" = "email_otp" ]; then
   fi
 fi
 
-# Dashboard token
-TOKEN_FILE="$WORKSPACE/.dashboard-token"
+# Dashboard token — keep the canonical file in SYSTEM/dashboard so the server
+# and test harness resolve the same token on first boot. Preserve a legacy
+# workspace copy as a compatibility fallback for older scripts.
+TOKEN_FILE="$CLAWMAX_DIR/SYSTEM/dashboard/.dashboard-token"
+LEGACY_TOKEN_FILE="$WORKSPACE/.dashboard-token"
 if [ ! -f "$TOKEN_FILE" ]; then
   TOKEN=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | LC_ALL=C tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
   echo "$TOKEN" > "$TOKEN_FILE"
   chmod 600 "$TOKEN_FILE"
   print_success "Generated dashboard token"
 else
+  TOKEN="$(cat "$TOKEN_FILE" 2>/dev/null || true)"
   print_success "Dashboard token exists"
+fi
+
+if [ -n "$TOKEN" ]; then
+  echo "$TOKEN" > "$LEGACY_TOKEN_FILE"
+  chmod 600 "$LEGACY_TOKEN_FILE"
 fi
 
 echo ""
@@ -882,7 +896,7 @@ else
 fi
 echo ""
 echo -e "  ${BOLD}Open in browser:${NC}"
-echo -e "    ${CYAN}http://localhost:5173${NC}"
+echo -e "    ${CYAN}$SETUP_FRONTEND_URL${NC}"
 echo ""
 echo -e "  ${BOLD}Run tests:${NC}"
 echo -e "    ${CYAN}./SYSTEM/test.sh${NC}              # API + unit tests"
@@ -906,8 +920,8 @@ echo -e "  ${BOLD}Configuration:${NC}"
 echo "    Mode:      $MODE_STR"
 echo "    Workspace: $WORKSPACE"
 echo "    Partners:  $CLAWMAX_DIR/PARTNERS"
-echo "    Backend:   http://localhost:3001"
-echo "    Frontend:  http://localhost:5173"
+echo "    Backend:   $SETUP_PUBLIC_URL"
+echo "    Frontend:  $SETUP_FRONTEND_URL"
 echo "    .env:      SYSTEM/dashboard/.env"
 if [ "$AUTH_MODE" = "email_otp" ]; then
   echo "    OTP email: $OTP_ALLOWED_EMAILS"
