@@ -62,26 +62,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - production static serving is separated from local Vite dev serving
   - `SYSTEM/start.sh --restart -f` now reliably restarts old frontend/backend processes before tailing logs
 
-## 🔥 Previous Release: v1.3.13
-
-- Gateway-config hardening on dashboard-managed `openclaw.json` writes:
-  - protected gateway fields are preserved instead of replaying stale in-memory values
-  - covered write paths now include model overrides, skills updates, transfer/import writes, and profile-mode registration
-- Better artifact visibility:
-  - uploaded AGENTS asset directories like `cw-items` no longer appear as fake agents in notifications
-  - DocHub shows created / last updated timestamps and compact freshness hints for asset files
-- More visible tests:
-  - `SYSTEM/test.sh` now surfaces dedicated workspace-artifact notification coverage
-
-## 🔥 Previous Release: v1.3.12
-
-- Dashboard token logging is safer:
-  - first-run token generation logs only token creation, token file path, and a redacted preview
-- Setup/bootstrap defaults are more current:
-  - `setup.sh` aligns with the current `v1.3.x` line and current runtime guidance
-- Release/test hygiene improved:
-  - visible `SYSTEM/test.sh` coverage expanded again to include newer focused suites
-
 Hosted/operator-managed runtime note:
 - The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
 - If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.

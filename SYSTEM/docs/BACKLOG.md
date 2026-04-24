@@ -166,13 +166,13 @@
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
 - [ ] **Evaluate AG-UI for agent-driven UI surfaces** — explore using the AG-UI standard/framework for notifications and agent chat so agents can render richer UI, collect structured user input, and drive interactive flows; consider the same pattern for template apply and workflow run modals if it fits cleanly.
-- [ ] **Disable AI buttons when no keys** — grey out AI Generate/Create with tooltip when no system/user/BYOK keys are configured
+- [x] **Disable AI buttons when no keys** — AI Generate/Create entry points now disable with setup guidance when no browser/shared execution path is configured across agent, workflow, and template flows.
 - [x] **Template wizard cron helper should ignore `manual` schedules** — fixed: `✨ Suggest Cron` is hidden when a workflow is already `manual`, so the wizard no longer shows misleading missing-key errors in that case.
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
-- [ ] **ClawMax favicon** — replace lobster emoji with ClawMax logo
+- [x] **ClawMax favicon** — dashboard client now serves the ClawMax logo favicon via `client/index.html`.
 - [ ] **Asset/IP cleanup for login and presentation visuals** — replace Star Wars-like robot elements (for example the R2-D2-style figure visible in current demo/login imagery) with owned or clearly safe ClawMax artwork across login screens and presentation assets to reduce copyright risk before wider external use.
-- [ ] **Top bar online count ignores paused agents** — exclude paused agents from the online count
+- [x] **Top bar online count ignores paused agents** — system summary and top bar now use paused-aware counts; paused agents are excluded from the online total.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 

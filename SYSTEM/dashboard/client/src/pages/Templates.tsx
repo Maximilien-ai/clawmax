@@ -6,6 +6,8 @@ import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import TemplateWizard from '../components/TemplateWizard'
 import AgentTemplateWizard from '../components/AgentTemplateWizard'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
+import { useAuth } from '../contexts/AuthContext'
+import { hasAiGenerationAccess } from '../lib/byok'
 
 interface AgentTemplate {
   name: string
@@ -239,6 +241,8 @@ const TEMPLATE_CATEGORY_OPTIONS = [
 ] as const
 
 export default function Templates() {
+  const { config } = useAuth()
+  const aiEnabled = hasAiGenerationAccess(config)
   const { showSuccess, showError } = useToast()
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [orgTemplates, setOrgTemplates] = useState<OrganizationTemplate[]>([])
@@ -913,10 +917,17 @@ export default function Templates() {
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
                   <button
                     onClick={() => {
+                      if (!aiEnabled) return
                       setShowWizard(true)
                       setShowActionsMenu(false)
                     }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                    disabled={!aiEnabled}
+                    className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 ${
+                      aiEnabled
+                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
                   >
                     <span className="text-purple-500">✨</span> AI Create Template
                   </button>

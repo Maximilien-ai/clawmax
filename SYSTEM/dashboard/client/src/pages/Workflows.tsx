@@ -1478,11 +1478,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
+                        if (!aiEnabled) return
                         setShowWorkflowActionsMenu(false)
                         setShowAiPrompt(true)
                       }}
-                      className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                      title="Generate workflow with AI"
+                      disabled={!aiEnabled}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                        aiEnabled
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
                     >
                       <span className="text-purple-500">✨</span> AI Generate
                     </button>
