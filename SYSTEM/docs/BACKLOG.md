@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: April 22, 2026
+> Last updated: April 24, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## Top Priority
@@ -24,7 +24,7 @@
 - [x] **AI skill creation** — shipped first pass: AI-assisted skill creation now supports prompt → draft → refine → create, with missing-section hints based on the skill spec.
 - [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
 - [ ] **OTP log-mode safety follow-through** — once real email OTP delivery is stable in cloud, treat `OTP_DEV_MODE=log` as explicit test/debug-only behavior: add a visible UI warning when enabled, document that production instances should leave it unset, and verify it is disabled on normal customer/demo environments after live debugging is complete.
-- [ ] **Parallel workflow session-lock follow-through** — issue `#100` is still open even though bounded retry/backoff shipped. Keep validating whether workflow session contention is fully resolved in real cloud/system-test flows before closing it.
+- [x] **Parallel workflow session-lock follow-through** — issue `#100`: workflow/chat/channel agent execution now shares the same bounded session-lock serialization and retry path, and the follow-through issue has been closed.
 - [ ] **Phantom workflow residue after archive/delete + reapply** — reproduce whether archiving/deleting agents in one workspace and then applying the same team/template in a new workspace can surface stale previous workflow/execution artifacts ("phantom workflows"). If reproducible, treat as a high-priority workspace isolation / cleanup bug.
 - [x] **Template apply group conflict detection and resolution** — shipped first pass: template apply now detects conflicting groups/communities and agent IDs, supports channel rename-on-apply, and provides direct recovery paths from the blocked Deploy step.
 - [ ] **Multi-workflow apply conflict follow-through** — repeated applies into the same workspace can still surface intermittent workflow-level collisions or reuse behavior that is not fully detected/resolved during template apply. Capture crisp repros and tighten conflict preflight plus rename/remap behavior for overlapping pipeline/workflow names.

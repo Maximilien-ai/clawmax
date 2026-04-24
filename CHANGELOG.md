@@ -2,6 +2,20 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.3.17] - 2026-04-24
+
+### Fixes — Clean-Room Setup and Runtime Contention Hardening
+- **Clean-Room Setup Validation** — added a repeatable fresh-home setup contract test plus a Podman clean-room harness to validate `setup.sh`, `SYSTEM/start.sh`, and `SYSTEM/test.sh` against a fresh copied-repo bootstrap path
+- **Setup Contract Alignment** — `setup.sh` now writes the canonical dashboard token where the server and tests already expect it, preserves the legacy workspace token copy for compatibility, quotes OTP subject output safely for shell sourcing, and correctly propagates non-default dashboard ports/URLs into generated `.env`
+- **Startup/Test Handoff Reliability** — `SYSTEM/start.sh` now uses sturdier detached background process startup for scripted flows, and `SYSTEM/test.sh` gives a fresh dashboard a short health-check retry window instead of failing immediately
+- **Shared Agent Execution Serialization** — same-agent execution is now serialized across workflow runs, dashboard chat, and channel/group execution paths instead of only inside the workflow engine, reducing remaining `session file locked` failures when multiple runtime paths touch the same OpenClaw agent
+- **Shared Session-Lock Retry Path** — OpenClaw session-lock detection and bounded backoff now live in shared agent-execution code so all runtime entrypoints use the same recovery behavior
+
+### Quality
+- **Clean-Room Coverage** — added `SYSTEM/scripts/setup-contract-test.sh` and documented the heavier `SYSTEM/scripts/cleanroom-podman-setup-test.sh` harness
+- **Runtime Contention Regression Coverage** — added focused agent-execution tests for shared lock detection, retry backoff, and same-agent serialization behavior
+- **Validation Gate** — validated locally with `./SYSTEM/scripts/setup-contract-test.sh`, a fresh-home copied-repo `setup.sh -> SYSTEM/start.sh --restart -> SYSTEM/test.sh` run (`56 passed, 0 failed`), `npm run typecheck`, and `server/lib/agent-execution.test.ts`
+
 ## [v1.3.16] - 2026-04-23
 
 ### Fixes — Maintenance Status Banner Hardening

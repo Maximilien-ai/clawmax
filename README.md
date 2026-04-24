@@ -5,12 +5,12 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.16-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.16)
+[![Version](https://img.shields.io/badge/version-1.3.17-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.17)
 [![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Recent Stability Work (v1.3.12–v1.3.16 line)
+## 🔥 Recent Stability Work (v1.3.12–v1.3.17 line)
 
 - Setup, auth, and operator hygiene improved:
   - first-run token generation no longer prints the full dashboard API token into stdout/container logs
@@ -31,7 +31,19 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
   - the visible default-safe test summary continues to grow as focused suites are added
 
-## 🔥 Latest Release: v1.3.16
+## 🔥 Latest Release: v1.3.17
+
+- Clean-room setup and release-gate reliability improved:
+  - `setup.sh` now aligns token placement, shell-safe `.env` generation, and non-default dashboard port/URL propagation with the actual dashboard/test contract
+  - `SYSTEM/start.sh` and `SYSTEM/test.sh` are more reliable in scripted fresh-start flows, reducing false negatives during setup validation
+- Same-agent runtime contention is harder to hit:
+  - workflow, chat, and channel execution now share the same agent-execution serialization and bounded retry behavior for OpenClaw `session file locked` failures
+  - this closes the remaining workflow session-lock follow-through path rather than leaving the mitigation limited to workflows alone
+- Clean-room validation is now repeatable:
+  - `SYSTEM/scripts/setup-contract-test.sh` provides a focused fresh-home contract check
+  - `SYSTEM/scripts/cleanroom-podman-setup-test.sh` provides a heavier isolation harness without making Podman part of the product/runtime path
+
+## 🔥 Previous Release: v1.3.16
 
 - Maintenance/status banner resolution is more robust:
   - instance resolution now survives missing explicit instance-key configuration more reliably

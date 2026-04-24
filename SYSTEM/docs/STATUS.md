@@ -1,22 +1,20 @@
 # ClawMax Status
 
-**Current Version**: v1.3.16
-**Last Updated**: April 23, 2026
-**Status**: `v1.3.16` is the latest release on `main`
+**Current Version**: v1.3.17
+**Last Updated**: April 24, 2026
+**Status**: `v1.3.17` is the latest release on `main`
 
 ---
 
 ## Current State
 
-- `main` now includes the `v1.3.16` maintenance-status hardening line
-- dashboard banner resolution is now more resilient when explicit instance-key configuration is missing
-- request-host fallback now helps maintenance/status banners survive a missing dashboard-instance env path
-- workflow artifact notifications prefer the real writer identity and suppress duplicate generic follow-up notifications
-- agent status panels surface gateway restart-loop and session-drift diagnostics directly in the dashboard
-- `Activity & Budget` refreshes on return, and Communications supports bulk clear-history using the archive-first backend path
-- the maintenance banner is now environment-driven, renders correctly in local dev, and dismisses only for the current page session
-- dashboard dev/prod serving is separated so Vite dev no longer risks stale built HTML taking precedence
-- `SYSTEM/start.sh --restart -f` now reliably tears down old frontend/backend processes before starting fresh tails
+- `main` now includes the `v1.3.17` clean-room setup and runtime contention hardening line
+- `setup.sh` now aligns dashboard token placement, `.env` shell safety, and non-default dashboard port/URL propagation with the real server/test contract
+- `SYSTEM/start.sh` and `SYSTEM/test.sh` are more reliable in scripted fresh-start validation flows
+- workflow, chat, and channel execution now share the same same-agent serialization and session-lock retry behavior
+- issue `#11` clean-room setup validation is closed with repeatable harness coverage
+- issue `#100` parallel workflow session-lock follow-through is closed with shared runtime-path serialization
+- issue `#106` README release cleanup is closed and the release surfaces are trimmed to the current line
 
 ## Release References
 
