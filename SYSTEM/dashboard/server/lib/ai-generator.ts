@@ -168,6 +168,14 @@ function promptImpliesScaling(text: string): boolean {
   return /\b(collection|multiple|many|batch|catalog|lots of|set of|images|photos|posts|items|products|assets)\b/i.test(text)
 }
 
+function promptImpliesCompany(text: string): boolean {
+  return /\b(company|business|startup|agency|studio|firm|operator|ecommerce|e-commerce|revenue|sales pipeline|lead gen|outbound|client acquisition|offer|pricing)\b/i.test(text)
+}
+
+function promptImpliesRevenue(text: string): boolean {
+  return /\b(revenue|profit|sales|sell|paying customers|pipeline|qualified leads|booked calls|closed deals|inbound|outbound|conversion|pricing|offer|retainer|subscriptions?)\b/i.test(text)
+}
+
 function roleImpliesScalableLane(role: string, agentId: string): boolean {
   const value = `${role} ${agentId}`.toLowerCase()
   return /\b(writer|selector|reviewer|analyst|researcher|specialist|editor|creator|curator|planner)\b/.test(value)
@@ -222,6 +230,14 @@ function buildExampleAwarePromptContext(description: string): string {
 
   if (promptImpliesScaling(description)) {
     sections.push('The prompt implies potentially many assets/items/posts, so the middle workflow stages should support scalable or parallel work where appropriate while kickoff and finalization remain singleton steps.')
+  }
+
+  if (promptImpliesCompany(description)) {
+    sections.push('The prompt implies a company rather than a simple team. Favor a company-shaped template with leadership, operating lanes, and visible handoffs across functions.')
+  }
+
+  if (promptImpliesRevenue(description)) {
+    sections.push('The prompt is revenue-oriented. The generated company should produce commercially concrete outputs such as offers, ICPs, lead lists, outreach copy, pricing, launch plans, funnel metrics, and next revenue actions.')
   }
 
   return sections.join('\n\n')
@@ -708,6 +724,13 @@ export async function generateTemplateFromNL(description: string): Promise<any> 
   getAvailableProvider(_requestByokKeys)
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
+  const shouldGenerateCompany = promptImpliesCompany(description)
+  const shouldBiasRevenue = promptImpliesRevenue(description)
+  let availableSkills: string[] = []
+  try {
+    const { listAvailableSkills } = require('./skills')
+    availableSkills = listAvailableSkills().map((s: any) => s.id || s.name).filter(Boolean)
+  } catch {}
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
@@ -731,7 +754,7 @@ A template has:
   - communities: array of community names
   - groups: array of group names
   - identity: multiline string describing role, responsibilities, expertise
-  - tools: array of tool names (e.g., "gh-issues", "github", "web-search", "code-review")
+  - skills: optional array of skill IDs chosen from the available list when relevant
 - communities: array with name, description, tags
 - groups: array with name, description, community (parent), tags
 - workflows: array of workflow definitions, each with:
@@ -754,6 +777,9 @@ Important structure rules:
 - Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
 - Do not create a community and a group that represent the same concept with different names.
 - If unsure, create 1 community and 3-6 groups.
+- If the prompt describes a company, startup, agency, studio, operator, or revenue engine, generate a company-style template rather than a generic team.
+- For company-style templates, include a teams array with leadership plus 2-4 functional teams and at least one nested sub-team when appropriate.
+- Keep company structures legible and demo-friendly: leadership, delivery/product, go-to-market, and operations only when justified.
 
 Important workflow behavior rules:
 - Always create 2-4 workflows for the team unless the prompt explicitly asks for none.
@@ -767,6 +793,12 @@ Important workflow behavior rules:
 - Avoid vague workflow content like "work on the task"; be concrete about what agents should discuss, produce, and publish.
 - When the user provides examples, URLs, formats, or style references, preserve and use them explicitly in agent responsibilities and workflow content.
 - If the prompt includes sample outputs or product pages, tell the team to refer back to them and match the requested style.
+- For company-style templates, make workflows form a visible business chain with handoffs, not isolated tasks.
+- For revenue-oriented prompts, workflows must produce commercially concrete artifacts such as offer briefs, ICPs, lead lists, outreach copy, pricing, launch plans, pipeline reviews, delivery plans, and revenue summaries.
+- For revenue-oriented prompts, prefer a chain like strategy -> offer/ICP -> acquisition or delivery -> revenue review/final brief.
+- Assign 1-4 relevant skills to agents when the role clearly benefits from them.
+- Prefer exact skill IDs from this installed skill list: ${availableSkills.join(', ') || 'github, web-search, code-review, slack, jira'}.
+- Do not invent fake skill IDs. If none fit, omit the skills field.
 
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
@@ -789,6 +821,8 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ...(text.includes('meta') ? ['meta'] : []),
       ...(text.includes('ad') || text.includes('ads') ? ['ads'] : []),
       ...(text.includes('marketing') ? ['marketing'] : []),
+      ...(shouldGenerateCompany ? ['company'] : []),
+      ...(shouldBiasRevenue ? ['revenue'] : []),
     ]))
     const fallbackPrimaryTag = slugifyGeneratedTemplateValue(
       inferredTemplateTags[0]
@@ -801,6 +835,10 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     parsed.tags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags]))
     parsed.agents = (parsed.agents || []).map((agent: any) => ({
       ...agent,
+      skills: Array.from(new Set([
+        ...(Array.isArray(agent.skills) ? agent.skills : []),
+        ...(Array.isArray(agent.tools) ? agent.tools : []),
+      ])).filter(Boolean).slice(0, 4),
       tags: Array.from(new Set([
         fallbackPrimaryTag,
         ...(Array.isArray(agent.tags) ? agent.tags : []),
@@ -1048,6 +1086,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         ...workflow,
         id: normalizedId,
         name: normalizedName,
+        owner: workflow.owner || workflow.targeting?.agents?.[0] || undefined,
         scaling: isMiddle && shouldScaleMiddleWork ? 'parallel' : 'singleton',
         parallelism: isMiddle && shouldScaleMiddleWork
           ? Math.min(10, Math.max(2, Number(workflow.parallelism) || 3))
@@ -1074,6 +1113,105 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         content: contentSections.join('\n\n'),
       }
     })
+
+    if (shouldGenerateCompany) {
+      const leadershipRegex = /\b(lead|head|director|manager|founder|ceo|chief|owner)\b/i
+      const leadAgents = (parsed.agents || []).filter((agent: any) => leadershipRegex.test(`${agent.role || ''} ${(agent.tags || []).join(' ')}`))
+      const leadershipLead = leadAgents[0] || parsed.agents?.[0]
+      const uniqueGroups: string[] = Array.from(
+        new Set<string>(
+          (parsed.groups || [])
+            .map((group: any) => String(group?.name || '').trim())
+            .filter((name: string) => Boolean(name))
+        )
+      )
+      const operationalGroups = uniqueGroups.filter((name) => !/^status$/i.test(name)).slice(0, 4)
+      const generatedTeams: any[] = []
+
+      if (leadershipLead) {
+        generatedTeams.push({
+          id: 'leadership',
+          name: 'Leadership',
+          purpose: shouldBiasRevenue ? 'Set company direction, revenue goals, and operating priorities.' : 'Set company direction and operating priorities.',
+          leaderAgentId: leadershipLead.id,
+          memberAgentIds: leadAgents.slice(1, 3).map((agent: any) => agent.id),
+          tags: shouldBiasRevenue ? ['leadership', 'revenue'] : ['leadership'],
+        })
+      }
+
+      for (const groupName of operationalGroups) {
+        const normalizedGroupName = String(groupName)
+        const groupMembers = (parsed.agents || []).filter((agent: any) => (agent.groups || []).includes(normalizedGroupName))
+        const teamLead = groupMembers.find((agent: any) => leadershipRegex.test(`${agent.role || ''} ${(agent.tags || []).join(' ')}`)) || groupMembers[0]
+        generatedTeams.push({
+          id: slugifyGeneratedTemplateValue(normalizedGroupName, 'team'),
+          name: humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName),
+          purpose: shouldBiasRevenue
+            ? `Own ${humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName).toLowerCase()} execution tied to company revenue.`
+            : `Own ${humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName).toLowerCase()} execution for the company.`,
+          leaderAgentId: teamLead?.id,
+          memberAgentIds: groupMembers.filter((agent: any) => agent.id !== teamLead?.id).map((agent: any) => agent.id),
+          parentTeamId: leadershipLead ? 'leadership' : undefined,
+          tags: [slugifyGeneratedTemplateValue(normalizedGroupName, 'team')],
+        })
+      }
+
+      if (generatedTeams.length >= 3) {
+        const nestedParent = generatedTeams.find((team) => /\b(delivery|service|operations|engineering|product)\b/i.test(team.id))
+        if (nestedParent) {
+          generatedTeams.push({
+            id: `${nestedParent.id}-execution`,
+            name: `${nestedParent.name} Execution`,
+            purpose: `Break ${nestedParent.name.toLowerCase()} work into execution lanes and milestones.`,
+            leaderAgentId: nestedParent.leaderAgentId,
+            memberAgentIds: [],
+            parentTeamId: nestedParent.id,
+            tags: ['execution'],
+          })
+        }
+      }
+
+      if (generatedTeams.length > 0) {
+        parsed.teams = generatedTeams
+      }
+    }
+
+    if (shouldBiasRevenue && Array.isArray(parsed.workflows) && parsed.workflows.length > 0) {
+      const fallbackOutputKeys = ['strategy-brief', 'offer-and-icp', 'pipeline-plan', 'revenue-summary']
+      const fallbackOutputLabels = ['Strategy Brief', 'Offer & ICP', 'Pipeline Plan', 'Revenue Summary']
+      parsed.workflows = parsed.workflows.map((workflow: any, idx: number, arr: any[]) => {
+        const previous = arr[idx - 1]
+        const existingOutputDefinitions = Array.isArray(workflow.outputDefinitions) ? workflow.outputDefinitions : []
+        const existingInputRefs = Array.isArray(workflow.inputRefs) ? workflow.inputRefs : []
+        const extraSections = [
+          idx === 0 ? '## Revenue Goal\n- Define the commercial goal, buyer, pricing logic, and the fastest credible path to revenue.' : '',
+          idx > 0 && idx < arr.length - 1 ? '## Commercial Handoff\n- Use the upstream artifact as required input. Convert it into the next commercially useful asset and post the handoff summary visibly.' : '',
+          idx === arr.length - 1 ? '## Revenue Check\n- State what revenue-oriented outputs were produced, what is ready to ship or sell, and the top next actions to move toward real customers or revenue.' : '',
+        ].filter(Boolean)
+
+        return {
+          ...workflow,
+          outputDefinitions: existingOutputDefinitions.length > 0 ? existingOutputDefinitions : [
+            {
+              key: fallbackOutputKeys[Math.min(idx, fallbackOutputKeys.length - 1)],
+              label: fallbackOutputLabels[Math.min(idx, fallbackOutputLabels.length - 1)],
+              type: 'markdown',
+            },
+          ],
+          inputRefs: idx > 0
+            ? (existingInputRefs.length > 0 ? existingInputRefs : [
+                {
+                  workflowId: previous.id,
+                  outputKey: previous.outputDefinitions?.[0]?.key || fallbackOutputKeys[Math.min(idx - 1, fallbackOutputKeys.length - 1)],
+                  label: previous.outputDefinitions?.[0]?.label || fallbackOutputLabels[Math.min(idx - 1, fallbackOutputLabels.length - 1)],
+                  required: true,
+                },
+              ])
+            : existingInputRefs,
+          content: [workflow.content || '', ...extraSections].filter(Boolean).join('\n\n'),
+        }
+      })
+    }
 
     if (!Array.isArray(parsed.parameters) || parsed.parameters.length === 0) {
       parsed.parameters = buildScalableTeamParameters(parsed.agents || [], shouldScaleMiddleWork)

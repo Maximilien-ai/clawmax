@@ -7,6 +7,7 @@ import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
+import { createTeam, listTeams, type TeamInput } from './teams'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange } from './agent-model'
@@ -185,6 +186,16 @@ export interface Group {
   channels?: string[]
 }
 
+export interface Team {
+  id: string
+  name: string
+  purpose?: string
+  leaderAgentId?: string
+  memberAgentIds?: string[]
+  parentTeamId?: string
+  tags?: string[]
+}
+
 export interface Workflow {
   id: string
   name: string
@@ -202,12 +213,25 @@ export interface Workflow {
     tags: string[]
     agents: string[]
   }
+  outputDefinitions?: Array<{
+    key: string
+    label?: string
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    help?: string
+  }>
+  inputRefs?: Array<{
+    workflowId: string
+    outputKey: string
+    label?: string
+    required?: boolean
+  }>
   content: string
 }
 
 export interface OrganizationTemplate {
   name: string
   type: 'organization'
+  kind?: 'team' | 'company'
   source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
@@ -223,6 +247,7 @@ export interface OrganizationTemplate {
     max: number
   }>
   agents: OrganizationTemplateAgent[]
+  teams?: Team[]
   communities?: Community[]
   groups?: Group[]
   workflows?: Workflow[]
@@ -308,6 +333,24 @@ function normalizeTemplateForUse(template: Template): Template {
   }
 }
 
+function classifyOrganizationTemplate(template: OrganizationTemplate): 'team' | 'company' {
+  return (template.teams?.length || 0) > 0 ? 'company' : 'team'
+}
+
+function withDerivedTemplateFields(template: Template): Template {
+  if (template.type !== 'organization') return template
+  return {
+    ...template,
+    kind: classifyOrganizationTemplate(template),
+  }
+}
+
+function stripDerivedTemplateFields(template: Template): Template {
+  if (template.type !== 'organization') return template
+  const { kind: _kind, ...rest } = template
+  return rest
+}
+
 function bumpPatchVersion(version?: string): string {
   const match = String(version || '1.0.0').match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!match) return '1.0.1'
@@ -348,6 +391,38 @@ function runOrganizationPostImportSetup(args: {
   workflowOverrides?: Record<string, string>
 }) {
   const { createdAgents, agentsToCreate, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
+
+  if (template.teams && template.teams.length > 0) {
+    const existingTeams = new Set(listTeams(workspacePath).map((team) => team.id))
+    const teamIdMap = Object.fromEntries(
+      template.teams.map((team) => [team.id, slugify(`${prefix}${team.id}${suffix}`)])
+    ) as Record<string, string>
+    const pendingTeams = template.teams.map((team) => ({
+      ...team,
+      mappedId: teamIdMap[team.id],
+    }))
+
+    for (const team of pendingTeams) {
+      if (existingTeams.has(team.mappedId)) continue
+
+      const nextTeam: TeamInput = {
+        id: team.mappedId,
+        name: team.name,
+        purpose: team.purpose,
+        leaderAgentId: team.leaderAgentId ? `${prefix}${team.leaderAgentId}${suffix}` : undefined,
+        memberAgentIds: (team.memberAgentIds || []).map((memberId) => `${prefix}${memberId}${suffix}`),
+        parentTeamId: team.parentTeamId ? teamIdMap[team.parentTeamId] : undefined,
+        tags: team.tags,
+      }
+
+      try {
+        createTeam(nextTeam, workspacePath)
+        existingTeams.add(team.mappedId)
+      } catch (err) {
+        console.warn(`Failed to create team ${team.name}: ${err}`)
+      }
+    }
+  }
 
   // Agent registration is required before workflows can run against new agents.
   // Do this synchronously so an immediate post-apply workflow run doesn't fail.
@@ -646,6 +721,7 @@ export function parseTemplateMd(content: string): Template | null {
     if (data.aiPrompt) template.metadata = { ...(template.metadata || {}), aiPrompt: data.aiPrompt }
 
     // v1 legacy: all data in frontmatter
+    if (data.teams) template.teams = data.teams
     if (data.communities) template.communities = data.communities
     if (data.groups) template.groups = data.groups
     if (data.workflows) template.workflows = data.workflows
@@ -655,6 +731,7 @@ export function parseTemplateMd(content: string): Template | null {
       const parsed = parseTemplateMdBody(body)
       if (!template.description && parsed.description) template.description = parsed.description
       if (parsed.agents.length > 0) template.agents = parsed.agents
+      if (parsed.teams.length > 0 && !template.teams) template.teams = parsed.teams
       if (parsed.communities.length > 0 && !template.communities) template.communities = parsed.communities
       if (parsed.groups.length > 0 && !template.groups) template.groups = parsed.groups
       if (parsed.workflows.length > 0 && !template.workflows) template.workflows = parsed.workflows
@@ -725,12 +802,13 @@ function splitMarkdownH3Blocks(content: string): string[] {
 function parseTemplateMdBody(body: string): {
   description: string
   agents: any[]
+  teams: any[]
   communities: any[]
   groups: any[]
   workflows: any[]
   agentFiles: OrganizationTemplateAgentFiles
 } {
-  const result = { description: '', agents: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[], agentFiles: {} as OrganizationTemplateAgentFiles }
+  const result = { description: '', agents: [] as any[], teams: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[], agentFiles: {} as OrganizationTemplateAgentFiles }
 
   // Split into sections by ## headers
   const sections: Record<string, string> = {}
@@ -793,6 +871,34 @@ function parseTemplateMdBody(body: string): {
             skills: skillsMatch ? skillsMatch[1].split(',').map((s: string) => s.trim()) : [],
           })
         }
+      }
+    }
+  }
+
+  // Parse ## Teams — bullet list:
+  // - **Engineering** — Builds the product (id: engineering; leader: eng-lead; members: eng1, eng2; parent: leadership; tags: platform, core)
+  if (sections['teams']) {
+    for (const line of sections['teams'].trim().split('\n')) {
+      const match = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:—|-)\s*(.+?)(?:\s+\((.+)\))?$/)
+      if (!match) continue
+      const team: any = {
+        name: match[1].trim(),
+        purpose: match[2].trim(),
+      }
+      const attrs = (match[3] || '').split(';').map((part) => part.trim()).filter(Boolean)
+      for (const attr of attrs) {
+        const [rawKey, ...rawValueParts] = attr.split(':')
+        const key = rawKey?.trim()
+        const value = rawValueParts.join(':').trim()
+        if (key === 'id') team.id = value
+        if (key === 'leader') team.leaderAgentId = value
+        if (key === 'members') team.memberAgentIds = value.split(',').map((item) => item.trim()).filter(Boolean)
+        if (key === 'parent') team.parentTeamId = value
+        if (key === 'tags') team.tags = value.split(',').map((item) => item.trim()).filter(Boolean)
+      }
+      if (team.name) {
+        if (!team.id) team.id = slugify(team.name)
+        result.teams.push(team)
       }
     }
   }
@@ -970,6 +1076,23 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
       const communities = (a.communities || []).join(', ')
       const groups = (a.groups || []).join(', ')
       lines.push(`| ${a.id} | ${a.name || a.id} | ${a.role || ''} | ${tags} | ${skills} | ${communities} | ${groups} |`)
+    }
+    lines.push('')
+  }
+
+  // ## Teams
+  if (t.teams?.length) {
+    lines.push('## Teams')
+    lines.push('')
+    for (const team of t.teams) {
+      const attrs: string[] = []
+      if (team.id) attrs.push(`id: ${team.id}`)
+      if (team.leaderAgentId) attrs.push(`leader: ${team.leaderAgentId}`)
+      if (team.memberAgentIds?.length) attrs.push(`members: ${team.memberAgentIds.join(', ')}`)
+      if (team.parentTeamId) attrs.push(`parent: ${team.parentTeamId}`)
+      if (team.tags?.length) attrs.push(`tags: ${team.tags.join(', ')}`)
+      const suffix = attrs.length > 0 ? ` (${attrs.join('; ')})` : ''
+      lines.push(`- **${team.name}** — ${team.purpose || ''}${suffix}`.trimEnd())
     }
     lines.push('')
   }
@@ -1192,7 +1315,7 @@ export function saveTemplate(
     const nextVersion = existingTemplate ? bumpPatchVersion(existingTemplate.version) : (template.version || '1.0.0')
     const sanitizedTemplate: Template = template.type === 'organization'
       ? {
-          ...template,
+          ...stripDerivedTemplateFields(template),
           version: nextVersion,
           source: undefined,
           slug: undefined,
@@ -1327,10 +1450,11 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
       }
     } catch (err) {
       console.error(`Failed to read template at ${entry.dir}:`, err)
+      }
     }
-  }
 
   return Array.from(templates.values())
+    .map((template) => withDerivedTemplateFields(template))
 }
 
 /**
@@ -1347,14 +1471,14 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
 
   if (fs.existsSync(workspaceTemplateDir)) {
     const template = readTemplateFromDir(workspaceTemplateDir)
-    if (template) return { ...template, source: 'workspace', slug }
+    if (template) return withDerivedTemplateFields({ ...template, source: 'workspace', slug })
   }
 
   for (const root of parseExtraTemplateRoots()) {
     for (const entry of collectTemplateDirsFromRoot(root, type, 'enterprise')) {
       if (entry.slug !== slug) continue
       const template = readTemplateFromDir(entry.dir)
-      if (template) return { ...template, source: 'enterprise', slug }
+      if (template) return withDerivedTemplateFields({ ...template, source: 'enterprise', slug })
     }
   }
 
@@ -1365,7 +1489,7 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
 
   if (fs.existsSync(globalTemplateDir)) {
     const template = readTemplateFromDir(globalTemplateDir)
-    if (template) return { ...template, source: 'system', slug }
+    if (template) return withDerivedTemplateFields({ ...template, source: 'system', slug })
   }
 
   return null
@@ -2605,6 +2729,9 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
                 },
                 dependsOn: mappedDependsOn,
                 type: wf.type,
+                secretRequirements: (wf as any).secretRequirements,
+                outputDefinitions: wf.outputDefinitions,
+                inputRefs: wf.inputRefs,
               })
 
               if (result.success) {
@@ -2653,6 +2780,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               dependsOn: mappedDependsOn,
               type: wf.type,
               secretRequirements: (wf as any).secretRequirements,
+              outputDefinitions: wf.outputDefinitions,
+              inputRefs: wf.inputRefs,
             })
 
             if (!result.success) {

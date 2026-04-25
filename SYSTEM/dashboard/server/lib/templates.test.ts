@@ -7,6 +7,8 @@
 import {
   listTemplates,
   getTemplate,
+  importOrganizationTemplate,
+  saveTemplate,
   validateTemplate,
   validateImportedTemplateMd,
   validateAgentTemplateFiles,
@@ -17,6 +19,9 @@ import {
   type AgentTemplate
 } from './templates'
 import { checkTemplatePrereqs } from './prereqs'
+import { listTeams } from './teams'
+import { getWorkflow } from './workflows'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -246,6 +251,9 @@ test('validateTemplate() accepts valid organization template', () => {
     name: 'Test Org',
     type: 'organization',
     version: '1.0.0',
+    teams: [
+      { id: 'engineering', name: 'Engineering', leaderAgentId: 'test-agent', memberAgentIds: ['test-agent'] }
+    ],
     agents: [
       { id: 'test-agent', role: 'Test Role' }
     ]
@@ -281,6 +289,49 @@ test('getTemplate() retrieves org template by slug', () => {
     assert(template.agents.length > 0, 'Should have agents')
   } else {
     console.log('  Template not found (may need to be created first)')
+  }
+})
+
+test('organization templates expose derived kind metadata', () => {
+  const buildCompany = getTemplate('organization', 'build-a-company-hack-test') as OrganizationTemplate | null
+  assert(buildCompany !== null, 'Build-a-Company Hack Test template should exist')
+  assertEqual(buildCompany?.kind as any, 'company', 'Expected build-a-company template to be classified as company')
+
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  fs.mkdirSync(path.join(tempWorkspace, 'TEMPLATES', 'organizations'), { recursive: true })
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const saved = saveTemplate({
+      name: 'Team Kind Check',
+      type: 'organization',
+      version: '1.0.0',
+      agents: [
+        { id: 'lead', role: 'Lead the small team' },
+        { id: 'builder', role: 'Build the work' },
+      ],
+      communities: [{ name: 'Team Kind Check' }],
+      groups: [{ name: 'Status', community: 'Team Kind Check' }],
+      workflows: [],
+    })
+    assert(saved.ok === true, `Expected team template save to succeed, got ${saved.error || 'unknown error'}`)
+
+    const teamTemplate = getTemplate('organization', 'team-kind-check') as OrganizationTemplate | null
+    assert(teamTemplate !== null, 'Expected saved team template to be readable')
+    assertEqual(teamTemplate?.kind as any, 'team', 'Expected simple workspace template to be classified as team')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
   }
 })
 
@@ -677,6 +728,35 @@ test('templateToMarkdown preserves agent communities and groups across markdown 
   assertEqual(parsed.agents[1].groups?.join(','), 'Content Creation,Quality Control', 'Expected second agent group membership to round-trip')
 })
 
+test('templateToMarkdown preserves teams across markdown round-trip', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const template = {
+    name: 'Company Team Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [
+      { id: 'ceo', role: 'CEO' },
+      { id: 'pm', role: 'PM' },
+      { id: 'eng1', role: 'Engineer' },
+    ],
+    teams: [
+      { id: 'leadership', name: 'Leadership', purpose: 'Set direction', leaderAgentId: 'ceo', memberAgentIds: ['pm'], tags: ['exec'] },
+      { id: 'engineering', name: 'Engineering', purpose: 'Build product', leaderAgentId: 'pm', memberAgentIds: ['eng1'], parentTeamId: 'leadership', tags: ['build'] },
+    ],
+  }
+
+  const md = templateToMarkdown(template)
+  const parsed = parseTemplateMd(md)
+
+  assert(parsed !== null, 'Expected round-trip parse to succeed')
+  assert((parsed.teams || []).length === 2, `Expected 2 teams after round-trip, got ${(parsed.teams || []).length}`)
+  assert(parsed.teams[0].id === 'leadership', 'Expected first team id to round-trip')
+  assert(parsed.teams[0].leaderAgentId === 'ceo', 'Expected first team leader to round-trip')
+  assertEqual(parsed.teams[0].memberAgentIds?.join(','), 'pm', 'Expected first team members to round-trip')
+  assert(parsed.teams[1].parentTeamId === 'leadership', 'Expected parent team id to round-trip')
+  assertEqual(parsed.teams[1].tags?.join(','), 'build', 'Expected team tags to round-trip')
+})
+
 test('template markdown preserves organization agent files', () => {
   const { templateToMarkdown, validateImportedTemplateMd } = require('./templates')
   const template = {
@@ -933,6 +1013,116 @@ Broken import validation test.
   const result = validateImportedTemplateMd(md)
   assert(result.valid === false, 'Expected import validation to fail')
   assert(result.errors.some((error: string) => error.toLowerCase().includes('agents')), 'Expected schema error mentioning missing agents')
+})
+
+test('saveTemplate strips derived kind from persisted organization templates', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-home-'))
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-save-'))
+  fs.mkdirSync(path.join(tempWorkspace, 'TEMPLATES', 'organizations'), { recursive: true })
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const result = saveTemplate({
+      name: 'Kind Persistence Check',
+      type: 'organization',
+      kind: 'company',
+      version: '1.0.0',
+      tags: ['company'],
+      agents: [
+        { id: 'ceo', role: 'Chief executive' },
+      ],
+      teams: [
+        { id: 'leadership', name: 'Leadership' },
+      ],
+    })
+
+    assert(result.ok === true, `Expected saveTemplate to succeed, got ${result.error || 'unknown error'}`)
+
+    const persistedPath = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'kind-persistence-check', 'template.json')
+    const persisted = JSON.parse(fs.readFileSync(persistedPath, 'utf-8'))
+    assert(!('kind' in persisted), 'Persisted template.json should not store derived kind')
+
+    const loaded = getTemplate('organization', 'kind-persistence-check') as OrganizationTemplate | null
+    assert(loaded !== null, 'Expected saved template to be readable')
+    assertEqual(loaded?.kind as any, 'company', 'Expected derived kind to be restored on read')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+    fs.rmSync(tempWorkspace, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate creates nested teams and workflow handoff metadata', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const result = importOrganizationTemplate('build-a-company-hack-test', {
+      prefix: 'demo-',
+    })
+
+    assert(result.ok === true, `Expected template import to succeed, got ${result.error || 'unknown error'}`)
+
+    const teams = listTeams(tempWorkspace)
+    assert(teams.length >= 5, `Expected imported company teams, got ${teams.length}`)
+
+    const leadership = teams.find((team) => team.id === 'demo-leadership')
+    const engineering = teams.find((team) => team.id === 'demo-engineering')
+    const execution = teams.find((team) => team.id === 'demo-execution')
+    const marketing = teams.find((team) => team.id === 'demo-marketing')
+    const qa = teams.find((team) => team.id === 'demo-qa')
+    assert(leadership !== undefined, 'Expected leadership team to exist')
+    assert(leadership?.memberAgentIds.includes('demo-execution-lead') === true, 'Expected leadership members to include execution lead')
+    assert(execution?.parentTeamId === 'demo-leadership', 'Expected execution to be nested under leadership')
+    assert(execution?.memberAgentIds.includes('demo-program-manager') === true, 'Expected execution members to include program manager')
+    assert(engineering?.parentTeamId === 'demo-leadership', 'Expected engineering to be nested under leadership')
+    assert(engineering?.memberAgentIds.includes('demo-platform-engineer') === true, 'Expected engineering members to include platform engineer')
+    assert(marketing?.parentTeamId === 'demo-leadership', 'Expected marketing to be nested under leadership')
+    assert(marketing?.memberAgentIds.includes('demo-content-strategist') === true, 'Expected marketing members to include content strategist')
+    assert(qa?.parentTeamId === 'demo-leadership', 'Expected QA to be nested under leadership')
+    assert(qa?.leaderAgentId === 'demo-qa-lead', 'Expected QA leader to use imported agent id')
+    assert(qa?.memberAgentIds.includes('demo-release-analyst') === true, 'Expected QA members to include release analyst')
+
+    const executionBrief = getWorkflow('execution-brief')
+    const engineeringPlan = getWorkflow('engineering-plan')
+    const marketingLaunch = getWorkflow('marketing-launch')
+    const qaReview = getWorkflow('qa-review')
+    assert(executionBrief !== null, 'Expected execution-brief workflow to exist after import')
+    assert(engineeringPlan !== null, 'Expected engineering-plan workflow to exist after import')
+    assert(marketingLaunch !== null, 'Expected marketing-launch workflow to exist after import')
+    assert(qaReview !== null, 'Expected qa-review workflow to exist after import')
+
+    assert(executionBrief?.outputDefinitions?.some((output) => output.key === 'execution-plan') === true, 'Expected execution-brief outputs to persist')
+    assert(engineeringPlan?.inputRefs?.some((ref) => ref.workflowId === 'execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected engineering-plan handoff input to persist')
+    assert(engineeringPlan?.outputDefinitions?.some((output) => output.key === 'engineering-spec') === true, 'Expected engineering-plan outputs to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'engineering-plan' && ref.outputKey === 'engineering-spec') === true, 'Expected marketing-launch engineering handoff to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected marketing-launch execution handoff to persist')
+    assert(marketingLaunch?.outputDefinitions?.some((output) => output.key === 'marketing-pack') === true, 'Expected marketing-launch outputs to persist')
+    assert(qaReview?.inputRefs?.some((ref) => ref.workflowId === 'marketing-launch' && ref.outputKey === 'marketing-pack') === true, 'Expected qa-review marketing handoff to persist')
+    assert(qaReview?.outputDefinitions?.some((output) => output.key === 'qa-signoff') === true, 'Expected qa-review outputs to persist')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
 })
 
 // Summary

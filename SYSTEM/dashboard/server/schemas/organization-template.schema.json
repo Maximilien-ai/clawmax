@@ -36,6 +36,11 @@
       "items": { "$ref": "#/definitions/agent" },
       "description": "Agent definitions"
     },
+    "teams": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/team" },
+      "description": "Team definitions"
+    },
     "communities": {
       "type": "array",
       "items": { "$ref": "#/definitions/community" },
@@ -112,6 +117,28 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Communication channels: whatsapp, slack, etc."
+        }
+      }
+    },
+    "team": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string" },
+        "leaderAgentId": { "type": "string" },
+        "memberAgentIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parentTeamId": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     },

@@ -78,23 +78,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check auth config and current session on mount
   useEffect(() => {
-    Promise.all([
-      fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-      fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-    ]).then(([cfg, me]) => {
-      setConfig(cfg ?? { githubEnabled: false, authDisabled: false })
-      if (me?.authenticated) {
-        setUser(me.user)
-        setSessionExpired(false)
-      } else {
+    let cancelled = false
+
+    const load = async (attempt = 0) => {
+      try {
+        const [cfgResp, meResp] = await Promise.all([
+          fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' }),
+          fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
+        ])
+
+        const shouldRetry = cfgResp.status === 429 || meResp.status === 429
+        if (shouldRetry) {
+          if (cancelled) return
+          const retryDelayMs = Math.min(5000, 1000 * (attempt + 1))
+          window.setTimeout(() => { void load(attempt + 1) }, retryDelayMs)
+          return
+        }
+
+        const cfg = cfgResp.ok ? await cfgResp.json() : null
+        const me = meResp.ok ? await meResp.json() : null
+        if (cancelled) return
+
+        setConfig(cfg ?? { githubEnabled: false, authDisabled: false })
+        if (me?.authenticated) {
+          setUser(me.user)
+          setSessionExpired(false)
+        } else {
+          setUser(null)
+        }
+        setLoading(false)
+      } catch {
+        if (cancelled) return
+        setConfig({ githubEnabled: false, authDisabled: false })
         setUser(null)
+        setLoading(false)
       }
-      setLoading(false)
-    }).catch(() => {
-      setConfig({ githubEnabled: false, authDisabled: false })
-      setUser(null)
-      setLoading(false)
-    })
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {

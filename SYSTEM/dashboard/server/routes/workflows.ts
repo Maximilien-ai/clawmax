@@ -226,6 +226,12 @@ router.post('/:id/trigger', (req, res) => {
       }
       secrets?: Record<string, string>
       inputs?: Record<string, string>
+      outputs?: Record<string, {
+        type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+        summary?: string
+        artifactPath?: string
+        value?: unknown
+      }>
     }
 
     // Validate workflow ID format
@@ -245,6 +251,7 @@ router.post('/:id/trigger', (req, res) => {
       byok,
       secrets,
       inputs,
+      outputs: req.body?.outputs,
       actor: session ? {
         userId: session.userId,
         login: session.login,

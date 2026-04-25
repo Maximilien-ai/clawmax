@@ -40,10 +40,25 @@ async function run() {
     assert(getDashboardVersion() === 'v1.3.3', 'Expected explicit CLAWMAX_VERSION to win')
   })
 
+  await test('getDashboardVersion prefers prerelease package versions for hack builds', () => {
+    process.env.CLAWMAX_VERSION = 'dev'
+    const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')
+    const fs = require('fs')
+    const original = fs.readFileSync(packageJsonPath, 'utf-8')
+    const parsed = JSON.parse(original)
+    parsed.version = '1.4.0-hack'
+    fs.writeFileSync(packageJsonPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    try {
+      assert(getDashboardVersion() === '1.4.0-hack', `Expected prerelease package version, got ${getDashboardVersion()}`)
+    } finally {
+      fs.writeFileSync(packageJsonPath, original, 'utf-8')
+    }
+  })
+
   await test('getDashboardVersion ignores placeholder env values and prefers git/source version', () => {
     process.env.CLAWMAX_VERSION = 'dev'
     const resolved = getDashboardVersion()
-    assert(resolved.startsWith('v') || resolved === '1.3.15', `Expected a real fallback version, got ${resolved}`)
+    assert(resolved.startsWith('v') || /^\d+\.\d+\.\d+/.test(resolved), `Expected a real fallback version, got ${resolved}`)
   })
 
   if (typeof originalVersion === 'undefined') delete process.env.CLAWMAX_VERSION

@@ -319,6 +319,16 @@ else
   fail "Templates API unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running Teams unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/teams.test.ts > /tmp/clawmax-teams.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-teams.out; then
+  teams_count=$(grep "Tests passed:" /tmp/clawmax-teams.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Teams unit tests (${teams_count:-?} tests)"
+else
+  fail "Teams unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Notifications unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/notifications.test.ts > /tmp/clawmax-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
@@ -419,10 +429,10 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
+OPENCLAW_WORKSPACE=/tmp/clawmax-workflows-test npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
   wf_count=$(grep "Passed:" /tmp/clawmax-workflows.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
-  pass "Workflows unit tests (${wf_count:-?} tests)"
+  pass "Workflows unit tests (${wf_count:-?} tests in server/lib/workflows.test.ts)"
 else
   fail "Workflows unit tests"
 fi
@@ -560,7 +570,9 @@ echo -e "${YELLOW}→ Running Workflow routes unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/workflows.test.ts > /tmp/clawmax-workflow-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-routes.out; then
   workflow_routes_count=$(grep "Tests passed:" /tmp/clawmax-workflow-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-  pass "Workflow routes unit tests (${workflow_routes_count:-?} tests)"
+  workflow_total=$(( ${wf_count:-0} + ${workflow_routes_count:-0} ))
+  pass "Workflow routes unit tests (${workflow_routes_count:-?} tests in server/routes/workflows.test.ts)"
+  pass "Workflow test total (${workflow_total} tests across lib + routes)"
 else
   fail "Workflow routes unit tests"
 fi

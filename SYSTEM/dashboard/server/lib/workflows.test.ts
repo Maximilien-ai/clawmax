@@ -4,6 +4,10 @@
  * Run with: npx ts-node --transpileOnly server/lib/workflows.test.ts
  */
 
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import { getWorkspacePath } from './workspace'
 import {
   listWorkflows,
   getWorkflow,
@@ -26,7 +30,11 @@ import {
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
   getWorkflowAgentTimeoutMs,
+  normalizeWorkflowExecutionOutputs,
   resolveWorkflowRunInputPath,
+  resolveWorkflowInputRefs,
+  deriveWorkflowExecutionOutputs,
+  persistWorkflowExecutionOutputArtifacts,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -390,6 +398,139 @@ test('resolveWorkflowRunInputPath resolves relative paths against workspace root
     resolveWorkflowRunInputPath('/tmp/cw-items', workspaceRoot) === '/tmp/cw-items',
     'Expected absolute path to remain unchanged'
   )
+})
+
+test('normalizeWorkflowExecutionOutputs trims keys and preserves structured values', () => {
+  const normalized = normalizeWorkflowExecutionOutputs({
+    ' brief ': {
+      type: 'markdown',
+      summary: ' Planning summary ',
+      artifactPath: ' deliverables/brief.md ',
+      value: { owner: 'product' },
+    },
+  })
+
+  assert(normalized !== undefined, 'Expected outputs to normalize')
+  assert(normalized?.brief?.type === 'markdown', 'Expected output type to persist')
+  assert(normalized?.brief?.summary === 'Planning summary', 'Expected summary to trim')
+  assert(normalized?.brief?.artifactPath === 'deliverables/brief.md', 'Expected artifact path to trim')
+  assert((normalized?.brief?.value as any)?.owner === 'product', 'Expected structured value to persist')
+})
+
+test('resolveWorkflowInputRefs resolves latest upstream output by workflow id and key', () => {
+  const refs = resolveWorkflowInputRefs({
+    inputRefs: [
+      { workflowId: 'leadership-kickoff', outputKey: 'brief', label: 'Leadership Brief' },
+    ],
+  }, (workflowId) => {
+    if (workflowId !== 'leadership-kickoff') return null
+    return {
+      id: 'exec-1',
+      workflowId,
+      startedAt: new Date().toISOString(),
+      status: 'completed',
+      triggerType: 'manual',
+      participants: [],
+      logs: [],
+      outputs: {
+        brief: {
+          type: 'markdown',
+          summary: 'Kickoff brief ready',
+          artifactPath: 'deliverables/brief.md',
+          value: { ownerTeam: 'product' },
+        },
+      },
+    }
+  })
+
+  assert(refs.length === 1, `Expected one resolved ref, got ${refs.length}`)
+  assert(refs[0].missing === false, 'Expected upstream output to resolve')
+  assert(refs[0].summary === 'Kickoff brief ready', 'Expected summary to resolve')
+  assert(refs[0].artifactPath === 'deliverables/brief.md', 'Expected artifact path to resolve')
+  assert((refs[0].value as any)?.ownerTeam === 'product', 'Expected structured value to resolve')
+})
+
+test('deriveWorkflowExecutionOutputs uses owner response for declared output', () => {
+  const outputs = deriveWorkflowExecutionOutputs(
+    {
+      owner: 'agent-owner',
+      outputDefinitions: [{ key: 'brief', type: 'markdown' }],
+    },
+    [
+      { agentId: 'agent-helper', response: 'Helper draft' },
+      { agentId: 'agent-owner', response: 'Owner final brief\n\nWith detail.' },
+    ]
+  )
+
+  assert(outputs !== undefined, 'Expected derived outputs')
+  assert(outputs?.brief?.type === 'markdown', `Expected markdown type, got ${outputs?.brief?.type}`)
+  assert(outputs?.brief?.value === 'Owner final brief\n\nWith detail.', `Expected owner response as value, got ${outputs?.brief?.value}`)
+  assert(outputs?.brief?.summary?.includes('Owner final brief') === true, `Expected summary to include owner response, got ${outputs?.brief?.summary}`)
+})
+
+test('persistWorkflowExecutionOutputArtifacts writes markdown outputs into workflow output files', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-output-'))
+  const persisted = persistWorkflowExecutionOutputArtifacts('leadership-kickoff', {
+    'leadership-brief': {
+      type: 'markdown',
+      value: '# Leadership Brief\n\nShip the company kickoff.',
+      summary: 'Leadership brief ready',
+    },
+  }, workspaceRoot)
+
+  const artifactPath = persisted?.['leadership-brief']?.artifactPath
+  assert(artifactPath === 'WORKFLOWS/outputs/leadership-kickoff/leadership-brief.md', `Unexpected artifact path: ${artifactPath}`)
+
+  const absoluteArtifactPath = path.join(workspaceRoot, artifactPath!)
+  assert(fs.existsSync(absoluteArtifactPath), `Expected artifact file to exist at ${absoluteArtifactPath}`)
+  const artifactContent = fs.readFileSync(absoluteArtifactPath, 'utf-8')
+  assert(artifactContent.includes('Ship the company kickoff.'), `Unexpected artifact content: ${artifactContent}`)
+})
+
+test('getExecution backfills artifact paths for existing markdown outputs', () => {
+  const workflowId = 'artifact-backfill'
+  const workspaceRoot = process.env.OPENCLAW_WORKSPACE || getWorkspacePath()
+  const workflowPath = path.join(workspaceRoot, 'WORKFLOWS', `${workflowId}.md`)
+  fs.writeFileSync(workflowPath, `---
+name: Artifact Backfill
+description: Test workflow
+schedule: manual
+enabled: true
+targeting:
+  communities: []
+  groups: []
+  tags: []
+  agents: []
+author: test
+executionMode: managed
+---
+Backfill output artifacts on read.
+`, 'utf-8')
+
+  const executionDir = path.join(workspaceRoot, 'WORKFLOWS', 'executions', workflowId)
+  fs.mkdirSync(executionDir, { recursive: true })
+  const executionPath = path.join(executionDir, 'exec-backfill.json')
+  fs.writeFileSync(executionPath, JSON.stringify({
+    id: 'exec-backfill',
+    workflowId,
+    startedAt: new Date().toISOString(),
+    status: 'completed',
+    triggerType: 'manual',
+    participants: [],
+    logs: [],
+    outputs: {
+      'leadership-brief': {
+        type: 'markdown',
+        value: '# Backfilled brief\n\nNow with file path.',
+        summary: 'Backfilled brief',
+      },
+    },
+  }, null, 2), 'utf-8')
+
+  const execution = getExecution(workflowId, 'exec-backfill')
+  const artifactPath = execution?.outputs?.['leadership-brief']?.artifactPath
+  assert(artifactPath === 'WORKFLOWS/outputs/artifact-backfill/leadership-brief.md', `Unexpected backfilled artifact path: ${artifactPath}`)
+  assert(fs.existsSync(path.join(workspaceRoot, artifactPath!)), `Expected backfilled artifact file to exist at ${artifactPath}`)
 })
 
 test('isWorkflowSessionLockError matches the OpenClaw lock timeout error', () => {

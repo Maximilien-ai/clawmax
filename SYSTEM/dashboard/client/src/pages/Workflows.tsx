@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
@@ -36,6 +36,18 @@ interface Workflow {
   status?: 'idle' | 'running' | 'completed' | 'blocked'
   dependsOn?: string[]
   secretRequirements?: SecretRequirement[]
+  outputDefinitions?: Array<{
+    key: string
+    label?: string
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    help?: string
+  }>
+  inputRefs?: Array<{
+    workflowId: string
+    outputKey: string
+    label?: string
+    required?: boolean
+  }>
 }
 
 interface WorkflowDetails extends Workflow {
@@ -76,6 +88,12 @@ interface WorkflowExecutionDetails {
   participants: WorkflowExecutionParticipant[]
   logs: string[]
   inputs?: Record<string, string>
+  outputs?: Record<string, {
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    summary?: string
+    artifactPath?: string
+    value?: unknown
+  }>
 }
 
 interface StructuredWorkflowInputField {
@@ -96,6 +114,7 @@ interface WorkflowsProps {
   onNavigateToCommunity?: (communityName: string) => void
   onNavigateToDoc?: (file: string) => void
   initialWorkflowId?: string
+  isActive?: boolean
 }
 
 // Helper function to strip YAML frontmatter from markdown content
@@ -108,6 +127,22 @@ function stripFrontmatter(content?: string | null): string {
     return content.slice(match[0].length).trim()
   }
   return content.trim()
+}
+
+function getWorkflowOutputArtifactPath(
+  workflowId: string,
+  outputKey: string,
+  output?: {
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    artifactPath?: string
+  } | null
+): string | undefined {
+  if (output?.artifactPath) return output.artifactPath
+  if (!workflowId || !outputKey) return undefined
+  if (output?.type === 'markdown') return `WORKFLOWS/outputs/${workflowId}/${outputKey}.md`
+  if (output?.type === 'text') return `WORKFLOWS/outputs/${workflowId}/${outputKey}.txt`
+  if (output?.type === 'json') return `WORKFLOWS/outputs/${workflowId}/${outputKey}.json`
+  return undefined
 }
 
 function parseStructuredWorkflowInputFields(content?: string | null): StructuredWorkflowInputField[] {
@@ -314,7 +349,7 @@ function ImportWorkflowModal({
   )
 }
 
-export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId }: WorkflowsProps = {}) {
+export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId, isActive = true }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
@@ -354,6 +389,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
+  const [latestExecutionDetails, setLatestExecutionDetails] = useState<WorkflowExecutionDetails | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'dag'>(() => {
     const saved = localStorage.getItem('workflows-view-mode')
     return saved === 'list' ? 'list' : saved === 'grid' ? 'grid' : 'dag'
@@ -368,37 +404,64 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [archivedExecutions, setArchivedExecutions] = useState<WorkflowExecution[]>([])
   const [archivedWorkflowId, setArchivedWorkflowId] = useState<string | null>(null)
   const [trackedExecutions, setTrackedExecutions] = useState<Map<string, { status: string; executionId: string; workflowName: string }>>(new Map())
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number>(0)
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
     consequences: string[]
     onConfirm: () => Promise<void>
   } | null>(null)
+  const handledInitialWorkflowIdRef = useRef<string | null>(null)
+
+  const markRateLimited = useCallback((retryAfterMs = 15000) => {
+    setRateLimitedUntil(Date.now() + retryAfterMs)
+  }, [])
+
+  const isRateLimitedResponse = useCallback((response: Response) => {
+    if (response.status !== 429) return false
+    const retryAfterHeader = response.headers.get('retry-after')
+    const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN
+    markRateLimited(Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 15000)
+    return true
+  }, [markRateLimited])
 
   const fetchWorkflows = (silent = false) => {
+    if (Date.now() < rateLimitedUntil) return
     if (!silent) setLoading(true)
     fetch('/api/workflows')
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load workflows')))
+      .then(async r => {
+        if (r.status === 429) {
+          markRateLimited()
+          throw new Error('Rate limited while loading workflows')
+        }
+        return r.ok ? r.json() : Promise.reject(new Error('Failed to load workflows'))
+      })
       .then(data => {
         setWorkflows(Array.isArray(data.workflows) ? data.workflows : [])
         setLoading(false)
       })
       .catch((err) => {
         console.warn('Failed to load workflows:', err)
-        setWorkflows([])
         setLoading(false)
       })
   }
 
   const selectedWorkflowTargeting = selectedWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
   const executionWorkflowTargeting = executionWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
+  const workflowNameById = useMemo(
+    () => new Map(workflows.map((workflow) => [workflow.id, workflow.name])),
+    [workflows]
+  )
   const selectedWorkflowHasEditableInputs = !!selectedWorkflow && (
     Object.keys(parseStructuredWorkflowInputs(selectedWorkflow.content)).length > 0 ||
     (selectedWorkflow.secretRequirements || []).length > 0
   )
 
   useEffect(() => {
-    fetchWorkflows()
-    // Fetch metering costs per agent
+    if (!isActive) return
+    if (workflows.length === 0) {
+      fetchWorkflows()
+    }
+    if (Object.keys(agentCosts).length > 0 || !costTrackingEnabled) return
     fetch('/api/metering').then(r => r.ok ? r.json() : null).then(d => {
       if (d && d.enabled === false) {
         setCostTrackingEnabled(false)
@@ -410,14 +473,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
-  }, [])
+  }, [isActive, workflows.length, agentCosts, costTrackingEnabled])
 
   // Auto-refresh in DAG view (10s silent polling for live progress)
   useEffect(() => {
+    if (!isActive) return
     if (viewMode !== 'dag') return
-    const interval = setInterval(() => fetchWorkflows(true), 10000)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      fetchWorkflows(true)
+    }, 15000)
     return () => clearInterval(interval)
-  }, [viewMode])
+  }, [isActive, viewMode, rateLimitedUntil])
 
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
@@ -631,180 +698,27 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     ? summarizeSecretReadiness(triggeringWorkflow.secretRequirements || [], workflowSecrets)
     : null
 
-  // Poll for running workflows and detect completions
+  // Lightweight polling for running workflow status while on the workflows page.
   useEffect(() => {
+    if (!isActive) return
     const checkRunningWorkflows = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() < rateLimitedUntil) return
       try {
-        const currentWorkflows = workflowsRef.current
-        const workflowIds = currentWorkflows.map(w => w.id)
-        const checks = await Promise.all(
-          workflowIds.map(async id => {
-            const workflow = currentWorkflows.find(w => w.id === id)
-            // Fetch recent executions (limit=10) to catch fast-completing ones
-            const res = await fetch(`/api/workflows/${id}/executions?limit=10`)
-            const data = await res.json()
-            const executions = data.executions || []
-            const latest = executions[0]
-            return {
-              id,
-              isRunning: latest?.status === 'running',
-              executions, // Return all executions to check tracked ones
-              execution: latest,
-              workflowName: workflow?.name || id
-            }
-          })
-        )
-
-        const running = new Set(checks.filter(c => c.isRunning).map(c => c.id))
+        const res = await fetch('/api/workflows')
+        if (res.status === 429) {
+          markRateLimited()
+          return
+        }
+        if (!res.ok) return
+        const data = await res.json()
+        const nextWorkflows = Array.isArray(data?.workflows) ? data.workflows : []
+        const running = new Set(nextWorkflows.filter((workflow: Workflow) => workflow.status === 'running').map((workflow: Workflow) => workflow.id))
         const latestStatuses = Object.fromEntries(
-          checks.map(check => [check.id, check.execution?.status as WorkflowExecution['status'] | undefined])
+          nextWorkflows.map((workflow: Workflow) => [workflow.id, workflow.status as WorkflowExecution['status'] | undefined])
         )
         setLatestExecutionStatuses(latestStatuses)
-
-        // Check for completion transitions and show toasts
-        // IMPORTANT: Do this BEFORE setState so toastQueue is populated synchronously
-        const toastQueue: Array<{ workflowName: string; status: string; successRate: string }> = []
-        const toCheckAsync: Array<{ workflowId: string; executionId: string; workflowName: string }> = []
-
-        const prev = trackedExecutionsRef.current
-        const next = new Map(prev)
-        const seenKeys = new Set<string>()
-        const handledKeys = new Set<string>()
-
-        for (const check of checks) {
-          // Check ALL recent executions for this workflow, not just the latest
-          for (const execution of check.executions || []) {
-            const key = `${check.id}:${execution.id}`
-            seenKeys.add(key)
-            const tracked = prev.get(key)
-
-            // Detect transition from running/pending to completed/failed
-            const wasInProgress = tracked && (tracked.status === 'running' || tracked.status === 'pending')
-            const isComplete = execution.status === 'completed' || execution.status === 'failed'
-
-            if (wasInProgress && isComplete) {
-              const status = execution.status
-              const successRate = execution.participantCount > 0
-                ? `${execution.successCount}/${execution.participantCount}`
-                : '0/0'
-
-              // Queue for toast
-              toastQueue.push({
-                workflowName: check.workflowName,
-                status,
-                successRate
-              })
-
-              // Mark as handled
-              handledKeys.add(key)
-
-              // Delete from Map IMMEDIATELY to prevent duplicate toasts
-              next.delete(key)
-
-              // Refresh the workflow details if it's currently selected
-              if (selectedWorkflowRef.current?.id === check.id) {
-                // Inline refresh to avoid circular dependency
-                fetch(`/api/workflows/${check.id}`).then(r => r.json()).then(workflow => {
-                  setSelectedWorkflow(workflow)
-                }).catch(() => {})
-                fetch(`/api/workflows/${check.id}/executions?limit=10`).then(r => r.json()).then(data => {
-                  const sortedExecutions = (data.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
-                    if (a.status === 'running' && b.status !== 'running') return -1
-                    if (a.status !== 'running' && b.status === 'running') return 1
-                    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-                  })
-                  setExecutions(sortedExecutions)
-                }).catch(() => {})
-              }
-            }
-            // Track all non-complete execution states
-            else if (execution.status === 'running' || execution.status === 'pending') {
-              next.set(key, {
-                status: execution.status,
-                executionId: execution.id,
-                workflowName: check.workflowName
-              })
-            }
-            // Remove completed executions that were tracked but completed
-            else if (isComplete && tracked) {
-              next.delete(key)
-            }
-          }
-        }
-
-        // Clean up tracked executions that are no longer in recent list (likely completed)
-        // Only check if they weren't already handled in the loop above
-        for (const [key, tracked] of prev.entries()) {
-          if (!seenKeys.has(key) && !handledKeys.has(key)) {
-            const [workflowId, executionId] = key.split(':')
-            // Queue for async check
-            toCheckAsync.push({ workflowId, executionId, workflowName: tracked.workflowName })
-            // Remove from tracking
-            next.delete(key)
-          }
-        }
-
-        // Update tracked executions with the new Map
-        setTrackedExecutions(next)
-        fetch('/api/workflows')
-          .then(r => r.ok ? r.json() : null)
-          .then(data => {
-            if (Array.isArray(data?.workflows)) {
-              setWorkflows(data.workflows)
-            } else {
-              setWorkflows(current =>
-                current.map(workflow => {
-                  const latestStatus = latestStatuses[workflow.id]
-                  const isRunning = running.has(workflow.id)
-                  return {
-                    ...workflow,
-                    status: latestStatus === 'failed'
-                      ? 'blocked'
-                      : latestStatus === 'completed'
-                        ? 'completed'
-                        : isRunning
-                          ? 'running'
-                          : workflow.status,
-                  }
-                })
-              )
-            }
-          })
-          .catch(() => {})
-
-        // Show toasts for completed executions
-        for (const toast of toastQueue) {
-          const isSuccess = toast.status === 'completed'
-          const icon = isSuccess ? '✅' : '❌'
-          if (isSuccess) {
-            showSuccessRef.current(`${icon} ${toast.workflowName} completed (${toast.successRate} agents)`)
-          } else {
-            showErrorRef.current(`${icon} ${toast.workflowName} ${toast.status} (${toast.successRate} agents)`)
-          }
-        }
-
-        // Check missing executions asynchronously
-        for (const missing of toCheckAsync) {
-          fetch(`/api/workflows/${missing.workflowId}/executions/${missing.executionId}`)
-            .then(r => r.json())
-            .then(execution => {
-              if (execution.status === 'completed' || execution.status === 'failed') {
-                const isSuccess = execution.status === 'completed'
-                const icon = isSuccess ? '✅' : '❌'
-                const successRate = execution.participantCount > 0
-                  ? `${execution.successCount}/${execution.participantCount}`
-                  : '0/0'
-
-                if (isSuccess) {
-                  showSuccessRef.current(`${icon} ${missing.workflowName} completed (${successRate} agents)`)
-                } else {
-                  showErrorRef.current(`${icon} ${missing.workflowName} ${execution.status} (${successRate} agents)`)
-                }
-              }
-            })
-            .catch(() => {})
-        }
-
+        setWorkflows(nextWorkflows)
         setRunningWorkflows(running)
       } catch (err) {
         console.error('Error checking running workflows:', err)
@@ -812,27 +726,36 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
 
     checkRunningWorkflows()
-    const interval = setInterval(checkRunningWorkflows, 5000)
+    const interval = setInterval(checkRunningWorkflows, 15000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isActive, rateLimitedUntil, markRateLimited])
 
   // Handle initialWorkflowId
   useEffect(() => {
-    if (initialWorkflowId && workflows.length > 0) {
-      const workflow = workflows.find(w => w.id === initialWorkflowId)
-      if (workflow) {
-        fetchWorkflowDetails(initialWorkflowId)
-      }
-    }
-  }, [initialWorkflowId, workflows])
+    if (!isActive) return
+    if (!initialWorkflowId || workflows.length === 0) return
+    if (handledInitialWorkflowIdRef.current === initialWorkflowId) return
+    const workflow = workflows.find(w => w.id === initialWorkflowId)
+    if (!workflow) return
+    handledInitialWorkflowIdRef.current = initialWorkflowId
+    fetchWorkflowDetails(initialWorkflowId)
+  }, [isActive, initialWorkflowId, workflows])
 
   const fetchWorkflowDetails = async (id: string) => {
+    if (Date.now() < rateLimitedUntil) return
     try {
       const [workflowResp, executionsResp] = await Promise.all([
         fetch(`/api/workflows/${id}`),
         fetch(`/api/workflows/${id}/executions?limit=10`)
       ])
+
+      if (isRateLimitedResponse(workflowResp) || isRateLimitedResponse(executionsResp)) {
+        return
+      }
+      if (!workflowResp.ok || !executionsResp.ok) {
+        throw new Error('Failed to fetch workflow details')
+      }
 
       const workflow = await workflowResp.json()
       const executionsData = await executionsResp.json()
@@ -850,18 +773,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const latestExecutionId = sortedExecutions[0]?.id
       if (latestExecutionId) {
         const latestExecutionResp = await fetch(`/api/workflows/${id}/executions/${latestExecutionId}`)
+        if (isRateLimitedResponse(latestExecutionResp)) {
+          return
+        }
         if (latestExecutionResp.ok) {
           const latestExecution = await latestExecutionResp.json() as WorkflowExecutionDetails
           lastExecutionInputs = latestExecution.inputs
+          setLatestExecutionDetails(latestExecution)
         }
+      } else {
+        setLatestExecutionDetails(null)
       }
 
       setSelectedWorkflow(workflow)
       setExecutions(sortedExecutions)
       initializeWorkflowRunForm(workflow, lastExecutionInputs)
       setShowDetailPanel(true)
-      // Also refresh the card list to keep counts/status in sync
-      fetchWorkflows()
       setShowExecutionPanel(false) // Close execution panel when viewing workflow
     } catch (err) {
       showError('Failed to load workflow details')
@@ -869,12 +796,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   const fetchExecutionDetails = async (workflowId: string, executionId: string, silent = false) => {
+    if (Date.now() < rateLimitedUntil) return
     try {
       const [execResp, workflowResp, executionsResp] = await Promise.all([
         fetch(`/api/workflows/${workflowId}/executions/${executionId}`),
         fetch(`/api/workflows/${workflowId}`),
         fetch(`/api/workflows/${workflowId}/executions?limit=20`)
       ])
+      if (isRateLimitedResponse(execResp) || isRateLimitedResponse(workflowResp) || isRateLimitedResponse(executionsResp)) {
+        return
+      }
       if (!execResp.ok) throw new Error('Failed to fetch execution')
       const execution = await execResp.json()
       const workflow = workflowResp.ok ? await workflowResp.json() : null
@@ -965,11 +896,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     if (selectedExecution && selectedExecution.status === 'running') {
       const interval = setInterval(() => {
+        if (document.visibilityState !== 'visible') return
+        if (Date.now() < rateLimitedUntil) return
         fetchExecutionDetails(selectedExecution.workflowId, selectedExecution.id, true)
       }, 3000) // Poll every 3 seconds
       return () => clearInterval(interval)
     }
-  }, [selectedExecution?.id, selectedExecution?.status])
+  }, [selectedExecution?.id, selectedExecution?.status, rateLimitedUntil])
 
   const handleToggleEnabled = async (id: string, currentEnabled: boolean) => {
     try {
@@ -1893,6 +1826,137 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </p>
                 )}
               </div>
+
+              {((selectedWorkflow.inputRefs || []).length > 0 || (selectedWorkflow.outputDefinitions || []).length > 0) && (
+                <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/80 dark:bg-sky-900/10 p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-100">Workflow Handoffs</h3>
+                    <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/80">
+                      This shows what this workflow needs from upstream work and what artifact it produces for downstream teams.
+                    </p>
+                  </div>
+
+                  {(selectedWorkflow.inputRefs || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                        Required Inputs
+                      </div>
+                      <div className="space-y-2">
+                        {(selectedWorkflow.inputRefs || []).map((inputRef, idx) => {
+                          const upstreamName = workflowNameById.get(inputRef.workflowId) || inputRef.workflowId
+                          return (
+                            <div
+                              key={`${inputRef.workflowId}:${inputRef.outputKey}:${idx}`}
+                              className="rounded-md border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 p-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
+                                  {inputRef.label || inputRef.outputKey}
+                                </span>
+                                {inputRef.required !== false && (
+                                  <span className="rounded-full bg-red-100 dark:bg-red-900/30 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:text-red-300">
+                                    Required
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                                From{' '}
+                                <button
+                                  onClick={() => fetchWorkflowDetails(inputRef.workflowId)}
+                                  className="font-medium text-sky-600 hover:text-sky-700 hover:underline"
+                                >
+                                  {upstreamName}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {(selectedWorkflow.outputDefinitions || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                        Produced Outputs
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {(selectedWorkflow.outputDefinitions || []).map((output, idx) => (
+                          (() => {
+                            const latestOutput = latestExecutionDetails?.outputs?.[output.key]
+                            const outputArtifactPath = getWorkflowOutputArtifactPath(selectedWorkflow.id, output.key, latestOutput)
+                            return (
+                              <div
+                                key={`${output.key}:${idx}`}
+                                className="rounded-md border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 p-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    {output.label || output.key}
+                                  </span>
+                                  <span className="rounded-full border border-sky-200 dark:border-sky-700 px-2 py-0.5 text-[11px] text-sky-700 dark:text-sky-300">
+                                    {output.type || 'artifact'}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs font-mono text-gray-500 dark:text-gray-400">
+                                  {output.key}
+                                </div>
+                                {output.help && (
+                                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                    {output.help}
+                                  </div>
+                                )}
+                                {latestOutput && (
+                                  <div className="mt-2 rounded border border-sky-200 dark:border-sky-700 bg-sky-50/80 dark:bg-sky-900/20 p-2">
+                                    <div className="text-[11px] font-semibold text-sky-800 dark:text-sky-200">
+                                      Latest Generated Output
+                                    </div>
+                                    {typeof latestOutput.summary === 'string' && latestOutput.summary.trim() && (
+                                      <div className="mt-1 text-xs text-sky-900 dark:text-sky-100 whitespace-pre-wrap">
+                                        {latestOutput.summary}
+                                      </div>
+                                    )}
+                                    {!latestOutput.summary && typeof latestOutput.value === 'string' && (
+                                      <div className="mt-1 text-xs text-sky-900 dark:text-sky-100 whitespace-pre-wrap">
+                                        {`${latestOutput.value}`.slice(0, 400)}
+                                      </div>
+                                    )}
+                                    {outputArtifactPath && (
+                                      <div className="mt-2 text-[11px] font-mono text-sky-700 dark:text-sky-300 break-all">
+                                        {outputArtifactPath}
+                                      </div>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {outputArtifactPath && onNavigateToDoc && (
+                                        <button
+                                          onClick={() => onNavigateToDoc(outputArtifactPath)}
+                                          className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                                        >
+                                          Open Output File
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => {
+                                          if (latestExecutionDetails?.id) {
+                                            fetchExecutionDetails(selectedWorkflow.id, latestExecutionDetails.id)
+                                          }
+                                        }}
+                                        className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                                      >
+                                        View Latest Execution
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-4">

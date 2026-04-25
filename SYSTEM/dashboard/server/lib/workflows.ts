@@ -69,6 +69,18 @@ export interface Workflow {
     placeholder?: string
     sensitive?: boolean
   }>
+  outputDefinitions?: Array<{
+    key: string
+    label?: string
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    help?: string
+  }>
+  inputRefs?: Array<{
+    workflowId: string
+    outputKey: string
+    label?: string
+    required?: boolean
+  }>
 }
 
 export interface WorkflowParticipant {
@@ -98,6 +110,12 @@ export interface WorkflowExecution {
   participants: WorkflowExecutionParticipant[]
   logs: string[]
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
+  outputs?: Record<string, {
+    type: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    summary?: string
+    artifactPath?: string
+    value?: unknown
+  }>
 }
 
 function expandHomePath(input: string): string {
@@ -125,6 +143,150 @@ export function resolveWorkflowRunInputPath(inputValue: string, workspaceRoot: s
   const expanded = expandHomePath(trimmed)
   if (path.isAbsolute(expanded)) return path.normalize(expanded)
   return path.resolve(workspaceRoot, expanded)
+}
+
+export function normalizeWorkflowExecutionOutputs(
+  outputs?: Record<string, {
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    summary?: string
+    artifactPath?: string
+    value?: unknown
+  }>
+): WorkflowExecution['outputs'] | undefined {
+  if (!outputs || typeof outputs !== 'object') return undefined
+  const normalized = Object.fromEntries(
+    Object.entries(outputs)
+      .map(([key, raw]) => {
+        const normalizedKey = `${key || ''}`.trim()
+        if (!normalizedKey || !raw || typeof raw !== 'object') return null
+        const type = raw.type || 'text'
+        const summary = typeof raw.summary === 'string' ? raw.summary.trim() || undefined : undefined
+        const artifactPath = typeof raw.artifactPath === 'string' ? raw.artifactPath.trim() || undefined : undefined
+        return [normalizedKey, {
+          type,
+          summary,
+          artifactPath,
+          value: raw.value,
+        }]
+      })
+      .filter(Boolean) as Array<[string, NonNullable<WorkflowExecution['outputs']>[string]]>
+  )
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+export function resolveWorkflowInputRefs(
+  workflow: Pick<Workflow, 'inputRefs'>,
+  getExecutionForWorkflowId: (workflowId: string) => WorkflowExecution | null = (workflowId) => listExecutions(workflowId, 1).at(-1) || null
+): Array<{
+  workflowId: string
+  outputKey: string
+  label: string
+  value?: unknown
+  summary?: string
+  artifactPath?: string
+  missing: boolean
+}> {
+  return (workflow.inputRefs || []).map((ref) => {
+    const workflowId = `${ref.workflowId || ''}`.trim()
+    const outputKey = `${ref.outputKey || ''}`.trim()
+    const execution = workflowId ? getExecutionForWorkflowId(workflowId) : null
+    const output = execution?.outputs?.[outputKey]
+    return {
+      workflowId,
+      outputKey,
+      label: ref.label?.trim() || `${workflowId}.${outputKey}`,
+      value: output?.value,
+      summary: output?.summary,
+      artifactPath: output?.artifactPath,
+      missing: !output,
+    }
+  })
+}
+
+function summarizeWorkflowOutputValue(raw: string, maxLength = 220): string | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const singleLine = trimmed.replace(/\s+/g, ' ')
+  return singleLine.length > maxLength ? `${singleLine.slice(0, maxLength - 1)}…` : singleLine
+}
+
+export function deriveWorkflowExecutionOutputs(
+  workflow: Pick<Workflow, 'outputDefinitions' | 'owner'>,
+  participants: Array<Pick<WorkflowExecutionParticipant, 'agentId'> & { response?: string }>,
+  existingOutputs?: WorkflowExecution['outputs']
+): WorkflowExecution['outputs'] | undefined {
+  if (existingOutputs && Object.keys(existingOutputs).length > 0) return existingOutputs
+  const outputDefinition = workflow.outputDefinitions?.[0]
+  if (!outputDefinition?.key) return existingOutputs
+
+  const ownerParticipant = workflow.owner
+    ? participants.find((participant) => participant.agentId === workflow.owner && typeof participant.response === 'string' && participant.response.trim())
+    : undefined
+  const firstParticipantWithResponse = participants.find((participant) => typeof participant.response === 'string' && participant.response.trim())
+  const chosenResponse = ownerParticipant?.response || firstParticipantWithResponse?.response
+  if (!chosenResponse?.trim()) return existingOutputs
+
+  return {
+    [outputDefinition.key]: {
+      type: outputDefinition.type || 'markdown',
+      summary: summarizeWorkflowOutputValue(chosenResponse),
+      value: chosenResponse.trim(),
+    },
+  }
+}
+
+export function persistWorkflowExecutionOutputArtifacts(
+  workflowId: string,
+  outputs?: WorkflowExecution['outputs'],
+  workspaceRoot: string = getWorkspacePath()
+): WorkflowExecution['outputs'] | undefined {
+  if (!outputs || typeof outputs !== 'object') return outputs
+
+  let mutated = false
+  const persistedOutputs = Object.fromEntries(
+    Object.entries(outputs).map(([key, output]) => {
+      if (!output || output.artifactPath) return [key, output]
+
+      const normalizedKey = `${key || ''}`.trim()
+      if (!normalizedKey) return [key, output]
+
+      if ((output.type === 'markdown' || output.type === 'text') && typeof output.value === 'string' && output.value.trim()) {
+        const extension = output.type === 'markdown' ? 'md' : 'txt'
+        const artifactPath = path.posix.join('WORKFLOWS', 'outputs', workflowId, `${normalizedKey}.${extension}`)
+        const absolutePath = path.join(workspaceRoot, artifactPath)
+        fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
+        fs.writeFileSync(absolutePath, output.value.trimEnd() + '\n', 'utf-8')
+        mutated = true
+        return [key, {
+          ...output,
+          artifactPath,
+        }]
+      }
+
+      return [key, output]
+    })
+  ) as WorkflowExecution['outputs']
+
+  return mutated ? persistedOutputs : outputs
+}
+
+function hydrateExecutionArtifacts(
+  workflowId: string,
+  execution: WorkflowExecution,
+  filePath?: string
+): WorkflowExecution {
+  const persistedOutputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
+  if (persistedOutputs !== execution.outputs) {
+    execution.outputs = persistedOutputs
+    if (filePath) {
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(execution, null, 2), 'utf-8')
+      } catch (error) {
+        console.error(`Error persisting hydrated execution ${execution.id}:`, error)
+      }
+    }
+  }
+  return execution
 }
 
 interface WorkflowRuntimeOverrides {
@@ -335,6 +497,8 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
       progress: data.progress,
       status: data.status,
       secretRequirements: data.secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     }
   } catch {
     return null
@@ -361,6 +525,8 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.maxRuns) fm.maxRuns = workflow.maxRuns
   if (workflow.runCount) fm.runCount = workflow.runCount
   if (workflow.secretRequirements?.length) fm.secretRequirements = workflow.secretRequirements
+  if (workflow.outputDefinitions?.length) fm.outputDefinitions = workflow.outputDefinitions
+  if (workflow.inputRefs?.length) fm.inputRefs = workflow.inputRefs
 
   return matter.stringify(workflow.content || '', fm)
 }
@@ -546,7 +712,9 @@ export function listWorkflowTemplates(): Workflow[] {
         author: data.author || 'system',
         owner: data.owner,
         executionMode: data.executionMode || 'automated',
-        content: markdownContent.trim()
+        content: markdownContent.trim(),
+        outputDefinitions: data.outputDefinitions,
+        inputRefs: data.inputRefs,
       }
 
       templates.push(template)
@@ -595,6 +763,9 @@ export function getWorkflow(id: string): Workflow | null {
       type: data.type,
       progress: data.progress,
       status: data.status,
+      secretRequirements: data.secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     })
   } catch (error) {
     console.error(`Error parsing workflow ${id}:`, error)
@@ -655,6 +826,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       dependsOn: data.dependsOn,
       type: data.type,
       secretRequirements: (data as any).secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     }
 
     // Create file with YAML frontmatter
@@ -675,6 +848,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       ...(workflow.dependsOn?.length && { dependsOn: workflow.dependsOn }),
       ...(workflow.type && { type: workflow.type }),
       ...(workflow.secretRequirements?.length && { secretRequirements: workflow.secretRequirements }),
+      ...(workflow.outputDefinitions?.length && { outputDefinitions: workflow.outputDefinitions }),
+      ...(workflow.inputRefs?.length && { inputRefs: workflow.inputRefs }),
     }
     const fileContent = matter.stringify(workflow.content, frontmatter)
 
@@ -743,6 +918,8 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       ...(updated.progress !== undefined && updated.progress > 0 && { progress: updated.progress }),
       ...(updated.status && updated.status !== 'idle' && { status: updated.status }),
       ...(updated.secretRequirements?.length && { secretRequirements: updated.secretRequirements }),
+      ...(updated.outputDefinitions?.length && { outputDefinitions: updated.outputDefinitions }),
+      ...(updated.inputRefs?.length && { inputRefs: updated.inputRefs }),
     }
     const fileContent = matter.stringify(updated.content, updateFrontmatter)
 
@@ -865,7 +1042,7 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
     try {
       const filePath = path.join(executionDir, file)
       const content = fs.readFileSync(filePath, 'utf-8')
-      const execution = JSON.parse(content)
+      const execution = hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
       executions.push(execution)
     } catch (error) {
       console.error(`Error reading execution ${file}:`, error)
@@ -885,7 +1062,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    return JSON.parse(content)
+    return hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
   } catch (error) {
     console.error(`Error reading execution ${executionId}:`, error)
     return null
@@ -898,6 +1075,7 @@ export function triggerWorkflow(workflowId: string, options?: {
   byok?: WorkflowRuntimeOverrides
   secrets?: Record<string, string>
   inputs?: Record<string, string>
+  outputs?: WorkflowExecution['outputs']
   actor?: {
     userId?: string
     login?: string
@@ -1070,6 +1248,22 @@ export function triggerWorkflow(workflowId: string, options?: {
       runtimeContextLines.push(`- Run-specific instructions: ${runInstructions}`)
       runtimeContextLines.push('- Treat the run-specific instructions as the highest-priority adjustment for this execution only')
     }
+    const resolvedInputRefs = resolveWorkflowInputRefs(workflow)
+    if (resolvedInputRefs.length > 0) {
+      runtimeContextLines.push('- Upstream workflow handoffs available for this run:')
+      for (const ref of resolvedInputRefs) {
+        if (ref.missing) {
+          runtimeContextLines.push(`- ${ref.label}: missing upstream output`)
+          continue
+        }
+        const summary = ref.summary ? `summary: ${ref.summary}` : undefined
+        const artifact = ref.artifactPath ? `artifact: ${ref.artifactPath}` : undefined
+        const value = typeof ref.value === 'string'
+          ? `value: ${ref.value}`
+          : (ref.value !== undefined ? `value: ${JSON.stringify(ref.value)}` : undefined)
+        runtimeContextLines.push(`- ${ref.label}: ${[summary, artifact, value].filter(Boolean).join(' | ')}`)
+      }
+    }
     const resolvedPathInputs = Object.entries(executionInputs)
       .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))
       .map(([label, value]) => ({
@@ -1098,6 +1292,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       participants: executionParticipants,
       logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`],
       inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
+      outputs: normalizeWorkflowExecutionOutputs(options?.outputs),
     }
 
     // Write execution file
@@ -1332,6 +1527,16 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
 
       await Promise.all(executionParticipants.map(runParticipant))
+
+      execution.outputs = deriveWorkflowExecutionOutputs(
+        workflow,
+        execution.participants.map((participant) => ({
+          agentId: participant.agentId,
+          response: (participant as any).response,
+        })),
+        execution.outputs
+      )
+      execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
 
       // Mark execution complete
       execution.status = execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'

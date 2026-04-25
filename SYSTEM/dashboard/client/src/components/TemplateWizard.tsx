@@ -88,11 +88,17 @@ interface WizardState {
 }
 
 const DOMAIN_PRESETS: Record<string, { label: string; icon: string; description: string; examples: string[] }> = {
-  business: { label: 'Business', icon: '💼', description: 'Sales, support, HR, marketing, legal teams', examples: ['Sales team with SDRs and account execs', 'Customer support with escalation'] },
+  business: { label: 'Business', icon: '💼', description: 'Sales, support, HR, marketing, legal teams', examples: ['A lead-gen agency company with leadership, offer strategy, outbound, and delivery teams that produce ICPs, lead lists, outreach copy, booked-call plans, and weekly revenue reviews.', 'A niche ecommerce operator company with leadership, merchandising, acquisition, and lifecycle teams that produce offer strategy, product pages, ad concepts, launch plans, and revenue summaries.'] },
   technical: { label: 'Technical', icon: '⚙️', description: 'Engineering, data, DevOps, QA teams', examples: ['Dev team with QA and DevOps', 'Data pipeline team with analysts'] },
   personal: { label: 'Personal', icon: '📚', description: 'Research, writing, study, planning', examples: ['Student research group', 'Technical writing team'] },
   custom: { label: 'Custom', icon: '✨', description: 'Describe any team from scratch', examples: [] },
 }
+
+const REVENUE_COMPANY_PROMPTS = [
+  'A productized service company that sells conversion-focused landing page packages for local businesses. Create a company with leadership, offer strategy, outbound sales, client delivery, and revenue review workflows. It should produce ICPs, lead lists, outreach copy, proposal drafts, delivery plans, and weekly revenue summaries.',
+  'An outbound lead generation agency company for B2B SaaS founders. Create a company with leadership, research, outbound, and operations teams. It should produce an offer brief, ICP definition, target account list, personalized outbound messaging, pipeline review, and a revenue action summary.',
+  'A niche ecommerce operator company launching a premium home office product line. Create a company with leadership, merchandising, acquisition, and lifecycle teams. It should produce offer strategy, pricing, product page copy, ad concepts, launch sequencing, and a revenue-focused weekly operating brief.',
+] as const
 
 const INITIAL_STATE: WizardState = {
   domain: 'custom',
@@ -1003,6 +1009,27 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 className="text-xs px-2 py-1 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
               >
                 {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {state.domain === 'business' && (
+        <div className="mb-4 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/20 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Revenue Company Starters</div>
+          <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-100">
+            Use these to generate commercially credible companies quickly for tomorrow’s demos.
+          </p>
+          <div className="mt-3 grid gap-2">
+            {REVENUE_COMPANY_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => update({ teamDescription: prompt })}
+                className="rounded-md border border-emerald-200 dark:border-emerald-700 bg-white/80 dark:bg-gray-900/30 px-3 py-2 text-left text-sm text-emerald-900 dark:text-emerald-100 hover:border-emerald-400 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 transition-colors"
+              >
+                {prompt}
               </button>
             ))}
           </div>

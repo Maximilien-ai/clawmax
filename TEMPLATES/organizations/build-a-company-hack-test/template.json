@@ -1,0 +1,344 @@
+{
+  "name": "Build-a-Company Hack Test",
+  "emoji": "🏢",
+  "type": "organization",
+  "version": "1.0.0",
+  "category": "technical",
+  "description": "Hackathon test template for company structures with teams, leaders, cross-team handoffs, and reusable workflow contracts.",
+  "author": "ClawMax Team",
+  "tags": [
+    "hackathon",
+    "company",
+    "teams",
+    "org-chart",
+    "workflow-handoffs"
+  ],
+  "agents": [
+    {
+      "id": "ceo",
+      "name": "CEO",
+      "role": "Sets company direction, priorities, and final decision-making.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["leadership", "exec"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Leadership"]
+    },
+    {
+      "id": "execution-lead",
+      "name": "Execution Lead",
+      "role": "Turns company goals into an execution plan, milestones, and operating briefs.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["execution", "operations", "lead"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Leadership", "Execution"]
+    },
+    {
+      "id": "program-manager",
+      "name": "Program Manager",
+      "role": "Keeps milestones, dependencies, and execution follow-through aligned across teams.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["execution", "operations"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Execution"]
+    },
+    {
+      "id": "eng-lead",
+      "name": "Engineering Lead",
+      "role": "Owns technical planning, implementation sequencing, and engineering coordination.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["engineering", "lead"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Engineering"]
+    },
+    {
+      "id": "platform-engineer",
+      "name": "Platform Engineer",
+      "role": "Breaks the execution plan into implementation milestones, dependencies, and delivery notes.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["engineering", "platform"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Engineering"]
+    },
+    {
+      "id": "marketing-lead",
+      "name": "Marketing Lead",
+      "role": "Owns launch messaging, content packaging, and market-facing execution.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["marketing", "lead"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Marketing"]
+    },
+    {
+      "id": "content-strategist",
+      "name": "Content Strategist",
+      "role": "Turns launch goals into messaging, campaign assets, and reusable content packages.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["marketing", "content"],
+      "communities": ["Build-a-Company"],
+      "groups": ["Marketing"]
+    },
+    {
+      "id": "qa-lead",
+      "name": "QA Lead",
+      "role": "Validates quality, release readiness, and cross-team handoff completeness.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["qa", "quality", "lead"],
+      "communities": ["Build-a-Company"],
+      "groups": ["QA"]
+    },
+    {
+      "id": "release-analyst",
+      "name": "Release Analyst",
+      "role": "Checks handoff completeness, release risks, and readiness evidence across teams.",
+      "model": "openai/gpt-4o-mini",
+      "tags": ["qa", "analysis"],
+      "communities": ["Build-a-Company"],
+      "groups": ["QA"]
+    }
+  ],
+  "teams": [
+    {
+      "id": "leadership",
+      "name": "Leadership",
+      "purpose": "Set direction and issue the initial company brief.",
+      "leaderAgentId": "ceo",
+      "memberAgentIds": ["execution-lead"],
+      "tags": ["exec"]
+    },
+    {
+      "id": "execution",
+      "name": "Execution",
+      "purpose": "Translate leadership direction into an execution brief with milestones and owners.",
+      "leaderAgentId": "execution-lead",
+      "memberAgentIds": ["program-manager"],
+      "parentTeamId": "leadership",
+      "tags": ["operations", "delivery"]
+    },
+    {
+      "id": "engineering",
+      "name": "Engineering",
+      "purpose": "Convert the execution brief into a technical plan and delivery document.",
+      "leaderAgentId": "eng-lead",
+      "memberAgentIds": ["platform-engineer"],
+      "parentTeamId": "leadership",
+      "tags": ["build"]
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing",
+      "purpose": "Turn the execution and engineering outputs into launch messaging and campaign assets.",
+      "leaderAgentId": "marketing-lead",
+      "memberAgentIds": ["content-strategist"],
+      "parentTeamId": "leadership",
+      "tags": ["launch", "content"]
+    },
+    {
+      "id": "qa",
+      "name": "QA",
+      "purpose": "Validate the end-to-end package, confirm readiness, and produce a release review.",
+      "leaderAgentId": "qa-lead",
+      "memberAgentIds": ["release-analyst"],
+      "parentTeamId": "leadership",
+      "tags": ["qa", "review"]
+    }
+  ],
+  "communities": [
+    {
+      "name": "Build-a-Company",
+      "description": "Cross-company coordination space for the hackathon template."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Leadership",
+      "description": "Leadership planning and direction setting",
+      "community": "Build-a-Company"
+    },
+    {
+      "name": "Execution",
+      "description": "Execution planning and operating briefs",
+      "community": "Build-a-Company"
+    },
+    {
+      "name": "Engineering",
+      "description": "Engineering planning and execution",
+      "community": "Build-a-Company"
+    },
+    {
+      "name": "Marketing",
+      "description": "Marketing launch planning and content packaging",
+      "community": "Build-a-Company"
+    },
+    {
+      "name": "QA",
+      "description": "Quality assurance and readiness review",
+      "community": "Build-a-Company"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "leadership-kickoff",
+      "name": "Leadership Kickoff",
+      "description": "Create the company brief and strategic direction.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "ceo",
+      "type": "once",
+      "targeting": {
+        "communities": [],
+        "groups": ["Leadership"],
+        "tags": [],
+        "agents": ["ceo"]
+      },
+      "outputDefinitions": [
+        {
+          "key": "leadership-brief",
+          "label": "Leadership Brief",
+          "type": "markdown"
+        }
+      ],
+      "content": "# Leadership Kickoff\n\nProduce the company direction and leadership brief.\n\n## Success Criteria\n- Keep the output under 150 words.\n- Use 4 bullets max.\n- State goals, top priority, top risk, and the next handoff.\n\n## Output\n- Publish a short leadership brief for downstream teams."
+    },
+    {
+      "id": "execution-brief",
+      "name": "Execution Brief",
+      "description": "Turn the leadership brief into an execution plan with milestones and owners.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "execution-lead",
+      "dependsOn": ["leadership-kickoff"],
+      "targeting": {
+        "communities": [],
+        "groups": ["Execution"],
+        "tags": [],
+        "agents": ["execution-lead"]
+      },
+      "inputRefs": [
+        {
+          "workflowId": "leadership-kickoff",
+          "outputKey": "leadership-brief",
+          "label": "Leadership Brief",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "execution-plan",
+          "label": "Execution Plan",
+          "type": "markdown"
+        }
+      ],
+      "content": "# Execution Brief\n\nUse the upstream leadership brief to produce an execution plan.\n\n## Success Criteria\n- Keep the output under 180 words.\n- Use 5 bullets max.\n- Include owner, milestone, dependency, and handoff target.\n\n## Output\n- Publish a short execution plan for engineering and marketing."
+    },
+    {
+      "id": "engineering-plan",
+      "name": "Engineering Plan",
+      "description": "Turn the execution plan into a delivery plan owned by engineering.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "eng-lead",
+      "dependsOn": ["execution-brief"],
+      "targeting": {
+        "communities": [],
+        "groups": ["Engineering"],
+        "tags": [],
+        "agents": ["eng-lead"]
+      },
+      "inputRefs": [
+        {
+          "workflowId": "execution-brief",
+          "outputKey": "execution-plan",
+          "label": "Execution Plan",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "engineering-spec",
+          "label": "Engineering Spec",
+          "type": "markdown"
+        }
+      ],
+      "content": "# Engineering Plan\n\nUse the upstream execution plan to produce the engineering spec.\n\n## Success Criteria\n- Keep the output under 180 words.\n- Use 5 bullets max.\n- Include scope, dependency, sequencing, and release note for QA.\n\n## Output\n- Publish a short engineering spec for downstream teams."
+    },
+    {
+      "id": "marketing-launch",
+      "name": "Marketing Launch",
+      "description": "Turn the execution plan and engineering spec into launch messaging and campaign assets.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "marketing-lead",
+      "dependsOn": ["engineering-plan"],
+      "targeting": {
+        "communities": [],
+        "groups": ["Marketing"],
+        "tags": [],
+        "agents": ["marketing-lead"]
+      },
+      "inputRefs": [
+        {
+          "workflowId": "engineering-plan",
+          "outputKey": "engineering-spec",
+          "label": "Engineering Spec",
+          "required": true
+        },
+        {
+          "workflowId": "execution-brief",
+          "outputKey": "execution-plan",
+          "label": "Execution Plan",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "marketing-pack",
+          "label": "Marketing Pack",
+          "type": "markdown"
+        }
+      ],
+      "content": "# Marketing Launch\n\nUse the upstream execution plan and engineering spec to produce launch messaging.\n\n## Success Criteria\n- Keep the output under 180 words.\n- Use 5 bullets max.\n- Include positioning, one headline, one CTA, and rollout note.\n\n## Output\n- Publish a short marketing pack with messaging and rollout copy."
+    },
+    {
+      "id": "qa-review",
+      "name": "QA Review",
+      "description": "Validate the combined package and produce a release readiness review.",
+      "schedule": "manual",
+      "enabled": true,
+      "executionMode": "managed",
+      "owner": "qa-lead",
+      "dependsOn": ["marketing-launch"],
+      "targeting": {
+        "communities": [],
+        "groups": ["QA"],
+        "tags": [],
+        "agents": ["qa-lead"]
+      },
+      "inputRefs": [
+        {
+          "workflowId": "engineering-plan",
+          "outputKey": "engineering-spec",
+          "label": "Engineering Spec",
+          "required": true
+        },
+        {
+          "workflowId": "marketing-launch",
+          "outputKey": "marketing-pack",
+          "label": "Marketing Pack",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "qa-signoff",
+          "label": "QA Signoff",
+          "type": "markdown"
+        }
+      ],
+      "content": "# QA Review\n\nUse the downstream engineering and marketing outputs to validate release readiness.\n\n## Success Criteria\n- Keep the output under 150 words.\n- Use 4 bullets max.\n- Include readiness status, top blocker, top risk, and next action.\n\n## Output\n- Publish a short QA signoff with risks, blockers, and next action."
+    }
+  ]
+}

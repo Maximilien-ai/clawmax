@@ -1542,10 +1542,14 @@ export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   if (isUsableVersion(envVersion)) return envVersion
 
+  const packageVersion = findDashboardPackageVersion()
+  if (packageVersion && /(?:^|[-.])(hack|alpha|beta|rc)(?:[.-]|$)/i.test(packageVersion)) {
+    return packageVersion
+  }
+
   const gitTag = getLatestTag()
   if (isUsableVersion(gitTag)) return gitTag
 
-  const packageVersion = findDashboardPackageVersion()
   if (packageVersion) return packageVersion
 
   return '0.1.0'

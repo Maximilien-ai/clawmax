@@ -20,9 +20,28 @@ interface OrganizationTemplate {
   parameters?: TemplateParameter[]
   secretRequirements?: SecretRequirement[]
   agents: Array<{ id: string; name?: string; role: string; model?: string; tags?: string[]; skills?: string[] }>
+  teams?: Array<{
+    id: string
+    name: string
+    purpose?: string
+    leaderAgentId?: string
+    memberAgentIds?: string[]
+    parentTeamId?: string
+    tags?: string[]
+  }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
-  workflows?: Array<{ id: string; name: string; scaling?: 'singleton' | 'parallel'; parallelism?: number }>
+  workflows?: Array<{
+    id: string
+    name: string
+    schedule?: string
+    owner?: string
+    scaling?: 'singleton' | 'parallel'
+    parallelism?: number
+    inputRefs?: Array<{ workflowId: string; outputKey: string; label?: string; required?: boolean }>
+    outputDefinitions?: Array<{ key: string; label?: string; type?: string }>
+    targeting?: { groups?: string[]; communities?: string[]; tags?: string[]; agents?: string[] }
+  }>
 }
 
 interface ApplyOrgTemplateModalProps {
@@ -518,6 +537,49 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     () => agentsToCreate.map((agent) => `${prefix}${agent.id}${suffix}`),
     [agentsToCreate, prefix, suffix]
   )
+  const agentById = useMemo(
+    () => new Map(agentsToCreate.map((agent) => [agent.id, agent])),
+    [agentsToCreate]
+  )
+  const templateTeams = useMemo(() => template.teams || [], [template.teams])
+  const teamsById = useMemo(
+    () => new Map(templateTeams.map((team) => [team.id, team])),
+    [templateTeams]
+  )
+  const sortedTeams = useMemo(() => {
+    const getDepth = (teamId?: string) => {
+      let depth = 0
+      let currentId = teamId
+      while (currentId) {
+        const current = teamsById.get(currentId)
+        if (!current?.parentTeamId) break
+        depth += 1
+        currentId = current.parentTeamId
+      }
+      return depth
+    }
+    return [...templateTeams].sort((a, b) => {
+      const depthDiff = getDepth(a.id) - getDepth(b.id)
+      if (depthDiff !== 0) return depthDiff
+      return a.name.localeCompare(b.name)
+    })
+  }, [templateTeams, teamsById])
+  const groupedAgents = useMemo(() => {
+    const remaining = new Set(agentsToCreate.map((agent) => agent.id))
+    const groups = sortedTeams.map((team) => {
+      const orderedIds = [
+        ...(team.leaderAgentId ? [team.leaderAgentId] : []),
+        ...(team.memberAgentIds || []),
+      ]
+      const members = orderedIds
+        .map((agentId) => agentById.get(agentId))
+        .filter((agent): agent is NonNullable<typeof agent> => !!agent)
+      members.forEach((agent) => remaining.delete(agent.id))
+      return { team, members }
+    })
+    const unassigned = Array.from(remaining).map((agentId) => agentById.get(agentId)).filter((agent): agent is NonNullable<typeof agent> => !!agent)
+    return { groups, unassigned }
+  }, [agentById, agentsToCreate, sortedTeams])
   const agentConflicts = useMemo(() => {
     const existing = new Set(existingAgentIds)
     return Array.from(new Set([
@@ -927,19 +989,90 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           <div className="space-y-3 mb-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Will create {agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''}
+              {template.teams && template.teams.length > 0 && `, ${template.teams.length} team${template.teams.length !== 1 ? 's' : ''}`}
               {template.communities && template.communities.length > 0 && `, ${template.communities.length} communit${template.communities.length !== 1 ? 'ies' : 'y'}`}
               {template.groups && template.groups.length > 0 && `, ${template.groups.length} group${template.groups.length !== 1 ? 's' : ''}`}
               {template.workflows && template.workflows.length > 0 && `, ${template.workflows.length} workflow${template.workflows.length !== 1 ? 's' : ''}`}
             </p>
             {template.description && <p className="text-sm text-gray-500 dark:text-gray-400">{template.description}</p>}
-            <div className="grid grid-cols-2 gap-3">
+            {template.teams && template.teams.length > 0 && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-2">Company Structure</div>
+                <div className="space-y-2">
+                  {groupedAgents.groups.map(({ team, members }) => {
+                    let depth = 0
+                    let parentId = team.parentTeamId
+                    while (parentId) {
+                      depth += 1
+                      parentId = teamsById.get(parentId)?.parentTeamId
+                    }
+                    return (
+                      <div
+                        key={team.id}
+                        className="rounded-md border border-amber-200 dark:border-amber-700 bg-white/80 dark:bg-gray-900/40 px-3 py-2"
+                        style={{ marginLeft: depth * 16 }}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-medium text-amber-900 dark:text-amber-200">{team.name}</div>
+                            {team.purpose && <div className="text-xs text-amber-700 dark:text-amber-300">{team.purpose}</div>}
+                          </div>
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400">
+                            {team.leaderAgentId ? `Lead: ${team.leaderAgentId}` : 'No lead'}
+                          </div>
+                        </div>
+                        {members.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {members.map((agent) => (
+                              <span key={agent.id} className="rounded-full border border-amber-200 dark:border-amber-700 px-2 py-0.5 text-[11px] text-amber-800 dark:text-amber-300">
+                                {agent.id}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {groupedAgents.unassigned.length > 0 && (
+                    <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 px-3 py-2">
+                      <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Unassigned Agents</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {groupedAgents.unassigned.map((agent) => (
+                          <span key={agent.id} className="rounded-full border border-gray-200 dark:border-gray-700 px-2 py-0.5 text-[11px] text-gray-700 dark:text-gray-300">
+                            {agent.id}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Agents</div>
                 <div className="space-y-1">{agentsToCreate.map(a => <div key={a.id} className="text-sm text-gray-700 dark:text-gray-300">{a.name || a.id} <span className="text-gray-400 text-xs">({a.role?.slice(0, 40)}...)</span></div>)}</div>
               </div>
               <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Workflows</div>
-                <div className="space-y-1">{(template.workflows || []).map((w: any) => <div key={w.id} className="text-sm text-gray-700 dark:text-gray-300">{w.name} <span className="text-gray-400 text-xs">({w.schedule})</span></div>)}</div>
+                <div className="space-y-2">
+                  {(template.workflows || []).map((w: any) => (
+                    <div key={w.id} className="text-sm text-gray-700 dark:text-gray-300">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{w.name}</span>
+                        <span className="text-gray-400 text-xs">({w.schedule})</span>
+                        {w.owner && <span className="text-[11px] text-amber-600 dark:text-amber-400">owner: {w.owner}</span>}
+                      </div>
+                      {((w.inputRefs && w.inputRefs.length > 0) || (w.outputDefinitions && w.outputDefinitions.length > 0)) && (
+                        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                          {w.inputRefs && w.inputRefs.length > 0 ? `${w.inputRefs.length} input${w.inputRefs.length === 1 ? '' : 's'}` : '0 inputs'}
+                          {' · '}
+                          {w.outputDefinitions && w.outputDefinitions.length > 0 ? `${w.outputDefinitions.length} output${w.outputDefinitions.length === 1 ? '' : 's'}` : '0 outputs'}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="flex justify-end">
