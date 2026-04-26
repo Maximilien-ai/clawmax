@@ -1246,9 +1246,27 @@ export function triggerWorkflow(workflowId: string, options?: {
     const { listAgents } = require('./workspace')
     const agents = listAgents()
     const workflowParticipants = resolveParticipants(workflow, agents)
+    const resolvedWorkflowParticipants = options?.mock && workflowParticipants.length === 0
+      ? (() => {
+          const seen = new Set<string>()
+          const mockAgentIds = [
+            workflow.owner,
+            ...(workflow.targeting?.agents || []),
+          ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+          return mockAgentIds.flatMap((agentId) => {
+            if (seen.has(agentId)) return []
+            seen.add(agentId)
+            return [{
+              agentId,
+              agentName: agentId,
+              reason: 'mock-target',
+            }]
+          })
+        })()
+      : workflowParticipants
 
     // Convert to execution participants with pending status
-    const executionParticipants: WorkflowExecutionParticipant[] = workflowParticipants.map(p => ({
+    const executionParticipants: WorkflowExecutionParticipant[] = resolvedWorkflowParticipants.map(p => ({
       agentId: p.agentId,
       agentName: p.agentName,
       status: 'pending' as const

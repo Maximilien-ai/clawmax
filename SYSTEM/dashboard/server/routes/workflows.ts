@@ -218,7 +218,6 @@ router.post('/:id/trigger', (req, res) => {
     const { id } = req.params
     const session = getAuthenticatedSession(req)
     const { byok, secrets, inputs } = req.body as {
-      mock?: boolean
       byok?: {
         openai?: string
         anthropic?: string
@@ -236,7 +235,6 @@ router.post('/:id/trigger', (req, res) => {
         value?: unknown
       }>
     }
-    const mock = req.body?.mock === true
 
     // Validate workflow ID format
     if (!/^[a-z0-9-]+$/.test(id)) {
@@ -252,7 +250,6 @@ router.post('/:id/trigger', (req, res) => {
     // Trigger the workflow (manual = true bypasses maxRuns limit)
     const result = triggerWorkflow(id, {
       manual: true,
-      mock,
       byok,
       secrets,
       inputs,
