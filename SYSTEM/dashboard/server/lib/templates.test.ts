@@ -1114,7 +1114,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     assert(marketingLaunch !== null, 'Expected marketing-launch workflow to exist after import')
     assert(qaReview !== null, 'Expected qa-review workflow to exist after import')
 
-    assertEqual(leadershipKickoff?.name as any, 'Build-a-Company Hack Test (demo) · Leadership Kickoff', 'Expected leadership workflow name to include company context')
+    assertEqual(leadershipKickoff?.name as any, 'demo · Leadership Kickoff', 'Expected leadership workflow name to include import namespace context')
     assert(executionBrief?.outputDefinitions?.some((output) => output.key === 'execution-plan') === true, 'Expected execution-brief outputs to persist')
     assert(executionBrief?.targeting.teamIds?.includes('demo-execution') === true, 'Expected execution-brief team target to persist')
     assert(engineeringPlan?.inputRefs?.some((ref) => ref.workflowId === 'demo-execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected engineering-plan handoff input to persist')

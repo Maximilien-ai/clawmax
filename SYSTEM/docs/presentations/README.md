@@ -4,6 +4,14 @@ This directory contains presentation materials for ClawMax demos and launches.
 
 ## Presentation History
 
+### 2026-04-26: Build-a-Company Hackathon
+**File**: `build-a-company-hackathon-apr-2026/index.html`
+- **Event**: Build-a-Company: Revenue Hackathon
+- **Location**: AGI House SF / San Francisco, CA
+- **Format**: Single-page HTML demo one-pager
+- **Focus**: company templates, team hierarchies, markdown workflow handoffs, company-scoped workflow pipelines
+- **Goal**: show the weekend hack progress clearly for judges and builders
+
 ### 2026-03-31: Spring 2026 AI Forum
 **File**: `spring-2026-ai-forum/index.html`
 - **Event**: Spring 2026 AI Forum: Talks + AI Agent Workshops, Ft Stanford & OpenClaw

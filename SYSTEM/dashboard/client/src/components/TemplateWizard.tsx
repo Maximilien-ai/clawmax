@@ -64,6 +64,7 @@ interface WizardTeamParameter {
 
 interface WizardState {
   // Step 1: Team Type
+  generationTarget: 'agent' | 'team' | 'company'
   domain: 'business' | 'technical' | 'personal' | 'custom'
   teamDescription: string
   teamName: string
@@ -100,7 +101,32 @@ const REVENUE_COMPANY_PROMPTS = [
   'A niche ecommerce operator company launching a premium home office product line. Create a company with leadership, merchandising, acquisition, and lifecycle teams. It should produce offer strategy, pricing, product page copy, ad concepts, launch sequencing, and a revenue-focused weekly operating brief.',
 ] as const
 
+const GENERATION_TARGET_COPY: Record<'agent' | 'team' | 'company', { label: string; title: string; description: string; promptLabel: string; promptPlaceholder: string }> = {
+  agent: {
+    label: 'Agent',
+    title: 'Single agent',
+    description: 'One role, one persona, one operating unit. Use this when you want one specialist, not a team or company.',
+    promptLabel: 'Describe the agent you want',
+    promptPlaceholder: 'e.g., A technical founder assistant that drafts strategy memos, investor updates, and product decisions...',
+  },
+  team: {
+    label: 'Team',
+    title: 'One team',
+    description: 'A leader plus a few members working in one lane. Best for a focused operating team rather than a full company.',
+    promptLabel: 'Describe your team',
+    promptPlaceholder: 'e.g., A customer support team with 3 support agents, an escalation engineer, and a knowledge base manager...',
+  },
+  company: {
+    label: 'Company',
+    title: 'Team of teams',
+    description: 'Leadership plus multiple functional teams with chained workflows, handoffs, and company structure.',
+    promptLabel: 'Describe the company you want',
+    promptPlaceholder: 'e.g., A B2B SaaS conversion company with leadership, offer strategy, outbound, delivery, and weekly revenue review teams...',
+  },
+}
+
 const INITIAL_STATE: WizardState = {
+  generationTarget: 'team',
   domain: 'custom',
   teamDescription: '',
   teamName: '',
@@ -493,6 +519,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: state.teamDescription,
+          generationTarget: state.generationTarget,
           byokKeys: (openai || anthropic) ? { openai, anthropic } : undefined,
         }),
       })

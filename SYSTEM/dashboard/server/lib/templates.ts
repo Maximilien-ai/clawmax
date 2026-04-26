@@ -12,6 +12,7 @@ import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { safeEnv } from './safe-env'
+import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 
 // Template storage paths (dynamic functions)
 
@@ -343,6 +344,56 @@ function withDerivedTemplateFields(template: Template): Template {
   return {
     ...template,
     kind: classifyOrganizationTemplate(template),
+  }
+}
+
+function toCanonicalTemplateSource(source?: TemplateSource): CanonicalTemplateFeedbackSource {
+  return source === 'system' ? 'system' : 'user'
+}
+
+function toCanonicalTemplateType(template: Template): CanonicalTemplateFeedbackType {
+  if (template.type === 'agent') return 'agent'
+  return classifyOrganizationTemplate(template) === 'company' ? 'company' : 'team'
+}
+
+export function buildTemplateFeedbackMetadata(template: Template): {
+  templateId: string
+  templateType: CanonicalTemplateFeedbackType
+  templateSlug: string
+  templateSource: CanonicalTemplateFeedbackSource
+  templateTags: string[]
+  templateInfo: Record<string, any>
+} {
+  const templateSlug = template.slug || slugify(template.name)
+  const templateSource = toCanonicalTemplateSource((template as any).source)
+  const templateType = toCanonicalTemplateType(template)
+  const templateTags = normalizeTagList((template as any).tags)
+  const templateInfo: Record<string, any> = {
+    title: template.name,
+    version: (template as any).version || '1.0.0',
+  }
+
+  if ((template as any).author) templateInfo.owner = (template as any).author
+
+  if (template.type === 'agent') {
+    const firstAgent = template.agents?.[0]
+    if (firstAgent?.role) templateInfo.persona = firstAgent.role
+    if (firstAgent?.name) templateInfo.agentName = firstAgent.name
+  } else {
+    templateInfo.kind = classifyOrganizationTemplate(template)
+    if (template.teams?.length) templateInfo.teamCount = template.teams.length
+    if (template.workflows?.length) templateInfo.workflowCount = template.workflows.length
+    const firstDepartment = template.teams?.[0]?.name || template.groups?.[0]?.name || template.communities?.[0]?.name
+    if (firstDepartment) templateInfo.department = firstDepartment
+  }
+
+  return {
+    templateId: `${templateSource}:${templateSlug}`,
+    templateType,
+    templateSlug,
+    templateSource,
+    templateTags,
+    templateInfo,
   }
 }
 
@@ -1634,11 +1685,13 @@ export function importAgentFromTemplate(
     // Check workspace templates first (user-created, higher priority)
     let templateDir = path.join(getAgentTemplatesDir(), templateSlug)
     let templateJsonPath = path.join(templateDir, 'template.json')
+    let templateSource: TemplateSource = 'workspace'
 
     // If not found in workspace, check global system templates
     if (!fs.existsSync(templateJsonPath)) {
       templateDir = path.join(getGlobalAgentTemplatesDir(), templateSlug)
       templateJsonPath = path.join(templateDir, 'template.json')
+      templateSource = 'system'
     }
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -1646,6 +1699,7 @@ export function importAgentFromTemplate(
     }
 
     const template: AgentTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+    const feedbackTemplate = { ...template, source: templateSource, slug: templateSlug } as AgentTemplate
 
     if (template.type !== 'agent') {
       return { ok: false, error: 'Only agent templates can be imported via this endpoint' }
@@ -1736,6 +1790,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
     }
 
     initializeTemplateCreatedAgent(targetAgentId)
+    recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 
     return { ok: true, agentId: targetAgentId }
   } catch (err) {
@@ -2037,11 +2092,13 @@ export function importOrganizationTemplate(
     // Check workspace templates first (user templates)
     let templateDir = path.join(getOrgTemplatesDir(), templateSlug)
     let templateJsonPath = path.join(templateDir, 'template.json')
+    let templateSource: TemplateSource = 'workspace'
 
     // If not found in workspace, check global templates (system templates)
     if (!fs.existsSync(templateJsonPath)) {
       templateDir = path.join(getGlobalOrgTemplatesDir(), templateSlug)
       templateJsonPath = path.join(templateDir, 'template.json')
+      templateSource = 'system'
     }
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -2049,6 +2106,7 @@ export function importOrganizationTemplate(
     }
 
     const template: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+    const feedbackTemplate = withDerivedTemplateFields({ ...template, source: templateSource, slug: templateSlug } as OrganizationTemplate) as OrganizationTemplate
 
     if (template.type !== 'organization') {
       return { ok: false, error: 'Only organization templates can be imported via this endpoint' }
@@ -2209,12 +2267,8 @@ export function importOrganizationTemplate(
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
         const { getBestAvailableModel: getBest } = require('./dashboard-env')
-        const { readWorkspaceIntegrationConfig } = require('./workspace-integrations')
-        const integrationConfig = readWorkspaceIntegrationConfig()
-        const workspacePreferredModel =
-          integrationConfig.preferredModel
-          || (integrationConfig.ollamaDefaultModel ? `ollama/${integrationConfig.ollamaDefaultModel}` : undefined)
-        const appliedModel = options?.modelOverride || templateAgent.model || workspacePreferredModel || getBest()
+        const applySystemTemplateLatest = templateSource === 'system'
+        const appliedModel = options?.modelOverride || (applySystemTemplateLatest ? undefined : templateAgent.model) || getBest()
         appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
@@ -2861,6 +2915,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         agentsDir: getAgentsDir(),
         workflowOverrides: options?.workflowOverrides,
       })
+
+      recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 
       return { ok: true, agentIds: createdAgents }
     } catch (err) {

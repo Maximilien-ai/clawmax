@@ -1,8 +1,14 @@
 import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
 import { getPreferredAnthropicModel } from './model-discovery'
+import { getBestAvailableModel } from './dashboard-env'
 
 type AIProvider = 'openai' | 'anthropic'
+export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
+
+export function normalizeTemplateGenerationTarget(value: unknown): TemplateGenerationTarget {
+  return value === 'company' || value === 'agent' ? value : 'team'
+}
 
 function getPreferredAnthropicGenerationModel(): string {
   const override = process.env.CLAWMAX_ANTHROPIC_GENERATION_MODEL?.trim()
@@ -576,7 +582,7 @@ export async function generateAgentMeta(description: string): Promise<{
   } catch {}
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o-mini'),
+    model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
@@ -586,8 +592,8 @@ Available skills that can be assigned: ${availableSkills.join(', ') || 'gh-issue
 
 Available models:
 - anthropic/${getPreferredAnthropicGenerationModel()} (best available Anthropic generation model)
-- openai/gpt-4o (best for general purpose, creative tasks)
-- openai/gpt-4o-mini (best for simple tasks, cost-efficient)
+- openai/gpt-5 (latest OpenAI reasoning model when available)
+- openai/gpt-4o (strong default OpenAI general-purpose model)
 
 IMPORTANT: If the user mentions a specific name for the agent (e.g., "Create jarvis", "Make a bot called Friday"), use that name. The name should be a simple, clean identifier.
 
@@ -617,7 +623,7 @@ Rules:
   return {
     name: parsed.name || 'New Agent',
     tags: parsed.tags || [],
-    model: parsed.model || `anthropic/${getPreferredAnthropicGenerationModel()}`,
+    model: parsed.model || getBestAvailableModel(),
     skills: parsed.skills || [],
   }
 }
@@ -897,11 +903,12 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 /**
  * Generate an organization template from natural language description.
  */
-export async function generateTemplateFromNL(description: string): Promise<any> {
+export async function generateTemplateFromNL(description: string, generationTarget: TemplateGenerationTarget = 'team'): Promise<any> {
   getAvailableProvider(_requestByokKeys)
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
-  const shouldGenerateCompany = promptImpliesCompany(description)
+  const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
+  const shouldGenerateCompany = normalizedTarget === 'company' || (normalizedTarget !== 'team' && promptImpliesCompany(description))
   const shouldBiasRevenue = promptImpliesRevenue(description)
   const explicitMultiCommunityRequest = promptExplicitlyRequestsMultipleCommunities(description)
   let availableSkills: string[] = []

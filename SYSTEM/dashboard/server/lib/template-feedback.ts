@@ -4,8 +4,13 @@ import { getWorkspacePath } from './workspace'
 
 export interface TemplateFeedbackEntry {
   id: string | null
-  templateType: 'agent' | 'organization' | 'workflow'
+  templateType: 'agent' | 'organization' | 'workflow' | 'team' | 'company'
   templateSlug: string
+  templateId?: string
+  templateSource?: 'system' | 'user'
+  applyCount?: number
+  templateTags?: string[]
+  templateInfo?: Record<string, any>
   templateName: string
   rating: number
   easyToUse?: 'yes' | 'mixed' | 'no' | ''
@@ -27,10 +32,29 @@ export interface TemplateFeedbackActor {
   actorDisplay: string
 }
 
-type TemplateFeedbackType = 'agent' | 'organization' | 'workflow'
+export type TemplateFeedbackType = 'agent' | 'organization' | 'workflow' | 'team' | 'company'
+export type CanonicalTemplateFeedbackType = 'agent' | 'team' | 'company'
+export type CanonicalTemplateFeedbackSource = 'system' | 'user'
+
+interface TemplateApplyStatsEntry {
+  templateId: string
+  templateType: CanonicalTemplateFeedbackType
+  templateSlug: string
+  templateSource: CanonicalTemplateFeedbackSource
+  count: number
+  updatedAt: string
+}
+
+interface TemplateApplyStatsFile {
+  entries: Record<string, TemplateApplyStatsEntry>
+}
 
 function getFeedbackPath() {
   return path.join(getWorkspacePath(), 'SYSTEM', 'template-feedback.json')
+}
+
+function getApplyStatsPath() {
+  return path.join(getWorkspacePath(), 'SYSTEM', 'template-apply-stats.json')
 }
 
 function getRemoteConfig() {
@@ -48,8 +72,13 @@ function getRemoteConfig() {
 function normalizeRemoteEntry(entry: any): TemplateFeedbackEntry {
   return {
     id: typeof entry?.id === 'string' ? entry.id : null,
-    templateType: 'organization',
-    templateSlug: '',
+    templateType: (typeof entry?.templateType === 'string' ? entry.templateType : 'organization') as TemplateFeedbackType,
+    templateSlug: typeof entry?.templateSlug === 'string' ? entry.templateSlug : '',
+    templateId: typeof entry?.templateId === 'string' ? entry.templateId : undefined,
+    templateSource: entry?.templateSource === 'system' || entry?.templateSource === 'user' ? entry.templateSource : undefined,
+    applyCount: Number.isFinite(Number(entry?.applyCount)) ? Number(entry.applyCount) : undefined,
+    templateTags: Array.isArray(entry?.templateTags) ? entry.templateTags.filter((tag: any) => typeof tag === 'string') : undefined,
+    templateInfo: entry?.templateInfo && typeof entry.templateInfo === 'object' ? entry.templateInfo : undefined,
     templateName: '',
     rating: Number(entry?.rating) || 0,
     easyToUse: entry?.easyToUse || '',
@@ -91,9 +120,37 @@ function writeAllEntries(entries: TemplateFeedbackEntry[]) {
   )
 }
 
+function readApplyStats(): TemplateApplyStatsFile {
+  try {
+    const filePath = getApplyStatsPath()
+    if (!fs.existsSync(filePath)) return { entries: {} }
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    return parsed && typeof parsed === 'object' && parsed.entries && typeof parsed.entries === 'object'
+      ? { entries: parsed.entries }
+      : { entries: {} }
+  } catch {
+    return { entries: {} }
+  }
+}
+
+function writeApplyStats(stats: TemplateApplyStatsFile) {
+  const filePath = getApplyStatsPath()
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, JSON.stringify(stats, null, 2), 'utf-8')
+}
+
+function matchesTemplateType(entryType: TemplateFeedbackType, queryType: TemplateFeedbackType) {
+  if (entryType === queryType) return true
+  if (queryType === 'organization') return entryType === 'team' || entryType === 'company'
+  if (queryType === 'team') return entryType === 'organization'
+  if (queryType === 'company') return entryType === 'organization' || entryType === 'workflow'
+  if (queryType === 'workflow') return entryType === 'company'
+  return false
+}
+
 export function listTemplateFeedback(templateType: TemplateFeedbackType, templateSlug: string) {
   return readAllEntries()
-    .filter(entry => entry.templateType === templateType && entry.templateSlug === templateSlug)
+    .filter(entry => matchesTemplateType(entry.templateType, templateType) && entry.templateSlug === templateSlug)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
@@ -134,12 +191,45 @@ function getAllLocalTemplateFeedbackSummaries() {
   for (const [key, group] of grouped.entries()) {
     const count = group.length
     const avgRating = count > 0 ? group.reduce((sum, item) => sum + item.rating, 0) / count : 0
-    summaries[key] = {
+    const [entryType, entrySlug] = key.split(':')
+    const normalizedKey = entryType === 'team' || entryType === 'company'
+      ? `organization:${entrySlug}`
+      : key
+    summaries[normalizedKey] = {
       count,
       avgRating: Number(avgRating.toFixed(2)),
     }
   }
   return summaries
+}
+
+export function recordTemplateApply(entry: {
+  templateId: string
+  templateType: CanonicalTemplateFeedbackType
+  templateSlug: string
+  templateSource: CanonicalTemplateFeedbackSource
+}) {
+  const templateId = String(entry.templateId || '').trim()
+  if (!templateId) return 0
+  const stats = readApplyStats()
+  const existing = stats.entries[templateId]
+  const nextCount = (existing?.count || 0) + 1
+  stats.entries[templateId] = {
+    templateId,
+    templateType: entry.templateType,
+    templateSlug: entry.templateSlug,
+    templateSource: entry.templateSource,
+    count: nextCount,
+    updatedAt: new Date().toISOString(),
+  }
+  writeApplyStats(stats)
+  return nextCount
+}
+
+export function getTemplateApplyCount(templateId?: string | null) {
+  const key = String(templateId || '').trim()
+  if (!key) return 0
+  return readApplyStats().entries[key]?.count || 0
 }
 
 async function fetchRemoteJson(url: string, token: string, init?: RequestInit): Promise<any> {
@@ -190,6 +280,11 @@ export async function addTemplateFeedback(
     body: JSON.stringify({
       templateType: entry.templateType,
       templateSlug: entry.templateSlug,
+      templateId: entry.templateId || null,
+      templateSource: entry.templateSource || null,
+      applyCount: typeof entry.applyCount === 'number' ? entry.applyCount : 0,
+      templateTags: Array.isArray(entry.templateTags) ? entry.templateTags : [],
+      templateInfo: entry.templateInfo && typeof entry.templateInfo === 'object' ? entry.templateInfo : {},
       rating: entry.rating,
       easyToUse: entry.easyToUse || null,
       solvedUseCase: entry.solvedUseCase || null,

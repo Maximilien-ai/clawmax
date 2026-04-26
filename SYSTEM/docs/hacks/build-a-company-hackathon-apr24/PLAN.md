@@ -5,6 +5,33 @@
 > **Working Window:** April 24-26, 2026
 > **Goal:** evolve ClawMax from agent/team orchestration into company-level orchestration with teams, teams-of-teams, chained team workflows, and team-facing output surfaces.
 
+## Status — April 26, 2026
+
+### Landed
+
+- [x] workspace-local `Team` model and CRUD/storage
+- [x] company/team template contract with `teams`
+- [x] workflow execution outputs plus upstream `inputRefs`
+- [x] team-targeted workflows
+- [x] markdown-first workflow handoff model
+- [x] AI generation for `company` plus inferred handoffs
+- [x] org structure view and org chart for teams/companies
+- [x] company delete flow with cascading confirmation
+- [x] company/workflow import namespacing for multiple applies
+- [x] hack test company template upgraded to explicit rooted company structure
+
+### In Progress
+
+- [ ] B2B generated company chaining and handoff validation
+- [ ] company-scoped dashboard view for input/output/org
+- [ ] third example company for demo validation
+
+### Scope Simplification For Demo
+
+- one workspace may contain multiple companies
+- one dashboard view should focus on exactly one company at a time
+- if no company is selected, the workspace can continue behaving like a team/agent workspace
+
 ## Strategy
 
 Do not try to invent a fully separate "company platform" in three days.
@@ -194,30 +221,30 @@ Create the minimum model needed to represent teams and chained workflow outputs.
 
 #### A. Team Model
 
-- [ ] define the TypeScript `Team` shape in the server/client shared contract area
-- [ ] decide team persistence location
+- [x] define the TypeScript `Team` shape in the server/client shared contract area
+- [x] decide team persistence location
   - likely workspace-local metadata under the current workspace model
   - avoid introducing a second config root unless necessary
-- [ ] define required vs optional fields
+- [x] define required vs optional fields
   - required: `id`, `name`
   - first-pass optional: `purpose`, `leaderAgentId`, `memberAgentIds`, `parentTeamId`, `tags`
-- [ ] decide whether team membership is agent-id only or can include team references
+- [x] decide whether team membership is agent-id only or can include team references
   - recommendation: Day 1 uses agent ids only; teams-of-teams should be represented through `parentTeamId` / child relationships, not recursive member lists
-- [ ] define one server read/write path for teams
+- [x] define one server read/write path for teams
   - list teams
   - get one team
   - save/update team
 
 #### B. Company Template Contract
 
-- [ ] extend the template schema to support a `teams` section
-- [ ] define how `teams` relate to existing template sections
+- [x] extend the template schema to support a `teams` section
+- [x] define how `teams` relate to existing template sections
   - `agents` stay the source of agent definitions
   - `teams` describe structure and membership
   - `workflows` can target agents or teams
-- [ ] decide first-pass company-template semantics
+- [x] decide first-pass company-template semantics
   - recommendation: keep `type: organization` valid, add company/team capabilities without forcing a brand-new template type immediately
-- [ ] add one canonical example template in doc/spec form
+- [x] add one canonical example template in doc/spec form
   - leadership
   - product
   - engineering
@@ -226,41 +253,41 @@ Create the minimum model needed to represent teams and chained workflow outputs.
 
 #### C. Workflow Output Contract
 
-- [ ] define first-pass execution output shape
+- [x] define first-pass execution output shape
   - named outputs
   - output type
   - optional artifact path
   - optional structured value
   - summary text
-- [ ] decide where outputs live
+- [x] decide where outputs live
   - recommendation: store on execution records first, not workflow definitions
-- [ ] define how downstream workflows reference upstream outputs
+- [x] define how downstream workflows reference upstream outputs
   - recommendation: `workflowOutputRef` object with `workflowId`, `outputKey`, and optional fallback text
-- [ ] define one happy-path handoff
+- [x] define one happy-path handoff
   - Leadership kickoff output -> Product brief input
   - Product brief output -> Engineering plan input
 
 #### D. Workflow Targeting / Team Chaining Decisions
 
-- [ ] decide whether workflows can target `teamIds` directly
+- [x] decide whether workflows can target `teamIds` directly
   - recommendation: yes, but resolve teams to agents at execution time
-- [ ] decide whether one workflow can consume multiple upstream workflow outputs
+- [x] decide whether one workflow can consume multiple upstream workflow outputs
   - recommendation: yes, but only as an array of explicit refs, not arbitrary query expressions
-- [ ] decide whether outputs are only from the latest execution or a specific execution
+- [x] decide whether outputs are only from the latest execution or a specific execution
   - recommendation: Day 1 defaults to latest successful execution unless an explicit execution id is provided later
 
 #### E. Built-In Generation Contract
 
-- [ ] define the expected generator output modes
+- [x] define the expected generator output modes
   - `agent`
   - `team`
   - `company`
-- [ ] define the minimum structure the generator must produce for `company`
+- [x] define the minimum structure the generator must produce for `company`
   - agents
   - teams
   - workflows
   - workflow handoffs
-- [ ] document what we will not do on Day 1
+- [x] document what we will not do on Day 1
   - no full org editor
   - no arbitrary graph query language
   - no fully generic nested execution planner
@@ -401,15 +428,15 @@ This is concrete, easy to explain, and directly shows teams-of-teams plus workfl
 
 ## Concrete Work Items
 
-- [ ] define `Team` type and persistence contract
-- [ ] define company-template extension contract
-- [ ] define workflow output/handoff contract
-- [ ] persist workflow execution outputs
-- [ ] add downstream workflow references to upstream outputs
-- [ ] add one sample company template
-- [ ] add a first-pass Teams UI
-- [ ] add org hierarchy / org chart view
-- [ ] extend generator flow for team/company creation
+- [x] define `Team` type and persistence contract
+- [x] define company-template extension contract
+- [x] define workflow output/handoff contract
+- [x] persist workflow execution outputs
+- [x] add downstream workflow references to upstream outputs
+- [x] add one sample company template
+- [x] add a first-pass Teams UI
+- [x] add org hierarchy / org chart view
+- [x] extend generator flow for team/company creation
 - [ ] add first-pass team dashboard/page
 - [ ] create one end-to-end demo path
 - [ ] document follow-up gaps after hackathon

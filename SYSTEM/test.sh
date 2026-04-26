@@ -329,6 +329,26 @@ else
   fail "Teams unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running Template feedback unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/template-feedback.test.ts > /tmp/clawmax-template-feedback.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-template-feedback.out; then
+  template_feedback_count=$(grep "Tests passed:" /tmp/clawmax-template-feedback.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template feedback unit tests (${template_feedback_count:-?} tests)"
+else
+  fail "Template feedback unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Organization structure client unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/organizationTeams.test.ts > /tmp/clawmax-organization-teams.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-organization-teams.out; then
+  organization_teams_count=$(grep "Tests passed:" /tmp/clawmax-organization-teams.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Organization structure client unit tests (${organization_teams_count:-?} tests)"
+else
+  fail "Organization structure client unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Notifications unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/notifications.test.ts > /tmp/clawmax-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
