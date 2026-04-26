@@ -98,11 +98,20 @@
   ],
   "teams": [
     {
+      "id": "build-a-company-hackathon-org",
+      "name": "Build-a-Company Hackathon Org",
+      "purpose": "Root company team for the hackathon demo organization.",
+      "leaderAgentId": "ceo",
+      "memberAgentIds": [],
+      "tags": ["company", "org-root"]
+    },
+    {
       "id": "leadership",
       "name": "Leadership",
       "purpose": "Set direction and issue the initial company brief.",
       "leaderAgentId": "ceo",
       "memberAgentIds": ["execution-lead"],
+      "parentTeamId": "build-a-company-hackathon-org",
       "tags": ["exec"]
     },
     {
@@ -189,7 +198,8 @@
         "communities": [],
         "groups": ["Leadership"],
         "tags": [],
-        "agents": ["ceo"]
+        "agents": ["ceo"],
+        "teamIds": ["leadership"]
       },
       "outputDefinitions": [
         {
@@ -213,7 +223,8 @@
         "communities": [],
         "groups": ["Execution"],
         "tags": [],
-        "agents": ["execution-lead"]
+        "agents": ["execution-lead"],
+        "teamIds": ["execution"]
       },
       "inputRefs": [
         {
@@ -245,7 +256,8 @@
         "communities": [],
         "groups": ["Engineering"],
         "tags": [],
-        "agents": ["eng-lead"]
+        "agents": ["eng-lead"],
+        "teamIds": ["engineering"]
       },
       "inputRefs": [
         {
@@ -277,7 +289,8 @@
         "communities": [],
         "groups": ["Marketing"],
         "tags": [],
-        "agents": ["marketing-lead"]
+        "agents": ["marketing-lead"],
+        "teamIds": ["marketing"]
       },
       "inputRefs": [
         {
@@ -315,7 +328,8 @@
         "communities": [],
         "groups": ["QA"],
         "tags": [],
-        "agents": ["qa-lead"]
+        "agents": ["qa-lead"],
+        "teamIds": ["qa"]
       },
       "inputRefs": [
         {

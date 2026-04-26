@@ -13,6 +13,7 @@ interface AgentTargeting {
   groups: string[]
   tags: string[]
   agents: string[]
+  teamIds?: string[]
 }
 
 interface Workflow {

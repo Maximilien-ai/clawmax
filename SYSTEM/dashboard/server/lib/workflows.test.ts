@@ -35,6 +35,7 @@ import {
   resolveWorkflowInputRefs,
   deriveWorkflowExecutionOutputs,
   persistWorkflowExecutionOutputArtifacts,
+  resolveTargetTeamAgentIds,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -332,6 +333,76 @@ test('resolveParticipants still expands group targets when no direct execution t
   assert(participants.length === 2, `Expected group expansion to include 2 participants, got ${participants.length}`)
   assert(participants.some((p) => p.agentId === 'lead'), 'Expected lead in group-driven participants')
   assert(participants.some((p) => p.agentId === 'analyst'), 'Expected analyst in group-driven participants')
+})
+
+test('resolveTargetTeamAgentIds resolves only the targeted team leader by default', () => {
+  const reasons = resolveTargetTeamAgentIds(['leadership'], [
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['chief-of-staff'],
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'engineering',
+      name: 'Engineering',
+      leaderAgentId: 'eng-lead',
+      memberAgentIds: ['platform-engineer'],
+      parentTeamId: 'leadership',
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+  ] as any)
+
+  assert(reasons.get('ceo')?.includes('team:leadership') === true, 'Expected leadership lead to resolve')
+  assert(!reasons.has('chief-of-staff'), 'Expected non-leader member to remain excluded by default')
+  assert(!reasons.has('eng-lead'), 'Expected child team lead to remain excluded by default')
+  assert(!reasons.has('platform-engineer'), 'Expected child team member to remain excluded by default')
+})
+
+test('resolveParticipants includes team-targeted agents as direct execution targets', () => {
+  const participants = resolveParticipants({
+    id: 'team-driven',
+    name: 'Team Driven',
+    description: 'Test',
+    schedule: 'manual',
+    enabled: true,
+    executionMode: 'managed',
+    targeting: {
+      agents: [],
+      teamIds: ['leadership'],
+      tags: [],
+      groups: ['Status'],
+      communities: [],
+    },
+    content: '# Test',
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    author: 'test',
+  } as any, [
+    { id: 'ceo', name: 'CEO', groups: ['Status'], tags: ['lead'], communities: [] },
+    { id: 'eng-lead', name: 'Engineering Lead', groups: ['Status'], tags: ['build'], communities: [] },
+    { id: 'analyst', name: 'Analyst', groups: ['Status'], tags: ['analysis'], communities: [] },
+  ], [
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['eng-lead'],
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+  ] as any)
+
+  assert(participants.length === 1, `Expected only team leader to execute, got ${participants.length}`)
+  assert(participants.some((p) => p.agentId === 'ceo' && p.reason.includes('team:leadership')), 'Expected leadership team lead to execute')
+  assert(!participants.some((p) => p.agentId === 'eng-lead'), 'Expected non-leader team member to be excluded by default')
+  assert(!participants.some((p) => p.agentId === 'analyst'), 'Expected unrelated group agent to be excluded when teamIds create direct targets')
 })
 
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
@@ -670,6 +741,42 @@ test('triggerWorkflow stores edited manual inputs on the new execution', () => {
   assert(execution?.inputs?.Project === 'Beta', `Expected edited Project input, got ${execution?.inputs?.Project}`)
   assert(execution?.inputs?.Region === 'EU', `Expected edited Region input, got ${execution?.inputs?.Region}`)
   assert(execution?.inputs?.Priority === 'High', `Expected new Priority input, got ${execution?.inputs?.Priority}`)
+})
+
+test('triggerWorkflow mock mode completes immediately and persists output artifacts', () => {
+  const result = createWorkflow({
+    name: 'Mock Kickoff',
+    description: 'Mock execution test',
+    schedule: 'manual',
+    content: '# Mock kickoff',
+    executionMode: 'managed',
+    owner: 'mock-owner',
+    targeting: { agents: ['mock-owner'], groups: [], tags: [], communities: [] },
+    outputDefinitions: [{ key: 'brief', label: 'Brief', type: 'markdown' }],
+  } as any)
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+
+  const triggered = triggerWorkflow(result.id!, {
+    manual: true,
+    mock: true,
+    inputs: {
+      Audience: 'Hack judges',
+    },
+  })
+  assert(triggered.success && !!triggered.executionId, `Mock trigger should succeed: ${triggered.error}`)
+
+  const execution = getExecution(result.id!, triggered.executionId!)
+  assert(execution !== null, 'Mock execution should be readable')
+  assert(execution?.status === 'completed', `Expected completed mock execution, got ${execution?.status}`)
+  assert(execution?.participants.length === 1, `Expected one mock participant, got ${execution?.participants.length}`)
+  assert(execution?.participants[0].status === 'completed', `Expected completed mock participant, got ${execution?.participants[0].status}`)
+  assert(execution?.outputs?.brief?.artifactPath === `WORKFLOWS/outputs/${result.id}/brief.md`, `Unexpected mock artifact path: ${execution?.outputs?.brief?.artifactPath}`)
+  const artifactPath = path.join(getWorkspacePath(), execution!.outputs!.brief!.artifactPath!)
+  assert(fs.existsSync(artifactPath), `Expected mock artifact file to exist at ${artifactPath}`)
+  const artifactContent = fs.readFileSync(artifactPath, 'utf-8')
+  assert(artifactContent.includes('Mock execution completed by'), `Expected mock artifact content, got ${artifactContent}`)
+  assert(artifactContent.includes('Audience: Hack judges'), `Expected run inputs to appear in mock artifact, got ${artifactContent}`)
 })
 
 // ============================================================================

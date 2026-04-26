@@ -3,6 +3,7 @@ import { useToast } from './Toast'
 import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
   agentId: string
@@ -48,6 +49,10 @@ interface ApplyOrgTemplateModalProps {
   template: OrganizationTemplate
   onClose: () => void
   onSuccess: () => void
+}
+
+function getOrgMetaStorageKey(workspaceId?: string | null) {
+  return `clawmax:organization-meta:${workspaceId || 'default'}`
 }
 
 const FALLBACK_MODELS = [
@@ -168,9 +173,11 @@ function parseWorkflowConfigFields(content?: string | null): WorkflowConfigField
 }
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
+  const { activeWorkspace } = useWorkspace()
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
+  const [prefixTouched, setPrefixTouched] = useState(false)
   const [includeBuiltIn, setIncludeBuiltIn] = useState(true)
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
@@ -529,6 +536,49 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const builtInAgents = expandedAgents.filter(a => a.tags?.includes('built-in'))
   const regularAgents = expandedAgents.filter(a => !a.tags?.includes('built-in'))
   const agentsToCreate = includeBuiltIn ? expandedAgents : regularAgents
+
+  const shouldSuggestNamespace = useMemo(() => (
+    (template.teams?.length || 0) > 0
+    || (template.workflows?.length || 0) > 0
+    || (template.groups?.length || 0) > 0
+    || (template.communities?.length || 0) > 0
+  ), [template.communities, template.groups, template.teams, template.workflows])
+
+  const suggestedPrefix = useMemo(() => {
+    if (!shouldSuggestNamespace) return ''
+    const workspaceAlreadyHasStructure = existingAgentIds.length > 0
+      || existingWorkflowNames.length > 0
+      || existingGroupNames.length > 0
+      || existingCommunityNames.length > 0
+    if (!workspaceAlreadyHasStructure) return ''
+
+    const existingAgentIdSet = new Set(existingAgentIds)
+    const slugBase = (resolvedTemplateSlug || templateSlug || 'company').replace(/[^a-z0-9_-]/g, '') || 'company'
+    let candidate = `${slugBase}-`
+    let attempt = 2
+    while (agentsToCreate.some((agent) => existingAgentIdSet.has(`${candidate}${agent.id}${suffix}`))) {
+      candidate = `${slugBase}${attempt}-`
+      attempt += 1
+    }
+    return candidate
+  }, [
+    agentsToCreate,
+    existingAgentIds,
+    existingCommunityNames.length,
+    existingGroupNames.length,
+    existingWorkflowNames.length,
+    resolvedTemplateSlug,
+    shouldSuggestNamespace,
+    suffix,
+    templateSlug,
+  ])
+
+  React.useEffect(() => {
+    if (prefixTouched) return
+    if (prefix.trim()) return
+    if (!suggestedPrefix) return
+    setPrefix(suggestedPrefix)
+  }, [prefix, prefixTouched, suggestedPrefix])
 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
@@ -940,6 +990,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         }
 
         announceApplyProgress('Refreshing workspace state...', true)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(getOrgMetaStorageKey(activeWorkspace?.id), JSON.stringify({
+            name: template.name,
+            description: template.description || 'Describe this workspace organization',
+          }))
+          window.dispatchEvent(new CustomEvent('teams-updated'))
+        }
         showSuccess(`Template "${template.name}" applied successfully!`)
         setApplyProgress('Done! Refreshing workspace...')
         setTimeout(() => {
@@ -1360,7 +1417,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 <input
                   type="text"
                   value={prefix}
-                  onChange={e => setPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  onChange={e => {
+                    setPrefixTouched(true)
+                    setPrefix(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+                  }}
                   placeholder="e.g., proj1-"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                 />
@@ -1386,6 +1446,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 {exampleAgentId} → <span className="font-semibold">{previewId}</span>
               </div>
             </div>
+            {suggestedPrefix && !prefixTouched && (
+              <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+                Suggested namespace for a separate company apply: <span className="font-mono">{suggestedPrefix}</span>
+              </div>
+            )}
             {agentConflicts.length > 0 && (
               <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
                 Existing agent IDs would conflict: {agentConflicts.join(', ')}. Add a prefix or suffix to create a separate team copy in this workspace.

@@ -35,7 +35,15 @@ Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, 
 
 ---
 
-### 4. DAG connector lines overlap nodes on complex layouts
+### 4. Ollama UI visibility and runtime env can be confused
+**Severity**: Medium
+**Status**: Known limitation / operator gotcha
+
+The dashboard uses `DASHBOARD_ENABLE_OLLAMA` only to control whether Ollama appears in the UI. Actual execution paths read `OLLAMA_BASE_URL`. Browser-local BYOK / Workspaces Integrations settings can make Ollama appear configured in the UI, but operator-managed local runtimes should still set `OLLAMA_BASE_URL` in `SYSTEM/dashboard/.env` for a stable server/runtime path after restart. `DASHBOARD_OLLAMA_BASE_URL` is not a recognized runtime env var.
+
+---
+
+### 5. DAG connector lines overlap nodes on complex layouts
 **Severity**: Low (cosmetic)
 **Status**: Known limitation
 
@@ -43,7 +51,7 @@ SVG bezier curves can pass through nodes when the layout has many parallel workf
 
 ---
 
-### 5. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
+### 6. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
 **Severity**: Medium
 **Status**: Known issue, defer to Friday hardening
 

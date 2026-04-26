@@ -3,6 +3,7 @@ import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 
 interface GroupEntry {
   name: string
@@ -37,6 +38,7 @@ interface Workflow {
     groups: string[]
     tags: string[]
     agents: string[]
+    teamIds?: string[]
   }
 }
 
@@ -85,6 +87,7 @@ interface Team {
 }
 
 type OrganizationViewMode = 'structure' | 'org-chart'
+type OrgChartDensity = 'comfortable' | 'compact' | 'dense'
 
 const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
@@ -99,6 +102,44 @@ const WORKFLOW_OUTPUT_STATUS_BADGE: Record<WorkflowExecutionOutputSummary['statu
   paused: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
 }
 
+const ORG_CHART_DENSITY_PRESETS: Record<OrgChartDensity, {
+  cardWidth: number
+  childColumnWidth: number
+  childGap: number
+  topPaddingClass: string
+  rowGapClass: string
+  stemHeightClass: string
+  connectorInset: number
+}> = {
+  comfortable: {
+    cardWidth: 208,
+    childColumnWidth: 188,
+    childGap: 16,
+    topPaddingClass: 'px-3',
+    rowGapClass: 'gap-5',
+    stemHeightClass: 'h-5',
+    connectorInset: 94,
+  },
+  compact: {
+    cardWidth: 200,
+    childColumnWidth: 180,
+    childGap: 14,
+    topPaddingClass: 'px-3',
+    rowGapClass: 'gap-5',
+    stemHeightClass: 'h-5',
+    connectorInset: 90,
+  },
+  dense: {
+    cardWidth: 180,
+    childColumnWidth: 164,
+    childGap: 10,
+    topPaddingClass: 'px-2',
+    rowGapClass: 'gap-4',
+    stemHeightClass: 'h-4',
+    connectorInset: 82,
+  },
+}
+
 function TeamTreeNode({
   team,
   depth,
@@ -110,6 +151,10 @@ function TeamTreeNode({
   onNavigateToWorkflow,
   onNavigateToDoc,
   onDeleteTeam,
+  onDeleteCompany,
+  collapsedCompanyIds,
+  onToggleCompanyCollapsed,
+  visitedTeamIds,
 }: {
   team: Team
   depth: number
@@ -121,10 +166,26 @@ function TeamTreeNode({
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToDoc?: (file: string) => void
   onDeleteTeam?: (teamId: string) => void
+  onDeleteCompany?: (teamId: string) => void
+  collapsedCompanyIds?: Set<string>
+  onToggleCompanyCollapsed?: (teamId: string) => void
+  visitedTeamIds?: Set<string>
 }) {
+  const visited = visitedTeamIds || new Set<string>()
+  if (visited.has(team.id)) {
+    return (
+      <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+        Skipped recursive team reference for `{team.id}`
+      </div>
+    )
+  }
+  const nextVisited = new Set(visited)
+  nextVisited.add(team.id)
   const children = teamChildren.get(team.id) || []
   const workflows = teamWorkflows.get(team.id) || []
   const leaderLabel = team.leaderAgentId ? (agentNameById[team.leaderAgentId] || team.leaderAgentId) : null
+  const isTopLevelCompany = !team.parentTeamId
+  const isCollapsed = isTopLevelCompany && collapsedCompanyIds?.has(team.id)
 
   return (
     <div className="space-y-3">
@@ -135,6 +196,15 @@ function TeamTreeNode({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
+              {isTopLevelCompany && onToggleCompanyCollapsed && (
+                <button
+                  onClick={() => onToggleCompanyCollapsed(team.id)}
+                  className="text-xs text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+                  title={isCollapsed ? 'Expand company' : 'Collapse company'}
+                >
+                  {isCollapsed ? '▶' : '▼'}
+                </button>
+              )}
               <span className="text-xs font-mono text-amber-700 dark:text-amber-400">{team.id}</span>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{team.name}</h3>
               {children.length > 0 && (
@@ -159,19 +229,30 @@ function TeamTreeNode({
             <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
               {team.memberAgentIds.length} member{team.memberAgentIds.length === 1 ? '' : 's'}
             </span>
-            <button
-              onClick={() => onDeleteTeam?.(team.id)}
-              className="rounded-full border border-red-200 dark:border-red-800 p-1.5 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              title="Delete team"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {onDeleteTeam && (
+              <button
+                onClick={() => onDeleteTeam(team.id)}
+                className="rounded-full border border-red-200 dark:border-red-800 p-1.5 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Delete team"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+            {onDeleteCompany && !team.parentTeamId && (
+              <button
+                onClick={() => onDeleteCompany(team.id)}
+                className="rounded-full border border-red-200 dark:border-red-800 px-2.5 py-1 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Delete company"
+              >
+                Delete company
+              </button>
+            )}
           </div>
         </div>
 
-        {team.tags.length > 0 && (
+        {!isCollapsed && team.tags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {team.tags.map((tag) => (
               <span key={tag} className="rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
@@ -181,7 +262,7 @@ function TeamTreeNode({
           </div>
         )}
 
-        {workflows.length > 0 && (
+        {!isCollapsed && workflows.length > 0 && (
           <div className="mt-3 rounded-md border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
               Workflows ({workflows.length})
@@ -251,7 +332,7 @@ function TeamTreeNode({
         )}
       </div>
 
-      {children.length > 0 && (
+      {!isCollapsed && children.length > 0 && (
         <div className="space-y-3">
           {children.map((child) => (
             <TeamTreeNode
@@ -266,6 +347,10 @@ function TeamTreeNode({
               onNavigateToWorkflow={onNavigateToWorkflow}
               onNavigateToDoc={onNavigateToDoc}
               onDeleteTeam={onDeleteTeam}
+              onDeleteCompany={onDeleteCompany}
+              collapsedCompanyIds={collapsedCompanyIds}
+              onToggleCompanyCollapsed={onToggleCompanyCollapsed}
+              visitedTeamIds={nextVisited}
             />
           ))}
         </div>
@@ -282,7 +367,8 @@ function OrgChartNode({
   agentNameById,
   onNavigateToAgent,
   onNavigateToWorkflow,
-  onDeleteTeam,
+  visitedTeamIds,
+  density,
 }: {
   team: Team
   teamChildren: Map<string, Team[]>
@@ -291,54 +377,60 @@ function OrgChartNode({
   agentNameById: Record<string, string>
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
-  onDeleteTeam?: (teamId: string) => void
+  visitedTeamIds?: Set<string>
+  density: OrgChartDensity
 }) {
+  const densityPreset = ORG_CHART_DENSITY_PRESETS[density]
+  const visited = visitedTeamIds || new Set<string>()
+  if (visited.has(team.id)) {
+    return (
+      <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+        Recursive reference skipped: {team.id}
+      </div>
+    )
+  }
+  const nextVisited = new Set(visited)
+  nextVisited.add(team.id)
   const children = teamChildren.get(team.id) || []
   const workflows = teamWorkflows.get(team.id) || []
   const leaderLabel = team.leaderAgentId ? (agentNameById[team.leaderAgentId] || team.leaderAgentId) : null
 
   return (
     <div className="flex flex-col items-center">
-      <div className="w-full max-w-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm px-4 py-3">
+      <div
+        className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm px-3 py-2.5"
+        style={{ maxWidth: `${densityPreset.cardWidth}px` }}
+      >
         <div className="text-[11px] font-mono uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {team.id}
         </div>
-        <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <div className="mt-0.5 text-[13px] font-semibold text-slate-900 dark:text-slate-100">
           {team.name}
         </div>
         {leaderLabel && team.leaderAgentId && (
           <button
             onClick={() => onNavigateToAgent?.(team.leaderAgentId!)}
-            className="mt-2 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="mt-1.5 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             Lead: {leaderLabel}
           </button>
         )}
         {team.purpose && (
-          <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-400">
+          <p className="mt-1.5 line-clamp-3 text-[11px] leading-4 text-slate-600 dark:text-slate-400">
             {team.purpose}
           </p>
         )}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] text-slate-600 dark:text-slate-300">
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="rounded-full border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
             {team.memberAgentIds.length} members
           </span>
-          <button
-            onClick={() => onDeleteTeam?.(team.id)}
-            className="rounded-full border border-red-200 dark:border-red-800 p-1 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            title="Delete team"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
           {workflows.map((workflow) => {
             const output = latestWorkflowOutputs.get(workflow.id)
             return (
               <button
                 key={workflow.id}
                 onClick={() => onNavigateToWorkflow?.(workflow.id)}
-                className="rounded-full border border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 px-2 py-0.5 text-[10px] text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+                className="max-w-full truncate rounded-full border border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[9px] text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
                 title={output?.summary || workflow.description}
               >
                 {workflow.name}
@@ -350,24 +442,40 @@ function OrgChartNode({
 
       {children.length > 0 && (
         <>
-          <div className="h-7 w-0.5 bg-slate-500 dark:bg-slate-500" />
-          <div className="w-full max-w-5xl border-t-2 border-slate-500 dark:border-slate-500" />
-          <div className="grid w-full gap-6 pt-6" style={{ gridTemplateColumns: `repeat(${children.length}, minmax(220px, 1fr))` }}>
-            {children.map((child) => (
-              <div key={child.id} className="flex flex-col items-center">
-                <div className="h-7 w-0.5 bg-slate-500 dark:bg-slate-500" />
-                <OrgChartNode
-                  team={child}
-                  teamChildren={teamChildren}
-                  teamWorkflows={teamWorkflows}
-                  latestWorkflowOutputs={latestWorkflowOutputs}
-                  agentNameById={agentNameById}
-                  onNavigateToAgent={onNavigateToAgent}
-                  onNavigateToWorkflow={onNavigateToWorkflow}
-                  onDeleteTeam={onDeleteTeam}
-                />
-              </div>
-            ))}
+          <div className={`${densityPreset.stemHeightClass} w-0.5 bg-slate-500 dark:bg-slate-500`} />
+          <div className="inline-flex flex-col items-center">
+            <div
+              className="border-t-2 border-slate-500 dark:border-slate-500"
+              style={{
+                marginLeft: `${densityPreset.connectorInset}px`,
+                marginRight: `${densityPreset.connectorInset}px`,
+                width: `calc(100% - ${densityPreset.connectorInset * 2}px)`,
+              }}
+            />
+            <div
+              className="inline-grid pt-4"
+              style={{
+                gap: `${densityPreset.childGap}px`,
+                gridTemplateColumns: `repeat(${children.length}, ${densityPreset.childColumnWidth}px)`,
+              }}
+            >
+              {children.map((child) => (
+                <div key={child.id} className="flex flex-col items-center">
+                  <div className={`${densityPreset.stemHeightClass} w-0.5 bg-slate-500 dark:bg-slate-500`} />
+                  <OrgChartNode
+                    team={child}
+                    teamChildren={teamChildren}
+                    teamWorkflows={teamWorkflows}
+                    latestWorkflowOutputs={latestWorkflowOutputs}
+                    agentNameById={agentNameById}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onNavigateToWorkflow={onNavigateToWorkflow}
+                    visitedTeamIds={nextVisited}
+                    density={density}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -399,12 +507,18 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
   const [teamsSectionCollapsed, setTeamsSectionCollapsed] = useState(false)
+  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<string>>(new Set())
   const [organizationViewMode, setOrganizationViewMode] = useState<OrganizationViewMode>(() => {
     if (typeof window === 'undefined') return 'structure'
     const saved = localStorage.getItem('organizations-view-mode')
     return saved === 'org-chart' ? 'org-chart' : 'structure'
   })
   const [orgChartZoom, setOrgChartZoom] = useState(1)
+  const [orgChartDensity, setOrgChartDensity] = useState<OrgChartDensity>(() => {
+    if (typeof window === 'undefined') return 'compact'
+    const saved = localStorage.getItem('organizations-chart-density')
+    return saved === 'comfortable' || saved === 'compact' || saved === 'dense' ? saved : 'compact'
+  })
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [orgName, setOrgName] = useState('Workspace Org')
   const [orgDescription, setOrgDescription] = useState('Describe this workspace organization')
@@ -420,13 +534,15 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [newGroupCommunity, setNewGroupCommunity] = useState('')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
-    type: 'community' | 'group' | 'team'
+    type: 'community' | 'group' | 'team' | 'company'
     name: string
+    targetId?: string
     consequences: string[]
   } | null>(null)
   const [finalDeleteDialog, setFinalDeleteDialog] = useState<{
-    type: 'community'
+    type: 'community' | 'company'
     name: string
+    targetId?: string
     consequences: string[]
   } | null>(null)
   const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
@@ -439,6 +555,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   }, [organizationViewMode])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem('organizations-chart-density', orgChartDensity)
+  }, [orgChartDensity])
+
+  useEffect(() => {
     if (organizationViewMode !== 'org-chart') return
     setCommunitiesSectionCollapsed(true)
     setGroupsSectionCollapsed(true)
@@ -449,7 +570,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setTimeout(() => setToast(null), 3000)
   }
 
-  useEffect(() => {
+  const loadOrgMeta = useCallback(() => {
     const suggestedName = activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org'
     let nextName = suggestedName
     let nextDescription = 'Describe this workspace organization'
@@ -470,6 +591,16 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setOrgDraftName(nextName)
     setOrgDraftDescription(nextDescription)
   }, [activeWorkspace?.id, activeWorkspace?.name])
+
+  useEffect(() => {
+    loadOrgMeta()
+  }, [loadOrgMeta])
+
+  useEffect(() => {
+    const handleOrgMetaUpdate = () => loadOrgMeta()
+    window.addEventListener('teams-updated', handleOrgMetaUpdate)
+    return () => window.removeEventListener('teams-updated', handleOrgMetaUpdate)
+  }, [loadOrgMeta])
 
   const saveOrgMeta = () => {
     const nextName = orgDraftName.trim() || (activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org')
@@ -525,10 +656,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     window.addEventListener('channels-updated', handleWorkspaceUpdate)
     window.addEventListener('agents-updated', handleWorkspaceUpdate)
     window.addEventListener('workflows-updated', handleWorkspaceUpdate)
+    window.addEventListener('teams-updated', handleWorkspaceUpdate)
     return () => {
       window.removeEventListener('channels-updated', handleWorkspaceUpdate)
       window.removeEventListener('agents-updated', handleWorkspaceUpdate)
       window.removeEventListener('workflows-updated', handleWorkspaceUpdate)
+      window.removeEventListener('teams-updated', handleWorkspaceUpdate)
     }
   }, [fetchData])
 
@@ -628,10 +761,22 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     )
   }, [groups, searchQuery])
 
+  const displayTeams = useMemo(() => buildOrganizationDisplayTeams({
+    persistedTeams: teams,
+    agents,
+    groups: groups.map((group) => ({
+      name: group.name,
+      members: group.members.map((member) => ({ id: member.id })),
+    })),
+    workflows: allWorkflows,
+    organizationName: orgName,
+    organizationDescription: orgDescription,
+  }), [teams, agents, groups, allWorkflows, orgName, orgDescription])
+
   const filteredTeams = useMemo(() => {
-    if (!searchQuery.trim()) return teams
+    if (!searchQuery.trim()) return displayTeams
     const query = searchQuery.toLowerCase()
-    return teams.filter((team) =>
+    return displayTeams.filter((team) =>
       team.name.toLowerCase().includes(query) ||
       team.id.toLowerCase().includes(query) ||
       team.purpose?.toLowerCase().includes(query) ||
@@ -639,7 +784,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       team.memberAgentIds.some((memberId) => memberId.toLowerCase().includes(query)) ||
       team.tags.some((tag) => tag.toLowerCase().includes(query))
     )
-  }, [teams, searchQuery])
+  }, [displayTeams, searchQuery])
 
   const teamChildren = useMemo(() => {
     const map = new Map<string, Team[]>()
@@ -669,6 +814,9 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     for (const workflow of allWorkflows) {
       const owner = workflow.owner?.toLowerCase()
       const targetedAgents = new Set((workflow.targeting?.agents || []).map((agentId) => agentId.toLowerCase()))
+      const directTeamMatch = (workflow.targeting?.teamIds || []).find((teamId) =>
+        filteredTeams.some((team) => team.id === teamId)
+      )
       const ownerMatchedTeam = owner
         ? teamMembership.find(({ agentIds }) => Array.from(agentIds).some((agentId) => agentId.toLowerCase() === owner))
         : undefined
@@ -678,7 +826,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       const fallbackGroupMatch = (workflow.targeting?.groups || [])
         .flatMap((groupName) => groupNameToTeamIds.get(groupName.toLowerCase()) || [])
         .find(Boolean)
-      const teamId = ownerMatchedTeam?.team.id || targetedMatchedTeam?.team.id || fallbackGroupMatch
+      const teamId = directTeamMatch || ownerMatchedTeam?.team.id || targetedMatchedTeam?.team.id || fallbackGroupMatch
       if (!teamId) continue
       workflowsByTeam.set(teamId, [...(workflowsByTeam.get(teamId) || []), workflow])
     }
@@ -1045,19 +1193,94 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setDeleteDialog({ type: 'group', name: groupName, consequences })
   }
 
+  const buildCompanyDeletePlan = (rootTeamId: string) => buildOrganizationDeletePlan({
+    rootTeamId,
+    teams: displayTeams,
+    groups: groups as any,
+    communities: communities as any,
+    workflows: allWorkflows,
+  })
+
+  const handleDeleteCompany = (teamId: string) => {
+    const sourceTeams = displayTeams
+    const team = sourceTeams.find((entry) => entry.id === teamId)
+    if (!team) return
+
+    const plan = buildCompanyDeletePlan(teamId)
+    if (plan.teamIds.length === 0) return
+
+    const consequences: string[] = []
+    const plannedTeams = plan.teamIds
+      .map((id) => sourceTeams.find((entry) => entry.id === id))
+      .filter(Boolean) as Team[]
+    const plannedWorkflows = plan.workflowIds
+      .map((id) => allWorkflows.find((workflow) => workflow.id === id))
+      .filter(Boolean) as Workflow[]
+
+    consequences.push(`${plannedTeams.length} team${plannedTeams.length !== 1 ? 's' : ''} will be deleted`)
+    plannedTeams.slice(0, 8).forEach((entry) => {
+      consequences.push(`  • ${entry.name} (${entry.id})`)
+    })
+    if (plannedTeams.length > 8) {
+      consequences.push(`  • ...and ${plannedTeams.length - 8} more teams`)
+    }
+
+    if (plan.agentIds.length > 0) {
+      consequences.push(`${plan.agentIds.length} agent${plan.agentIds.length !== 1 ? 's' : ''} will be deleted from the workspace`)
+      plan.agentIds.slice(0, 8).forEach((agentId) => {
+        consequences.push(`  • ${agentNameById[agentId] || agentId} (${agentId})`)
+      })
+      if (plan.agentIds.length > 8) {
+        consequences.push(`  • ...and ${plan.agentIds.length - 8} more agents`)
+      }
+    }
+
+    if (plannedWorkflows.length > 0) {
+      consequences.push(`${plannedWorkflows.length} workflow${plannedWorkflows.length !== 1 ? 's' : ''} will be deleted`)
+      plannedWorkflows.slice(0, 8).forEach((workflow) => {
+        consequences.push(`  • ${workflow.name}`)
+      })
+      if (plannedWorkflows.length > 8) {
+        consequences.push(`  • ...and ${plannedWorkflows.length - 8} more workflows`)
+      }
+    }
+
+    if (plan.groupNames.length > 0) {
+      consequences.push(`${plan.groupNames.length} group${plan.groupNames.length !== 1 ? 's' : ''} will be deleted`)
+      plan.groupNames.slice(0, 8).forEach((groupName) => {
+        consequences.push(`  • ${groupName}`)
+      })
+    }
+
+    if (plan.communityNames.length > 0) {
+      consequences.push(`${plan.communityNames.length} communit${plan.communityNames.length !== 1 ? 'ies' : 'y'} will be cascade deleted`)
+      plan.communityNames.slice(0, 8).forEach((communityName) => {
+        consequences.push(`  • ${communityName}`)
+      })
+    }
+
+    consequences.push('Cascade delete removes this top-level company slice, its nested teams, related workflows, and imported agents')
+
+    setDeleteDialog({ type: 'company', name: team.name, targetId: team.id, consequences })
+  }
+
   const handleDeleteTeam = (teamId: string) => {
     const team = teams.find((entry) => entry.id === teamId)
     if (!team) return
 
     const consequences: string[] = []
-    const childTeams = teams.filter((entry) => entry.parentTeamId === teamId)
+    const collectDescendantTeams = (parentId: string): Team[] => {
+      const directChildren = teams.filter((entry) => entry.parentTeamId === parentId)
+      return directChildren.flatMap((child) => [child, ...collectDescendantTeams(child.id)])
+    }
+    const childTeams = collectDescendantTeams(teamId)
     const workflows = teamWorkflows.get(teamId) || []
 
     if (team.parentTeamId) {
       consequences.push(`Reports to team: ${team.parentTeamId}`)
     }
     if (childTeams.length > 0) {
-      consequences.push(`${childTeams.length} child team${childTeams.length !== 1 ? 's' : ''} will be re-parented to the root`)
+      consequences.push(`${childTeams.length} child team${childTeams.length !== 1 ? 's' : ''} will be deleted with this team`)
       childTeams.forEach((child) => {
         consequences.push(`  • ${child.name} (${child.id})`)
       })
@@ -1071,7 +1294,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         consequences.push(`  • ${workflow.name}`)
       })
     }
-    consequences.push('This removes only the team record from the organization structure')
+    consequences.push('This removes the selected team and all nested subteams from the organization structure')
 
     setDeleteDialog({ type: 'team', name: teamId, consequences })
   }
@@ -1079,9 +1302,9 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const confirmDelete = async () => {
     if (!deleteDialog) return
 
-    const { type, name } = deleteDialog
-    if (type === 'community') {
-      setFinalDeleteDialog({ type, name, consequences: deleteDialog.consequences })
+    const { type, name, targetId } = deleteDialog
+    if (type === 'community' || type === 'company') {
+      setFinalDeleteDialog({ type, name, targetId, consequences: deleteDialog.consequences })
       setDeleteDialog(null)
       return
     }
@@ -1091,9 +1314,29 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       : `/api/teams/${encodeURIComponent(name)}`
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'DELETE'
-      })
+      let response: Response
+      if (type === 'team') {
+        const collectDescendantIds = (parentId: string): string[] => {
+          const directChildren = teams.filter((entry) => entry.parentTeamId === parentId)
+          return directChildren.flatMap((child) => [child.id, ...collectDescendantIds(child.id)])
+        }
+        const idsToDelete = [...collectDescendantIds(name), name]
+        let failed = false
+        for (const teamId of idsToDelete) {
+          const teamResponse = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
+            method: 'DELETE'
+          })
+          if (!teamResponse.ok) {
+            failed = true
+            break
+          }
+        }
+        response = new Response(null, { status: failed ? 500 : 200 })
+      } else {
+        response = await fetch(endpoint, {
+          method: 'DELETE'
+        })
+      }
 
       if (response.ok) {
         showToast(`${type === 'group' ? 'Group' : 'Team'} "${name}" deleted`, 'success')
@@ -1114,16 +1357,83 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const confirmFinalDelete = async () => {
     if (!finalDeleteDialog) return
 
-    const { type, name } = finalDeleteDialog
-    const endpoint = `/api/communities/${encodeURIComponent(name)}?cascade=1`
+    const { type, name, targetId } = finalDeleteDialog
+
+    const isOkay = (response: Response) => response.ok || response.status === 404
 
     try {
-      const response = await fetch(endpoint, {
+      if (type === 'company') {
+        const plan = buildCompanyDeletePlan(targetId || name)
+        const teamDepth = (teamId: string): number => {
+          let depth = 0
+          const sourceTeams = teams.length > 0 ? teams : displayTeams
+          let cursor = sourceTeams.find((team) => team.id === teamId)?.parentTeamId
+          const visited = new Set<string>()
+          while (cursor && !visited.has(cursor)) {
+            visited.add(cursor)
+            depth += 1
+            cursor = sourceTeams.find((team) => team.id === cursor)?.parentTeamId
+          }
+          return depth
+        }
+
+        let failed = false
+        for (const communityName of plan.communityNames) {
+          const response = await fetch(`/api/communities/${encodeURIComponent(communityName)}?cascade=1`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const workflowId of plan.workflowIds) {
+          const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const groupName of plan.groupNames) {
+          const response = await fetch(`/api/groups/${encodeURIComponent(groupName)}`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const agentId of plan.agentIds) {
+          const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ removeStateDir: true }),
+          })
+          if (!isOkay(response)) failed = true
+        }
+        if (teams.length > 0) {
+          const orderedTeamIds = [...plan.teamIds].sort((a, b) => teamDepth(b) - teamDepth(a))
+          for (const teamId of orderedTeamIds) {
+            const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
+              method: 'DELETE'
+            })
+            if (!isOkay(response)) failed = true
+          }
+        }
+
+        if (!failed) {
+          showToast(`Company "${name}" deleted`, 'success')
+          setFinalDeleteDialog(null)
+          window.dispatchEvent(new CustomEvent('channels-updated'))
+          window.dispatchEvent(new CustomEvent('agents-updated'))
+          window.dispatchEvent(new CustomEvent('workflows-updated'))
+          window.dispatchEvent(new CustomEvent('teams-updated'))
+          fetchData()
+        } else {
+          showToast(`Cascade delete incomplete for company "${name}"`, 'error')
+        }
+        return
+      }
+
+      const response = await fetch(`/api/communities/${encodeURIComponent(name)}?cascade=1`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
-        showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
+        showToast(`${type === 'community' ? 'Community' : 'Company'} "${name}" deleted`, 'success')
         setFinalDeleteDialog(null)
         window.dispatchEvent(new CustomEvent('channels-updated'))
         window.dispatchEvent(new CustomEvent('agents-updated'))
@@ -1306,13 +1616,13 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
             </div>
           </div>
 
-          {teams.length > 0 && (
+          {displayTeams.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
               <div className="px-4 py-3 border-b border-gray-200 bg-amber-50 dark:bg-amber-900/20 flex items-center justify-between dark:border-gray-700">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTeamsSectionCollapsed(!teamsSectionCollapsed)}>
                   <span className="text-sm">{teamsSectionCollapsed ? '▶' : '▼'}</span>
                   <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-                    🏢 Company Structure ({teams.length})
+                    🏢 Company Structure ({displayTeams.length})
                   </h2>
                 </div>
                 <div className="text-xs text-amber-700 dark:text-amber-400">
@@ -1350,7 +1660,15 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           onNavigateToAgent={onNavigateToAgent}
                           onNavigateToWorkflow={onNavigateToWorkflow}
                           onNavigateToDoc={onNavigateToDoc}
-                          onDeleteTeam={handleDeleteTeam}
+                          onDeleteTeam={teams.length > 0 ? handleDeleteTeam : undefined}
+                          onDeleteCompany={displayTeams.length > 0 ? handleDeleteCompany : undefined}
+                          collapsedCompanyIds={collapsedCompanyIds}
+                          onToggleCompanyCollapsed={(teamId) => setCollapsedCompanyIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(teamId)) next.delete(teamId)
+                            else next.add(teamId)
+                            return next
+                          })}
                         />
                       ))}
                     </div>
@@ -1364,7 +1682,23 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                         }
                       }}
                     >
-                      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-1 py-0.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                      <div className="absolute top-2 right-2 z-20 flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-0.5">
+                          {(['comfortable', 'compact', 'dense'] as OrgChartDensity[]).map((density) => (
+                            <button
+                              key={density}
+                              onClick={() => setOrgChartDensity(density)}
+                              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                                orgChartDensity === density
+                                  ? 'bg-sky-500 text-white'
+                                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                              }`}
+                              title={`${density[0].toUpperCase()}${density.slice(1)} spacing`}
+                            >
+                              {density === 'comfortable' ? 'Roomy' : density === 'compact' ? 'Compact' : 'Dense'}
+                            </button>
+                          ))}
+                        </div>
                         <button
                           onClick={() => setOrgChartZoom((zoom) => Math.max(0.25, zoom - 0.15))}
                           className="flex h-6 w-6 items-center justify-center text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -1394,8 +1728,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           minWidth: orgChartZoom < 1 ? `${100 / orgChartZoom}%` : undefined,
                         }}
                       >
-                        <div className="min-w-max px-6">
-                          <div className="flex flex-col items-center gap-8">
+                        <div className={`min-w-max ${ORG_CHART_DENSITY_PRESETS[orgChartDensity].topPaddingClass}`}>
+                          <div className={`flex flex-col items-center ${ORG_CHART_DENSITY_PRESETS[orgChartDensity].rowGapClass}`}>
                             {(teamChildren.get('__root__') || []).map((team) => (
                               <OrgChartNode
                                 key={team.id}
@@ -1406,7 +1740,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                                 agentNameById={agentNameById}
                                 onNavigateToAgent={onNavigateToAgent}
                                 onNavigateToWorkflow={onNavigateToWorkflow}
-                                onDeleteTeam={handleDeleteTeam}
+                                density={orgChartDensity}
                               />
                             ))}
                           </div>
@@ -2052,7 +2386,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       <ConfirmDeleteDialog
         isOpen={deleteDialog !== null}
         itemName={deleteDialog?.name || ''}
-        itemType={deleteDialog?.type || 'item'}
+        itemType={deleteDialog?.type === 'company' ? 'company' : deleteDialog?.type || 'item'}
         consequences={deleteDialog?.consequences}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteDialog(null)}
@@ -2061,8 +2395,10 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       <ConfirmDeleteDialog
         isOpen={finalDeleteDialog !== null}
         itemName={finalDeleteDialog?.name || ''}
-        itemType="Final Warning"
-        warningMessage="This is a cascading delete. It will remove the community and all linked groups, member agents, and related workflows. This action is intended for full teardown, not cleanup."
+        itemType={finalDeleteDialog?.type === 'company' ? 'company (final warning)' : 'Final Warning'}
+        warningMessage={finalDeleteDialog?.type === 'company'
+          ? 'This cascade delete will remove the selected company slice, including listed teams, agents, workflows, groups, and isolated communities. This action cannot be undone.'
+          : 'This is a cascading delete. It will remove the community and all linked groups, member agents, and related workflows. This action is intended for full teardown, not cleanup.'}
         consequences={finalDeleteDialog?.consequences}
         onConfirm={confirmFinalDelete}
         onCancel={() => setFinalDeleteDialog(null)}

@@ -176,6 +176,21 @@ function promptImpliesRevenue(text: string): boolean {
   return /\b(revenue|profit|sales|sell|paying customers|pipeline|qualified leads|booked calls|closed deals|inbound|outbound|conversion|pricing|offer|retainer|subscriptions?)\b/i.test(text)
 }
 
+function promptExplicitlyRequestsMultipleCommunities(text: string): boolean {
+  return /\b(two|2|multiple|separate|distinct)\s+communities\b|\bseparate umbrellas\b|\bdifferent umbrella communities\b/i.test(text)
+}
+
+function buildSoberCompanyName(description: string): string {
+  const text = description.toLowerCase()
+  if (/\bhomepage\b/.test(text) && /\bconversion\b/.test(text)) return 'Homepage Conversion Studio'
+  if (/\blanding page\b/.test(text) && /\bconversion\b/.test(text)) return 'Landing Page Growth Studio'
+  if (/\boutbound\b/.test(text) && /\blead generation\b|\blead gen\b/.test(text)) return 'Outbound Growth Studio'
+  if (/\bb2b\b/.test(text) && /\bsaas\b/.test(text) && /\bconversion\b/.test(text)) return 'B2B SaaS Conversion Studio'
+  if (/\becommerce\b|\be-commerce\b/.test(text)) return 'Ecommerce Operating Studio'
+  if (promptImpliesRevenue(description)) return 'Revenue Operations Studio'
+  return 'Operating Company'
+}
+
 function roleImpliesScalableLane(role: string, agentId: string): boolean {
   const value = `${role} ${agentId}`.toLowerCase()
   return /\b(writer|selector|reviewer|analyst|researcher|specialist|editor|creator|curator|planner)\b/.test(value)
@@ -265,6 +280,168 @@ function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?
     for (const item of styleGuidance) lines.push(`  - ${item}`)
   }
   return lines.join('\n')
+}
+
+function buildDefaultWorkflowOutputDefinition(
+  workflow: { id?: string; name?: string; description?: string },
+  usedKeys: Set<string>
+): { key: string; label: string; type: 'markdown' } {
+  const sourceText = `${workflow.name || ''} ${workflow.description || ''}`.toLowerCase()
+  const preferredKey =
+    /\b(plan|execution|delivery|milestone)\b/.test(sourceText) ? 'plan'
+      : /\b(kickoff|brief|intake|direction|strategy)\b/.test(sourceText) ? 'brief'
+        : /\b(engineering|spec|technical)\b/.test(sourceText) ? 'spec'
+          : /\b(marketing|launch|campaign|messaging)\b/.test(sourceText) ? 'launch-pack'
+            : /\b(review|qa|signoff|summary|final|closeout)\b/.test(sourceText) ? 'summary'
+              : `${slugifyGeneratedTemplateValue(workflow.id || workflow.name || 'workflow', 'workflow')}-output`
+
+  let key = preferredKey
+  let suffix = 2
+  while (usedKeys.has(key)) {
+    key = `${preferredKey}-${suffix}`
+    suffix += 1
+  }
+  usedKeys.add(key)
+
+  const labelBase = workflow.name?.trim() || workflow.id?.trim() || 'Workflow'
+  return {
+    key,
+    label: `${labelBase} Output`,
+    type: 'markdown',
+  }
+}
+
+export function applyGeneratedWorkflowHandoffs(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length === 0) return []
+
+  const usedOutputKeys = new Set<string>()
+  const normalizedOutputsByWorkflowId = new Map<string, { key: string; label: string; type: 'markdown' }>()
+
+  const withOutputs = workflows.map((workflow: any) => {
+    const existingOutputDefinitions = Array.isArray(workflow.outputDefinitions) ? workflow.outputDefinitions : []
+    const primaryOutput = existingOutputDefinitions[0]
+      ? {
+          key: String(existingOutputDefinitions[0].key || '').trim() || buildDefaultWorkflowOutputDefinition(workflow, usedOutputKeys).key,
+          label: String(existingOutputDefinitions[0].label || '').trim() || `${workflow.name || workflow.id || 'Workflow'} Output`,
+          type: 'markdown' as const,
+          help: existingOutputDefinitions[0].help,
+        }
+      : buildDefaultWorkflowOutputDefinition(workflow, usedOutputKeys)
+
+    usedOutputKeys.add(primaryOutput.key)
+    normalizedOutputsByWorkflowId.set(workflow.id, {
+      key: primaryOutput.key,
+      label: primaryOutput.label,
+      type: 'markdown',
+    })
+
+    return {
+      ...workflow,
+      outputDefinitions: existingOutputDefinitions.length > 0
+        ? [
+            {
+              ...existingOutputDefinitions[0],
+              key: primaryOutput.key,
+              label: primaryOutput.label,
+              type: 'markdown',
+            },
+            ...existingOutputDefinitions.slice(1),
+          ]
+        : [primaryOutput],
+    }
+  })
+
+  return withOutputs.map((workflow: any, idx: number) => {
+    const existingInputRefs = Array.isArray(workflow.inputRefs) ? workflow.inputRefs : []
+    if (existingInputRefs.length > 0) return workflow
+
+    const dependencyIds = Array.isArray(workflow.dependsOn) && workflow.dependsOn.length > 0
+      ? workflow.dependsOn
+      : (idx > 0 ? [withOutputs[idx - 1].id] : [])
+
+    const inferredInputRefs = dependencyIds
+      .map((workflowId: string) => {
+        const upstreamOutput = normalizedOutputsByWorkflowId.get(workflowId)
+        if (!upstreamOutput) return null
+        return {
+          workflowId,
+          outputKey: upstreamOutput.key,
+          label: upstreamOutput.label,
+          required: true,
+        }
+      })
+      .filter(Boolean)
+
+    if (inferredInputRefs.length === 0) return workflow
+
+    return {
+      ...workflow,
+      inputRefs: inferredInputRefs,
+    }
+  })
+}
+
+export function enforceVisibleCompanyWorkflowChain(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length <= 1) return Array.isArray(workflows) ? workflows : []
+
+  return workflows.map((workflow: any, idx: number, arr: any[]) => {
+    if (idx === 0) {
+      return {
+        ...workflow,
+        dependsOn: [],
+      }
+    }
+
+    const previousId = arr[idx - 1]?.id
+    const existingDependsOn = Array.isArray(workflow.dependsOn) ? workflow.dependsOn.filter(Boolean) : []
+    const nextDependsOn = previousId
+      ? [previousId, ...existingDependsOn.filter((dependencyId: string) => dependencyId !== previousId)]
+      : existingDependsOn
+
+    return {
+      ...workflow,
+      dependsOn: nextDependsOn,
+    }
+  })
+}
+
+export function normalizeGeneratedWorkflowReferences(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length === 0) return []
+
+  const aliasToId = new Map<string, string>()
+  for (const workflow of workflows) {
+    const id = String(workflow.id || '').trim()
+    const sourceId = String(workflow._sourceId || '').trim()
+    const sourceName = String(workflow._sourceName || workflow.name || '').trim()
+    const slugName = slugifyGeneratedTemplateValue(sourceName, 'workflow')
+    for (const alias of [id, sourceId, sourceName, slugName]) {
+      const normalizedAlias = String(alias || '').trim()
+      if (normalizedAlias) aliasToId.set(normalizedAlias, id)
+    }
+  }
+
+  return workflows.map((workflow) => {
+    const normalizedDependsOn = Array.from(new Set(
+      (Array.isArray(workflow.dependsOn) ? workflow.dependsOn : [])
+        .map((dependencyId: string) => aliasToId.get(String(dependencyId || '').trim()) || String(dependencyId || '').trim())
+        .filter(Boolean)
+        .filter((dependencyId: string) => dependencyId !== workflow.id)
+    ))
+
+    const normalizedInputRefs = (Array.isArray(workflow.inputRefs) ? workflow.inputRefs : [])
+      .map((inputRef: any) => ({
+        ...inputRef,
+        workflowId: aliasToId.get(String(inputRef.workflowId || '').trim()) || String(inputRef.workflowId || '').trim(),
+      }))
+      .filter((inputRef: any) => inputRef.workflowId && inputRef.workflowId !== workflow.id)
+
+    const { _sourceId, _sourceName, ...rest } = workflow
+    return {
+      ...rest,
+      dependsOn: normalizedDependsOn,
+      inputRefs: normalizedInputRefs,
+    }
+  })
 }
 
 export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
@@ -726,6 +903,7 @@ export async function generateTemplateFromNL(description: string): Promise<any> 
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const shouldGenerateCompany = promptImpliesCompany(description)
   const shouldBiasRevenue = promptImpliesRevenue(description)
+  const explicitMultiCommunityRequest = promptExplicitlyRequestsMultipleCommunities(description)
   let availableSkills: string[] = []
   try {
     const { listAvailableSkills } = require('./skills')
@@ -780,6 +958,8 @@ Important structure rules:
 - If the prompt describes a company, startup, agency, studio, operator, or revenue engine, generate a company-style template rather than a generic team.
 - For company-style templates, include a teams array with leadership plus 2-4 functional teams and at least one nested sub-team when appropriate.
 - Keep company structures legible and demo-friendly: leadership, delivery/product, go-to-market, and operations only when justified.
+- For company-style templates, prefer a sober descriptive company name. Avoid gimmicky agency names like "ConversionMax", "Growthify", or "RevenueGenius".
+- For company-style templates, default to exactly 1 shared community for the company and use groups for functional lanes such as leadership, strategy, research, sales, delivery, and operations.
 
 Important workflow behavior rules:
 - Always create 2-4 workflows for the team unless the prompt explicitly asks for none.
@@ -830,6 +1010,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       || 'team',
       'team'
     )
+    if (shouldGenerateCompany && (typeof parsed.name !== 'string' || /^[A-Z][A-Za-z0-9]+(?:Max|ify|ly|gen|matic|hub|labs)$/i.test(parsed.name) || !/\s/.test(String(parsed.name || '').trim()))) {
+      parsed.name = buildSoberCompanyName(description)
+    }
     const inferredAgentTags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags])).slice(0, 3)
 
     parsed.tags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags]))
@@ -857,15 +1040,18 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     }
 
     const normalizedTeamName = String(parsed.name || 'Team').trim()
-    const allowMultipleCommunities =
-      (parsed.groups || []).length >= 7 ||
-      /\b(platform|ops|operations|customer|client|external|internal|partner|community-facing|field team|back office)\b/i.test(description)
+    const allowMultipleCommunities = shouldGenerateCompany
+      ? explicitMultiCommunityRequest
+      : (
+          (parsed.groups || []).length >= 7 ||
+          /\b(platform|ops|operations|customer|client|external|internal|partner|community-facing|field team|back office)\b/i.test(description)
+        )
 
     if (Array.isArray(parsed.communities) && parsed.communities.length > 1 && !allowMultipleCommunities) {
       parsed.communities = [
         {
           ...parsed.communities[0],
-          name: normalizedTeamName || parsed.communities[0]?.name || 'Team',
+          name: shouldGenerateCompany ? 'Company' : (normalizedTeamName || parsed.communities[0]?.name || 'Team'),
           description: parsed.communities[0]?.description || `Shared coordination space for ${normalizedTeamName || 'this team'}`,
           tags: Array.from(new Set([
             ...(Array.isArray(parsed.communities[0]?.tags) ? parsed.communities[0].tags : []),
@@ -944,15 +1130,21 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
     const fallbackCommunity = parsed.communities[0]?.name
     const fallbackGroup = parsed.groups[0]?.name
-    parsed.agents = (parsed.agents || []).map((agent: any) => ({
-      ...agent,
-      communities: Array.isArray(agent.communities) && agent.communities.length > 0
-        ? agent.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
-        : (fallbackCommunity ? [fallbackCommunity] : []),
-      groups: Array.isArray(agent.groups) && agent.groups.length > 0
-        ? agent.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
-        : (fallbackGroup ? [fallbackGroup] : []),
-    }))
+    const validCommunityNames = new Set((parsed.communities || []).map((community: any) => String(community?.name || '').trim()).filter(Boolean))
+    parsed.agents = (parsed.agents || []).map((agent: any) => {
+      const normalizedCommunities = Array.isArray(agent.communities) && agent.communities.length > 0
+        ? agent.communities
+          .map((communityName: string) => communityRenameMap.get(communityName) || communityName)
+          .filter((communityName: string) => validCommunityNames.has(communityName))
+        : []
+      return {
+        ...agent,
+        communities: normalizedCommunities.length > 0 ? normalizedCommunities : (fallbackCommunity ? [fallbackCommunity] : []),
+        groups: Array.isArray(agent.groups) && agent.groups.length > 0
+          ? agent.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
+          : (fallbackGroup ? [fallbackGroup] : []),
+      }
+    })
 
     const baseWorkflowTags = inferredTemplateTags.slice(0, 2)
     let sourceWorkflows = Array.isArray(parsed.workflows) ? parsed.workflows : []
@@ -1016,7 +1208,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     parsed.workflows = orderedWorkflows.map((workflow: any, idx: number, arr: any[]) => {
       const workflowCommunityTargets = workflow.targeting?.communities?.length
         ? workflow.targeting.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
-        : (fallbackCommunity ? [fallbackCommunity] : [])
+          .filter((communityName: string) => validCommunityNames.has(communityName))
+        : []
+      const normalizedWorkflowCommunityTargets = workflowCommunityTargets.length > 0 ? workflowCommunityTargets : (fallbackCommunity ? [fallbackCommunity] : [])
       const workflowGroupTargets = workflow.targeting?.groups?.length
         ? workflow.targeting.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
         : (fallbackGroup ? [fallbackGroup] : [])
@@ -1028,8 +1222,8 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         workflowGroupTargets.length > 0
           ? `- Post progress updates and handoffs in group(s): ${workflowGroupTargets.join(', ')}.`
           : '- Post progress updates and handoffs in the team group channel.',
-        workflowCommunityTargets.length > 0
-          ? `- Share broader status or stakeholder-facing updates in community(s): ${workflowCommunityTargets.join(', ')}.`
+        normalizedWorkflowCommunityTargets.length > 0
+          ? `- Share broader status or stakeholder-facing updates in community(s): ${normalizedWorkflowCommunityTargets.join(', ')}.`
           : '- Share broader status updates in the main team community.',
       ].join('\n')
       const outputBlock = isFinal
@@ -1084,6 +1278,8 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
       return {
         ...workflow,
+        _sourceId: workflow.id,
+        _sourceName: workflow.name,
         id: normalizedId,
         name: normalizedName,
         owner: workflow.owner || workflow.targeting?.agents?.[0] || undefined,
@@ -1101,7 +1297,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
                 : 'Execute the next stage of work and share progress.'
         ),
         targeting: {
-          communities: workflowCommunityTargets,
+          communities: normalizedWorkflowCommunityTargets,
           groups: workflowGroupTargets,
           agents: workflow.targeting?.agents || [],
           tags: Array.from(new Set([
@@ -1113,6 +1309,12 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         content: contentSections.join('\n\n'),
       }
     })
+
+    if (shouldGenerateCompany) {
+      parsed.workflows = enforceVisibleCompanyWorkflowChain(parsed.workflows)
+    }
+    parsed.workflows = normalizeGeneratedWorkflowReferences(parsed.workflows)
+    parsed.workflows = applyGeneratedWorkflowHandoffs(parsed.workflows)
 
     if (shouldGenerateCompany) {
       const leadershipRegex = /\b(lead|head|director|manager|founder|ceo|chief|owner)\b/i
@@ -1211,6 +1413,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
           content: [workflow.content || '', ...extraSections].filter(Boolean).join('\n\n'),
         }
       })
+      parsed.workflows = enforceVisibleCompanyWorkflowChain(parsed.workflows)
+      parsed.workflows = normalizeGeneratedWorkflowReferences(parsed.workflows)
+      parsed.workflows = applyGeneratedWorkflowHandoffs(parsed.workflows)
     }
 
     if (!Array.isArray(parsed.parameters) || parsed.parameters.length === 0) {

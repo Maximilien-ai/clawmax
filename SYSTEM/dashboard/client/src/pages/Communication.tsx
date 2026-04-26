@@ -562,6 +562,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           })
           showSuccess(`Cleared history for ${channelsToClear.length} channel${channelsToClear.length !== 1 ? 's' : ''}`)
           setDeleteDialog(null)
+          setSelectedChannelKeys(new Set())
+          setSelectionMode(false)
           fetchAgents()
         } catch (err) {
           console.error('Bulk clear history failed:', err)

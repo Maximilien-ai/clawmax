@@ -99,6 +99,14 @@
             "pattern": "^[a-z0-9_-]+$"
           },
           "description": "Specific agent IDs to target"
+        },
+        "teamIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+$"
+          },
+          "description": "Specific team IDs to target"
         }
       },
       "additionalProperties": false,

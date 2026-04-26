@@ -206,6 +206,10 @@
             "agents": {
               "type": "array",
               "items": { "type": "string" }
+            },
+            "teamIds": {
+              "type": "array",
+              "items": { "type": "string" }
             }
           }
         },

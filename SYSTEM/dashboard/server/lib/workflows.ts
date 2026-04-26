@@ -6,6 +6,7 @@ import { spawn } from 'child_process'
 import { safeEnv, userExecutionEnv } from './safe-env'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
+import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
 import { isGatewayRunning } from './gateway-rpc'
@@ -37,6 +38,7 @@ export interface AgentTargeting {
   groups: string[]
   tags: string[]
   agents: string[]
+  teamIds?: string[]
 }
 
 export interface Workflow {
@@ -87,6 +89,33 @@ export interface WorkflowParticipant {
   agentId: string
   agentName: string
   reason: string
+}
+
+export function resolveTargetTeamAgentIds(
+  teamIds: string[] = [],
+  teams: Team[] = listTeams()
+): Map<string, string[]> {
+  const teamsById = new Map(teams.map((team) => [team.id, team]))
+  const targetedTeamIds = new Set<string>()
+  for (const nextTeamId of teamIds.map((teamId) => `${teamId || ''}`.trim()).filter(Boolean)) {
+    if (teamsById.has(nextTeamId)) {
+      targetedTeamIds.add(nextTeamId)
+    }
+  }
+
+  const agentReasons = new Map<string, string[]>()
+  for (const teamId of targetedTeamIds) {
+    const team = teamsById.get(teamId)
+    if (!team) continue
+    const executionIds = team.leaderAgentId
+      ? [team.leaderAgentId]
+      : Array.from(new Set((team.memberAgentIds || []).filter(Boolean)))
+    for (const agentId of executionIds) {
+      agentReasons.set(agentId, [...(agentReasons.get(agentId) || []), `team:${team.id}`])
+    }
+  }
+
+  return agentReasons
 }
 
 export interface WorkflowExecutionParticipant {
@@ -296,6 +325,61 @@ interface WorkflowRuntimeOverrides {
   ollamaBaseUrl?: string
 }
 
+function buildMockWorkflowResponse(
+  workflow: Pick<Workflow, 'name' | 'description' | 'outputDefinitions'>,
+  participant: Pick<WorkflowExecutionParticipant, 'agentId' | 'agentName'>,
+  resolvedInputRefs: Array<{
+    workflowId: string
+    outputKey: string
+    label: string
+    value?: unknown
+    summary?: string
+    artifactPath?: string
+    missing: boolean
+  }>,
+  executionInputs?: Record<string, string>
+): string {
+  const lines = [
+    `# ${workflow.name}`,
+    '',
+    `Mock execution completed by ${participant.agentName} (${participant.agentId}).`,
+  ]
+
+  if (workflow.description?.trim()) {
+    lines.push('', workflow.description.trim())
+  }
+
+  const availableRefs = resolvedInputRefs.filter((ref) => !ref.missing)
+  if (availableRefs.length > 0) {
+    lines.push('', '## Upstream Inputs')
+    for (const ref of availableRefs) {
+      const detail = ref.summary
+        || (typeof ref.value === 'string' ? ref.value : undefined)
+        || ref.artifactPath
+        || `${ref.workflowId}.${ref.outputKey}`
+      lines.push(`- ${ref.label}: ${detail}`)
+    }
+  }
+
+  const explicitInputs = Object.entries(executionInputs || {}).filter(([, value]) => `${value || ''}`.trim())
+  if (explicitInputs.length > 0) {
+    lines.push('', '## Run Inputs')
+    for (const [key, value] of explicitInputs) {
+      lines.push(`- ${key}: ${value}`)
+    }
+  }
+
+  if (workflow.outputDefinitions?.length) {
+    lines.push('', '## Output Contract')
+    for (const outputDefinition of workflow.outputDefinitions) {
+      lines.push(`- ${outputDefinition.label || outputDefinition.key}: mock-ready`)
+    }
+  }
+
+  lines.push('', '## Status', '- Mock pipeline output generated for testing and workflow chaining.')
+  return lines.join('\n')
+}
+
 export function detectParticipantReportedFailure(agentText: string): string | null {
   const text = agentText.trim()
   if (!text) return null
@@ -483,6 +567,7 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: data.created || new Date().toISOString(),
       modified: data.modified || new Date().toISOString(),
@@ -702,11 +787,12 @@ export function listWorkflowTemplates(): Workflow[] {
         schedule: data.schedule || '',
         enabled: false, // Templates are disabled by default
         targeting: {
-        communities: data.targeting?.communities || [],
-        groups: data.targeting?.groups || [],
-        tags: data.targeting?.tags || [],
-        agents: data.targeting?.agents || [],
-      },
+          communities: data.targeting?.communities || [],
+          groups: data.targeting?.groups || [],
+          tags: data.targeting?.tags || [],
+          agents: data.targeting?.agents || [],
+          teamIds: data.targeting?.teamIds || [],
+        },
         created: data.created || '',
         modified: data.modified || '',
         author: data.author || 'system',
@@ -749,6 +835,7 @@ export function getWorkflow(id: string): Workflow | null {
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: data.created || new Date().toISOString(),
       modified: data.modified || new Date().toISOString(),
@@ -814,6 +901,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: now,
       modified: now,
@@ -958,12 +1046,13 @@ export function deleteWorkflow(id: string): { success: boolean; error?: string }
 }
 
 // Resolve participants
-export function resolveParticipants(workflow: Workflow, agents: any[]): WorkflowParticipant[] {
+export function resolveParticipants(workflow: Workflow, agents: any[], teams: Team[] = listTeams()): WorkflowParticipant[] {
   const participants: WorkflowParticipant[] = []
   const directAgentIds = new Set(workflow.targeting.agents || [])
+  const teamAgentReasons = resolveTargetTeamAgentIds(workflow.targeting.teamIds || [], teams)
   const directTags = new Set(workflow.targeting.tags || [])
   const ownerId = workflow.owner?.trim()
-  const hasDirectExecutionTargets = directAgentIds.size > 0 || directTags.size > 0 || !!ownerId
+  const hasDirectExecutionTargets = directAgentIds.size > 0 || directTags.size > 0 || teamAgentReasons.size > 0 || !!ownerId
 
   for (const agent of agents) {
     const reasons: string[] = []
@@ -986,6 +1075,10 @@ export function resolveParticipants(workflow: Workflow, agents: any[]): Workflow
     // Explicit agent ids are also execution targets.
     if (directAgentIds.has(agent.id)) {
       reasons.push(`agent:${agent.id}`)
+    }
+
+    for (const reason of teamAgentReasons.get(agent.id) || []) {
+      reasons.push(reason)
     }
 
     // Groups/communities are primarily output channels. Preserve them as
@@ -1072,6 +1165,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
+  mock?: boolean
   byok?: WorkflowRuntimeOverrides
   secrets?: Record<string, string>
   inputs?: Record<string, string>
@@ -1302,12 +1396,6 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Run workflow by calling each participant agent directly
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
-      const executionEnv = userExecutionEnv({
-        openai: options?.byok?.openai,
-        anthropic: options?.byok?.anthropic,
-        gemini: options?.byok?.gemini,
-        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
-      })
       const persistExecution = () => {
         try {
           fs.mkdirSync(path.dirname(executionFilePath), { recursive: true })
@@ -1327,6 +1415,63 @@ export function triggerWorkflow(workflowId: string, options?: {
         updateWorkflow(workflowId, { progress } as any)
       }
 
+      if (options?.mock) {
+        for (const participant of executionParticipants) {
+          participant.status = 'running'
+          participant.startedAt = new Date().toISOString()
+          execution.logs.push(`Agent ${participant.agentId} running in mock mode`)
+          updateAggregateProgress()
+          persistExecution()
+
+          const mockResponse = buildMockWorkflowResponse(workflow, participant, resolvedInputRefs, executionInputs)
+          ;(participant as any).response = mockResponse
+          participant.status = 'completed'
+          participant.completedAt = new Date().toISOString()
+          execution.logs.push(`Agent ${participant.agentId} completed mock execution`)
+          updateAggregateProgress()
+          persistExecution()
+        }
+
+        execution.outputs = deriveWorkflowExecutionOutputs(
+          workflow,
+          execution.participants.map((participant) => ({
+            agentId: participant.agentId,
+            response: (participant as any).response,
+          })),
+          execution.outputs
+        )
+        execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
+        execution.status = 'completed'
+        execution.completedAt = new Date().toISOString()
+        execution.logs.push(`Workflow completed at ${execution.completedAt} (mock mode)`)
+        persistExecution()
+        updateWorkflow(workflowId, {
+          status: 'completed',
+          progress: 100,
+        } as any)
+
+        const { readyToRun } = completeWorkflow(workflowId)
+        if (readyToRun.length > 0) {
+          execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
+          persistExecution()
+          for (const nextId of readyToRun) {
+            const nextWf = getWorkflow(nextId)
+            if (nextWf?.enabled) {
+              triggerWorkflow(nextId, { manual: false, mock: true, byok: options?.byok })
+              updateWorkflow(nextId, { status: 'running' } as any)
+            }
+          }
+        }
+        return
+      }
+
+      const executionEnv = userExecutionEnv({
+        openai: options?.byok?.openai,
+        anthropic: options?.byok?.anthropic,
+        gemini: options?.byok?.gemini,
+        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
+      })
+
       const runParticipant = async (participant: WorkflowExecutionParticipant) => {
         try {
           participant.status = 'running' as any
@@ -1342,7 +1487,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               reject(new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`))
               return
             }
-            const useLocal = !isGatewayRunning().running
+            const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {

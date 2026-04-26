@@ -7,10 +7,10 @@ import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
-import { createTeam, listTeams, type TeamInput } from './teams'
+import { createTeam, getTeam, updateTeam, type TeamInput } from './teams'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
-import { resetAgentSessionsForModelChange } from './agent-model'
+import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { safeEnv } from './safe-env'
 
 // Template storage paths (dynamic functions)
@@ -212,6 +212,7 @@ export interface Workflow {
     groups: string[]
     tags: string[]
     agents: string[]
+    teamIds?: string[]
   }
   outputDefinitions?: Array<{
     key: string
@@ -383,6 +384,7 @@ function snapshotExistingTemplateVersion(templateDir: string, version?: string):
 function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
   agentsToCreate: Array<{ id: string; skills?: string[] }>
+  appliedModelsByAgentId?: Record<string, string | undefined>
   template: OrganizationTemplate
   prefix: string
   suffix: string
@@ -390,39 +392,7 @@ function runOrganizationPostImportSetup(args: {
   agentsDir: string
   workflowOverrides?: Record<string, string>
 }) {
-  const { createdAgents, agentsToCreate, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
-
-  if (template.teams && template.teams.length > 0) {
-    const existingTeams = new Set(listTeams(workspacePath).map((team) => team.id))
-    const teamIdMap = Object.fromEntries(
-      template.teams.map((team) => [team.id, slugify(`${prefix}${team.id}${suffix}`)])
-    ) as Record<string, string>
-    const pendingTeams = template.teams.map((team) => ({
-      ...team,
-      mappedId: teamIdMap[team.id],
-    }))
-
-    for (const team of pendingTeams) {
-      if (existingTeams.has(team.mappedId)) continue
-
-      const nextTeam: TeamInput = {
-        id: team.mappedId,
-        name: team.name,
-        purpose: team.purpose,
-        leaderAgentId: team.leaderAgentId ? `${prefix}${team.leaderAgentId}${suffix}` : undefined,
-        memberAgentIds: (team.memberAgentIds || []).map((memberId) => `${prefix}${memberId}${suffix}`),
-        parentTeamId: team.parentTeamId ? teamIdMap[team.parentTeamId] : undefined,
-        tags: team.tags,
-      }
-
-      try {
-        createTeam(nextTeam, workspacePath)
-        existingTeams.add(team.mappedId)
-      } catch (err) {
-        console.warn(`Failed to create team ${team.name}: ${err}`)
-      }
-    }
-  }
+  const { createdAgents, agentsToCreate, appliedModelsByAgentId, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
 
   // Agent registration is required before workflows can run against new agents.
   // Do this synchronously so an immediate post-apply workflow run doesn't fail.
@@ -446,6 +416,14 @@ function runOrganizationPostImportSetup(args: {
       )
       if (!registered) {
         throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
+      }
+
+      const appliedModel = appliedModelsByAgentId?.[agentId]?.trim()
+      if (appliedModel) {
+        const update = updateAgentModelInConfigFile(configPath, agentId, appliedModel, { workspacePath: workspaceArg })
+        if (!update.ok) {
+          throw new Error(update.error || `Failed to persist model ${appliedModel} for ${agentId}`)
+        }
       }
 
       fs.mkdirSync(agentDirArg, { recursive: true })
@@ -657,7 +635,7 @@ export function validateTemplateReferences(template: Template): { valid: boolean
   }
 
   // Check workflow targeting references
-  for (const wf of t.workflows || []) {
+    for (const wf of t.workflows || []) {
     for (const agentId of wf.targeting?.agents || []) {
       if (!agentIds.has(agentId)) {
         warnings.push(`Workflow "${wf.name}" targets unknown agent "${agentId}"`)
@@ -666,6 +644,11 @@ export function validateTemplateReferences(template: Template): { valid: boolean
     for (const group of wf.targeting?.groups || []) {
       if (!groupNames.has(group)) {
         warnings.push(`Workflow "${wf.name}" targets unknown group "${group}"`)
+      }
+    }
+    for (const teamId of wf.targeting?.teamIds || []) {
+      if (!(t.teams || []).some((team: any) => team.id === teamId)) {
+        warnings.push(`Workflow "${wf.name}" targets unknown team "${teamId}"`)
       }
     }
   }
@@ -992,6 +975,7 @@ function parseTemplateMdBody(body: string): {
             const [label, rawValues] = segment.split(':').map((part) => part.trim())
             const values = (rawValues || '').split(',').map((value) => value.trim()).filter(Boolean)
             if (label === 'agents') workflow.targeting.agents = values
+            if (label === 'teams') workflow.targeting.teamIds = values
             if (label === 'groups') workflow.targeting.groups = values
             if (label === 'communities') workflow.targeting.communities = values
             if (label === 'tags') workflow.targeting.tags = values
@@ -1134,6 +1118,7 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
       }
       const targets = []
       if (w.targeting?.agents?.length) targets.push(`agents: ${w.targeting.agents.join(', ')}`)
+      if (w.targeting?.teamIds?.length) targets.push(`teams: ${w.targeting.teamIds.join(', ')}`)
       if (w.targeting?.groups?.length) targets.push(`groups: ${w.targeting.groups.join(', ')}`)
       if (w.targeting?.tags?.length) targets.push(`tags: ${w.targeting.tags.join(', ')}`)
       if (targets.length) lines.push(`- **Targets:** ${targets.join('; ')}`)
@@ -2073,6 +2058,9 @@ export function importOrganizationTemplate(
     const groupRenames = options?.groupRenames || {}
     const communityRenames = options?.communityRenames || {}
     const workflowRenames = options?.workflowRenames || {}
+    const prefix = options?.prefix || ''
+    const suffix = options?.suffix || ''
+    const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
 
     if (adjustedTemplate.communities) {
       adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
@@ -2165,10 +2153,35 @@ export function importOrganizationTemplate(
       return { ok: false, error: `Template validation failed: ${validation.errors?.join(', ')}` }
     }
 
-    const prefix = options?.prefix || ''
-    const suffix = options?.suffix || ''
-    const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
     const createdAgents: string[] = []
+    const appliedModelsByAgentId: Record<string, string | undefined> = {}
+    const teamNameById = new Map((adjustedTemplate.teams || []).map((team) => [team.id, team.name]))
+
+    const mapImportedId = (value: string) => `${prefix}${value}${suffix}`
+    const getWorkflowScopeLabel = (workflow: Workflow): string | undefined => {
+      const firstTeamId = workflow.targeting?.teamIds?.[0]
+      if (firstTeamId) return teamNameById.get(firstTeamId) || firstTeamId
+      const firstGroup = workflow.targeting?.groups?.[0]
+      if (firstGroup?.trim()) return firstGroup.trim()
+      const firstCommunity = workflow.targeting?.communities?.[0]
+      if (firstCommunity?.trim()) return firstCommunity.trim()
+      return undefined
+    }
+    const getImportedWorkflowName = (workflow: Workflow): string => {
+      const explicitRename = workflowRenames[workflow.id]
+      if (explicitRename?.trim()) return explicitRename.trim()
+
+      const importNamespace = `${prefix}${suffix}`.trim().replace(/^[-_]+|[-_]+$/g, '')
+      const baseCompanyLabel = `${adjustedTemplate.name || templateSlug}`.trim()
+      const companyLabel = importNamespace || baseCompanyLabel
+      const scopeLabel = getWorkflowScopeLabel(workflow)
+      const workflowName = `${workflow.name || workflow.id}`.trim()
+      if (!companyLabel) return scopeLabel ? `${scopeLabel} / ${workflowName}` : workflowName
+      if (scopeLabel && !workflowName.toLowerCase().includes(scopeLabel.toLowerCase())) {
+        return `${companyLabel} · ${scopeLabel} / ${workflowName}`
+      }
+      return `${companyLabel} · ${workflowName}`
+    }
 
     // Expand parameterized agents based on agentCounts
     const paramAgentIds = new Set((adjustedTemplate as any).parameters?.map((p: any) => p.agentId) || [])
@@ -2202,6 +2215,7 @@ export function importOrganizationTemplate(
           integrationConfig.preferredModel
           || (integrationConfig.ollamaDefaultModel ? `ollama/${integrationConfig.ollamaDefaultModel}` : undefined)
         const appliedModel = options?.modelOverride || templateAgent.model || workspacePreferredModel || getBest()
+        appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
@@ -2672,28 +2686,68 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
-      // Step 5: Create/update workflows from template
+      // Step 5: Create/update teams from template
+      if (adjustedTemplate.teams && adjustedTemplate.teams.length > 0) {
+        for (const templateTeam of adjustedTemplate.teams) {
+          const mappedTeamId = `${prefix}${templateTeam.id}${suffix}`
+          const mappedParentTeamId = templateTeam.parentTeamId
+            ? `${prefix}${templateTeam.parentTeamId}${suffix}`
+            : undefined
+          const teamInput: TeamInput = {
+            id: mappedTeamId,
+            name: templateTeam.name,
+            purpose: templateTeam.purpose,
+            leaderAgentId: templateTeam.leaderAgentId ? `${prefix}${templateTeam.leaderAgentId}${suffix}` : undefined,
+            memberAgentIds: (templateTeam.memberAgentIds || []).map((agentId) => `${prefix}${agentId}${suffix}`),
+            parentTeamId: mappedParentTeamId,
+            tags: templateTeam.tags,
+          }
+
+          const existingTeam = getTeam(mappedTeamId)
+          if (existingTeam) {
+            const updated = updateTeam(mappedTeamId, teamInput)
+            if (!updated) {
+              throw new Error(`Failed to update imported team: ${mappedTeamId}`)
+            }
+          } else {
+            createTeam(teamInput)
+          }
+        }
+      }
+
+      // Step 6: Create/update workflows from template
       if (adjustedTemplate.workflows && adjustedTemplate.workflows.length > 0) {
         const existingWorkflows = listWorkflows()
         const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.id, w]))
         const workflowIdMap: Record<string, string> = {}
 
         for (const wf of adjustedTemplate.workflows) {
+          const mappedWorkflowId = mapImportedId(wf.id)
+          workflowIdMap[wf.id] = mappedWorkflowId
+
           // Update targeting to use new agent IDs if prefix/suffix was applied
           const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
-          const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || dep)
+          const newTeamIds = (wf.targeting.teamIds || []).map(teamId => `${prefix}${teamId}${suffix}`)
+          const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || mapImportedId(dep))
+          const mappedInputRefs = wf.inputRefs?.map((ref) => ({
+            ...ref,
+            workflowId: workflowIdMap[ref.workflowId] || mapImportedId(ref.workflowId),
+          }))
+          const importedWorkflowName = getImportedWorkflowName(wf)
 
-          const existing = existingWorkflowMap.get(wf.id)
+          const existing = existingWorkflowMap.get(mappedWorkflowId)
           if (existing) {
             // Workflow exists - merge new targeting with existing
             const existingAgents = existing.targeting.agents || []
             const existingGroups = existing.targeting.groups || []
             const existingCommunities = existing.targeting.communities || []
             const existingTags = existing.targeting.tags || []
+            const existingTeamIds = existing.targeting.teamIds || []
 
             const newGroups = wf.targeting.groups || []
             const newCommunities = wf.targeting.communities || []
             const newTags = wf.targeting.tags || []
+            const mergedTeamIds = [...new Set([...existingTeamIds, ...newTeamIds])]
 
             const mergedAgents = [...new Set([...existingAgents, ...newAgents])]
             const mergedGroups = [...new Set([...existingGroups, ...newGroups])]
@@ -2711,6 +2765,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               mergedGroups.length > existingGroups.length ||
               mergedCommunities.length > existingCommunities.length ||
               mergedTags.length > existingTags.length ||
+              mergedTeamIds.length > existingTeamIds.length ||
               dependencyChanged ||
               typeChanged ||
               scheduleChanged ||
@@ -2719,28 +2774,30 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             if (needsUpdate) {
               const { updateWorkflow } = require('./workflows')
               const result = updateWorkflow(existing.id, {
+                name: importedWorkflowName,
                 schedule: wf.schedule,
                 executionMode: wf.executionMode || 'automated',
                 targeting: {
                   agents: mergedAgents,
                   groups: mergedGroups,
                   communities: mergedCommunities,
-                  tags: mergedTags
+                  tags: mergedTags,
+                  teamIds: mergedTeamIds,
                 },
                 dependsOn: mappedDependsOn,
                 type: wf.type,
                 secretRequirements: (wf as any).secretRequirements,
                 outputDefinitions: wf.outputDefinitions,
-                inputRefs: wf.inputRefs,
+                inputRefs: mappedInputRefs,
               })
 
               if (result.success) {
-                workflowIdMap[wf.id] = existing.id
                 const changes = []
                 if (mergedAgents.length > existingAgents.length) changes.push(`${mergedAgents.length - existingAgents.length} agent(s)`)
                 if (mergedGroups.length > existingGroups.length) changes.push(`${mergedGroups.length - existingGroups.length} group(s)`)
                 if (mergedCommunities.length > existingCommunities.length) changes.push(`${mergedCommunities.length - existingCommunities.length} communit${mergedCommunities.length - existingCommunities.length > 1 ? 'ies' : 'y'}`)
                 if (mergedTags.length > existingTags.length) changes.push(`${mergedTags.length - existingTags.length} tag(s)`)
+                if (mergedTeamIds.length > existingTeamIds.length) changes.push(`${mergedTeamIds.length - existingTeamIds.length} team target(s)`)
                 if (dependencyChanged) changes.push('dependencies')
                 if (typeChanged) changes.push('type')
                 if (scheduleChanged) changes.push('schedule')
@@ -2756,7 +2813,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             // Workflow doesn't exist - create it
             const updatedTargeting = {
               ...wf.targeting,
-              agents: newAgents
+              agents: newAgents,
+              teamIds: newTeamIds,
             }
 
             // For managed workflows, auto-assign owner from first targeted agent
@@ -2765,10 +2823,10 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               ? (newAgents[0] || createdAgents[0] || undefined)
               : undefined
 
-            console.log(`[Template Import] Creating workflow "${wf.name}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
+            console.log(`[Template Import] Creating workflow "${importedWorkflowName}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
-              id: wf.id, // Preserve template's workflow ID for dependsOn references
-              name: wf.name,
+              id: mappedWorkflowId,
+              name: importedWorkflowName,
               description: wf.description || `${wf.name} workflow`,
               schedule: wf.schedule,
               enabled: wf.enabled !== false,
@@ -2781,14 +2839,12 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               type: wf.type,
               secretRequirements: (wf as any).secretRequirements,
               outputDefinitions: wf.outputDefinitions,
-              inputRefs: wf.inputRefs,
+              inputRefs: mappedInputRefs,
             })
 
             if (!result.success) {
               console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
               // Don't fail the whole import for workflow creation failures
-            } else if (result.id) {
-              workflowIdMap[wf.id] = result.id
             }
           }
         }
@@ -2797,6 +2853,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       runOrganizationPostImportSetup({
         createdAgents,
         agentsToCreate,
+        appliedModelsByAgentId,
         template: adjustedTemplate,
         prefix,
         suffix,

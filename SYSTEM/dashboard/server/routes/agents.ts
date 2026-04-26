@@ -529,7 +529,7 @@ router.post('/provision', (req, res) => {
 
 - **Created:** ${new Date().toISOString()}
 - **Created By:** ClawMax Dashboard
-- **Model:** ${model || 'default'}
+- **Model:** ${normalizedModel || model || 'default'}
 - **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
 - **AI Description:** ${aiDescription || 'N/A'}

@@ -1098,23 +1098,73 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     assert(qa?.leaderAgentId === 'demo-qa-lead', 'Expected QA leader to use imported agent id')
     assert(qa?.memberAgentIds.includes('demo-release-analyst') === true, 'Expected QA members to include release analyst')
 
-    const executionBrief = getWorkflow('execution-brief')
-    const engineeringPlan = getWorkflow('engineering-plan')
-    const marketingLaunch = getWorkflow('marketing-launch')
-    const qaReview = getWorkflow('qa-review')
+    const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
+    assert(demoMarketingLead?.model === 'openai/gpt-4o-mini', `Expected imported live config model to match template model, got ${demoMarketingLead?.model || 'missing'}`)
+
+    const leadershipKickoff = getWorkflow('demo-leadership-kickoff')
+    const executionBrief = getWorkflow('demo-execution-brief')
+    const engineeringPlan = getWorkflow('demo-engineering-plan')
+    const marketingLaunch = getWorkflow('demo-marketing-launch')
+    const qaReview = getWorkflow('demo-qa-review')
+    assert(leadershipKickoff !== null, 'Expected demo-leadership-kickoff workflow to exist after import')
     assert(executionBrief !== null, 'Expected execution-brief workflow to exist after import')
     assert(engineeringPlan !== null, 'Expected engineering-plan workflow to exist after import')
     assert(marketingLaunch !== null, 'Expected marketing-launch workflow to exist after import')
     assert(qaReview !== null, 'Expected qa-review workflow to exist after import')
 
+    assertEqual(leadershipKickoff?.name as any, 'Build-a-Company Hack Test (demo) · Leadership Kickoff', 'Expected leadership workflow name to include company context')
     assert(executionBrief?.outputDefinitions?.some((output) => output.key === 'execution-plan') === true, 'Expected execution-brief outputs to persist')
-    assert(engineeringPlan?.inputRefs?.some((ref) => ref.workflowId === 'execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected engineering-plan handoff input to persist')
+    assert(executionBrief?.targeting.teamIds?.includes('demo-execution') === true, 'Expected execution-brief team target to persist')
+    assert(engineeringPlan?.inputRefs?.some((ref) => ref.workflowId === 'demo-execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected engineering-plan handoff input to persist')
+    assert(engineeringPlan?.targeting.teamIds?.includes('demo-engineering') === true, 'Expected engineering-plan team target to persist')
     assert(engineeringPlan?.outputDefinitions?.some((output) => output.key === 'engineering-spec') === true, 'Expected engineering-plan outputs to persist')
-    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'engineering-plan' && ref.outputKey === 'engineering-spec') === true, 'Expected marketing-launch engineering handoff to persist')
-    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected marketing-launch execution handoff to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'demo-engineering-plan' && ref.outputKey === 'engineering-spec') === true, 'Expected marketing-launch engineering handoff to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'demo-execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected marketing-launch execution handoff to persist')
+    assert(marketingLaunch?.targeting.teamIds?.includes('demo-marketing') === true, 'Expected marketing-launch team target to persist')
     assert(marketingLaunch?.outputDefinitions?.some((output) => output.key === 'marketing-pack') === true, 'Expected marketing-launch outputs to persist')
-    assert(qaReview?.inputRefs?.some((ref) => ref.workflowId === 'marketing-launch' && ref.outputKey === 'marketing-pack') === true, 'Expected qa-review marketing handoff to persist')
+    assert(qaReview?.inputRefs?.some((ref) => ref.workflowId === 'demo-marketing-launch' && ref.outputKey === 'marketing-pack') === true, 'Expected qa-review marketing handoff to persist')
+    assert(qaReview?.targeting.teamIds?.includes('demo-qa') === true, 'Expected qa-review team target to persist')
     assert(qaReview?.outputDefinitions?.some((output) => output.key === 'qa-signoff') === true, 'Expected qa-review outputs to persist')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate keeps multiple company applies isolated by prefix', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-multi-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const first = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'alpha-' })
+    const second = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'beta-' })
+
+    assert(first.ok === true, `Expected first import to succeed, got ${first.error || 'unknown error'}`)
+    assert(second.ok === true, `Expected second import to succeed, got ${second.error || 'unknown error'}`)
+
+    const teams = listTeams(tempWorkspace)
+    assert(teams.some((team) => team.id === 'alpha-leadership'), 'Expected alpha leadership team to exist')
+    assert(teams.some((team) => team.id === 'beta-leadership'), 'Expected beta leadership team to exist')
+
+    const alphaKickoff = getWorkflow('alpha-leadership-kickoff')
+    const betaKickoff = getWorkflow('beta-leadership-kickoff')
+    assert(alphaKickoff !== null, 'Expected alpha kickoff workflow to exist')
+    assert(betaKickoff !== null, 'Expected beta kickoff workflow to exist')
+    assert(alphaKickoff?.targeting.teamIds?.includes('alpha-leadership') === true, 'Expected alpha kickoff to target alpha leadership team')
+    assert(betaKickoff?.targeting.teamIds?.includes('beta-leadership') === true, 'Expected beta kickoff to target beta leadership team')
+    assert(alphaKickoff?.name !== betaKickoff?.name, 'Expected imported company workflows to have distinct names')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
