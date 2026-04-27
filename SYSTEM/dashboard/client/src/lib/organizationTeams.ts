@@ -187,6 +187,8 @@ function wrapPersistedTopLevelTeams(
 
   for (const topTeam of nextTeams.filter((team) => !team.parentTeamId)) {
     const isAlreadyRootLike = topTeam.tags.includes('organization')
+      || topTeam.tags.includes('org-root')
+      || topTeam.tags.includes('company')
       || topTeam.tags.includes('company-root')
       || /(organization|company|workspace org|org)$/i.test(topTeam.name)
     if (isAlreadyRootLike) continue
@@ -391,48 +393,93 @@ export function buildOrganizationDeletePlan(args: {
   const teamIds = orderedTeams.map((team) => team.id)
   const teamIdSet = new Set(teamIds)
   const teamNameKeys = new Set(orderedTeams.flatMap((team) => [normalizeName(team.id), normalizeName(team.name)]))
-  const agentIds = dedupe(orderedTeams.flatMap((team) => getTeamAgentIds(team)))
-  const agentIdSet = new Set(agentIds)
+  const agentIdSet = new Set(dedupe(orderedTeams.flatMap((team) => getTeamAgentIds(team))))
+  const groupNames = new Set<string>()
+  const workflowIds = new Set<string>()
+  const communityNames = new Set<string>()
 
-  const workflowIds = dedupe((args.workflows || [])
-    .filter((workflow) => {
+  let changed = true
+  while (changed) {
+    changed = false
+
+    for (const workflow of args.workflows || []) {
       const targeting = workflow.targeting || {}
       const ownerMatch = !!workflow.owner && agentIdSet.has(workflow.owner)
       const agentMatch = (targeting.agents || []).some((agentId) => agentIdSet.has(agentId))
       const teamMatch = (targeting.teamIds || []).some((teamId) => teamIdSet.has(teamId))
-      const groupMatch = (targeting.groups || []).some((groupName) => teamNameKeys.has(normalizeName(groupName)))
-      return ownerMatch || agentMatch || teamMatch || groupMatch
-    })
-    .map((workflow) => workflow.id)
-    .filter(Boolean) as string[])
+      const groupMatch = (targeting.groups || []).some((groupName) => (
+        groupNames.has(groupName) || teamNameKeys.has(normalizeName(groupName))
+      ))
+      if (!(ownerMatch || agentMatch || teamMatch || groupMatch)) continue
 
-  const groupNames = dedupe((args.groups || [])
-    .filter((group) => {
+      if (workflow.id && !workflowIds.has(workflow.id)) {
+        workflowIds.add(workflow.id)
+        changed = true
+      }
+      if (workflow.owner && !agentIdSet.has(workflow.owner)) {
+        agentIdSet.add(workflow.owner)
+        changed = true
+      }
+      for (const agentId of targeting.agents || []) {
+        if (!agentIdSet.has(agentId)) {
+          agentIdSet.add(agentId)
+          changed = true
+        }
+      }
+      for (const groupName of targeting.groups || []) {
+        if (!groupNames.has(groupName)) {
+          groupNames.add(groupName)
+          changed = true
+        }
+      }
+    }
+
+    for (const group of args.groups || []) {
       const memberIds = dedupe((group.members || []).map((member) => member.id))
       const matchesTeamName = teamNameKeys.has(normalizeName(group.name))
-      const membersContained = memberIds.length > 0 && memberIds.every((memberId) => agentIdSet.has(memberId))
-      return matchesTeamName || membersContained
-    })
-    .map((group) => group.name))
-  const groupNameSet = new Set(groupNames)
+      const memberMatch = memberIds.some((memberId) => agentIdSet.has(memberId))
+      const targetedMatch = groupNames.has(group.name)
+      if (!(matchesTeamName || memberMatch || targetedMatch)) continue
 
-  const communityNames = dedupe((args.communities || [])
-    .filter((community) => {
-      const memberIds = dedupe((community.members || []).map((member) => member.id))
-      if (!(memberIds.length > 0 && memberIds.every((memberId) => agentIdSet.has(memberId)))) {
-        return false
+      if (!groupNames.has(group.name)) {
+        groupNames.add(group.name)
+        changed = true
       }
-      const attachedGroups = (args.groups || []).filter((group: any) => group.community === community.name)
-      return attachedGroups.every((group) => groupNameSet.has(group.name))
-    })
-    .map((community) => community.name))
+      for (const memberId of memberIds) {
+        if (!agentIdSet.has(memberId)) {
+          agentIdSet.add(memberId)
+          changed = true
+        }
+      }
+    }
+
+    for (const community of args.communities || []) {
+      const memberIds = dedupe((community.members || []).map((member) => member.id))
+      const membersContained = memberIds.length > 0 && memberIds.every((memberId) => agentIdSet.has(memberId))
+      const attachedGroups = (args.groups || []).filter((group: any) => (
+        (group as any).community === community.name && groupNames.has(group.name)
+      ))
+      if (!(membersContained || attachedGroups.length > 0)) continue
+
+      if (!communityNames.has(community.name)) {
+        communityNames.add(community.name)
+        changed = true
+      }
+      for (const memberId of memberIds) {
+        if (!agentIdSet.has(memberId)) {
+          agentIdSet.add(memberId)
+          changed = true
+        }
+      }
+    }
+  }
 
   return {
     teamIds,
-    agentIds,
-    workflowIds,
-    groupNames,
-    communityNames,
+    agentIds: Array.from(agentIdSet),
+    workflowIds: Array.from(workflowIds),
+    groupNames: Array.from(groupNames),
+    communityNames: Array.from(communityNames),
   }
 }
 
@@ -452,9 +499,22 @@ export function buildOrganizationDisplayTeams(args: {
   const wrappedPersistedTeams = wrapPersistedTopLevelTeams(persistedTeams, workflows)
   const coveredKeys = new Set(wrappedPersistedTeams.flatMap((team) => [normalizeName(team.id), normalizeName(team.name)]))
   const coveredAgentIds = new Set(wrappedPersistedTeams.flatMap((team) => getTeamAgentIds(team)))
+  const coveredTeamIds = new Set(wrappedPersistedTeams.map((team) => team.id))
+  const coveredWorkflowIds = new Set(workflows
+    .filter((workflow) => {
+      const targeting = workflow.targeting || {}
+      const ownerMatch = !!workflow.owner && coveredAgentIds.has(workflow.owner)
+      const agentMatch = (targeting.agents || []).some((agentId) => coveredAgentIds.has(agentId))
+      const teamMatch = (targeting.teamIds || []).some((teamId) => coveredTeamIds.has(teamId))
+      const groupMatch = (targeting.groups || []).some((groupName) => coveredKeys.has(normalizeName(groupName)))
+      return ownerMatch || agentMatch || teamMatch || groupMatch
+    })
+    .map((workflow) => workflow.id)
+    .filter(Boolean) as string[])
   const uncoveredAgents = (args.agents || []).filter((agent) => agent?.id && !coveredAgentIds.has(agent.id))
   const uncoveredAgentIds = new Set(uncoveredAgents.map((agent) => agent.id))
   const uncoveredGroups = (args.groups || [])
+    .filter((group) => !coveredKeys.has(normalizeName(group.name)))
     .map((group) => ({
       ...group,
       members: (group.members || []).filter((member) => uncoveredAgentIds.has(member.id)),
@@ -462,6 +522,7 @@ export function buildOrganizationDisplayTeams(args: {
     .filter((group) => group.members.length > 0)
   const uncoveredGroupNames = new Set(uncoveredGroups.map((group) => group.name))
   const uncoveredWorkflows = workflows.filter((workflow) => {
+    if (workflow.id && coveredWorkflowIds.has(workflow.id)) return false
     const targeting = workflow.targeting || {}
     const ownerMatch = !!workflow.owner && uncoveredAgentIds.has(workflow.owner)
     const agentMatch = (targeting.agents || []).some((agentId) => uncoveredAgentIds.has(agentId))
@@ -474,7 +535,23 @@ export function buildOrganizationDisplayTeams(args: {
     groups: uncoveredGroups,
     workflows: uncoveredWorkflows,
   })
-  const derivedExtras = uncoveredDerivedTeams.filter((team) => {
+  const persistedRootByName = new Map(
+    wrappedPersistedTeams
+      .filter((team) => !team.parentTeamId)
+      .map((team) => [normalizeName(team.name), team.id])
+  )
+  const duplicateDerivedRoot = uncoveredDerivedTeams.find((team) => (
+    team.id === 'organization' && persistedRootByName.has(normalizeName(team.name))
+  ))
+  const normalizedUncoveredDerivedTeams = duplicateDerivedRoot
+    ? uncoveredDerivedTeams
+        .filter((team) => team.id !== 'organization')
+        .map((team) => team.parentTeamId === 'organization'
+          ? { ...team, parentTeamId: persistedRootByName.get(normalizeName(duplicateDerivedRoot.name)) }
+          : team)
+    : uncoveredDerivedTeams
+
+  const derivedExtras = normalizedUncoveredDerivedTeams.filter((team) => {
     if (team.id === 'organization') return true
     return !coveredKeys.has(normalizeName(team.id)) && !coveredKeys.has(normalizeName(team.name))
   })

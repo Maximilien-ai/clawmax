@@ -19,7 +19,7 @@ import {
   type AgentTemplate
 } from './templates'
 import { checkTemplatePrereqs } from './prereqs'
-import { listTeams } from './teams'
+import { getTeam, listTeams } from './teams'
 import { getWorkflow } from './workflows'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import fs from 'fs'
@@ -1165,6 +1165,141 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
     assert(alphaKickoff?.targeting.teamIds?.includes('alpha-leadership') === true, 'Expected alpha kickoff to target alpha leadership team')
     assert(betaKickoff?.targeting.teamIds?.includes('beta-leadership') === true, 'Expected beta kickoff to target beta leadership team')
     assert(alphaKickoff?.name !== betaKickoff?.name, 'Expected imported company workflows to have distinct names')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate re-apply replaces stale workflow targeting', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-refresh-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const kickoffId = 'b2b-leadership-kickoff'
+    const { createWorkflow } = require('./workflows')
+    const stale = createWorkflow({
+      id: kickoffId,
+      name: 'Stale kickoff',
+      description: 'stale',
+      schedule: '0 9 * * 1',
+      enabled: true,
+      executionMode: 'managed',
+      owner: 'b2b-ceo',
+      targeting: {
+        agents: ['b2b-ceo', 'b2b-program-manager'],
+        groups: ['b2b-Leadership'],
+        communities: ['Saas Optimizers'],
+        tags: ['b2b-saas'],
+        teamIds: [],
+      },
+      content: 'stale',
+      author: 'test',
+      created: new Date().toISOString(),
+      modified: new Date().toISOString(),
+    })
+    assert(stale.success === true, `Expected stale workflow creation to succeed, got ${stale.error || 'unknown error'}`)
+
+    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'b2b-' })
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const refreshed = getWorkflow(kickoffId)
+    assert(refreshed !== null, 'Expected kickoff workflow to exist after import')
+    assertEqual((refreshed?.targeting.communities || []).length, 0, 'Expected stale community targeting to be replaced on import')
+    assertEqual(JSON.stringify(refreshed?.targeting.agents || []), JSON.stringify(['b2b-ceo']), 'Expected imported workflow to replace broad agent fanout with owner targeting')
+    assert((refreshed?.targeting.groups || []).includes('b2b-Leadership') === true, 'Expected imported workflow to namespace group targeting for prefixed company imports')
+    assert(refreshed?.targeting.teamIds?.includes('b2b-leadership') === true, 'Expected kickoff workflow to use imported team targeting')
+    assertEqual(JSON.stringify(refreshed?.targeting.communities || []), JSON.stringify([]), 'Expected kickoff workflow to remain free of stale community targeting after import')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate namespaces groups and communities for prefixed company imports', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-prefix-channels-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const groupsMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'GROUPS.md'), 'utf-8')
+    const communitiesMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'COMMUNITIES.md'), 'utf-8')
+    const kickoff = getWorkflow('test-leadership-kickoff')
+
+    assert(groupsMd.includes('### test-Leadership'), 'Expected prefixed import to namespace workspace group names')
+    assert(communitiesMd.includes('### test-Build-a-Company'), 'Expected prefixed import to namespace workspace community names')
+    assert(kickoff !== null, 'Expected kickoff workflow to exist after prefixed import')
+    assert((kickoff?.targeting.groups || []).includes('test-Leadership') === true, 'Expected kickoff workflow to target namespaced group name')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate sanitizes invalid team ancestry before creating teams', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-teams-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'cycle-company')
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Cycle Company',
+      type: 'organization',
+      kind: 'company',
+      version: '1.0.0',
+      agents: [
+        { id: 'ceo', role: 'CEO' },
+        { id: 'ops', role: 'Ops' },
+      ],
+      teams: [
+        { id: 'company', name: 'Company', leaderAgentId: 'ceo', memberAgentIds: ['ops'], parentTeamId: 'company' },
+        { id: 'ops-team', name: 'Ops Team', leaderAgentId: 'ops', memberAgentIds: [], parentTeamId: 'company' },
+      ],
+      workflows: [],
+    }, null, 2), 'utf-8')
+
+    const imported = importOrganizationTemplate('cycle-company', {})
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const company = getTeam('company')
+    assert(company !== null, 'Expected company team to exist after import')
+    assert(company?.parentTeamId === undefined, 'Expected self-parent cycle to be cleared during import')
+
+    const opsTeam = getTeam('ops-team')
+    assert(opsTeam?.parentTeamId === 'company', 'Expected valid child parent to remain intact')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome

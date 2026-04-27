@@ -171,6 +171,12 @@ function TeamTreeNode({
   onToggleCompanyCollapsed?: (teamId: string) => void
   visitedTeamIds?: Set<string>
 }) {
+  const isSyntheticCompanyRootTeam = (candidate: Team) =>
+    !candidate.parentTeamId && (
+      candidate.id === 'organization'
+      || candidate.tags.includes('company-root')
+      || candidate.tags.includes('organization')
+    )
   const visited = visitedTeamIds || new Set<string>()
   if (visited.has(team.id)) {
     return (
@@ -185,7 +191,31 @@ function TeamTreeNode({
   const workflows = teamWorkflows.get(team.id) || []
   const leaderLabel = team.leaderAgentId ? (agentNameById[team.leaderAgentId] || team.leaderAgentId) : null
   const isTopLevelCompany = !team.parentTeamId
+  const isSyntheticCompanyRoot = isSyntheticCompanyRootTeam(team)
   const isCollapsed = isTopLevelCompany && collapsedCompanyIds?.has(team.id)
+  const collectSubtreeStats = (root: Team) => {
+    const memberIds = new Set<string>()
+    let workflowCount = 0
+    let teamCount = 0
+    const queue: Team[] = [root]
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (seen.has(current.id)) continue
+      seen.add(current.id)
+      teamCount += 1
+      if (current.leaderAgentId) memberIds.add(current.leaderAgentId)
+      for (const memberId of current.memberAgentIds || []) memberIds.add(memberId)
+      workflowCount += (teamWorkflows.get(current.id) || []).length
+      for (const child of teamChildren.get(current.id) || []) queue.push(child)
+    }
+    return {
+      memberCount: memberIds.size,
+      teamCount,
+      workflowCount,
+    }
+  }
+  const subtreeStats = collectSubtreeStats(team)
 
   return (
     <div className="space-y-3">
@@ -205,7 +235,9 @@ function TeamTreeNode({
                   {isCollapsed ? '▶' : '▼'}
                 </button>
               )}
-              <span className="text-xs font-mono text-amber-700 dark:text-amber-400">{team.id}</span>
+              {!isSyntheticCompanyRoot && (
+                <span className="text-xs font-mono text-amber-700 dark:text-amber-400">{team.id}</span>
+              )}
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{team.name}</h3>
               {children.length > 0 && (
                 <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
@@ -213,7 +245,7 @@ function TeamTreeNode({
                 </span>
               )}
             </div>
-            {team.purpose && (
+            {team.purpose && !isSyntheticCompanyRoot && (
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{team.purpose}</p>
             )}
           </div>
@@ -227,8 +259,18 @@ function TeamTreeNode({
               </button>
             )}
             <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
-              {team.memberAgentIds.length} member{team.memberAgentIds.length === 1 ? '' : 's'}
+              {(isSyntheticCompanyRoot ? subtreeStats.memberCount : team.memberAgentIds.length)} member{(isSyntheticCompanyRoot ? subtreeStats.memberCount : team.memberAgentIds.length) === 1 ? '' : 's'}
             </span>
+            {isSyntheticCompanyRoot && (
+              <>
+                <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
+                  {Math.max(subtreeStats.teamCount - 1, 0)} team{Math.max(subtreeStats.teamCount - 1, 0) === 1 ? '' : 's'}
+                </span>
+                <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
+                  {subtreeStats.workflowCount} workflow{subtreeStats.workflowCount === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
             {onDeleteTeam && (
               <button
                 onClick={() => onDeleteTeam(team.id)}
@@ -252,7 +294,7 @@ function TeamTreeNode({
           </div>
         </div>
 
-        {!isCollapsed && team.tags.length > 0 && (
+        {!isCollapsed && team.tags.length > 0 && !isSyntheticCompanyRoot && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {team.tags.map((tag) => (
               <span key={tag} className="rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
@@ -262,7 +304,7 @@ function TeamTreeNode({
           </div>
         )}
 
-        {!isCollapsed && workflows.length > 0 && (
+        {!isCollapsed && workflows.length > 0 && !isSyntheticCompanyRoot && (
           <div className="mt-3 rounded-md border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
               Workflows ({workflows.length})
@@ -1193,16 +1235,20 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setDeleteDialog({ type: 'group', name: groupName, consequences })
   }
 
+  const getCompanyDeleteSourceTeams = (rootTeamId: string) => (
+    teams.some((team) => team.id === rootTeamId) ? teams : displayTeams
+  )
+
   const buildCompanyDeletePlan = (rootTeamId: string) => buildOrganizationDeletePlan({
     rootTeamId,
-    teams: displayTeams,
+    teams: getCompanyDeleteSourceTeams(rootTeamId),
     groups: groups as any,
     communities: communities as any,
     workflows: allWorkflows,
   })
 
   const handleDeleteCompany = (teamId: string) => {
-    const sourceTeams = displayTeams
+    const sourceTeams = getCompanyDeleteSourceTeams(teamId)
     const team = sourceTeams.find((entry) => entry.id === teamId)
     if (!team) return
 

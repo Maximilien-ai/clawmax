@@ -233,7 +233,10 @@ function ImportTemplateModal({
 function getTemplateTeamDepth(team: NonNullable<OrganizationTemplate['teams']>[number], byId: Map<string, NonNullable<OrganizationTemplate['teams']>[number]>): number {
   let depth = 0
   let currentParentId = team.parentTeamId
+  const visited = new Set<string>()
   while (currentParentId) {
+    if (visited.has(currentParentId)) break
+    visited.add(currentParentId)
     const parent = byId.get(currentParentId)
     if (!parent) break
     depth += 1

@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { applyGeneratedWorkflowHandoffs, enforceVisibleCompanyWorkflowChain, extractJsonResponseText, normalizeGeneratedSkillScaffold, normalizeGeneratedWorkflowReferences, parseJsonResponse } from './ai-generator'
+import { applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs, ensureGeneratedCompanyRoot, enforceVisibleCompanyWorkflowChain, extractJsonResponseText, normalizeGeneratedSkillScaffold, normalizeGeneratedWorkflowReferences, parseJsonResponse, shouldGenerateCompanyTemplate } from './ai-generator'
 
 let passed = 0
 let failed = 0
@@ -34,6 +34,25 @@ test('parseJsonResponse returns fallback on invalid json', () => {
   const fallback = { cron: '', explanation: '' }
   const parsed = parseJsonResponse('not json at all', fallback)
   assert.deepStrictEqual(parsed, fallback)
+})
+
+test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('A B2B SaaS conversion company with leadership, offer strategy, outbound, and delivery teams.', 'team'),
+    true
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('A B2B SaaS conversion operation with leadership, research, outbound sales, client delivery, and operations workflows.', 'team'),
+    true
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('A B2B SaaS conversion company with leadership, offer strategy, outbound, and delivery teams.', 'agent'),
+    false
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('A leadership specialist that writes project briefs.', 'team'),
+    false
+  )
 })
 
 test('normalizeGeneratedSkillScaffold sanitizes skill ids and fills defaults', () => {
@@ -183,6 +202,117 @@ test('normalizeGeneratedWorkflowReferences remaps stale dependency aliases to no
   assert.deepStrictEqual(workflows[1].dependsOn, ['project-kickoff'])
   assert.deepStrictEqual(workflows[2].dependsOn, ['create-strategy-brief'])
   assert.deepStrictEqual(workflows[3].dependsOn, ['develop-icp-lead-list-and-outreach'])
+})
+
+test('normalizeGeneratedWorkflowReferences remaps shorthand kickoff and strategy aliases', () => {
+  const workflows = normalizeGeneratedWorkflowReferences([
+    {
+      id: 'project-kickoff',
+      name: 'Project Kickoff',
+      dependsOn: [],
+    },
+    {
+      id: 'develop-strategy-brief',
+      name: 'Develop Strategy Brief',
+      dependsOn: ['kickoff'],
+      inputRefs: [{ workflowId: 'kickoff', outputKey: 'brief' }],
+    },
+    {
+      id: 'conduct-market-research-and-develop-icp',
+      name: 'Conduct Market Research and Develop ICP',
+      dependsOn: ['strategy-brief'],
+      inputRefs: [{ workflowId: 'strategy-brief', outputKey: 'plan' }],
+    },
+  ])
+
+  assert.deepStrictEqual(workflows[1].dependsOn, ['project-kickoff'])
+  assert.strictEqual(workflows[1].inputRefs?.[0]?.workflowId, 'project-kickoff')
+  assert.deepStrictEqual(workflows[2].dependsOn, ['develop-strategy-brief'])
+  assert.strictEqual(workflows[2].inputRefs?.[0]?.workflowId, 'develop-strategy-brief')
+})
+
+test('applyCompanyWorkflowExecutionDefaults routes company workflows to one team and leader', () => {
+  const workflows = applyCompanyWorkflowExecutionDefaults([
+    {
+      id: 'b2b-leadership-kickoff',
+      name: 'b2b-Leadership / Kickoff Meeting',
+      description: 'Initiate the project with a kickoff meeting to align on goals and deliverables.',
+      targeting: { agents: [], groups: ['b2b-Leadership'], tags: ['b2b'], communities: ['Conversion Catalyst'] },
+      content: 'Long kickoff instructions\nwith many lines\nand repeated context\nthat should be trimmed.',
+    },
+    {
+      id: 'client-delivery-plan',
+      name: 'Client Delivery / Proposal and Delivery Plan Drafting',
+      description: 'Draft a proposal and a detailed delivery plan for the client project.',
+      targeting: { agents: [], groups: ['Client Delivery'], tags: ['b2b'], communities: ['Conversion Catalyst'] },
+      content: 'Long delivery instructions\nwith many lines\nand repeated context\nthat should be trimmed.',
+    },
+  ], [
+    { id: 'leadership', name: 'Leadership', leaderAgentId: 'b2b-ceo' },
+    { id: 'client-delivery', name: 'Client Delivery', leaderAgentId: 'b2b-client-delivery-manager' },
+  ], [
+    { name: 'b2b-Leadership' },
+    { name: 'Client Delivery' },
+  ])
+
+  assert.deepStrictEqual(workflows[0].targeting.teamIds, ['leadership'])
+  assert.deepStrictEqual(workflows[1].targeting.teamIds, ['client-delivery'])
+  assert.strictEqual(workflows[0].owner, 'b2b-ceo')
+  assert.strictEqual(workflows[1].owner, 'b2b-client-delivery-manager')
+  assert.deepStrictEqual(workflows[0].targeting.communities, [])
+  assert.deepStrictEqual(workflows[0].targeting.groups, [])
+  assert.deepStrictEqual(workflows[0].targeting.agents, ['b2b-ceo'])
+  assert(workflows[0].content.includes('company brief'), 'Expected compact kickoff content to include brief guidance')
+  assert(workflows[1].content.includes('latest approved markdown handoff'), 'Expected downstream workflow to consume prior handoff')
+})
+
+test('applyCompanyWorkflowExecutionDefaults prefers owner over broad explicit agent lists when no teams exist', () => {
+  const workflows = applyCompanyWorkflowExecutionDefaults([
+    {
+      id: 'legacy-b2b-kickoff',
+      name: 'b2b-Leadership / Kickoff Meeting',
+      owner: 'b2b-ceo',
+      targeting: {
+        agents: ['b2b-ceo', 'b2b-client-delivery-manager', 'b2b-offer-strategist'],
+        groups: ['b2b-Leadership'],
+        tags: ['b2b'],
+        communities: ['Conversion Optimizers'],
+      },
+      content: 'Legacy broad kickoff instructions',
+    },
+  ], [], [])
+
+  assert.strictEqual(workflows[0].owner, 'b2b-ceo')
+  assert.deepStrictEqual(workflows[0].targeting.agents, ['b2b-ceo'])
+  assert.deepStrictEqual(workflows[0].targeting.groups, [])
+  assert.deepStrictEqual(workflows[0].targeting.communities, [])
+})
+
+test('ensureGeneratedCompanyRoot adds one explicit root above leadership', () => {
+  const teams = ensureGeneratedCompanyRoot([
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['ops'],
+      tags: ['leadership'],
+    },
+    {
+      id: 'research',
+      name: 'Research',
+      leaderAgentId: 'analyst',
+      memberAgentIds: [],
+      parentTeamId: 'leadership',
+      tags: ['research'],
+    },
+  ], 'Conversion Catalyst Co.', true)
+
+  const root = teams.find((team: any) => (team.tags || []).includes('org-root'))
+  const leadership = teams.find((team: any) => team.id === 'leadership')
+
+  assert(root, 'Expected generated company root')
+  assert.strictEqual(root?.name, 'Conversion Catalyst Co.')
+  assert.strictEqual(leadership?.parentTeamId, root?.id)
 })
 
 console.log('\n========================================')

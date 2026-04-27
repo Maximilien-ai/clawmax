@@ -117,6 +117,46 @@ function buildWorkflowDependencyAliasMap(workflows: Workflow[]): Record<string, 
   return aliasMap
 }
 
+function sanitizeImportedTemplateTeams(teams?: Team[]): Team[] | undefined {
+  if (!teams || teams.length === 0) return teams
+
+  const ids = new Set(teams.map((team) => `${team.id || ''}`.trim()).filter(Boolean))
+  const firstPass = teams.map((team) => {
+    const parentTeamId = team.parentTeamId?.trim() || undefined
+    return {
+      ...team,
+      parentTeamId: parentTeamId && ids.has(parentTeamId) && parentTeamId !== team.id ? parentTeamId : undefined,
+    }
+  })
+  const byId = new Map(firstPass.map((team) => [team.id, team]))
+
+  return firstPass.map((team) => {
+    let parentTeamId = team.parentTeamId?.trim() || undefined
+    if (!parentTeamId) {
+      return {
+        ...team,
+        parentTeamId: undefined,
+      }
+    }
+
+    const ancestry = new Set<string>([team.id])
+    let cursor: string | undefined = parentTeamId
+    while (cursor) {
+      if (ancestry.has(cursor)) {
+        parentTeamId = undefined
+        break
+      }
+      ancestry.add(cursor)
+      cursor = byId.get(cursor)?.parentTeamId?.trim() || undefined
+    }
+
+    return {
+      ...team,
+      parentTeamId,
+    }
+  })
+}
+
 // Ensure template directories exist
 export function ensureTemplateDirs(): void {
   // Global directories
@@ -2113,12 +2153,28 @@ export function importOrganizationTemplate(
     }
 
     const adjustedTemplate: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-    const groupRenames = options?.groupRenames || {}
-    const communityRenames = options?.communityRenames || {}
-    const workflowRenames = options?.workflowRenames || {}
     const prefix = options?.prefix || ''
     const suffix = options?.suffix || ''
+    const namespaceChannelName = (value: string) => `${prefix}${value}${suffix}`.trim()
+    const groupRenames = { ...(options?.groupRenames || {}) }
+    const communityRenames = { ...(options?.communityRenames || {}) }
+    const workflowRenames = options?.workflowRenames || {}
     const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
+
+    if ((prefix || suffix) && adjustedTemplate.groups) {
+      for (const group of adjustedTemplate.groups) {
+        const currentName = `${group?.name || ''}`.trim()
+        if (!currentName || groupRenames[currentName]) continue
+        groupRenames[currentName] = namespaceChannelName(currentName)
+      }
+    }
+    if ((prefix || suffix) && adjustedTemplate.communities) {
+      for (const community of adjustedTemplate.communities) {
+        const currentName = `${community?.name || ''}`.trim()
+        if (!currentName || communityRenames[currentName]) continue
+        communityRenames[currentName] = namespaceChannelName(currentName)
+      }
+    }
 
     if (adjustedTemplate.communities) {
       adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
@@ -2143,6 +2199,10 @@ export function importOrganizationTemplate(
       communities: (agent.communities || []).map((communityName) => communityRenames[communityName] || communityName),
       groups: (agent.groups || []).map((groupName) => groupRenames[groupName] || groupName),
     }))
+
+    if (adjustedTemplate.teams) {
+      adjustedTemplate.teams = sanitizeImportedTemplateTeams(adjustedTemplate.teams)
+    }
 
     if (adjustedTemplate.workflows) {
       const templateWorkflowPrefix = slugify(adjustedTemplate.name || templateSlug)
@@ -2789,73 +2849,78 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           }))
           const importedWorkflowName = getImportedWorkflowName(wf)
 
+          const updatedTargeting = {
+            ...wf.targeting,
+            agents: newAgents,
+            teamIds: newTeamIds,
+          }
+
+          // For managed workflows, auto-assign owner from first targeted agent.
+          // If the imported workflow already specifies an owner, remap it into the
+          // current namespace and preserve it.
+          const execMode = wf.executionMode || 'automated'
+          const importedOwner = `${(wf as any).owner || ''}`.trim()
+          const mappedOwner = importedOwner ? `${prefix}${importedOwner}${suffix}` : ''
+          const owner = execMode === 'managed'
+            ? (mappedOwner || newAgents[0] || createdAgents[0] || undefined)
+            : (mappedOwner || undefined)
+
           const existing = existingWorkflowMap.get(mappedWorkflowId)
           if (existing) {
-            // Workflow exists - merge new targeting with existing
+            // Workflow exists - imported workflows should replace targeting so
+            // stale communities/groups/agents from prior applies do not survive.
             const existingAgents = existing.targeting.agents || []
             const existingGroups = existing.targeting.groups || []
             const existingCommunities = existing.targeting.communities || []
             const existingTags = existing.targeting.tags || []
             const existingTeamIds = existing.targeting.teamIds || []
-
-            const newGroups = wf.targeting.groups || []
-            const newCommunities = wf.targeting.communities || []
-            const newTags = wf.targeting.tags || []
-            const mergedTeamIds = [...new Set([...existingTeamIds, ...newTeamIds])]
-
-            const mergedAgents = [...new Set([...existingAgents, ...newAgents])]
-            const mergedGroups = [...new Set([...existingGroups, ...newGroups])]
-            const mergedCommunities = [...new Set([...existingCommunities, ...newCommunities])]
-            const mergedTags = [...new Set([...existingTags, ...newTags])]
+            const newGroups = updatedTargeting.groups || []
+            const newCommunities = updatedTargeting.communities || []
+            const newTags = updatedTargeting.tags || []
             const existingDependsOn = existing.dependsOn || []
             const dependencyChanged = JSON.stringify(existingDependsOn) !== JSON.stringify(mappedDependsOn || [])
             const typeChanged = existing.type !== wf.type
             const scheduleChanged = existing.schedule !== wf.schedule
             const executionModeChanged = existing.executionMode !== (wf.executionMode || 'automated')
+            const ownerChanged = `${existing.owner || ''}` !== `${owner || ''}`
+            const targetingChanged = JSON.stringify(existing.targeting || {}) !== JSON.stringify(updatedTargeting)
 
-            // Check if there are any new targets to add
             const needsUpdate =
-              mergedAgents.length > existingAgents.length ||
-              mergedGroups.length > existingGroups.length ||
-              mergedCommunities.length > existingCommunities.length ||
-              mergedTags.length > existingTags.length ||
-              mergedTeamIds.length > existingTeamIds.length ||
+              targetingChanged ||
               dependencyChanged ||
               typeChanged ||
               scheduleChanged ||
-              executionModeChanged
+              executionModeChanged ||
+              ownerChanged
 
             if (needsUpdate) {
               const { updateWorkflow } = require('./workflows')
-              const result = updateWorkflow(existing.id, {
+              const updateData: any = {
                 name: importedWorkflowName,
-                schedule: wf.schedule,
                 executionMode: wf.executionMode || 'automated',
-                targeting: {
-                  agents: mergedAgents,
-                  groups: mergedGroups,
-                  communities: mergedCommunities,
-                  tags: mergedTags,
-                  teamIds: mergedTeamIds,
-                },
-                dependsOn: mappedDependsOn,
-                type: wf.type,
-                secretRequirements: (wf as any).secretRequirements,
-                outputDefinitions: wf.outputDefinitions,
-                inputRefs: mappedInputRefs,
-              })
+                owner,
+                targeting: updatedTargeting,
+                ...((typeof wf.schedule === 'string' && wf.schedule.trim().length > 0) ? { schedule: wf.schedule } : {}),
+                ...(mappedDependsOn !== undefined ? { dependsOn: mappedDependsOn } : {}),
+                ...(wf.type !== undefined ? { type: wf.type } : {}),
+                ...((wf as any).secretRequirements !== undefined ? { secretRequirements: (wf as any).secretRequirements } : {}),
+                ...(wf.outputDefinitions !== undefined ? { outputDefinitions: wf.outputDefinitions } : {}),
+                ...(mappedInputRefs !== undefined ? { inputRefs: mappedInputRefs } : {}),
+              }
+              const result = updateWorkflow(existing.id, updateData)
 
               if (result.success) {
                 const changes = []
-                if (mergedAgents.length > existingAgents.length) changes.push(`${mergedAgents.length - existingAgents.length} agent(s)`)
-                if (mergedGroups.length > existingGroups.length) changes.push(`${mergedGroups.length - existingGroups.length} group(s)`)
-                if (mergedCommunities.length > existingCommunities.length) changes.push(`${mergedCommunities.length - existingCommunities.length} communit${mergedCommunities.length - existingCommunities.length > 1 ? 'ies' : 'y'}`)
-                if (mergedTags.length > existingTags.length) changes.push(`${mergedTags.length - existingTags.length} tag(s)`)
-                if (mergedTeamIds.length > existingTeamIds.length) changes.push(`${mergedTeamIds.length - existingTeamIds.length} team target(s)`)
+                if (JSON.stringify(existingAgents) !== JSON.stringify(updatedTargeting.agents || [])) changes.push('agent targeting')
+                if (JSON.stringify(existingGroups) !== JSON.stringify(newGroups)) changes.push('group targeting')
+                if (JSON.stringify(existingCommunities) !== JSON.stringify(newCommunities)) changes.push('community targeting')
+                if (JSON.stringify(existingTags) !== JSON.stringify(newTags)) changes.push('tag targeting')
+                if (JSON.stringify(existingTeamIds) !== JSON.stringify(updatedTargeting.teamIds || [])) changes.push('team targeting')
                 if (dependencyChanged) changes.push('dependencies')
                 if (typeChanged) changes.push('type')
                 if (scheduleChanged) changes.push('schedule')
                 if (executionModeChanged) changes.push('execution mode')
+                if (ownerChanged) changes.push('owner')
                 console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
               } else {
                 console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
@@ -2865,18 +2930,6 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             }
           } else {
             // Workflow doesn't exist - create it
-            const updatedTargeting = {
-              ...wf.targeting,
-              agents: newAgents,
-              teamIds: newTeamIds,
-            }
-
-            // For managed workflows, auto-assign owner from first targeted agent
-            const execMode = wf.executionMode || 'automated'
-            const owner = execMode === 'managed'
-              ? (newAgents[0] || createdAgents[0] || undefined)
-              : undefined
-
             console.log(`[Template Import] Creating workflow "${importedWorkflowName}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
               id: mappedWorkflowId,

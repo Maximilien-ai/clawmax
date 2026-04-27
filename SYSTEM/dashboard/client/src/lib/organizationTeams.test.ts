@@ -165,6 +165,117 @@ test('buildOrganizationDisplayTeams does not add a duplicate derived root when p
   assert(!teams.some((team) => team.id === 'organization'), 'Did not expect derived organization root when persisted company covers the same agents')
 })
 
+test('buildOrganizationDisplayTeams does not duplicate a persisted company when only one extra uncovered agent remains', () => {
+  const teams = buildOrganizationDisplayTeams({
+    persistedTeams: [
+      {
+        id: 'b2b-company',
+        name: 'SaaS Conversion Boost Co.',
+        leaderAgentId: 'b2b-ceo',
+        memberAgentIds: [],
+        tags: ['company', 'org-root'],
+      },
+      {
+        id: 'b2b-leadership',
+        name: 'Leadership',
+        leaderAgentId: 'b2b-ceo',
+        memberAgentIds: ['b2b-client-delivery-manager'],
+        parentTeamId: 'b2b-company',
+        tags: ['leadership'],
+      },
+      {
+        id: 'b2b-research',
+        name: 'Research',
+        leaderAgentId: 'b2b-market-researcher',
+        memberAgentIds: [],
+        parentTeamId: 'b2b-leadership',
+        tags: ['research'],
+      },
+    ],
+    agents: [
+      { id: 'b2b-ceo', name: 'CEO' },
+      { id: 'b2b-client-delivery-manager', name: 'Delivery' },
+      { id: 'b2b-market-researcher', name: 'Research' },
+      { id: 'b2b-operations-coordinator', name: 'Ops' },
+    ],
+    groups: [
+      { name: 'Leadership', members: [{ id: 'b2b-ceo' }, { id: 'b2b-client-delivery-manager' }, { id: 'b2b-operations-coordinator' }] },
+      { name: 'Research', members: [{ id: 'b2b-market-researcher' }] },
+    ],
+    workflows: [
+      { id: 'b2b-kickoff', name: 'b2b · Leadership / Kickoff', owner: 'b2b-ceo', targeting: { teamIds: ['b2b-leadership'], groups: [] } },
+      { id: 'b2b-research-flow', name: 'b2b · Research / ICP', owner: 'b2b-market-researcher', targeting: { teamIds: ['b2b-research'], groups: [] } },
+    ],
+  })
+
+  assert(!teams.some((team) => team.id === 'organization' && team.name === 'b2b'), `Did not expect duplicate derived b2b root, got ${teams.map((team) => `${team.id}:${team.name}`).join(', ')}`)
+})
+
+test('buildOrganizationDisplayTeams does not wrap an explicit org-root/company-tagged top team in a second synthetic company root', () => {
+  const teams = buildOrganizationDisplayTeams({
+    persistedTeams: [
+      {
+        id: 'b2b-saas-conversion-boost-co',
+        name: 'SaaS Conversion Boost Co.',
+        leaderAgentId: 'b2b-ceo',
+        memberAgentIds: [],
+        tags: ['company', 'org-root'],
+      },
+      {
+        id: 'b2b-leadership',
+        name: 'Leadership',
+        leaderAgentId: 'b2b-ceo',
+        memberAgentIds: [],
+        parentTeamId: 'b2b-saas-conversion-boost-co',
+        tags: ['leadership'],
+      },
+    ],
+    agents: [{ id: 'b2b-ceo', name: 'CEO' }],
+    groups: [],
+    workflows: [
+      { id: 'b2b-kickoff', name: 'b2b · Leadership / Kickoff', owner: 'b2b-ceo', targeting: { teamIds: ['b2b-leadership'], groups: [] } },
+    ],
+  })
+
+  assert(!teams.some((team) => team.id === 'company-b2b-saas-conversion-boost-co'), `Did not expect synthetic wrapper root, got ${teams.map((team) => team.id).join(', ')}`)
+  assert(teams.some((team) => team.id === 'b2b-saas-conversion-boost-co'), 'Expected explicit company root to remain')
+})
+
+test('buildOrganizationDisplayTeams merges duplicate derived root children into matching persisted company root', () => {
+  const teams = buildOrganizationDisplayTeams({
+    persistedTeams: [
+      {
+        id: 'build-a-company-hackathon-org',
+        name: 'Build-a-Company Hackathon Org',
+        leaderAgentId: 'ceo',
+        memberAgentIds: [],
+        tags: ['company', 'org-root'],
+      },
+      {
+        id: 'leadership',
+        name: 'Leadership',
+        leaderAgentId: 'ceo',
+        memberAgentIds: [],
+        parentTeamId: 'build-a-company-hackathon-org',
+        tags: ['leadership'],
+      },
+    ],
+    agents: [
+      { id: 'ceo', name: 'CEO' },
+      { id: 'ops-director', name: 'Operations Director', groups: ['Operations'] },
+    ],
+    groups: [
+      { name: 'Operations', members: [{ id: 'ops-director' }] },
+    ],
+    workflows: [],
+    organizationName: 'Build-a-Company Hackathon Org',
+    organizationDescription: 'Describe this workspace organization',
+  })
+
+  assert(!teams.some((team) => team.id === 'organization'), `Did not expect duplicate derived organization root, got ${teams.map((team) => team.id).join(', ')}`)
+  assert(teams.some((team) => team.parentTeamId === 'build-a-company-hackathon-org' && team.id !== 'leadership'), 'Expected derived child lane/team to merge under persisted company root')
+})
+
 test('buildOrganizationDisplayTeams derives root plus group teams when no persisted teams exist', () => {
   const teams = buildOrganizationDisplayTeams({
     agents: [
@@ -320,6 +431,42 @@ test('buildOrganizationDeletePlan includes the selected company subtree and rela
   assert(plan.workflowIds.join(',') === 'leadership-kickoff,execution-brief,marketing-launch', `Unexpected workflow ids: ${plan.workflowIds.join(',')}`)
   assert(plan.groupNames.join(',') === 'Leadership,Execution,Marketing', `Unexpected group names: ${plan.groupNames.join(',')}`)
   assert(plan.communityNames.join(',') === 'Build-a-Company', `Unexpected community names: ${plan.communityNames.join(',')}`)
+})
+
+test('buildOrganizationDeletePlan expands through workflow owners and matching groups for derived company slices', () => {
+  const plan = buildOrganizationDeletePlan({
+    rootTeamId: 'organization',
+    teams: [
+      { id: 'organization', name: 'b2b', leaderAgentId: 'b2b-ceo', memberAgentIds: [], tags: ['derived', 'organization'] },
+      { id: 'leadership', name: 'Leadership', leaderAgentId: undefined, memberAgentIds: [], parentTeamId: 'organization', tags: ['derived', 'group'] },
+    ],
+    groups: [
+      { name: 'b2b-Leadership', members: [{ id: 'b2b-ceo' }, { id: 'b2b-client-delivery-manager' }] } as any,
+      { name: 'Outside', members: [{ id: 'outside-lead' }] } as any,
+    ],
+    communities: [
+      { name: 'Conversion Optimizers', members: [{ id: 'b2b-ceo' }, { id: 'b2b-client-delivery-manager' }] },
+      { name: 'Other', members: [{ id: 'outside-lead' }] },
+    ],
+    workflows: [
+      {
+        id: 'b2b-kickoff',
+        owner: 'b2b-ceo',
+        targeting: {
+          groups: ['b2b-Leadership'],
+          agents: ['b2b-ceo', 'b2b-client-delivery-manager'],
+          teamIds: [],
+        },
+      },
+    ],
+  })
+
+  assert(plan.agentIds.includes('b2b-ceo'), 'Expected workflow owner to be included in delete plan')
+  assert(plan.agentIds.includes('b2b-client-delivery-manager'), 'Expected targeted group member to be included in delete plan')
+  assert(!plan.agentIds.includes('outside-lead'), 'Did not expect unrelated agents in delete plan')
+  assert(plan.workflowIds.includes('b2b-kickoff'), 'Expected matching workflow in delete plan')
+  assert(plan.groupNames.includes('b2b-Leadership'), 'Expected matching prefixed group in delete plan')
+  assert(plan.communityNames.includes('Conversion Optimizers'), 'Expected matching community in delete plan')
 })
 
 console.log('\n========================================')

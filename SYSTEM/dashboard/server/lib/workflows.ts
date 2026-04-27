@@ -970,7 +970,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
     }
 
     // Validate cron expression if provided (semantic check beyond schema)
-    if (data.schedule) {
+    if (data.schedule && data.schedule !== 'manual' && data.schedule !== 'once') {
       const cronValidation = validateCron(data.schedule)
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
@@ -1370,11 +1370,13 @@ export function triggerWorkflow(workflowId: string, options?: {
         }
         const summary = ref.summary ? `summary: ${ref.summary}` : undefined
         const artifact = ref.artifactPath ? `artifact: ${ref.artifactPath}` : undefined
-        const value = typeof ref.value === 'string'
-          ? `value: ${ref.value}`
-          : (ref.value !== undefined ? `value: ${JSON.stringify(ref.value)}` : undefined)
+        const valueSummary = typeof ref.value === 'string'
+          ? summarizeWorkflowOutputValue(ref.value, 140)
+          : (ref.value !== undefined ? summarizeWorkflowOutputValue(JSON.stringify(ref.value), 140) : undefined)
+        const value = valueSummary ? `value-summary: ${valueSummary}` : undefined
         runtimeContextLines.push(`- ${ref.label}: ${[summary, artifact, value].filter(Boolean).join(' | ')}`)
       }
+      runtimeContextLines.push('- Use the upstream artifact path or summary as the source of truth; do not restate the full upstream document unless necessary.')
     }
     const resolvedPathInputs = Object.entries(executionInputs)
       .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))

@@ -31,19 +31,33 @@ interface WizardGroup {
   tags?: string[]
 }
 
+interface WizardTeam {
+  id: string
+  name: string
+  purpose?: string
+  leaderAgentId?: string
+  memberAgentIds: string[]
+  parentTeamId?: string
+  tags?: string[]
+}
+
 interface WizardWorkflow {
   id: string
   name: string
   description: string
   schedule: string
   executionMode: 'automated' | 'managed'
+  owner?: string
   scaling?: 'singleton' | 'parallel'
   parallelism?: number
   targetAgents: string[]
+  targetTeamIds?: string[]
   targetCommunities?: string[]
   targetGroups?: string[]
   tags?: string[]
   dependsOn?: string[]
+  outputDefinitions?: Array<{ key: string; label?: string; type?: string; help?: string }>
+  inputRefs?: Array<{ workflowId: string; outputKey: string; label?: string; required?: boolean }>
   content: string
 }
 
@@ -75,6 +89,7 @@ interface WizardState {
   // Step 3: Communication
   communities: WizardCommunity[]
   groups: WizardGroup[]
+  teams: WizardTeam[]
 
   // Step 4: Workflows
   workflows: WizardWorkflow[]
@@ -133,6 +148,7 @@ const INITIAL_STATE: WizardState = {
   agents: [],
   communities: [],
   groups: [],
+  teams: [],
   workflows: [],
   parameters: [],
   description: '',
@@ -472,19 +488,32 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         community: g.community || '',
         tags: g.tags || [],
       })),
+      teams: (initialTemplate.teams || []).map((team: any) => ({
+        id: team.id,
+        name: team.name || team.id,
+        purpose: team.purpose || '',
+        leaderAgentId: team.leaderAgentId || '',
+        memberAgentIds: team.memberAgentIds || [],
+        parentTeamId: team.parentTeamId || '',
+        tags: team.tags || [],
+      })),
       workflows: (initialTemplate.workflows || []).map((w: any) => ({
         id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
         name: w.name || '',
         description: w.description || '',
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
+        owner: w.owner || '',
         scaling: w.scaling || undefined,
         parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
         targetAgents: w.targeting?.agents || [],
+        targetTeamIds: w.targeting?.teamIds || [],
         targetCommunities: w.targeting?.communities || [],
         targetGroups: w.targeting?.groups || [],
         tags: w.targeting?.tags || [],
         dependsOn: w.dependsOn || [],
+        outputDefinitions: w.outputDefinitions || [],
+        inputRefs: w.inputRefs || [],
         content: w.content || '',
       })),
       parameters: (initialTemplate.parameters || []).map((p: any) => ({
@@ -544,13 +573,17 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             description: w.description || '',
             schedule: w.schedule || 'manual',
             executionMode: w.executionMode || 'managed',
+            owner: w.owner || '',
             scaling: w.scaling || undefined,
             parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
             targetAgents: w.targeting?.agents || [],
+            targetTeamIds: w.targeting?.teamIds || [],
             targetCommunities: w.targeting?.communities || [],
             targetGroups: w.targeting?.groups || [],
             tags: w.targeting?.tags || [],
             dependsOn: w.dependsOn || [],
+            outputDefinitions: w.outputDefinitions || [],
+            inputRefs: w.inputRefs || [],
             content: mergedContent,
           }
         })
@@ -581,6 +614,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             description: g.description || '',
             community: g.community || (t.communities?.[0]?.name || ''),
             tags: g.tags || [],
+          })),
+          teams: (t.teams || []).map((team: any) => ({
+            id: team.id,
+            name: team.name || team.id,
+            purpose: team.purpose || '',
+            leaderAgentId: team.leaderAgentId || '',
+            memberAgentIds: team.memberAgentIds || [],
+            parentTeamId: team.parentTeamId || '',
+            tags: team.tags || [],
           })),
           workflows: mergedWorkflows,
           parameters: (t.parameters || []).map((p: any) => ({
@@ -651,6 +693,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         community: g.community || undefined,
         tags: g.tags,
       })) : undefined,
+      teams: state.teams.length > 0 ? state.teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        purpose: team.purpose || undefined,
+        leaderAgentId: team.leaderAgentId || undefined,
+        memberAgentIds: team.memberAgentIds || [],
+        parentTeamId: team.parentTeamId || undefined,
+        tags: team.tags || [],
+      })) : undefined,
       workflows: state.workflows.length > 0 ? state.workflows.map(w => ({
         id: w.id,
         name: w.name,
@@ -658,6 +709,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule,
         enabled: true,
         executionMode: w.executionMode,
+        owner: w.owner || undefined,
         scaling: w.scaling,
         parallelism: w.parallelism,
         targeting: {
@@ -665,8 +717,11 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           groups: w.targetGroups || [],
           tags: w.tags || [],
           agents: w.targetAgents,
+          teamIds: w.targetTeamIds || [],
         },
         dependsOn: w.dependsOn,
+        outputDefinitions: w.outputDefinitions && w.outputDefinitions.length > 0 ? w.outputDefinitions : undefined,
+        inputRefs: w.inputRefs && w.inputRefs.length > 0 ? w.inputRefs : undefined,
         content: w.content,
       })) : undefined,
     }
@@ -1628,6 +1683,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     const agentCount = template.agents?.length || 0
     const communityCount = template.communities?.length || 0
     const groupCount = template.groups?.length || 0
+    const teamCount = template.teams?.length || 0
     const workflowCount = template.workflows?.length || 0
 
     return (
@@ -1655,6 +1711,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     })),
                     groups: (parsed.groups || []).map((g: any) => ({
                       name: g.name, description: g.description || '', community: g.community || '', tags: g.tags || [],
+                    })),
+                    teams: (parsed.teams || []).map((team: any) => ({
+                      id: team.id,
+                      name: team.name || team.id,
+                      purpose: team.purpose || '',
+                      leaderAgentId: team.leaderAgentId || '',
+                      memberAgentIds: team.memberAgentIds || [],
+                      parentTeamId: team.parentTeamId || '',
+                      tags: team.tags || [],
                     })),
                   })
                   setEditingJson(false)
@@ -1691,6 +1756,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 <span>{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
                 <span>{communityCount} communit{communityCount !== 1 ? 'ies' : 'y'}</span>
                 <span>{groupCount} group{groupCount !== 1 ? 's' : ''}</span>
+                <span>{teamCount} team{teamCount !== 1 ? 's' : ''}</span>
                 <span>{workflowCount} workflow{workflowCount !== 1 ? 's' : ''}</span>
               </div>
               {state.tags.length > 0 && (

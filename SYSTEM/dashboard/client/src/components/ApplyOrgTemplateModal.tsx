@@ -600,7 +600,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
     const getDepth = (teamId?: string) => {
       let depth = 0
       let currentId = teamId
+      const visited = new Set<string>()
       while (currentId) {
+        if (visited.has(currentId)) break
+        visited.add(currentId)
         const current = teamsById.get(currentId)
         if (!current?.parentTeamId) break
         depth += 1
@@ -1059,7 +1062,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {groupedAgents.groups.map(({ team, members }) => {
                     let depth = 0
                     let parentId = team.parentTeamId
+                    const visited = new Set<string>()
                     while (parentId) {
+                      if (visited.has(parentId)) break
+                      visited.add(parentId)
                       depth += 1
                       parentId = teamsById.get(parentId)?.parentTeamId
                     }
