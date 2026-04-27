@@ -620,7 +620,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-    <div className="min-h-9 flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700 md:h-9 md:px-5 md:py-0">
+    <div className="min-h-9 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-12 md:px-5 md:py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -644,7 +644,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           </span>
         )}
         <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
-          <span className="font-mono text-gray-400 dark:text-gray-500 hidden sm:inline">{system?.hostname}</span>
+          <span className="hidden max-w-[14rem] truncate whitespace-nowrap font-mono text-gray-400 dark:text-gray-500 sm:inline">{system?.hostname}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>

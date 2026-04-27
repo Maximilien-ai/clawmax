@@ -598,6 +598,36 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workspace dashboard library unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboards.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-dashboards.out; then
+  workspace_dashboards_count=$(grep "Tests passed:" /tmp/clawmax-workspace-dashboards.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace dashboard library unit tests (${workspace_dashboards_count:-?} tests)"
+else
+  fail "Workspace dashboard library unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workspace dashboard route helper unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboard-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-dashboard-routes.out; then
+  workspace_dashboard_routes_count=$(grep "Tests passed:" /tmp/clawmax-workspace-dashboard-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace dashboard route helper unit tests (${workspace_dashboard_routes_count:-?} tests)"
+else
+  fail "Workspace dashboard route helper unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running AI generator unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-generator.test.ts > /tmp/clawmax-ai-generator.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-generator.out; then
+  ai_generator_count=$(grep "Tests passed:" /tmp/clawmax-ai-generator.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI generator unit tests (${ai_generator_count:-?} tests)"
+else
+  fail "AI generator unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace delete-agent unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-delete-agent.test.ts > /tmp/clawmax-workspace-delete-agent.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-delete-agent.out; then
