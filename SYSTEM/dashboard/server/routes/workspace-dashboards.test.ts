@@ -12,6 +12,7 @@ import {
   extractParticipantResponses,
   extractProjectConfigurationLines,
   extractWorkspaceFilePaths,
+  inferWorkspaceDashboardCompanies,
   normalizeResultArtifacts,
   summarizeSentence,
 } from './workspace-dashboards'
@@ -125,6 +126,29 @@ test('summarizeSentence truncates long text cleanly', () => {
   const summary = summarizeSentence('a'.repeat(300), 50)
   assert(summary.length <= 50, `Expected summary length <= 50, got ${summary.length}`)
   assert(summary.endsWith('…'), 'Expected truncated summary to end with ellipsis')
+})
+
+test('inferWorkspaceDashboardCompanies returns workspace, team, and prefix focus options', () => {
+  const companies = inferWorkspaceDashboardCompanies({
+    teams: [
+      {
+        id: 'build-a-company-hackathon-org',
+        name: 'Build-a-Company Hackathon Org',
+        memberAgentIds: [],
+        tags: ['company-root'],
+        createdAt: '2026-04-26T00:00:00.000Z',
+        updatedAt: '2026-04-26T00:00:00.000Z',
+      },
+    ] as any,
+    workflows: [
+      { name: 'Build-a-Company Hack Test · Leadership Kickoff' },
+      { name: 'b2b · Project Kickoff' },
+    ],
+  })
+
+  assert(companies[0].kind === 'workspace', 'Expected workspace option first')
+  assert(companies.some((company) => company.kind === 'team' && company.value === 'build-a-company-hackathon-org'), 'Expected team-backed company option')
+  assert(companies.some((company) => company.kind === 'prefix' && company.value === 'b2b'), 'Expected derived prefix company option')
 })
 
 console.log('\n========================================')

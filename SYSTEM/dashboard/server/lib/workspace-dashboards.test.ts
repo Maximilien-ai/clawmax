@@ -83,6 +83,8 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
   })
   assert(dashboard.title === 'Marketing Summary', 'Expected title to persist')
   assert(dashboard.displayMode === 'standard', 'Expected default display mode')
+  assert(dashboard.companyFocusKind === 'workspace', 'Expected default workspace company focus')
+  assert(dashboard.companyFocusValue === null, 'Expected default focus value to be null')
   assert(dashboard.sections.overview === true, 'Expected default overview section')
   assert(dashboard.sections.groupChats === true, 'Expected default group chats section')
   assert(dashboard.createdBy === 'tester', 'Expected createdBy to persist')
@@ -93,9 +95,15 @@ test('createWorkspaceDashboard merges provided section overrides', () => {
   const dashboard = createWorkspaceDashboard('workspace-a', {
     title: 'Limited Summary',
     displayMode: 'compact',
+    companyFocusKind: 'team',
+    companyFocusValue: 'b2b-root',
+    companyFocusLabel: 'B2B Company',
     sections: { costs: false, kickoff: false },
   })
   assert(dashboard.displayMode === 'compact', 'Expected compact display mode')
+  assert(dashboard.companyFocusKind === 'team', 'Expected team focus kind')
+  assert(dashboard.companyFocusValue === 'b2b-root', 'Expected company focus value')
+  assert(dashboard.companyFocusLabel === 'B2B Company', 'Expected company focus label')
   assert(dashboard.sections.costs === false, 'Expected costs section to be disabled')
   assert(dashboard.sections.kickoff === false, 'Expected kickoff section to be disabled')
   assert(dashboard.sections.results === true, 'Expected unspecified sections to stay enabled')
@@ -113,11 +121,17 @@ test('updateWorkspaceDashboard updates metadata and sections', () => {
     title: 'Updated',
     description: 'Sharable summary',
     displayMode: 'detail',
+    companyFocusKind: 'prefix',
+    companyFocusValue: 'b2b',
+    companyFocusLabel: 'B2B',
     sections: { notifications: false },
   })
   assert(updated?.title === 'Updated', 'Expected title update')
   assert(updated?.description === 'Sharable summary', 'Expected description update')
   assert(updated?.displayMode === 'detail', 'Expected display mode update')
+  assert(updated?.companyFocusKind === 'prefix', 'Expected company focus kind update')
+  assert(updated?.companyFocusValue === 'b2b', 'Expected company focus value update')
+  assert(updated?.companyFocusLabel === 'B2B', 'Expected company focus label update')
   assert(updated?.sections.notifications === false, 'Expected sections update')
 })
 

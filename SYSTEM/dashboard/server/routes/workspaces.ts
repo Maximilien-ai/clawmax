@@ -10,8 +10,11 @@ import {
   regenerateWorkspaceDashboardToken,
   updateWorkspaceDashboard,
 } from '../lib/workspace-dashboards'
+import { inferWorkspaceDashboardCompanies } from './workspace-dashboards'
 import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName } from '../lib/workspace-export'
 import { importWorkspaceFromZipArchive } from '../lib/workspace-import'
+import { listTeams } from '../lib/teams'
+import { listWorkflows } from '../lib/workflows'
 import fs from 'fs'
 import os from 'os'
 
@@ -224,6 +227,25 @@ router.get('/:id/dashboards', (req, res) => {
   }
 })
 
+// GET /api/workspaces/:id/dashboards/context - dashboard creation context
+router.get('/:id/dashboards/context', async (req, res) => {
+  try {
+    const { id } = req.params
+    const workspace = workspaceManager.getWorkspace(id)
+    if (!workspace) {
+      return res.status(404).json({ error: `Workspace '${id}' not found` })
+    }
+    const companies = await workspaceManager.withWorkspace(id, async () => inferWorkspaceDashboardCompanies({
+      teams: listTeams(),
+      workflows: listWorkflows(),
+    }))
+    res.json({ companies })
+  } catch (err: any) {
+    console.error('Error building workspace dashboard context:', err)
+    res.status(500).json({ error: err.message || 'Failed to build workspace dashboard context' })
+  }
+})
+
 // POST /api/workspaces/:id/dashboards - create workspace summary dashboard link
 router.post('/:id/dashboards', (req, res) => {
   try {
@@ -233,7 +255,7 @@ router.post('/:id/dashboards', (req, res) => {
       return res.status(404).json({ error: `Workspace '${id}' not found` })
     }
 
-    const { title, description, displayMode, sections, sectionOrder, compactColumns, createdBy } = req.body || {}
+    const { title, description, displayMode, companyFocusKind, companyFocusValue, companyFocusLabel, sections, sectionOrder, compactColumns, createdBy } = req.body || {}
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'title is required' })
     }
@@ -242,6 +264,9 @@ router.post('/:id/dashboards', (req, res) => {
       title,
       description: typeof description === 'string' ? description : null,
       displayMode: displayMode === 'compact' || displayMode === 'detail' ? displayMode : 'standard',
+      companyFocusKind: companyFocusKind === 'team' || companyFocusKind === 'prefix' ? companyFocusKind : 'workspace',
+      companyFocusValue: typeof companyFocusValue === 'string' ? companyFocusValue : null,
+      companyFocusLabel: typeof companyFocusLabel === 'string' ? companyFocusLabel : null,
       sections: sections && typeof sections === 'object' ? sections : undefined,
       sectionOrder: Array.isArray(sectionOrder) ? sectionOrder : undefined,
       compactColumns: compactColumns && typeof compactColumns === 'object' ? compactColumns : undefined,
@@ -267,6 +292,11 @@ router.patch('/:id/dashboards/:dashboardId', (req, res) => {
       title: typeof req.body?.title === 'string' ? req.body.title : undefined,
       description: req.body?.description,
       displayMode: req.body?.displayMode === 'compact' || req.body?.displayMode === 'detail' ? req.body.displayMode : req.body?.displayMode === 'standard' ? 'standard' : undefined,
+      companyFocusKind: req.body?.companyFocusKind === 'team' || req.body?.companyFocusKind === 'prefix' || req.body?.companyFocusKind === 'workspace'
+        ? req.body.companyFocusKind
+        : undefined,
+      companyFocusValue: typeof req.body?.companyFocusValue === 'string' ? req.body.companyFocusValue : req.body?.companyFocusValue === null ? null : undefined,
+      companyFocusLabel: typeof req.body?.companyFocusLabel === 'string' ? req.body.companyFocusLabel : req.body?.companyFocusLabel === null ? null : undefined,
       sections: req.body?.sections,
       sectionOrder: Array.isArray(req.body?.sectionOrder) ? req.body.sectionOrder : undefined,
       compactColumns: req.body?.compactColumns && typeof req.body.compactColumns === 'object' ? req.body.compactColumns : undefined,

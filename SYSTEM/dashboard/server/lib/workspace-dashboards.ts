@@ -44,6 +44,9 @@ export interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  companyFocusKind: 'workspace' | 'team' | 'prefix'
+  companyFocusValue: string | null
+  companyFocusLabel: string | null
   displayMode: WorkspaceDashboardDisplayMode
   sections: WorkspaceDashboardSections
   sectionOrder: WorkspaceDashboardSectionKey[]
@@ -118,6 +121,9 @@ export function createWorkspaceDashboard(
     title: string
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
+    companyFocusKind?: 'workspace' | 'team' | 'prefix'
+    companyFocusValue?: string | null
+    companyFocusLabel?: string | null
     sections?: Partial<WorkspaceDashboardSections>
     sectionOrder?: WorkspaceDashboardSectionKey[]
     compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
@@ -131,6 +137,9 @@ export function createWorkspaceDashboard(
     title: input.title.trim(),
     description: input.description?.trim() || null,
     token: generateToken(),
+    companyFocusKind: input.companyFocusKind || 'workspace',
+    companyFocusValue: input.companyFocusValue?.trim() || null,
+    companyFocusLabel: input.companyFocusLabel?.trim() || null,
     displayMode: input.displayMode || 'standard',
     sections: { ...DEFAULT_SECTIONS, ...(input.sections || {}) },
     sectionOrder: Array.isArray(input.sectionOrder) && input.sectionOrder.length > 0 ? input.sectionOrder : [...DEFAULT_SECTION_ORDER],
@@ -172,6 +181,9 @@ export function updateWorkspaceDashboard(
     title?: string
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
+    companyFocusKind?: 'workspace' | 'team' | 'prefix'
+    companyFocusValue?: string | null
+    companyFocusLabel?: string | null
     sections?: Partial<WorkspaceDashboardSections>
     sectionOrder?: WorkspaceDashboardSectionKey[]
     compactColumns?: Partial<Record<WorkspaceDashboardSectionKey, WorkspaceDashboardCompactColumn>>
@@ -189,6 +201,15 @@ export function updateWorkspaceDashboard(
   }
   if (updates.displayMode) {
     dashboard.displayMode = updates.displayMode
+  }
+  if (updates.companyFocusKind) {
+    dashboard.companyFocusKind = updates.companyFocusKind
+  }
+  if (updates.companyFocusValue !== undefined) {
+    dashboard.companyFocusValue = updates.companyFocusValue?.trim() || null
+  }
+  if (updates.companyFocusLabel !== undefined) {
+    dashboard.companyFocusLabel = updates.companyFocusLabel?.trim() || null
   }
   if (updates.sections) {
     dashboard.sections = { ...dashboard.sections, ...updates.sections }

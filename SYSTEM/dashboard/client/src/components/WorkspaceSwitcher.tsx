@@ -10,6 +10,9 @@ interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  companyFocusKind: 'workspace' | 'team' | 'prefix'
+  companyFocusValue: string | null
+  companyFocusLabel: string | null
   displayMode: 'standard' | 'compact' | 'detail'
   sections: {
     overview: boolean
@@ -26,6 +29,12 @@ interface WorkspaceDashboard {
   createdBy: string | null
   createdAt: string
   updatedAt: string
+}
+
+interface WorkspaceDashboardCompanyOption {
+  kind: 'workspace' | 'team' | 'prefix'
+  value: string | null
+  label: string
 }
 
 const DEFAULT_SECTION_ORDER: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'> = [
@@ -77,6 +86,8 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const [dashboardTitle, setDashboardTitle] = useState('')
   const [dashboardDescription, setDashboardDescription] = useState('')
   const [dashboardDisplayMode, setDashboardDisplayMode] = useState<'standard' | 'compact' | 'detail'>('standard')
+  const [dashboardCompanies, setDashboardCompanies] = useState<WorkspaceDashboardCompanyOption[]>([{ kind: 'workspace', value: null, label: 'Whole workspace' }])
+  const [dashboardCompanySelection, setDashboardCompanySelection] = useState('workspace:')
   const [dashboardSections, setDashboardSections] = useState({
     overview: true,
     costs: true,
@@ -101,11 +112,23 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       setDashboards(nextDashboards)
   }
 
+  const loadDashboardContext = async (workspaceId: string) => {
+    const res = await fetch(`/api/workspaces/${workspaceId}/dashboards/context`)
+    const data = await res.json()
+    const nextCompanies = Array.isArray(data.companies) && data.companies.length > 0
+      ? data.companies
+      : [{ kind: 'workspace', value: null, label: 'Whole workspace' }]
+    setDashboardCompanies(nextCompanies)
+    setDashboardCompanySelection('workspace:')
+  }
+
   const openDashboardManager = async (workspace: Workspace) => {
     setDashboardWorkspace(workspace)
     setDashboardTitle(`${workspace.name} Summary`)
     setDashboardDescription('')
     setDashboardDisplayMode('standard')
+    setDashboardCompanies([{ kind: 'workspace', value: null, label: 'Whole workspace' }])
+    setDashboardCompanySelection('workspace:')
     setDashboardSections({
       overview: true,
       costs: true,
@@ -120,6 +143,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS })
     try {
       await loadDashboards(workspace.id)
+      await loadDashboardContext(workspace.id)
     } catch (err) {
       showError('Failed to load workspace dashboards')
     }
@@ -139,6 +163,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
   const createDashboard = async () => {
     if (!dashboardWorkspace || !dashboardTitle.trim()) return
+    const selectedCompany = dashboardCompanies.find((option) => `${option.kind}:${option.value || ''}` === dashboardCompanySelection)
     try {
       const res = await fetch(`/api/workspaces/${dashboardWorkspace.id}/dashboards`, {
         method: 'POST',
@@ -147,6 +172,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           title: dashboardTitle.trim(),
           description: dashboardDescription.trim() || null,
           displayMode: dashboardDisplayMode,
+          companyFocusKind: selectedCompany?.kind || 'workspace',
+          companyFocusValue: selectedCompany?.value || null,
+          companyFocusLabel: selectedCompany?.label || null,
           sections: dashboardSections,
           sectionOrder: dashboardSectionOrder,
           compactColumns: dashboardCompactColumns,
@@ -381,16 +409,18 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       {/* Current workspace button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 transition-colors text-sm font-medium dark:bg-gray-800"
-        title="Switch workspace"
+        className="flex min-w-0 max-w-[18rem] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
+        title={activeWorkspace.name || 'Switch workspace'}
       >
         <div
-          className="w-2 h-2 rounded-full"
+          className="h-2 w-2 shrink-0 rounded-full"
           style={{ backgroundColor: activeWorkspace.color || '#3B82F6' }}
         />
-        <span className="text-gray-800 dark:text-gray-200">{activeWorkspace.name}</span>
+        <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-gray-800 dark:text-gray-200">
+          {activeWorkspace.name}
+        </span>
         <svg
-          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -401,7 +431,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700">
+        <div className="absolute top-full left-0 mt-1 w-[22rem] max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700">
           <div className="px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
             Drag to reorder
           </div>
@@ -442,21 +472,28 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       }
                       setIsOpen(false)
                     }}
-                    className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
                   >
                     <div
-                      className="w-3 h-3 rounded-full shrink-0"
+                      className="mt-1 h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: workspace.color || '#3B82F6' }}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-medium text-sm ${
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <span
+                          className={`min-w-0 flex-1 overflow-hidden font-medium text-sm leading-tight ${
                           workspace.id === activeWorkspace.id ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
-                        }`}>
+                        }`}
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                        >
                           {workspace.name}
                         </span>
                         {workspace.id === activeWorkspace.id && (
-                          <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                             <path
                               fillRule="evenodd"
                               d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -465,79 +502,67 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           </svg>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {workspace.tags && workspace.tags.length > 0 && (
-                          <div className="flex gap-1">
-                            {workspace.tags.slice(0, 2).map((tag) => (
-                              <span
-                                key={tag}
-                                className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                      <div className="mt-0.5 text-xs text-gray-500">
                         {workspace.agentCount !== undefined && (
-                          <span className="text-xs text-gray-500">
+                          <span>
                             {workspace.agentCount} agent{workspace.agentCount !== 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
                     </div>
                   </button>
-                  <div className="ml-2 flex shrink-0 items-center gap-1 self-start opacity-70 transition-opacity group-hover:opacity-100">
-                  {/* Edit button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditingWorkspace(workspace)
-                      setIsOpen(false)
-                    }}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-all"
-                    title="Edit workspace"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      exportWorkspace(workspace)
-                    }}
-                    className="p-1 text-gray-500 hover:bg-gray-100 hover:text-emerald-500 dark:hover:bg-gray-700 rounded transition-all"
-                    title="Export workspace"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4m-5 8h18" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openDashboardManager(workspace)
-                    }}
-                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-all"
-                    title="Manage workspace dashboard"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13h8V3H3v10zm10 8h8v-6h-8v6zm0-18v8h8V3h-8zM3 21h8v-6H3v6z" />
-                    </svg>
-                  </button>
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteClick(workspace)
-                    }}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded transition-all"
-                    title="Delete workspace"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <div className="ml-2 flex shrink-0 flex-col items-end gap-1 self-stretch opacity-70 transition-opacity group-hover:opacity-100">
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingWorkspace(workspace)
+                          setIsOpen(false)
+                        }}
+                        className="rounded p-1 text-blue-600 transition-all hover:bg-blue-50"
+                        title="Edit workspace"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          exportWorkspace(workspace)
+                        }}
+                        className="rounded p-1 text-gray-500 transition-all hover:bg-gray-100 hover:text-emerald-500 dark:hover:bg-gray-700"
+                        title="Export workspace"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4m-5 8h18" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDashboardManager(workspace)
+                        }}
+                        className="rounded p-1 text-emerald-600 transition-all hover:bg-emerald-50"
+                        title="Manage workspace dashboard"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13h8V3H3v10zm10 8h8v-6h-8v6zm0-18v8h8V3h-8zM3 21h8v-6H3v6z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteClick(workspace)
+                        }}
+                        className="rounded p-1 text-red-600 transition-all hover:bg-red-50"
+                        title="Delete workspace"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -649,6 +674,23 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     placeholder="Optional description"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                   />
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company focus</label>
+                    <select
+                      value={dashboardCompanySelection}
+                      onChange={(e) => setDashboardCompanySelection(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    >
+                      {dashboardCompanies.map((company) => (
+                        <option key={`${company.kind}:${company.value || ''}`} value={`${company.kind}:${company.value || ''}`}>
+                          {company.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Use one company per dashboard when you want focused org, workflow, and output views.
+                    </p>
+                  </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">View mode</label>
                     <select
@@ -808,6 +850,13 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{dashboard.title}</div>
                           <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            {dashboard.companyFocusKind !== 'workspace' && dashboard.companyFocusLabel && (
+                              <>
+                                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 uppercase tracking-wide text-[10px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                  {dashboard.companyFocusLabel}
+                                </span>
+                              </>
+                            )}
                             <span className="rounded-full bg-gray-100 px-1.5 py-0.5 uppercase tracking-wide text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                               {dashboard.displayMode}
                             </span>
