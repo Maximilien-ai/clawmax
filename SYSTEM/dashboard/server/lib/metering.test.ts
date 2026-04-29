@@ -4,7 +4,14 @@
  * Run with: npx ts-node --transpileOnly server/lib/metering.test.ts
  */
 
-import { aggregateWorkspaceMeteringFromTraces, buildDailyCostSeries, summarizeCostWindows, traceMatchesViewer } from './metering'
+import {
+  aggregateWorkspaceMeteringFromTraces,
+  buildDailyCostSeries,
+  recordMeteringFetchFailure,
+  resetMeteringFetchFailureStateForTests,
+  summarizeCostWindows,
+  traceMatchesViewer,
+} from './metering'
 import { estimateModelCostUsd } from './model-pricing'
 
 const GREEN = '\x1b[32m'
@@ -264,6 +271,18 @@ async function run() {
     })
 
     assert(allowed === true, 'Expected missing dashboard_instance_id to remain eligible for viewer-scoped metering')
+  })
+
+  await test('recordMeteringFetchFailure throttles repeated identical errors and reports suppression counts', () => {
+    resetMeteringFetchFailureStateForTests()
+
+    const first = recordMeteringFetchFailure('getaddrinfo ENOTFOUND www.comet.com', 1_000)
+    const second = recordMeteringFetchFailure('getaddrinfo ENOTFOUND www.comet.com', 2_000)
+    const third = recordMeteringFetchFailure('getaddrinfo ENOTFOUND www.comet.com', 63_000)
+
+    assert(first === 'getaddrinfo ENOTFOUND www.comet.com', 'Expected first failure to be reported immediately')
+    assert(second === null, 'Expected repeated failure inside cooldown window to be suppressed')
+    assert(third === 'getaddrinfo ENOTFOUND www.comet.com (suppressed 1 similar failures)', 'Expected later report to mention suppressed failures')
   })
 
   console.log('\n========================================')
