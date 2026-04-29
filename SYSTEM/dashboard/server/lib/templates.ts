@@ -117,6 +117,26 @@ function buildWorkflowDependencyAliasMap(workflows: Workflow[]): Record<string, 
   return aliasMap
 }
 
+export function summarizeImportedProjectContext(projectContext: string, maxLength = 900): string {
+  const lines = projectContext
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^##\s+/i.test(line))
+
+  const kept: string[] = []
+  for (const line of lines) {
+    const normalized = /^[-*]\s+/.test(line) ? line : `- ${line}`
+    kept.push(normalized)
+    const candidate = kept.join('\n')
+    if (candidate.length >= maxLength) break
+  }
+
+  const summary = kept.join('\n').slice(0, maxLength).trim()
+  if (!summary) return ''
+  return summary.length < kept.join('\n').trim().length ? `${summary}\n- Additional project context omitted for brevity.` : summary
+}
+
 function sanitizeImportedTemplateTeams(teams?: Team[]): Team[] | undefined {
   if (!teams || teams.length === 0) return teams
 
@@ -472,6 +492,92 @@ function snapshotExistingTemplateVersion(templateDir: string, version?: string):
   }
 }
 
+type OpenClawAgentRegistrationResult =
+  | { status: 'created' }
+  | { status: 'already-registered' }
+  | { status: 'updated-existing' }
+
+export function isOpenClawAgentAlreadyExistsError(err: unknown): boolean {
+  const anyErr = err as any
+  const text = [
+    anyErr?.message,
+    anyErr?.stdout?.toString?.(),
+    anyErr?.stderr?.toString?.(),
+    String(err || ''),
+  ].filter(Boolean).join('\n')
+  return /Agent\s+"?[^"\n]+"?\s+already exists/i.test(text)
+}
+
+function readOpenClawConfig(configPath: string): any {
+  if (!fs.existsSync(configPath)) return { agents: { list: [] } }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8') || '{}')
+    if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
+    if (!Array.isArray(parsed.agents.list)) parsed.agents.list = []
+    return parsed
+  } catch {
+    return { agents: { list: [] } }
+  }
+}
+
+export function upsertOpenClawAgentRegistration(
+  configPath: string,
+  agentId: string,
+  workspaceArg: string,
+  agentDirArg: string
+): OpenClawAgentRegistrationResult | null {
+  const config = readOpenClawConfig(configPath)
+  const existing = config.agents.list.find((agent: any) => agent?.id === agentId)
+  if (!existing) return null
+
+  const desired = {
+    ...existing,
+    id: agentId,
+    name: existing.name || agentId,
+    workspace: workspaceArg,
+    agentDir: agentDirArg,
+  }
+  const changed =
+    existing.name !== desired.name
+    || existing.workspace !== workspaceArg
+    || existing.agentDir !== agentDirArg
+
+  if (changed) {
+    Object.assign(existing, desired)
+    fs.mkdirSync(path.dirname(configPath), { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    return { status: 'updated-existing' }
+  }
+
+  return { status: 'already-registered' }
+}
+
+function ensureOpenClawAgentRegisteredForWorkspace(
+  agentId: string,
+  workspaceArg: string,
+  agentDirArg: string,
+  registrationEnv: NodeJS.ProcessEnv
+): OpenClawAgentRegistrationResult {
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+  if (existing) return existing
+
+  try {
+    execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      env: registrationEnv,
+    })
+    return { status: 'created' }
+  } catch (err) {
+    if (isOpenClawAgentAlreadyExistsError(err)) {
+      const adopted = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+      if (adopted) return adopted
+    }
+    throw err
+  }
+}
+
 function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
   agentsToCreate: Array<{ id: string; skills?: string[] }>
@@ -493,12 +599,14 @@ function runOrganizationPostImportSetup(args: {
       const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
       const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
 
-      execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        env: registrationEnv,
-      })
-      console.log(`Registered agent ${agentId} in openclaw.json`)
+      const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, registrationEnv)
+      if (registration.status === 'created') {
+        console.log(`Registered agent ${agentId} in openclaw.json`)
+      } else if (registration.status === 'updated-existing') {
+        console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
+      } else {
+        console.log(`Agent ${agentId} already registered in openclaw.json`)
+      }
 
       const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
@@ -559,7 +667,7 @@ function runOrganizationPostImportSetup(args: {
 
     const kickoffContent = workflowOverrides?.[kickoffWorkflow.id] || kickoffWorkflow.content || ''
     const configMatch = kickoffContent.match(/## (?:Project Configuration|Your Tasks|Configuration)[\s\S]*?(?=\n## |\n---|\Z)/i)
-    const projectContext = configMatch ? configMatch[0].trim() : ''
+    const projectContext = configMatch ? summarizeImportedProjectContext(configMatch[0].trim()) : ''
     if (!projectContext) return
 
     for (const agentId of createdAgents) {

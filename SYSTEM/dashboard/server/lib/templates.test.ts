@@ -14,6 +14,8 @@ import {
   validateAgentTemplateFiles,
   createOrganizationTemplate,
   readWorkspaceAgentFilesForOrganizationTemplate,
+  isOpenClawAgentAlreadyExistsError,
+  upsertOpenClawAgentRegistration,
   slugify,
   type OrganizationTemplate,
   type AgentTemplate
@@ -830,6 +832,68 @@ test('Kickoff workflows have Project Configuration section', () => {
     t.workflows?.some((w: any) => w.id.includes('kickoff') && w.content?.includes('Project Configuration'))
   )
   assert(withConfig.length >= 5, `Expected 5+ kickoffs with config section, got ${withConfig.length}`)
+})
+
+test('summarizeImportedProjectContext compacts kickoff configuration for agent identity context', () => {
+  const { summarizeImportedProjectContext } = require('./templates')
+  const raw = `## Project Configuration
+
+Customer: B2B SaaS founders focused on homepage conversion.
+Revenue target: $50k MRR in 90 days.
+Constraint: Keep delivery lean and artifact driven.
+Need strategy, ICP, lead list, proposal, and weekly revenue review.
+This sentence is intentionally long to force the summarizer to trim lower-signal context once the limit is reached.
+`
+
+  const summary = summarizeImportedProjectContext(raw, 140)
+  assert(!summary.includes('## Project Configuration'), 'Expected section heading to be removed')
+  assert(summary.includes('Customer:'), 'Expected the high-signal lines to remain')
+  assert(summary.includes('Additional project context omitted for brevity.'), 'Expected long context to be explicitly truncated')
+})
+
+test('isOpenClawAgentAlreadyExistsError detects OpenClaw duplicate-agent failures', () => {
+  const err = Object.assign(new Error('Command failed'), {
+    stderr: Buffer.from('Agent "test-ceo" already exists.\n'),
+  })
+  assert(isOpenClawAgentAlreadyExistsError(err), 'Expected duplicate-agent stderr to be detected')
+  assert(!isOpenClawAgentAlreadyExistsError(new Error('network timeout')), 'Expected unrelated errors not to match')
+})
+
+test('upsertOpenClawAgentRegistration adopts existing agent ids into active workspace', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-openclaw-registry-home-'))
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: 'test-ceo',
+          name: 'test-ceo',
+          workspace: '/old/workspace/AGENTS/test-ceo',
+          agentDir: '/old/home/.openclaw/agents/test-ceo/agent',
+          model: 'openai/gpt-4o-mini',
+          skills: ['github'],
+        },
+      ],
+    },
+  }, null, 2), 'utf-8')
+
+  const result = upsertOpenClawAgentRegistration(
+    configPath,
+    'test-ceo',
+    '/new/workspace/AGENTS/test-ceo',
+    '/new/home/.openclaw/agents/test-ceo/agent'
+  )
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const agent = config.agents.list.find((entry: any) => entry.id === 'test-ceo')
+
+  assert(result?.status === 'updated-existing', `Expected existing registration to be updated, got ${result?.status || 'missing'}`)
+  assert(agent.workspace === '/new/workspace/AGENTS/test-ceo', 'Expected workspace path to be updated')
+  assert(agent.agentDir === '/new/home/.openclaw/agents/test-ceo/agent', 'Expected agentDir path to be updated')
+  assert(agent.model === 'openai/gpt-4o-mini', 'Expected model metadata to be preserved')
+  assert(JSON.stringify(agent.skills) === JSON.stringify(['github']), 'Expected skills metadata to be preserved')
+
+  fs.rmSync(home, { recursive: true, force: true })
 })
 
 // ============================================================================
