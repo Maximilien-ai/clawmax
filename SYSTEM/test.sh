@@ -628,6 +628,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Build-a-Company demo smoke tests...${NC}"
+npx ts-node --transpileOnly server/lib/build-company-demo-smoke.test.ts > /tmp/clawmax-build-company-demo-smoke.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-build-company-demo-smoke.out; then
+  build_company_demo_smoke_count=$(grep "Tests passed:" /tmp/clawmax-build-company-demo-smoke.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Build-a-Company demo smoke tests (${build_company_demo_smoke_count:-?} tests)"
+else
+  fail "Build-a-Company demo smoke tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace delete-agent unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-delete-agent.test.ts > /tmp/clawmax-workspace-delete-agent.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-delete-agent.out; then

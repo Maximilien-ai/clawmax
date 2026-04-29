@@ -262,6 +262,7 @@ test('applyCompanyWorkflowExecutionDefaults routes company workflows to one team
   assert.deepStrictEqual(workflows[0].targeting.communities, [])
   assert.deepStrictEqual(workflows[0].targeting.groups, [])
   assert.deepStrictEqual(workflows[0].targeting.agents, ['b2b-ceo'])
+  assert.deepStrictEqual(workflows[0].targeting.tags, [])
   assert(workflows[0].content.includes('company brief'), 'Expected compact kickoff content to include brief guidance')
   assert(workflows[1].content.includes('latest approved markdown handoff'), 'Expected downstream workflow to consume prior handoff')
 })
@@ -286,6 +287,7 @@ test('applyCompanyWorkflowExecutionDefaults prefers owner over broad explicit ag
   assert.deepStrictEqual(workflows[0].targeting.agents, ['b2b-ceo'])
   assert.deepStrictEqual(workflows[0].targeting.groups, [])
   assert.deepStrictEqual(workflows[0].targeting.communities, [])
+  assert.deepStrictEqual(workflows[0].targeting.tags, [])
 })
 
 test('ensureGeneratedCompanyRoot adds one explicit root above leadership', () => {

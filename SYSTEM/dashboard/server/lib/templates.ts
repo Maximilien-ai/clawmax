@@ -2371,6 +2371,28 @@ export function importOrganizationTemplate(
         },
         dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || legacyWorkflowIdMap[dependencyId] || dependencyId),
       }))
+
+      if ((adjustedTemplate.teams || []).length > 0) {
+        adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => {
+          const hasPreciseExecutionTarget =
+            Boolean(`${(workflow as any).owner || ''}`.trim()) ||
+            (workflow.targeting?.agents || []).length > 0 ||
+            (workflow.targeting?.teamIds || []).length > 0
+
+          if (!hasPreciseExecutionTarget) return workflow
+
+          return {
+            ...workflow,
+            targeting: {
+              ...workflow.targeting,
+              // Tags are broad execution selectors. Company workflows with an
+              // owner, direct agent, or team target should not fan back out to
+              // every agent that shares a category tag.
+              tags: [],
+            },
+          }
+        })
+      }
     }
 
     // Validate template

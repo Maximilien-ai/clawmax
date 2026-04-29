@@ -450,7 +450,10 @@ export function applyCompanyWorkflowExecutionDefaults(
         groups: [],
         agents: agentTargets,
         teamIds: matchedTeam?.id ? [matchedTeam.id] : (Array.isArray(workflow.targeting?.teamIds) ? workflow.targeting.teamIds : []),
-        tags: Array.isArray(workflow.targeting?.tags) ? workflow.targeting.tags : [],
+        // In company templates, tags are categorization metadata in the AI output.
+        // Keeping them as execution targets fans a one-owner workflow back out to
+        // every similarly tagged agent.
+        tags: [],
       },
       content: compactInstructions.join('\n'),
     }
