@@ -4,7 +4,7 @@ import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { safeEnv, userExecutionEnv } from './safe-env'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
@@ -239,6 +239,36 @@ function summarizeWorkflowOutputValue(raw: string, maxLength = 220): string | un
   return singleLine.length > maxLength ? `${singleLine.slice(0, maxLength - 1)}…` : singleLine
 }
 
+export function compactWorkflowExecutionContent(content: string, maxLength = 2200): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= maxLength) return trimmed
+
+  const lines = trimmed
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  const priorityLines = lines.filter((line) =>
+    /^#{1,3}\s+/.test(line)
+    || /^[-*]\s+/.test(line)
+    || /^(objective|objectives|goal|goals|deliverable|deliverables|output|outputs|input|inputs|constraints?|success criteria|definition of done|next actions?)\b/i.test(line)
+  )
+  const fallbackLines = lines.filter((line) => !priorityLines.includes(line))
+  const ordered = [...priorityLines, ...fallbackLines]
+
+  const kept: string[] = []
+  for (const line of ordered) {
+    const candidate = [...kept, line].join('\n')
+    if (candidate.length > maxLength) break
+    kept.push(line)
+  }
+
+  const compacted = kept.join('\n').trim()
+  return compacted.length < trimmed.length
+    ? `${compacted}\n\n[Workflow instructions truncated for brevity. Focus on the highest-signal goals, inputs, deliverables, and constraints above.]`
+    : compacted
+}
+
 export function deriveWorkflowExecutionOutputs(
   workflow: Pick<Workflow, 'outputDefinitions' | 'owner'>,
   participants: Array<Pick<WorkflowExecutionParticipant, 'agentId'> & { response?: string }>,
@@ -386,6 +416,9 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
+    if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(line)) {
+      return line
+    }
     if (/^LLM request rejected:/i.test(line)) {
       return line
     }
@@ -412,6 +445,9 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
+  }
+  if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(reportedFailure)) {
+    return `Model provider rejected the request before generation. Raw error: ${reportedFailure}`
   }
   if (/^No execution path configured\b/i.test(reportedFailure) || /^No API keys available\b/i.test(reportedFailure)) {
     return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
@@ -451,7 +487,131 @@ export function summarizeGitHubResultLink(link: string): string {
 }
 
 export function buildWorkflowSessionId(executionId: string, agentId: string): string {
-  return `workflow-${executionId}-${agentId}`
+  const normalizedExecutionId = `${executionId || ''}`.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const normalizedAgentId = `${agentId || ''}`.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const hash = createHash('sha1')
+    .update(`${normalizedExecutionId}:${normalizedAgentId}`)
+    .digest('hex')
+    .slice(0, 10)
+  const agentTail = normalizedAgentId.slice(-18) || 'agent'
+  return `wf-${hash}-${agentTail}`.slice(0, 48)
+}
+
+function resolveAgentSessionsDir(agentId: string, home: string): string {
+  return path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+}
+
+function resolveSessionFileFromEntry(sessionsDir: string, sessionFile: string): string | undefined {
+  const trimmed = sessionFile.trim()
+  if (!trimmed) return undefined
+  const resolved = path.resolve(path.isAbsolute(trimmed) ? trimmed : path.join(sessionsDir, trimmed))
+  const base = path.resolve(sessionsDir)
+  const relative = path.relative(base, resolved)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return undefined
+  return resolved
+}
+
+function readSessionHeaderId(sessionFile: string): string | undefined {
+  try {
+    if (!fs.existsSync(sessionFile)) return undefined
+    const fd = fs.openSync(sessionFile, 'r')
+    try {
+      const buffer = Buffer.alloc(8192)
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0)
+      const firstLine = buffer.subarray(0, bytesRead).toString('utf-8').split('\n')[0]
+      if (!firstLine) return undefined
+      const parsed = JSON.parse(firstLine)
+      return typeof parsed?.id === 'string' ? parsed.id : undefined
+    } finally {
+      fs.closeSync(fd)
+    }
+  } catch {
+    return undefined
+  }
+}
+
+export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home: string = process.env.HOME || ''): boolean {
+  try {
+    if (!agentId || !sessionId || !home) return false
+    const sessionsDir = resolveAgentSessionsDir(agentId, home)
+    const sessionsPath = path.join(sessionsDir, 'sessions.json')
+    if (!fs.existsSync(sessionsPath)) return false
+
+    const raw = fs.readFileSync(sessionsPath, 'utf-8')
+    const sessions = JSON.parse(raw || '{}')
+    if (!sessions || typeof sessions !== 'object' || Array.isArray(sessions)) return false
+
+    let changed = false
+    const mainSessionKey = `agent:${agentId}:main`
+    for (const [key, entry] of Object.entries(sessions) as Array<[string, Record<string, any>]>) {
+      if (!entry || typeof entry !== 'object') continue
+      if (typeof entry.sessionFile !== 'string' || !entry.sessionFile.trim()) continue
+
+      const sessionFile = resolveSessionFileFromEntry(sessionsDir, entry.sessionFile)
+      if (!sessionFile) continue
+
+      const headerId = readSessionHeaderId(sessionFile)
+      const basenameSessionId = path.basename(sessionFile, '.jsonl')
+      const entrySessionId = typeof entry.sessionId === 'string' ? entry.sessionId : ''
+      const workflowOwnedEntry =
+        key === mainSessionKey
+        && (/^(workflow-|wf-)/.test(entrySessionId) || /^(workflow-|wf-)/.test(headerId || basenameSessionId))
+      const shouldInspect = entrySessionId === sessionId || workflowOwnedEntry
+      if (!shouldInspect) continue
+
+      const pointsAtDifferentTranscript = headerId
+        ? headerId !== sessionId
+        : basenameSessionId !== sessionId
+
+      if (pointsAtDifferentTranscript) {
+        delete entry.sessionFile
+        changed = true
+      }
+    }
+
+    if (!changed) return false
+    fs.writeFileSync(sessionsPath, `${JSON.stringify(sessions, null, 2)}\n`, 'utf-8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function getLatestAgentSessionErrorMessage(agentId: string, home: string = process.env.HOME || ''): string | undefined {
+  try {
+    const sessionsDir = resolveAgentSessionsDir(agentId, home)
+    if (!fs.existsSync(sessionsDir)) return undefined
+
+    const files = fs.readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+      .map((entry) => {
+        const fullPath = path.join(sessionsDir, entry.name)
+        return { fullPath, mtimeMs: fs.statSync(fullPath).mtimeMs }
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+
+    for (const file of files.slice(0, 3)) {
+      const lines = fs.readFileSync(file.fullPath, 'utf-8').split('\n').filter(Boolean)
+      for (let index = lines.length - 1; index >= 0; index--) {
+        try {
+          const parsed = JSON.parse(lines[index])
+          const errorMessage = parsed?.message?.errorMessage
+          if (typeof errorMessage === 'string' && errorMessage.trim()) {
+            return errorMessage.trim()
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  return undefined
+}
+
+function enrichAgentContextOverflow(agentId: string, agentText: string): string {
+  if (!/context overflow|prompt too large/i.test(agentText)) return agentText
+  const errorMessage = getLatestAgentSessionErrorMessage(agentId)
+  if (!errorMessage || agentText.includes(errorMessage)) return agentText
+  return `${agentText.trim()}\n\nRuntime error detail: ${errorMessage.slice(0, 500)}`
 }
 
 const DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS = 10 * 60 * 1000
@@ -1392,9 +1552,10 @@ export function triggerWorkflow(workflowId: string, options?: {
         runtimeContextLines.push(`- Resolved run input ${entry.label}: raw \`${entry.raw}\` -> absolute \`${entry.resolved}\``)
       }
     }
+    const compactedWorkflowContent = compactWorkflowExecutionContent(workflow.content || 'Execute workflow')
     const executionMessage = runtimeContextLines.length > 0
-      ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
-      : (workflow.content || 'Execute workflow')
+      ? `${compactedWorkflowContent}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
+      : compactedWorkflowContent
 
     // Create execution record with participants and inputs
     const execution: WorkflowExecution = {
@@ -1509,6 +1670,7 @@ export function triggerWorkflow(workflowId: string, options?: {
             }
             const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+            repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
@@ -1559,7 +1721,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           }))
 
           const agentResult = agentResponse as any
-          const agentText = agentResult.text || ''
+          const rawAgentText = agentResult.text || ''
+          const agentText = enrichAgentContextOverflow(participant.agentId, rawAgentText)
           const agentMeta = agentResult.meta || {}
           const reportedFailure = detectParticipantReportedFailure(agentText)
 

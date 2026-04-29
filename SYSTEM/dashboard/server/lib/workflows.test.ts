@@ -27,10 +27,13 @@ import {
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
   buildWorkflowSessionId,
+  repairWorkflowSessionEntryForRun,
+  getLatestAgentSessionErrorMessage,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
   getWorkflowAgentTimeoutMs,
   normalizeWorkflowExecutionOutputs,
+  compactWorkflowExecutionContent,
   resolveWorkflowRunInputPath,
   resolveWorkflowInputRefs,
   deriveWorkflowExecutionOutputs,
@@ -417,6 +420,14 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
     detectParticipantReportedFailure('No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.') === 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.',
     'Expected missing execution path to be treated as failure'
   )
+  assert(
+    detectParticipantReportedFailure('Context overflow: prompt too large for the model. Try /reset.') === 'Context overflow: prompt too large for the model. Try /reset.',
+    'Expected context overflow to be treated as failure'
+  )
+  assert(
+    detectParticipantReportedFailure("Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.") === "Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.",
+    'Expected provider runtime detail to be treated as failure'
+  )
 })
 
 test('extractGitHubResultLinks finds issue and PR URLs cleanly', () => {
@@ -441,9 +452,10 @@ test('summarizeGitHubResultLink produces compact labels', () => {
 test('buildWorkflowSessionId uses workflow execution and agent id', () => {
   const sessionId = buildWorkflowSessionId('exec-123', 'analysis-lead')
   assert(
-    sessionId === 'workflow-exec-123-analysis-lead',
-    `Expected workflow session format, got ${sessionId}`
+    /^wf-[a-f0-9]{10}-analysis-lead$/.test(sessionId),
+    `Expected compact workflow session format, got ${sessionId}`
   )
+  assert(sessionId.length <= 48, `Expected compact workflow session id, got length ${sessionId.length}`)
 })
 
 test('buildWorkflowSessionId produces distinct sessions per agent and run', () => {
@@ -453,6 +465,129 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {
+  const sessionId = buildWorkflowSessionId(
+    '0f575b29-176f-497a-9f00-89bfdbcf2af9',
+    'technical-writing-writer1'
+  )
+  assert(sessionId.length <= 48, `Expected bounded session id length, got ${sessionId.length}`)
+})
+
+test('getLatestAgentSessionErrorMessage reads provider errors from recent session files', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-session-error-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'latest.jsonl'), [
+    JSON.stringify({ type: 'session', id: 'wf-short-agent-a' }),
+    JSON.stringify({ type: 'message', message: { errorMessage: "400 Invalid 'prompt_cache_key': string too long." } }),
+  ].join('\n'), 'utf-8')
+
+  const errorMessage = getLatestAgentSessionErrorMessage('agent-a', home)
+  assert(errorMessage === "400 Invalid 'prompt_cache_key': string too long.", `Unexpected session error: ${errorMessage}`)
+})
+
+test('repairWorkflowSessionEntryForRun drops stale transcript pointers for compact workflow sessions', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const staleSessionFile = path.join(sessionsDir, 'legacy.jsonl')
+  fs.writeFileSync(staleSessionFile, [
+    JSON.stringify({ type: 'session', id: 'workflow-legacy-execution-agent-a' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'wf-previous-agent-a',
+      sessionFile: staleSessionFile,
+      updatedAt: Date.now(),
+    },
+    'agent:agent-a:dashboard-chat': {
+      sessionId: 'dashboard-chat',
+      sessionFile: path.join(sessionsDir, 'dashboard-chat.jsonl'),
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-current-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(changed, 'Expected stale workflow session entry to be repaired')
+  assert(!repaired['agent:agent-a:main'].sessionFile, 'Expected stale sessionFile pointer to be removed')
+  assert(
+    repaired['agent:agent-a:dashboard-chat'].sessionFile.endsWith('dashboard-chat.jsonl'),
+    'Expected unrelated dashboard session entry to be preserved'
+  )
+})
+
+test('repairWorkflowSessionEntryForRun preserves matching transcript pointers', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'wf-short-agent-a.jsonl')
+  fs.writeFileSync(sessionFile, [
+    JSON.stringify({ type: 'session', id: 'wf-short-agent-a' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'wf-short-agent-a',
+      sessionFile,
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-short-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(!changed, 'Expected matching workflow session entry to be left untouched')
+  assert(repaired['agent:agent-a:main'].sessionFile === sessionFile, 'Expected matching sessionFile pointer to be preserved')
+})
+
+test('repairWorkflowSessionEntryForRun leaves non-workflow main sessions alone', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'dashboard-chat.jsonl')
+  fs.writeFileSync(sessionFile, [
+    JSON.stringify({ type: 'session', id: 'dashboard-chat' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'dashboard-chat',
+      sessionFile,
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-current-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(!changed, 'Expected non-workflow main session entry to be left untouched')
+  assert(repaired['agent:agent-a:main'].sessionFile === sessionFile, 'Expected non-workflow sessionFile pointer to be preserved')
+})
+
+test('compactWorkflowExecutionContent preserves high-signal lines and truncates long workflow bodies', () => {
+  const content = `# Weekly Review
+
+Objective: Produce the concise executive review.
+
+- Keep the summary artifact short.
+- Include the latest blockers.
+
+${'Background paragraph that is intentionally verbose and repetitive. '.repeat(120)}
+`
+
+  const compacted = compactWorkflowExecutionContent(content, 260)
+  assert(compacted.includes('Objective: Produce the concise executive review.'), 'Expected objective line to survive compaction')
+  assert(compacted.includes('- Keep the summary artifact short.'), 'Expected bullet points to survive compaction')
+  assert(compacted.includes('Workflow instructions truncated for brevity.'), 'Expected explicit truncation notice')
+  assert(compacted.length < content.length, 'Expected compacted content to be shorter than the original')
 })
 
 test('resolveWorkflowRunInputPath resolves relative paths against workspace root', () => {
