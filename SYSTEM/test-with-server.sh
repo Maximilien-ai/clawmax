@@ -112,8 +112,14 @@ echo ""
 
 if ! health_ready; then
   echo "Dashboard health check is not ready; starting dashboard..."
+  if [ -n "$INITIAL_BACKEND_PIDS$INITIAL_FRONTEND_PIDS" ]; then
+    echo "Ports are occupied but health is failing; restarting dashboard ports before testing."
+    START_ARGS=(--restart)
+  else
+    START_ARGS=()
+  fi
   STARTED_SERVER=true
-  "$SCRIPT_DIR/start.sh"
+  CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" "${START_ARGS[@]}"
 
   if ! wait_for_health 60; then
     echo "Dashboard did not become healthy on $API_BASE"

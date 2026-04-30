@@ -90,7 +90,7 @@ ensure_local_gateway_ready() {
   fi
 }
 
-if [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
+if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
   WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
   WATCHDOG_PLIST="$HOME/Library/LaunchAgents/ai.clawmax.gateway-watchdog.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.openclaw/logs"
