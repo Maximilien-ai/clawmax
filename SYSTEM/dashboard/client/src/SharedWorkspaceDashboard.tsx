@@ -7,6 +7,9 @@ interface SharedDashboardPayload {
   dashboard: {
     title: string
     description: string | null
+    companyFocusKind: 'workspace' | 'team' | 'prefix'
+    companyFocusValue: string | null
+    companyFocusLabel: string | null
     displayMode: 'standard' | 'compact' | 'detail'
     sectionOrder: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
     compactColumns: Record<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats', 'left' | 'right'>
@@ -34,6 +37,41 @@ interface SharedDashboardPayload {
     failingAgents: number
     activeNotifications: number
     runningWorkflows: number
+  }
+  company: null | {
+    kind: 'team' | 'prefix'
+    label: string
+    teamCount: number
+    workflowCount: number
+    agentCount: number
+    teams: Array<{
+      id: string
+      name: string
+      purpose: string
+      leaderAgentId: string | null
+      leaderName: string | null
+      memberCount: number
+      parentTeamId: string | null
+      workflowCount: number
+    }>
+    orgCards: Array<{
+      id: string
+      name: string
+      purpose: string
+      leaderAgentId: string | null
+      memberCount: number
+      workflowCount: number
+    }>
+    handoffs: Array<{
+      workflowId: string
+      workflowName: string
+      upstreamWorkflowId: string
+      label: string
+      outputKey: string
+      summary?: string
+      artifactPath?: string
+      missing?: boolean
+    }>
   }
   costs: {
     budget: {
@@ -81,6 +119,7 @@ interface SharedDashboardPayload {
     nextRunAt: string | null
     status: string
     kickoffSummary: string | null
+    kickoffItems?: string[]
     resultSummary: string[]
     resultLinks: string[]
     resultArtifacts?: Array<{
@@ -195,6 +234,9 @@ function normalizePayload(input: any): SharedDashboardPayload {
     dashboard: {
       title: typeof input?.dashboard?.title === 'string' ? input.dashboard.title : 'Workspace Summary',
       description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
+      companyFocusKind: input?.dashboard?.companyFocusKind === 'team' || input?.dashboard?.companyFocusKind === 'prefix' ? input.dashboard.companyFocusKind : 'workspace',
+      companyFocusValue: typeof input?.dashboard?.companyFocusValue === 'string' ? input.dashboard.companyFocusValue : null,
+      companyFocusLabel: typeof input?.dashboard?.companyFocusLabel === 'string' ? input.dashboard.companyFocusLabel : null,
       displayMode: input?.dashboard?.displayMode === 'compact' || input?.dashboard?.displayMode === 'detail' ? input.dashboard.displayMode : 'standard',
       sectionOrder: Array.isArray(input?.dashboard?.sectionOrder) && input.dashboard.sectionOrder.length > 0 ? input.dashboard.sectionOrder : ['overview', 'costs', 'agents', 'notifications', 'workflows', 'kickoff', 'results', 'groupChats'],
       compactColumns: {
@@ -232,6 +274,16 @@ function normalizePayload(input: any): SharedDashboardPayload {
       activeNotifications: Number(input?.overview?.activeNotifications || 0),
       runningWorkflows: Number(input?.overview?.runningWorkflows || 0),
     },
+    company: input?.company ? {
+      kind: input.company.kind === 'prefix' ? 'prefix' : 'team',
+      label: typeof input.company.label === 'string' ? input.company.label : 'Company',
+      teamCount: Number(input.company.teamCount || 0),
+      workflowCount: Number(input.company.workflowCount || 0),
+      agentCount: Number(input.company.agentCount || 0),
+      teams: Array.isArray(input.company.teams) ? input.company.teams : [],
+      orgCards: Array.isArray(input.company.orgCards) ? input.company.orgCards : [],
+      handoffs: Array.isArray(input.company.handoffs) ? input.company.handoffs : [],
+    } : null,
     costs: {
       budget: {
         config: {
@@ -280,6 +332,20 @@ function normalizePayload(input: any): SharedDashboardPayload {
         }))
       : [],
   }
+}
+
+function getWorkflowTeamLabel(name: string | null | undefined): string | null {
+  const trimmed = String(name || '').trim()
+  const withoutPrefix = trimmed.replace(/^(.*?)\s+·\s+/, '')
+  const segment = withoutPrefix.split('/')[0]?.trim()
+  return segment || null
+}
+
+function workflowFallbackLeaderNameFromWorkflows(workflows: SharedDashboardPayload['workflows']): string | null {
+  const firstOwner = workflows
+    .map((workflow) => workflow.name.replace(/^(.*?)\s+·\s+/, '').split('/')[0]?.trim())
+    .find(Boolean)
+  return firstOwner || null
 }
 
 function timeAgo(iso: string | null | undefined): string {
@@ -405,8 +471,23 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       ['Paused', payload.overview.pausedAgents],
       ['Running', payload.overview.runningWorkflows],
       ['Alerts', payload.overview.activeNotifications],
-      ['Spend', `$${payload.costs.metering.totalCostUsd.toFixed(2)}`],
+      ['Spend', `$${payload.costs.budget.currentSpendUsd.toFixed(2)}`],
     ]
+  }, [payload])
+
+  const companyFocus = payload?.company || null
+  const companyInputWorkflow = useMemo(() => {
+    if (!payload || payload.workflows.length === 0) return null
+    return payload.workflows.find((workflow) => Array.isArray(workflow.kickoffItems) && workflow.kickoffItems.length > 0)
+      || payload.workflows.find((workflow) => !!workflow.kickoffSummary)
+      || payload.workflows[0]
+  }, [payload])
+  const latestCompanyOutput = useMemo(() => {
+    if (!payload) return null
+    const workflowsWithArtifacts = payload.workflows
+      .filter((workflow) => (workflow.resultArtifacts?.length || workflow.resultSummary.length))
+      .sort((a, b) => new Date(b.latestExecution?.completedAt || b.latestExecution?.startedAt || 0).getTime() - new Date(a.latestExecution?.completedAt || a.latestExecution?.startedAt || 0).getTime())
+    return workflowsWithArtifacts[0] || null
   }, [payload])
 
   function resolveDocPath(path: string): string {
@@ -563,6 +644,329 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const headerClass = 'rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-100 shadow-xl dark:border-white/10 dark:from-slate-900 dark:to-slate-800 dark:shadow-2xl'
   const cardClass = `rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${cardPadding}`
   const nestedClass = 'rounded-xl border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-slate-800/70'
+  type CompanyTeam = NonNullable<SharedDashboardPayload['company']>['teams'][number]
+  const companyChartTeams: CompanyTeam[] = (() => {
+    if (!companyFocus) return []
+    if (companyFocus.teams.length > 0) return companyFocus.teams
+    const orgCardFallbackTeams: CompanyTeam[] = companyFocus.orgCards.map((team) => ({
+      id: team.id,
+      name: team.name,
+      purpose: team.purpose,
+      leaderAgentId: team.leaderAgentId,
+      leaderName: team.leaderAgentId,
+      memberCount: team.memberCount,
+      parentTeamId: null,
+      workflowCount: team.workflowCount,
+    }))
+    const inferredRootLeaderName = orgCardFallbackTeams.find((team) => team.leaderName)?.leaderName
+      || workflowFallbackLeaderNameFromWorkflows(payload.workflows)
+      || null
+    if (orgCardFallbackTeams.length > 0) {
+      if (orgCardFallbackTeams.length <= 1) return orgCardFallbackTeams
+      return [
+        {
+          id: `${companyFocus.kind}-root`,
+          name: companyFocus.label,
+          purpose: 'Derived company root for shared dashboard view.',
+          leaderAgentId: null,
+          leaderName: inferredRootLeaderName,
+          memberCount: companyFocus.agentCount,
+          parentTeamId: null,
+          workflowCount: companyFocus.workflowCount,
+        },
+        ...orgCardFallbackTeams.map((team) => ({ ...team, parentTeamId: `${companyFocus.kind}-root` })),
+      ]
+    }
+    const workflowFallbackTeams: CompanyTeam[] = Array.from(
+      payload.workflows.reduce((map, workflow) => {
+        const label = getWorkflowTeamLabel(workflow.name)
+        if (!label) return map
+        const key = label.toLowerCase()
+        const existing = map.get(key)
+        if (existing) {
+          existing.workflowCount += 1
+          if (!existing.purpose && workflow.description) existing.purpose = workflow.description
+          return map
+        }
+        map.set(key, {
+          id: key,
+          name: label,
+          purpose: workflow.description || '',
+          leaderAgentId: null,
+          leaderName: null,
+          memberCount: 0,
+          parentTeamId: null,
+          workflowCount: 1,
+        })
+        return map
+      }, new Map<string, CompanyTeam>())
+    ).map(([, value]) => value)
+    if (workflowFallbackTeams.length <= 1) return workflowFallbackTeams
+    return [
+      {
+        id: `${companyFocus.kind}-root`,
+        name: companyFocus.label,
+        purpose: 'Derived company root for shared dashboard view.',
+        leaderAgentId: null,
+        leaderName: workflowFallbackLeaderNameFromWorkflows(payload.workflows),
+        memberCount: companyFocus.agentCount,
+        parentTeamId: null,
+        workflowCount: companyFocus.workflowCount,
+      },
+      ...workflowFallbackTeams.map((team) => ({ ...team, parentTeamId: `${companyFocus.kind}-root` })),
+    ]
+  })()
+  const companyTeamChildren = (() => {
+    const children = new Map<string, CompanyTeam[]>()
+    if (companyChartTeams.length === 0) return children
+    for (const team of companyChartTeams) {
+      const parentKey = team.parentTeamId || '__root__'
+      const siblings = children.get(parentKey) || []
+      siblings.push(team)
+      children.set(parentKey, siblings)
+    }
+    return children
+  })()
+  const companyRootTeams = (() => {
+    if (companyChartTeams.length === 0) return []
+    return companyChartTeams.filter((team) => !team.parentTeamId || !companyChartTeams.some((candidate) => candidate.id === team.parentTeamId))
+  })()
+  const isSyntheticCompanyRoot = (team: CompanyTeam) => companyFocus ? team.id === `${companyFocus.kind}-root` : false
+  const derivedCompanyTeamCount = companyFocus
+    ? companyChartTeams.filter((team) => team.id !== `${companyFocus.kind}-root`).length
+    : 0
+  const displayCompanyTeamCount = companyFocus
+    ? Math.max(companyFocus.teamCount, derivedCompanyTeamCount)
+    : 0
+  const renderCompanyOrgNode = (team: CompanyTeam, visited = new Set<string>()): React.ReactNode => {
+    if (visited.has(team.id)) {
+      return (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          Recursive team reference skipped: {team.name}
+        </div>
+      )
+    }
+
+    const nextVisited = new Set(visited)
+    nextVisited.add(team.id)
+    const children = companyTeamChildren.get(team.id) || []
+
+    return (
+      <div key={team.id} className="flex flex-col items-center">
+        <div className="w-full max-w-[260px] rounded-xl border border-gray-200 bg-gray-50 p-3 shadow-sm dark:border-white/10 dark:bg-slate-800/70">
+          {!isSyntheticCompanyRoot(team) && (
+            <div className="text-[11px] font-mono uppercase tracking-wide text-gray-500 dark:text-slate-400">{team.id}</div>
+          )}
+          <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-slate-100">{team.name}</div>
+          {team.leaderName && (
+            <div className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-slate-900/70 dark:text-slate-200">
+              Lead: {team.leaderName}
+            </div>
+          )}
+          {team.purpose && !isSyntheticCompanyRoot(team) && <p className="mt-2 text-xs leading-5 text-gray-600 dark:text-slate-300">{team.purpose}</p>}
+          <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-gray-500 dark:text-slate-400">
+            <span className="rounded-full bg-white px-2 py-1 dark:bg-slate-900/70">{team.memberCount} members</span>
+            <span className="rounded-full bg-white px-2 py-1 dark:bg-slate-900/70">{team.workflowCount} workflows</span>
+          </div>
+        </div>
+        {children.length > 0 && (
+          <>
+            <div className="h-4 w-0.5 bg-gray-300 dark:bg-slate-600" />
+            <div className="inline-flex flex-col items-center">
+              <div className="border-t-2 border-gray-300 dark:border-slate-600" style={{ width: `calc(${children.length} * 220px)` }} />
+              <div className="grid gap-4 pt-4" style={{ gridTemplateColumns: `repeat(${children.length}, minmax(180px, 220px))` }}>
+                {children.map((child) => (
+                  <div key={child.id} className="flex flex-col items-center">
+                    <div className="h-4 w-0.5 bg-gray-300 dark:bg-slate-600" />
+                    {renderCompanyOrgNode(child, nextVisited)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+  const companyContextSection = companyFocus ? (
+    <section className="mb-6 space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className={cardClass}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Company Input</div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Operating Brief</h2>
+            </div>
+            {companyInputWorkflow && (
+              <div className="text-xs text-gray-500 dark:text-slate-400">{companyInputWorkflow.name}</div>
+            )}
+          </div>
+          {companyInputWorkflow ? (
+            <div className="space-y-3">
+              {companyInputWorkflow.kickoffSummary && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200">
+                  <MarkdownBlock content={companyInputWorkflow.kickoffSummary} />
+                </div>
+              )}
+              {Array.isArray(companyInputWorkflow.kickoffItems) && companyInputWorkflow.kickoffItems.length > 0 && (
+                <div className="grid gap-2">
+                  {companyInputWorkflow.kickoffItems.slice(0, compact ? 4 : 6).map((item, index) => (
+                    <div key={`${companyInputWorkflow.id}-input-${index}`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 dark:text-slate-400">No company input brief captured yet.</div>
+          )}
+        </div>
+        <div className={cardClass}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Company Output</div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Latest Deliverables</h2>
+            </div>
+            {latestCompanyOutput && (
+              <div className="text-xs text-gray-500 dark:text-slate-400">{latestCompanyOutput.name}</div>
+            )}
+          </div>
+          {latestCompanyOutput ? (
+            <div className="space-y-3">
+              {latestCompanyOutput.resultSummary.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200">
+                  <MarkdownBlock content={latestCompanyOutput.resultSummary.slice(0, compact ? 1 : 2).join('\n\n')} />
+                </div>
+              )}
+              {(latestCompanyOutput.resultArtifacts?.length || latestCompanyOutput.resultLinks.length) > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(latestCompanyOutput.resultArtifacts?.length ? latestCompanyOutput.resultArtifacts : latestCompanyOutput.resultLinks.map((link: string) => ({ kind: 'link', label: 'Open result', url: link }))).slice(0, compact ? 2 : 4).map((artifact: any, index: number) => (
+                    artifact.kind === 'file' && artifact.relativePath ? (
+                      <button
+                        key={`company-output-file-${index}`}
+                        type="button"
+                        onClick={() => openDoc(artifact.relativePath)}
+                        className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-700 hover:bg-sky-500/20 dark:text-sky-300"
+                      >
+                        {artifact.label || 'Open file'}
+                      </button>
+                    ) : artifact.url ? (
+                      <a
+                        key={`company-output-link-${index}`}
+                        href={artifact.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-700 hover:bg-sky-500/20 dark:text-sky-300"
+                      >
+                        {artifact.label || 'Open link'}
+                      </a>
+                    ) : null
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 dark:text-slate-400">No company output artifacts captured yet.</div>
+          )}
+        </div>
+      </div>
+      <div className={cardClass}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Company Org</div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{companyFocus.label}</h2>
+          </div>
+          <div className="text-right text-xs text-gray-500 dark:text-slate-400">
+            <div>{displayCompanyTeamCount} teams</div>
+            <div>{companyFocus.agentCount} agents</div>
+          </div>
+        </div>
+        {compact ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-400">Top Teams</div>
+                <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-slate-100">{companyRootTeams.length || derivedCompanyTeamCount || 0}</div>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-400">Named Teams</div>
+                <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-slate-100">{derivedCompanyTeamCount}</div>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-slate-800/70">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-400">Workflow Stages</div>
+                <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-slate-100">{companyFocus.workflowCount}</div>
+              </div>
+            </div>
+            {companyChartTeams.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {companyChartTeams
+                  .filter((team) => team.id !== `${companyFocus.kind}-root`)
+                  .slice(0, 8)
+                  .map((team) => (
+                    <div key={team.id} className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200">
+                      <span className="font-medium">{team.name}</span>
+                      <span className="ml-2 text-gray-500 dark:text-slate-400">{team.workflowCount} wf</span>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-slate-400">No company org summary available yet.</div>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto pb-2">
+            <div className="inline-flex min-w-full justify-center">
+              {companyRootTeams.length > 0 ? (
+                <div className="flex flex-wrap justify-center gap-6">
+                  {companyRootTeams.map((team) => renderCompanyOrgNode(team))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 dark:text-slate-400">No company org chart available yet.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className={cardClass}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Workflow Handoffs</div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Company Output Flow</h2>
+          </div>
+          <div className="text-xs text-gray-500 dark:text-slate-400">{companyFocus.workflowCount} workflows</div>
+        </div>
+        <div className="space-y-3">
+          {companyFocus.handoffs.slice(0, 8).map((handoff) => (
+            <div key={`${handoff.upstreamWorkflowId}-${handoff.workflowId}-${handoff.outputKey}`} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/70">
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">{handoff.label}</div>
+              <div className="mt-1 text-sm text-gray-600 dark:text-slate-300">{handoff.workflowName}</div>
+              <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                Depends on output <span className="font-medium">{handoff.outputKey}</span> from <span className="font-medium">{handoff.upstreamWorkflowId}</span>
+              </div>
+              {handoff.summary && (
+                <div className="mt-2 text-sm text-gray-600 dark:text-slate-300">{handoff.summary}</div>
+              )}
+              {handoff.artifactPath && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => openDoc(handoff.artifactPath!)}
+                    className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-700 hover:bg-sky-500/20 dark:text-sky-300"
+                  >
+                    Open handoff document
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {companyFocus.handoffs.length === 0 && (
+            <div className="text-sm text-gray-500 dark:text-slate-400">No explicit workflow handoffs captured for this company yet.</div>
+          )}
+        </div>
+      </div>
+    </section>
+  ) : null
   const renderCostTrend = (dark: boolean) => {
     if (!payload.costs.metering.dailyCost.length) return null
     return (
@@ -759,10 +1163,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                     <span className="text-[11px] text-gray-500 dark:text-slate-400">{notification.severity}</span>
                   </div>
                   {!compact && (
-                    <MarkdownBlock
-                      content={notification.message}
-                      className="mt-1 text-sm text-gray-500 dark:text-slate-400"
-                    />
+                    <>
+                      <MarkdownBlock
+                        content={notification.message}
+                        className="mt-1 text-sm text-gray-500 dark:text-slate-400"
+                        onOpenDoc={openDoc}
+                      />
+                      {renderFileChips(extractWorkspaceFileMentions(notification.message), { compact: true, latestOnly: true })}
+                    </>
                   )}
                 </div>
               ))}
@@ -933,14 +1341,16 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
-                  Workspace Summary
+                  {payload.company ? `Company Dashboard · ${payload.company.label}` : 'Workspace Summary'}
                 </div>
                 <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
+                {payload.company && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Focused on {payload.company.label}</p>}
               </div>
               <HeaderControls />
             </div>
           </header>
           <div className={compact ? 'space-y-4' : 'space-y-6'}>
+            {companyContextSection}
             {orderedTopLevelSections.map((key) => (
               <React.Fragment key={key}>{renderOrderedSection(key)}</React.Fragment>
             ))}
@@ -960,9 +1370,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
-                  Workspace Summary
+                  {payload.company ? `Company Dashboard · ${payload.company.label}` : 'Workspace Summary'}
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight">{payload.dashboard.title}</h1>
+                {payload.company && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Focused on {payload.company.label}</p>}
               </div>
               <HeaderControls compactLabel />
             </div>
@@ -978,6 +1389,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               ))}
             </section>
           )}
+
+          {companyContextSection}
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-4">
@@ -1005,10 +1418,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-white/5 dark:text-slate-400">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: payload.workspace.color }} />
-                Workspace Summary
+                {payload.company ? `Company Dashboard · ${payload.company.label}` : 'Workspace Summary'}
               </div>
               <h1 className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold tracking-tight`}>{payload.dashboard.title}</h1>
-              {!compact && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{payload.dashboard.description || payload.workspace.name}</p>}
+              {!compact && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{payload.dashboard.description || (payload.company ? `${payload.company.label} · ${payload.workspace.name}` : payload.workspace.name)}</p>}
             </div>
             <HeaderControls />
           </div>
@@ -1024,6 +1437,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
             ))}
           </section>
         )}
+
+        {companyContextSection}
 
         {standardUpperSections.length > 0 && (
           <div className={`grid gap-6 ${twoColLayout}`}>

@@ -25,6 +25,10 @@ interface Props {
   onNavigateToDoc?: (path: string) => void
 }
 
+function buildDashboardChatSessionId(): string {
+  return `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 // Strip ANSI escape codes from text
 function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '')
@@ -149,7 +153,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sessionId] = useState<string>(() => `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
+  const [sessionId, setSessionId] = useState<string>(() => buildDashboardChatSessionId())
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
   const [chatEnabled, setChatEnabled] = useState(browserChatEnabled)
   const [resettingSession, setResettingSession] = useState(false)
@@ -356,6 +360,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       setMessages([])
       setInputHistory([])
       setHistoryIndex(-1)
+      setSessionId(buildDashboardChatSessionId())
       setShowClearConfirm(false)
     } catch (err: any) {
       setError(err?.message || 'Failed to reset agent session')
@@ -720,7 +725,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Agent Chat: {agentName}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Real-time streaming via gateway</p>
+            <p className="text-xs text-gray-400 mt-0.5">Real-time streaming from the active runtime</p>
           </div>
           <div className="flex items-center gap-2">
             <button

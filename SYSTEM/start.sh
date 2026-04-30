@@ -67,7 +67,30 @@ restart_port_if_needed() {
   fi
 }
 
-if [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
+ensure_local_gateway_ready() {
+  if [ "$(uname -s)" != "Darwin" ] || ! command -v openclaw >/dev/null 2>&1; then
+    return
+  fi
+
+  if [ -n "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ]; then
+    return
+  fi
+
+  local gateway_status
+  gateway_status="$(openclaw gateway status 2>/dev/null || true)"
+
+  if echo "$gateway_status" | grep -qi "Service not installed"; then
+    echo "↻ Installing local OpenClaw gateway LaunchAgent..."
+    openclaw gateway install >/dev/null 2>&1 || true
+  fi
+
+  if ! echo "$gateway_status" | grep -qi "RPC probe: ok"; then
+    echo "↻ Ensuring local OpenClaw gateway is running..."
+    openclaw gateway restart >/dev/null 2>&1 || true
+  fi
+}
+
+if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
   WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
   WATCHDOG_PLIST="$HOME/Library/LaunchAgents/ai.clawmax.gateway-watchdog.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.openclaw/logs"
@@ -97,6 +120,8 @@ EOF
   launchctl unload "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
   launchctl load "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
 fi
+
+ensure_local_gateway_ready
 
 # Force-restart before checking port state so stale dev servers do not keep serving old bundles
 if [ "$FORCE_RESTART" = true ]; then

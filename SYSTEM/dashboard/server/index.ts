@@ -18,6 +18,7 @@ import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
+import teamsRouter from './routes/teams'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
@@ -551,6 +552,7 @@ app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
 app.use('/api/notifications', protect, notificationsRouter)
 app.use('/api/integrations', protect, integrationsRouter)
+app.use('/api/teams', protect, teamsRouter)
 app.use('/api', protect, channelsRouter)
 
 function resolveClientDist(): string | null {

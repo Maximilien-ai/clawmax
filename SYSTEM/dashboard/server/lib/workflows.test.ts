@@ -4,6 +4,10 @@
  * Run with: npx ts-node --transpileOnly server/lib/workflows.test.ts
  */
 
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import { getWorkspacePath } from './workspace'
 import {
   listWorkflows,
   getWorkflow,
@@ -23,10 +27,18 @@ import {
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
   buildWorkflowSessionId,
+  repairWorkflowSessionEntryForRun,
+  getLatestAgentSessionErrorMessage,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
   getWorkflowAgentTimeoutMs,
+  normalizeWorkflowExecutionOutputs,
+  compactWorkflowExecutionContent,
   resolveWorkflowRunInputPath,
+  resolveWorkflowInputRefs,
+  deriveWorkflowExecutionOutputs,
+  persistWorkflowExecutionOutputArtifacts,
+  resolveTargetTeamAgentIds,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -326,6 +338,76 @@ test('resolveParticipants still expands group targets when no direct execution t
   assert(participants.some((p) => p.agentId === 'analyst'), 'Expected analyst in group-driven participants')
 })
 
+test('resolveTargetTeamAgentIds resolves only the targeted team leader by default', () => {
+  const reasons = resolveTargetTeamAgentIds(['leadership'], [
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['chief-of-staff'],
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'engineering',
+      name: 'Engineering',
+      leaderAgentId: 'eng-lead',
+      memberAgentIds: ['platform-engineer'],
+      parentTeamId: 'leadership',
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+  ] as any)
+
+  assert(reasons.get('ceo')?.includes('team:leadership') === true, 'Expected leadership lead to resolve')
+  assert(!reasons.has('chief-of-staff'), 'Expected non-leader member to remain excluded by default')
+  assert(!reasons.has('eng-lead'), 'Expected child team lead to remain excluded by default')
+  assert(!reasons.has('platform-engineer'), 'Expected child team member to remain excluded by default')
+})
+
+test('resolveParticipants includes team-targeted agents as direct execution targets', () => {
+  const participants = resolveParticipants({
+    id: 'team-driven',
+    name: 'Team Driven',
+    description: 'Test',
+    schedule: 'manual',
+    enabled: true,
+    executionMode: 'managed',
+    targeting: {
+      agents: [],
+      teamIds: ['leadership'],
+      tags: [],
+      groups: ['Status'],
+      communities: [],
+    },
+    content: '# Test',
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    author: 'test',
+  } as any, [
+    { id: 'ceo', name: 'CEO', groups: ['Status'], tags: ['lead'], communities: [] },
+    { id: 'eng-lead', name: 'Engineering Lead', groups: ['Status'], tags: ['build'], communities: [] },
+    { id: 'analyst', name: 'Analyst', groups: ['Status'], tags: ['analysis'], communities: [] },
+  ], [
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['eng-lead'],
+      tags: [],
+      createdAt: '',
+      updatedAt: '',
+    },
+  ] as any)
+
+  assert(participants.length === 1, `Expected only team leader to execute, got ${participants.length}`)
+  assert(participants.some((p) => p.agentId === 'ceo' && p.reason.includes('team:leadership')), 'Expected leadership team lead to execute')
+  assert(!participants.some((p) => p.agentId === 'eng-lead'), 'Expected non-leader team member to be excluded by default')
+  assert(!participants.some((p) => p.agentId === 'analyst'), 'Expected unrelated group agent to be excluded when teamIds create direct targets')
+})
+
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
@@ -337,6 +419,14 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(
     detectParticipantReportedFailure('No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.') === 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.',
     'Expected missing execution path to be treated as failure'
+  )
+  assert(
+    detectParticipantReportedFailure('Context overflow: prompt too large for the model. Try /reset.') === 'Context overflow: prompt too large for the model. Try /reset.',
+    'Expected context overflow to be treated as failure'
+  )
+  assert(
+    detectParticipantReportedFailure("Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.") === "Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.",
+    'Expected provider runtime detail to be treated as failure'
   )
 })
 
@@ -362,9 +452,10 @@ test('summarizeGitHubResultLink produces compact labels', () => {
 test('buildWorkflowSessionId uses workflow execution and agent id', () => {
   const sessionId = buildWorkflowSessionId('exec-123', 'analysis-lead')
   assert(
-    sessionId === 'workflow-exec-123-analysis-lead',
-    `Expected workflow session format, got ${sessionId}`
+    /^wf-[a-f0-9]{10}-analysis-lead$/.test(sessionId),
+    `Expected compact workflow session format, got ${sessionId}`
   )
+  assert(sessionId.length <= 48, `Expected compact workflow session id, got length ${sessionId.length}`)
 })
 
 test('buildWorkflowSessionId produces distinct sessions per agent and run', () => {
@@ -374,6 +465,129 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {
+  const sessionId = buildWorkflowSessionId(
+    '0f575b29-176f-497a-9f00-89bfdbcf2af9',
+    'technical-writing-writer1'
+  )
+  assert(sessionId.length <= 48, `Expected bounded session id length, got ${sessionId.length}`)
+})
+
+test('getLatestAgentSessionErrorMessage reads provider errors from recent session files', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-session-error-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'latest.jsonl'), [
+    JSON.stringify({ type: 'session', id: 'wf-short-agent-a' }),
+    JSON.stringify({ type: 'message', message: { errorMessage: "400 Invalid 'prompt_cache_key': string too long." } }),
+  ].join('\n'), 'utf-8')
+
+  const errorMessage = getLatestAgentSessionErrorMessage('agent-a', home)
+  assert(errorMessage === "400 Invalid 'prompt_cache_key': string too long.", `Unexpected session error: ${errorMessage}`)
+})
+
+test('repairWorkflowSessionEntryForRun drops stale transcript pointers for compact workflow sessions', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const staleSessionFile = path.join(sessionsDir, 'legacy.jsonl')
+  fs.writeFileSync(staleSessionFile, [
+    JSON.stringify({ type: 'session', id: 'workflow-legacy-execution-agent-a' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'wf-previous-agent-a',
+      sessionFile: staleSessionFile,
+      updatedAt: Date.now(),
+    },
+    'agent:agent-a:dashboard-chat': {
+      sessionId: 'dashboard-chat',
+      sessionFile: path.join(sessionsDir, 'dashboard-chat.jsonl'),
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-current-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(changed, 'Expected stale workflow session entry to be repaired')
+  assert(!repaired['agent:agent-a:main'].sessionFile, 'Expected stale sessionFile pointer to be removed')
+  assert(
+    repaired['agent:agent-a:dashboard-chat'].sessionFile.endsWith('dashboard-chat.jsonl'),
+    'Expected unrelated dashboard session entry to be preserved'
+  )
+})
+
+test('repairWorkflowSessionEntryForRun preserves matching transcript pointers', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'wf-short-agent-a.jsonl')
+  fs.writeFileSync(sessionFile, [
+    JSON.stringify({ type: 'session', id: 'wf-short-agent-a' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'wf-short-agent-a',
+      sessionFile,
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-short-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(!changed, 'Expected matching workflow session entry to be left untouched')
+  assert(repaired['agent:agent-a:main'].sessionFile === sessionFile, 'Expected matching sessionFile pointer to be preserved')
+})
+
+test('repairWorkflowSessionEntryForRun leaves non-workflow main sessions alone', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'dashboard-chat.jsonl')
+  fs.writeFileSync(sessionFile, [
+    JSON.stringify({ type: 'session', id: 'dashboard-chat' }),
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+  ].join('\n'), 'utf-8')
+  const sessionsPath = path.join(sessionsDir, 'sessions.json')
+  fs.writeFileSync(sessionsPath, JSON.stringify({
+    'agent:agent-a:main': {
+      sessionId: 'dashboard-chat',
+      sessionFile,
+      updatedAt: Date.now(),
+    },
+  }, null, 2), 'utf-8')
+
+  const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-current-agent-a', home)
+  const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+
+  assert(!changed, 'Expected non-workflow main session entry to be left untouched')
+  assert(repaired['agent:agent-a:main'].sessionFile === sessionFile, 'Expected non-workflow sessionFile pointer to be preserved')
+})
+
+test('compactWorkflowExecutionContent preserves high-signal lines and truncates long workflow bodies', () => {
+  const content = `# Weekly Review
+
+Objective: Produce the concise executive review.
+
+- Keep the summary artifact short.
+- Include the latest blockers.
+
+${'Background paragraph that is intentionally verbose and repetitive. '.repeat(120)}
+`
+
+  const compacted = compactWorkflowExecutionContent(content, 260)
+  assert(compacted.includes('Objective: Produce the concise executive review.'), 'Expected objective line to survive compaction')
+  assert(compacted.includes('- Keep the summary artifact short.'), 'Expected bullet points to survive compaction')
+  assert(compacted.includes('Workflow instructions truncated for brevity.'), 'Expected explicit truncation notice')
+  assert(compacted.length < content.length, 'Expected compacted content to be shorter than the original')
 })
 
 test('resolveWorkflowRunInputPath resolves relative paths against workspace root', () => {
@@ -390,6 +604,139 @@ test('resolveWorkflowRunInputPath resolves relative paths against workspace root
     resolveWorkflowRunInputPath('/tmp/cw-items', workspaceRoot) === '/tmp/cw-items',
     'Expected absolute path to remain unchanged'
   )
+})
+
+test('normalizeWorkflowExecutionOutputs trims keys and preserves structured values', () => {
+  const normalized = normalizeWorkflowExecutionOutputs({
+    ' brief ': {
+      type: 'markdown',
+      summary: ' Planning summary ',
+      artifactPath: ' deliverables/brief.md ',
+      value: { owner: 'product' },
+    },
+  })
+
+  assert(normalized !== undefined, 'Expected outputs to normalize')
+  assert(normalized?.brief?.type === 'markdown', 'Expected output type to persist')
+  assert(normalized?.brief?.summary === 'Planning summary', 'Expected summary to trim')
+  assert(normalized?.brief?.artifactPath === 'deliverables/brief.md', 'Expected artifact path to trim')
+  assert((normalized?.brief?.value as any)?.owner === 'product', 'Expected structured value to persist')
+})
+
+test('resolveWorkflowInputRefs resolves latest upstream output by workflow id and key', () => {
+  const refs = resolveWorkflowInputRefs({
+    inputRefs: [
+      { workflowId: 'leadership-kickoff', outputKey: 'brief', label: 'Leadership Brief' },
+    ],
+  }, (workflowId) => {
+    if (workflowId !== 'leadership-kickoff') return null
+    return {
+      id: 'exec-1',
+      workflowId,
+      startedAt: new Date().toISOString(),
+      status: 'completed',
+      triggerType: 'manual',
+      participants: [],
+      logs: [],
+      outputs: {
+        brief: {
+          type: 'markdown',
+          summary: 'Kickoff brief ready',
+          artifactPath: 'deliverables/brief.md',
+          value: { ownerTeam: 'product' },
+        },
+      },
+    }
+  })
+
+  assert(refs.length === 1, `Expected one resolved ref, got ${refs.length}`)
+  assert(refs[0].missing === false, 'Expected upstream output to resolve')
+  assert(refs[0].summary === 'Kickoff brief ready', 'Expected summary to resolve')
+  assert(refs[0].artifactPath === 'deliverables/brief.md', 'Expected artifact path to resolve')
+  assert((refs[0].value as any)?.ownerTeam === 'product', 'Expected structured value to resolve')
+})
+
+test('deriveWorkflowExecutionOutputs uses owner response for declared output', () => {
+  const outputs = deriveWorkflowExecutionOutputs(
+    {
+      owner: 'agent-owner',
+      outputDefinitions: [{ key: 'brief', type: 'markdown' }],
+    },
+    [
+      { agentId: 'agent-helper', response: 'Helper draft' },
+      { agentId: 'agent-owner', response: 'Owner final brief\n\nWith detail.' },
+    ]
+  )
+
+  assert(outputs !== undefined, 'Expected derived outputs')
+  assert(outputs?.brief?.type === 'markdown', `Expected markdown type, got ${outputs?.brief?.type}`)
+  assert(outputs?.brief?.value === 'Owner final brief\n\nWith detail.', `Expected owner response as value, got ${outputs?.brief?.value}`)
+  assert(outputs?.brief?.summary?.includes('Owner final brief') === true, `Expected summary to include owner response, got ${outputs?.brief?.summary}`)
+})
+
+test('persistWorkflowExecutionOutputArtifacts writes markdown outputs into workflow output files', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-output-'))
+  const persisted = persistWorkflowExecutionOutputArtifacts('leadership-kickoff', {
+    'leadership-brief': {
+      type: 'markdown',
+      value: '# Leadership Brief\n\nShip the company kickoff.',
+      summary: 'Leadership brief ready',
+    },
+  }, workspaceRoot)
+
+  const artifactPath = persisted?.['leadership-brief']?.artifactPath
+  assert(artifactPath === 'WORKFLOWS/outputs/leadership-kickoff/leadership-brief.md', `Unexpected artifact path: ${artifactPath}`)
+
+  const absoluteArtifactPath = path.join(workspaceRoot, artifactPath!)
+  assert(fs.existsSync(absoluteArtifactPath), `Expected artifact file to exist at ${absoluteArtifactPath}`)
+  const artifactContent = fs.readFileSync(absoluteArtifactPath, 'utf-8')
+  assert(artifactContent.includes('Ship the company kickoff.'), `Unexpected artifact content: ${artifactContent}`)
+})
+
+test('getExecution backfills artifact paths for existing markdown outputs', () => {
+  const workflowId = 'artifact-backfill'
+  const workspaceRoot = process.env.OPENCLAW_WORKSPACE || getWorkspacePath()
+  const workflowPath = path.join(workspaceRoot, 'WORKFLOWS', `${workflowId}.md`)
+  fs.writeFileSync(workflowPath, `---
+name: Artifact Backfill
+description: Test workflow
+schedule: manual
+enabled: true
+targeting:
+  communities: []
+  groups: []
+  tags: []
+  agents: []
+author: test
+executionMode: managed
+---
+Backfill output artifacts on read.
+`, 'utf-8')
+
+  const executionDir = path.join(workspaceRoot, 'WORKFLOWS', 'executions', workflowId)
+  fs.mkdirSync(executionDir, { recursive: true })
+  const executionPath = path.join(executionDir, 'exec-backfill.json')
+  fs.writeFileSync(executionPath, JSON.stringify({
+    id: 'exec-backfill',
+    workflowId,
+    startedAt: new Date().toISOString(),
+    status: 'completed',
+    triggerType: 'manual',
+    participants: [],
+    logs: [],
+    outputs: {
+      'leadership-brief': {
+        type: 'markdown',
+        value: '# Backfilled brief\n\nNow with file path.',
+        summary: 'Backfilled brief',
+      },
+    },
+  }, null, 2), 'utf-8')
+
+  const execution = getExecution(workflowId, 'exec-backfill')
+  const artifactPath = execution?.outputs?.['leadership-brief']?.artifactPath
+  assert(artifactPath === 'WORKFLOWS/outputs/artifact-backfill/leadership-brief.md', `Unexpected backfilled artifact path: ${artifactPath}`)
+  assert(fs.existsSync(path.join(workspaceRoot, artifactPath!)), `Expected backfilled artifact file to exist at ${artifactPath}`)
 })
 
 test('isWorkflowSessionLockError matches the OpenClaw lock timeout error', () => {
@@ -529,6 +876,42 @@ test('triggerWorkflow stores edited manual inputs on the new execution', () => {
   assert(execution?.inputs?.Project === 'Beta', `Expected edited Project input, got ${execution?.inputs?.Project}`)
   assert(execution?.inputs?.Region === 'EU', `Expected edited Region input, got ${execution?.inputs?.Region}`)
   assert(execution?.inputs?.Priority === 'High', `Expected new Priority input, got ${execution?.inputs?.Priority}`)
+})
+
+test('triggerWorkflow mock mode completes immediately and persists output artifacts', () => {
+  const result = createWorkflow({
+    name: 'Mock Kickoff',
+    description: 'Mock execution test',
+    schedule: 'manual',
+    content: '# Mock kickoff',
+    executionMode: 'managed',
+    owner: 'mock-owner',
+    targeting: { agents: ['mock-owner'], groups: [], tags: [], communities: [] },
+    outputDefinitions: [{ key: 'brief', label: 'Brief', type: 'markdown' }],
+  } as any)
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+
+  const triggered = triggerWorkflow(result.id!, {
+    manual: true,
+    mock: true,
+    inputs: {
+      Audience: 'Hack judges',
+    },
+  })
+  assert(triggered.success && !!triggered.executionId, `Mock trigger should succeed: ${triggered.error}`)
+
+  const execution = getExecution(result.id!, triggered.executionId!)
+  assert(execution !== null, 'Mock execution should be readable')
+  assert(execution?.status === 'completed', `Expected completed mock execution, got ${execution?.status}`)
+  assert(execution?.participants.length === 1, `Expected one mock participant, got ${execution?.participants.length}`)
+  assert(execution?.participants[0].status === 'completed', `Expected completed mock participant, got ${execution?.participants[0].status}`)
+  assert(execution?.outputs?.brief?.artifactPath === `WORKFLOWS/outputs/${result.id}/brief.md`, `Unexpected mock artifact path: ${execution?.outputs?.brief?.artifactPath}`)
+  const artifactPath = path.join(getWorkspacePath(), execution!.outputs!.brief!.artifactPath!)
+  assert(fs.existsSync(artifactPath), `Expected mock artifact file to exist at ${artifactPath}`)
+  const artifactContent = fs.readFileSync(artifactPath, 'utf-8')
+  assert(artifactContent.includes('Mock execution completed by'), `Expected mock artifact content, got ${artifactContent}`)
+  assert(artifactContent.includes('Audience: Hack judges'), `Expected run inputs to appear in mock artifact, got ${artifactContent}`)
 })
 
 // ============================================================================

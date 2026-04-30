@@ -5,6 +5,21 @@ interface AgentTargeting {
   groups: string[]
   tags: string[]
   agents: string[]
+  teamIds: string[]
+}
+
+interface WorkflowOutputDefinition {
+  key: string
+  label?: string
+  type?: 'markdown'
+  help?: string
+}
+
+interface WorkflowInputRef {
+  workflowId: string
+  outputKey: string
+  label?: string
+  required?: boolean
 }
 
 interface WorkflowFormData {
@@ -17,6 +32,8 @@ interface WorkflowFormData {
   targeting: AgentTargeting
   content: string
   maxRuns?: number
+  outputDefinitions?: WorkflowOutputDefinition[]
+  inputRefs?: WorkflowInputRef[]
 }
 
 interface Agent {
@@ -30,6 +47,17 @@ interface Community {
 
 interface Group {
   name: string
+}
+
+interface Team {
+  id: string
+  name: string
+}
+
+interface WorkflowOption {
+  id: string
+  name: string
+  outputDefinitions?: WorkflowOutputDefinition[]
 }
 
 interface WorkflowEditorDialogProps {
@@ -47,14 +75,15 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     schedule: '0 9 * * *',
     enabled: true,
     executionMode: 'automated',
-    targeting: {
-      communities: [],
-      groups: [],
-      tags: [],
-      agents: []
-    },
-    content: '',
-    ...initialData
+      targeting: {
+        communities: [],
+        groups: [],
+        tags: [],
+        agents: [],
+        teamIds: []
+      },
+      content: '',
+      ...initialData
   })
   const [saving, setSaving] = useState(false)
   const [cronError, setCronError] = useState<string | null>(null)
@@ -75,7 +104,13 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [agents, setAgents] = useState<Agent[]>([])
   const [communities, setCommunities] = useState<Community[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [availableWorkflows, setAvailableWorkflows] = useState<WorkflowOption[]>([])
   const [allTags, setAllTags] = useState<string[]>([])
+
+  const [producesMarkdownOutput, setProducesMarkdownOutput] = useState(
+    Boolean(initialData?.outputDefinitions?.length)
+  )
 
   // Search filters for checkbox lists
   const [groupSearch, setGroupSearch] = useState('')
@@ -93,11 +128,15 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       Promise.all([
         fetch('/api/agents').then(r => r.json()),
         fetch('/api/communities').then(r => r.json()),
-        fetch('/api/groups').then(r => r.json())
-      ]).then(([agentsData, communitiesData, groupsData]) => {
+        fetch('/api/groups').then(r => r.json()),
+        fetch('/api/teams').then(r => r.json()),
+        fetch('/api/workflows').then(r => r.json())
+      ]).then(([agentsData, communitiesData, groupsData, teamsData, workflowsData]) => {
         setAgents(agentsData.agents || [])
         setCommunities(communitiesData.communities || [])
         setGroups(groupsData.groups || [])
+        setTeams(teamsData.teams || [])
+        setAvailableWorkflows((workflowsData.workflows || []).filter((workflow: WorkflowOption) => workflow.id !== initialData?.id))
 
         // Extract unique tags from all agents
         const tagSet = new Set<string>()
@@ -108,6 +147,36 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       })
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    setFormData({
+      name: '',
+      description: '',
+      schedule: '0 9 * * *',
+      enabled: true,
+      executionMode: 'automated',
+      targeting: {
+        communities: [],
+        groups: [],
+        tags: [],
+        agents: [],
+        teamIds: [],
+      },
+      content: '',
+      ...initialData,
+      targeting: {
+        communities: initialData?.targeting?.communities || [],
+        groups: initialData?.targeting?.groups || [],
+        tags: initialData?.targeting?.tags || [],
+        agents: initialData?.targeting?.agents || [],
+        teamIds: initialData?.targeting?.teamIds || [],
+      },
+      outputDefinitions: initialData?.outputDefinitions || [],
+      inputRefs: initialData?.inputRefs || [],
+    })
+    setProducesMarkdownOutput(Boolean(initialData?.outputDefinitions?.length))
+  }, [initialData, isOpen])
 
   // Validate cron expression - basic client-side validation
   useEffect(() => {
@@ -196,6 +265,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     // Check if at least one targeting criterion is selected
     const hasTargeting =
       formData.targeting.agents.length > 0 ||
+      formData.targeting.teamIds.length > 0 ||
       formData.targeting.groups.length > 0 ||
       formData.targeting.communities.length > 0 ||
       formData.targeting.tags.length > 0
@@ -231,7 +301,29 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
     setSaving(true)
     try {
-      await onSave(formData)
+      const primaryOutput = formData.outputDefinitions?.[0]
+      const normalizedOutputDefinitions = producesMarkdownOutput && primaryOutput?.key?.trim()
+        ? [{
+            key: primaryOutput.key.trim(),
+            label: primaryOutput.label?.trim() || primaryOutput.key.trim(),
+            type: 'markdown' as const,
+            help: primaryOutput.help?.trim() || undefined,
+          }]
+        : []
+      const normalizedInputRefs = (formData.inputRefs || [])
+        .map((inputRef) => ({
+          workflowId: inputRef.workflowId.trim(),
+          outputKey: inputRef.outputKey.trim(),
+          label: inputRef.label?.trim() || undefined,
+          required: inputRef.required !== false,
+        }))
+        .filter((inputRef) => inputRef.workflowId && inputRef.outputKey)
+
+      await onSave({
+        ...formData,
+        outputDefinitions: normalizedOutputDefinitions,
+        inputRefs: normalizedInputRefs,
+      })
       onClose()
     } catch (err) {
       // Error handling is done by parent
@@ -602,6 +694,33 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               <div className={`space-y-4 bg-gray-50 dark:bg-gray-900 border rounded-md p-4 ${
                 validationErrors.targeting ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'
               }`}>
+                {/* Teams */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Teams</label>
+                  <div className="space-y-1.5 max-h-32 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
+                    {teams.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2 px-1">No teams available</p>
+                    ) : (
+                      teams.map((team) => (
+                        <label key={team.id} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={formData.targeting.teamIds.includes(team.id)}
+                            onChange={(e) => {
+                              const nextTeamIds = e.target.checked
+                                ? [...formData.targeting.teamIds, team.id]
+                                : formData.targeting.teamIds.filter((teamId) => teamId !== team.id)
+                              handleTargetingChange('teamIds', nextTeamIds)
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{team.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Specific Agents</label>
@@ -821,6 +940,203 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 This content will be sent to all matching agents when the workflow executes
               </p>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-100">Markdown Handoffs</h3>
+                <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/80">
+                  Keep workflow chaining simple: each workflow can publish one primary markdown handoff, and downstream workflows can consume upstream markdown outputs.
+                </p>
+              </div>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={producesMarkdownOutput}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setProducesMarkdownOutput(checked)
+                    if (checked && !(formData.outputDefinitions || []).length) {
+                      setFormData({
+                        ...formData,
+                        outputDefinitions: [{
+                          key: 'handoff',
+                          label: 'Markdown handoff',
+                          type: 'markdown',
+                        }],
+                      })
+                    }
+                    if (!checked) {
+                      setFormData({ ...formData, outputDefinitions: [] })
+                    }
+                  }}
+                  className="rounded"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">This workflow publishes a reusable markdown handoff</span>
+              </label>
+
+              {producesMarkdownOutput && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output key</label>
+                    <input
+                      type="text"
+                      value={formData.outputDefinitions?.[0]?.key || ''}
+                      onChange={(e) => {
+                        const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
+                        next[0] = { ...next[0], key: e.target.value, type: 'markdown' }
+                        setFormData({ ...formData, outputDefinitions: next })
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder="leadership-brief"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output label</label>
+                    <input
+                      type="text"
+                      value={formData.outputDefinitions?.[0]?.label || ''}
+                      onChange={(e) => {
+                        const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
+                        next[0] = { ...next[0], label: e.target.value, type: 'markdown' }
+                        setFormData({ ...formData, outputDefinitions: next })
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder="Leadership brief"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output note</label>
+                    <input
+                      type="text"
+                      value={formData.outputDefinitions?.[0]?.help || ''}
+                      onChange={(e) => {
+                        const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
+                        next[0] = { ...next[0], help: e.target.value, type: 'markdown' }
+                        setFormData({ ...formData, outputDefinitions: next })
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder="Short guidance about what this handoff should contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Consumes upstream markdown handoffs</div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Link this workflow to outputs produced by earlier workflows.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({
+                      ...formData,
+                      inputRefs: [...(formData.inputRefs || []), { workflowId: '', outputKey: '', label: '', required: true }],
+                    })}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded border border-sky-300 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:text-sky-300 dark:hover:bg-sky-900/30"
+                  >
+                    + Add input
+                  </button>
+                </div>
+
+                {(formData.inputRefs || []).length === 0 ? (
+                  <div className="rounded-md border border-dashed border-sky-200 dark:border-sky-800 px-3 py-4 text-xs text-gray-500 dark:text-gray-400">
+                    No upstream handoffs yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(formData.inputRefs || []).map((inputRef, idx) => {
+                      const upstreamWorkflow = availableWorkflows.find((workflow) => workflow.id === inputRef.workflowId)
+                      const outputOptions = upstreamWorkflow?.outputDefinitions || []
+                      return (
+                        <div key={`${idx}-${inputRef.workflowId}-${inputRef.outputKey}`} className="rounded-md border border-sky-200 dark:border-sky-800 bg-white/80 dark:bg-gray-900/40 p-3 space-y-3">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Upstream workflow</label>
+                              <select
+                                value={inputRef.workflowId}
+                                onChange={(e) => {
+                                  const next = [...(formData.inputRefs || [])]
+                                  next[idx] = {
+                                    ...next[idx],
+                                    workflowId: e.target.value,
+                                    outputKey: '',
+                                  }
+                                  setFormData({ ...formData, inputRefs: next })
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              >
+                                <option value="">Select workflow...</option>
+                                {availableWorkflows.map((workflow) => (
+                                  <option key={workflow.id} value={workflow.id}>{workflow.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output key</label>
+                              <select
+                                value={inputRef.outputKey}
+                                onChange={(e) => {
+                                  const next = [...(formData.inputRefs || [])]
+                                  next[idx] = { ...next[idx], outputKey: e.target.value }
+                                  setFormData({ ...formData, inputRefs: next })
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              >
+                                <option value="">{upstreamWorkflow ? 'Select output...' : 'Choose workflow first...'}</option>
+                                {outputOptions.map((output) => (
+                                  <option key={output.key} value={output.key}>{output.label || output.key}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Input label</label>
+                              <input
+                                type="text"
+                                value={inputRef.label || ''}
+                                onChange={(e) => {
+                                  const next = [...(formData.inputRefs || [])]
+                                  next[idx] = { ...next[idx], label: e.target.value }
+                                  setFormData({ ...formData, inputRefs: next })
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                placeholder="Execution brief"
+                              />
+                            </div>
+                            <div className="flex items-end justify-between gap-3">
+                              <label className="flex items-center gap-2 pb-2">
+                                <input
+                                  type="checkbox"
+                                  checked={inputRef.required !== false}
+                                  onChange={(e) => {
+                                    const next = [...(formData.inputRefs || [])]
+                                    next[idx] = { ...next[idx], required: e.target.checked }
+                                    setFormData({ ...formData, inputRefs: next })
+                                  }}
+                                  className="rounded"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">Required</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({
+                                  ...formData,
+                                  inputRefs: (formData.inputRefs || []).filter((_, inputIdx) => inputIdx !== idx),
+                                })}
+                                className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Enabled + Run Limit */}

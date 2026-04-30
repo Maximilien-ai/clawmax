@@ -299,6 +299,52 @@ test('setAgentSkills() updates only the active workspace record and preserves ga
   assertEqual(config.gateway.tailscale.hostname, 'stable-host', 'Expected gateway tailscale preserved')
 })
 
+test('setAgentSkills() is a no-op when the requested skills are unchanged', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-noop-test')
+  const workspaceAgent = path.join(workspacePath, 'AGENTS', 'noop-agent')
+
+  fs.mkdirSync(workspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'noop-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'noop-test',
+        name: 'Noop Test',
+        path: workspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+    },
+    agents: {
+      list: [
+        { id: 'noop-agent', workspace: workspaceAgent, skills: ['github', 'workspace-ls'] },
+      ]
+    }
+  }, null, 2))
+  process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
+
+  const before = fs.readFileSync(configPath, 'utf-8')
+  setAgentSkills('noop-agent', ['github', 'workspace-ls'])
+  const after = fs.readFileSync(configPath, 'utf-8')
+
+  assertEqual(after, before, 'Expected no config rewrite when skills are unchanged')
+})
+
 // Test 10: Skills are sorted alphabetically
 test('listAvailableSkills() returns sorted skills', () => {
   const skills = listAvailableSkills()

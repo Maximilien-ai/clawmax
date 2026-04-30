@@ -55,6 +55,10 @@ interface Channel {
   members: Agent[]
 }
 
+interface DocEntry {
+  path: string
+}
+
 const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
   offline: 'bg-yellow-400',
@@ -71,6 +75,7 @@ function secAgo(ts: number): string {
 export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, initialOpenChatName, onClearInitialGroupName, onClearInitialOpenChatName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; initialOpenChatName?: string; onClearInitialGroupName?: () => void; onClearInitialOpenChatName?: () => void; isActive?: boolean } = {}) {
   const { showSuccess } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
+  const [docEntries, setDocEntries] = useState<DocEntry[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<GroupEntry[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<GroupEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -140,6 +145,40 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       })
       .catch(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/docs')
+      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((data) => {
+        if (!cancelled) setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+      })
+      .catch(() => {
+        if (!cancelled) setDocEntries([])
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const resolveDocPath = useCallback((target: string) => {
+    if (!target || target.includes('/')) return target
+
+    const exact = docEntries.find((entry) => entry.path === target)
+    if (exact) return exact.path
+
+    const matches = docEntries.filter((entry) => entry.path.endsWith(`/${target}`) || entry.path === target)
+    if (matches.length === 1) return matches[0].path
+
+    const preferred = matches.find((entry) => entry.path.startsWith('AGENTS/'))
+      || matches.find((entry) => entry.path.startsWith('WORKFLOWS/'))
+      || matches.find((entry) => entry.path.startsWith('ORG/'))
+      || matches[0]
+
+    return preferred?.path || target
+  }, [docEntries])
+
+  const handleNavigateToDoc = useCallback((target: string) => {
+    onNavigateToDoc?.(resolveDocPath(target))
+  }, [onNavigateToDoc, resolveDocPath])
 
   useEffect(() => {
     fetchAgents()
@@ -562,6 +601,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           })
           showSuccess(`Cleared history for ${channelsToClear.length} channel${channelsToClear.length !== 1 ? 's' : ''}`)
           setDeleteDialog(null)
+          setSelectedChannelKeys(new Set())
+          setSelectionMode(false)
           fetchAgents()
         } catch (err) {
           console.error('Bulk clear history failed:', err)
@@ -996,7 +1037,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             channel={chatPanelChannel}
             onClose={() => setChatPanelChannel(null)}
             mode="pane"
-            onNavigateToDoc={onNavigateToDoc}
+            onNavigateToDoc={handleNavigateToDoc}
             onMessageSent={(mentionedIds, hasAll) => {
               // Check which mentioned agents were offline
               const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
@@ -1025,7 +1066,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         channel={chatPanelChannel}
         onClose={() => setChatPanelChannel(null)}
         mode="overlay"
-        onNavigateToDoc={onNavigateToDoc}
+        onNavigateToDoc={handleNavigateToDoc}
         onMessageSent={(mentionedIds, hasAll) => {
           // Check which mentioned agents were offline
           const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')

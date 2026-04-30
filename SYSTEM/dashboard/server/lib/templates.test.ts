@@ -7,16 +7,23 @@
 import {
   listTemplates,
   getTemplate,
+  importOrganizationTemplate,
+  saveTemplate,
   validateTemplate,
   validateImportedTemplateMd,
   validateAgentTemplateFiles,
   createOrganizationTemplate,
   readWorkspaceAgentFilesForOrganizationTemplate,
+  isOpenClawAgentAlreadyExistsError,
+  upsertOpenClawAgentRegistration,
   slugify,
   type OrganizationTemplate,
   type AgentTemplate
 } from './templates'
 import { checkTemplatePrereqs } from './prereqs'
+import { getTeam, listTeams } from './teams'
+import { getWorkflow } from './workflows'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -246,6 +253,9 @@ test('validateTemplate() accepts valid organization template', () => {
     name: 'Test Org',
     type: 'organization',
     version: '1.0.0',
+    teams: [
+      { id: 'engineering', name: 'Engineering', leaderAgentId: 'test-agent', memberAgentIds: ['test-agent'] }
+    ],
     agents: [
       { id: 'test-agent', role: 'Test Role' }
     ]
@@ -281,6 +291,49 @@ test('getTemplate() retrieves org template by slug', () => {
     assert(template.agents.length > 0, 'Should have agents')
   } else {
     console.log('  Template not found (may need to be created first)')
+  }
+})
+
+test('organization templates expose derived kind metadata', () => {
+  const buildCompany = getTemplate('organization', 'build-a-company-hack-test') as OrganizationTemplate | null
+  assert(buildCompany !== null, 'Build-a-Company Hack Test template should exist')
+  assertEqual(buildCompany?.kind as any, 'company', 'Expected build-a-company template to be classified as company')
+
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  fs.mkdirSync(path.join(tempWorkspace, 'TEMPLATES', 'organizations'), { recursive: true })
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const saved = saveTemplate({
+      name: 'Team Kind Check',
+      type: 'organization',
+      version: '1.0.0',
+      agents: [
+        { id: 'lead', role: 'Lead the small team' },
+        { id: 'builder', role: 'Build the work' },
+      ],
+      communities: [{ name: 'Team Kind Check' }],
+      groups: [{ name: 'Status', community: 'Team Kind Check' }],
+      workflows: [],
+    })
+    assert(saved.ok === true, `Expected team template save to succeed, got ${saved.error || 'unknown error'}`)
+
+    const teamTemplate = getTemplate('organization', 'team-kind-check') as OrganizationTemplate | null
+    assert(teamTemplate !== null, 'Expected saved team template to be readable')
+    assertEqual(teamTemplate?.kind as any, 'team', 'Expected simple workspace template to be classified as team')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
   }
 })
 
@@ -677,6 +730,35 @@ test('templateToMarkdown preserves agent communities and groups across markdown 
   assertEqual(parsed.agents[1].groups?.join(','), 'Content Creation,Quality Control', 'Expected second agent group membership to round-trip')
 })
 
+test('templateToMarkdown preserves teams across markdown round-trip', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const template = {
+    name: 'Company Team Round Trip',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [
+      { id: 'ceo', role: 'CEO' },
+      { id: 'pm', role: 'PM' },
+      { id: 'eng1', role: 'Engineer' },
+    ],
+    teams: [
+      { id: 'leadership', name: 'Leadership', purpose: 'Set direction', leaderAgentId: 'ceo', memberAgentIds: ['pm'], tags: ['exec'] },
+      { id: 'engineering', name: 'Engineering', purpose: 'Build product', leaderAgentId: 'pm', memberAgentIds: ['eng1'], parentTeamId: 'leadership', tags: ['build'] },
+    ],
+  }
+
+  const md = templateToMarkdown(template)
+  const parsed = parseTemplateMd(md)
+
+  assert(parsed !== null, 'Expected round-trip parse to succeed')
+  assert((parsed.teams || []).length === 2, `Expected 2 teams after round-trip, got ${(parsed.teams || []).length}`)
+  assert(parsed.teams[0].id === 'leadership', 'Expected first team id to round-trip')
+  assert(parsed.teams[0].leaderAgentId === 'ceo', 'Expected first team leader to round-trip')
+  assertEqual(parsed.teams[0].memberAgentIds?.join(','), 'pm', 'Expected first team members to round-trip')
+  assert(parsed.teams[1].parentTeamId === 'leadership', 'Expected parent team id to round-trip')
+  assertEqual(parsed.teams[1].tags?.join(','), 'build', 'Expected team tags to round-trip')
+})
+
 test('template markdown preserves organization agent files', () => {
   const { templateToMarkdown, validateImportedTemplateMd } = require('./templates')
   const template = {
@@ -750,6 +832,68 @@ test('Kickoff workflows have Project Configuration section', () => {
     t.workflows?.some((w: any) => w.id.includes('kickoff') && w.content?.includes('Project Configuration'))
   )
   assert(withConfig.length >= 5, `Expected 5+ kickoffs with config section, got ${withConfig.length}`)
+})
+
+test('summarizeImportedProjectContext compacts kickoff configuration for agent identity context', () => {
+  const { summarizeImportedProjectContext } = require('./templates')
+  const raw = `## Project Configuration
+
+Customer: B2B SaaS founders focused on homepage conversion.
+Revenue target: $50k MRR in 90 days.
+Constraint: Keep delivery lean and artifact driven.
+Need strategy, ICP, lead list, proposal, and weekly revenue review.
+This sentence is intentionally long to force the summarizer to trim lower-signal context once the limit is reached.
+`
+
+  const summary = summarizeImportedProjectContext(raw, 140)
+  assert(!summary.includes('## Project Configuration'), 'Expected section heading to be removed')
+  assert(summary.includes('Customer:'), 'Expected the high-signal lines to remain')
+  assert(summary.includes('Additional project context omitted for brevity.'), 'Expected long context to be explicitly truncated')
+})
+
+test('isOpenClawAgentAlreadyExistsError detects OpenClaw duplicate-agent failures', () => {
+  const err = Object.assign(new Error('Command failed'), {
+    stderr: Buffer.from('Agent "test-ceo" already exists.\n'),
+  })
+  assert(isOpenClawAgentAlreadyExistsError(err), 'Expected duplicate-agent stderr to be detected')
+  assert(!isOpenClawAgentAlreadyExistsError(new Error('network timeout')), 'Expected unrelated errors not to match')
+})
+
+test('upsertOpenClawAgentRegistration adopts existing agent ids into active workspace', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-openclaw-registry-home-'))
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: 'test-ceo',
+          name: 'test-ceo',
+          workspace: '/old/workspace/AGENTS/test-ceo',
+          agentDir: '/old/home/.openclaw/agents/test-ceo/agent',
+          model: 'openai/gpt-4o-mini',
+          skills: ['github'],
+        },
+      ],
+    },
+  }, null, 2), 'utf-8')
+
+  const result = upsertOpenClawAgentRegistration(
+    configPath,
+    'test-ceo',
+    '/new/workspace/AGENTS/test-ceo',
+    '/new/home/.openclaw/agents/test-ceo/agent'
+  )
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const agent = config.agents.list.find((entry: any) => entry.id === 'test-ceo')
+
+  assert(result?.status === 'updated-existing', `Expected existing registration to be updated, got ${result?.status || 'missing'}`)
+  assert(agent.workspace === '/new/workspace/AGENTS/test-ceo', 'Expected workspace path to be updated')
+  assert(agent.agentDir === '/new/home/.openclaw/agents/test-ceo/agent', 'Expected agentDir path to be updated')
+  assert(agent.model === 'openai/gpt-4o-mini', 'Expected model metadata to be preserved')
+  assert(JSON.stringify(agent.skills) === JSON.stringify(['github']), 'Expected skills metadata to be preserved')
+
+  fs.rmSync(home, { recursive: true, force: true })
 })
 
 // ============================================================================
@@ -933,6 +1077,302 @@ Broken import validation test.
   const result = validateImportedTemplateMd(md)
   assert(result.valid === false, 'Expected import validation to fail')
   assert(result.errors.some((error: string) => error.toLowerCase().includes('agents')), 'Expected schema error mentioning missing agents')
+})
+
+test('saveTemplate strips derived kind from persisted organization templates', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-home-'))
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-kind-save-'))
+  fs.mkdirSync(path.join(tempWorkspace, 'TEMPLATES', 'organizations'), { recursive: true })
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const result = saveTemplate({
+      name: 'Kind Persistence Check',
+      type: 'organization',
+      kind: 'company',
+      version: '1.0.0',
+      tags: ['company'],
+      agents: [
+        { id: 'ceo', role: 'Chief executive' },
+      ],
+      teams: [
+        { id: 'leadership', name: 'Leadership' },
+      ],
+    })
+
+    assert(result.ok === true, `Expected saveTemplate to succeed, got ${result.error || 'unknown error'}`)
+
+    const persistedPath = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'kind-persistence-check', 'template.json')
+    const persisted = JSON.parse(fs.readFileSync(persistedPath, 'utf-8'))
+    assert(!('kind' in persisted), 'Persisted template.json should not store derived kind')
+
+    const loaded = getTemplate('organization', 'kind-persistence-check') as OrganizationTemplate | null
+    assert(loaded !== null, 'Expected saved template to be readable')
+    assertEqual(loaded?.kind as any, 'company', 'Expected derived kind to be restored on read')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+    fs.rmSync(tempWorkspace, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate creates nested teams and workflow handoff metadata', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const result = importOrganizationTemplate('build-a-company-hack-test', {
+      prefix: 'demo-',
+    })
+
+    assert(result.ok === true, `Expected template import to succeed, got ${result.error || 'unknown error'}`)
+
+    const teams = listTeams(tempWorkspace)
+    assert(teams.length >= 5, `Expected imported company teams, got ${teams.length}`)
+
+    const leadership = teams.find((team) => team.id === 'demo-leadership')
+    const engineering = teams.find((team) => team.id === 'demo-engineering')
+    const execution = teams.find((team) => team.id === 'demo-execution')
+    const marketing = teams.find((team) => team.id === 'demo-marketing')
+    const qa = teams.find((team) => team.id === 'demo-qa')
+    assert(leadership !== undefined, 'Expected leadership team to exist')
+    assert(leadership?.memberAgentIds.includes('demo-execution-lead') === true, 'Expected leadership members to include execution lead')
+    assert(execution?.parentTeamId === 'demo-leadership', 'Expected execution to be nested under leadership')
+    assert(execution?.memberAgentIds.includes('demo-program-manager') === true, 'Expected execution members to include program manager')
+    assert(engineering?.parentTeamId === 'demo-leadership', 'Expected engineering to be nested under leadership')
+    assert(engineering?.memberAgentIds.includes('demo-platform-engineer') === true, 'Expected engineering members to include platform engineer')
+    assert(marketing?.parentTeamId === 'demo-leadership', 'Expected marketing to be nested under leadership')
+    assert(marketing?.memberAgentIds.includes('demo-content-strategist') === true, 'Expected marketing members to include content strategist')
+    assert(qa?.parentTeamId === 'demo-leadership', 'Expected QA to be nested under leadership')
+    assert(qa?.leaderAgentId === 'demo-qa-lead', 'Expected QA leader to use imported agent id')
+    assert(qa?.memberAgentIds.includes('demo-release-analyst') === true, 'Expected QA members to include release analyst')
+
+    const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
+    assert(demoMarketingLead?.model === 'openai/gpt-4o-mini', `Expected imported live config model to match template model, got ${demoMarketingLead?.model || 'missing'}`)
+
+    const leadershipKickoff = getWorkflow('demo-leadership-kickoff')
+    const executionBrief = getWorkflow('demo-execution-brief')
+    const engineeringPlan = getWorkflow('demo-engineering-plan')
+    const marketingLaunch = getWorkflow('demo-marketing-launch')
+    const qaReview = getWorkflow('demo-qa-review')
+    assert(leadershipKickoff !== null, 'Expected demo-leadership-kickoff workflow to exist after import')
+    assert(executionBrief !== null, 'Expected execution-brief workflow to exist after import')
+    assert(engineeringPlan !== null, 'Expected engineering-plan workflow to exist after import')
+    assert(marketingLaunch !== null, 'Expected marketing-launch workflow to exist after import')
+    assert(qaReview !== null, 'Expected qa-review workflow to exist after import')
+
+    assertEqual(leadershipKickoff?.name as any, 'demo · Leadership Kickoff', 'Expected leadership workflow name to include import namespace context')
+    assert(executionBrief?.outputDefinitions?.some((output) => output.key === 'execution-plan') === true, 'Expected execution-brief outputs to persist')
+    assert(executionBrief?.targeting.teamIds?.includes('demo-execution') === true, 'Expected execution-brief team target to persist')
+    assert(engineeringPlan?.inputRefs?.some((ref) => ref.workflowId === 'demo-execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected engineering-plan handoff input to persist')
+    assert(engineeringPlan?.targeting.teamIds?.includes('demo-engineering') === true, 'Expected engineering-plan team target to persist')
+    assert(engineeringPlan?.outputDefinitions?.some((output) => output.key === 'engineering-spec') === true, 'Expected engineering-plan outputs to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'demo-engineering-plan' && ref.outputKey === 'engineering-spec') === true, 'Expected marketing-launch engineering handoff to persist')
+    assert(marketingLaunch?.inputRefs?.some((ref) => ref.workflowId === 'demo-execution-brief' && ref.outputKey === 'execution-plan') === true, 'Expected marketing-launch execution handoff to persist')
+    assert(marketingLaunch?.targeting.teamIds?.includes('demo-marketing') === true, 'Expected marketing-launch team target to persist')
+    assert(marketingLaunch?.outputDefinitions?.some((output) => output.key === 'marketing-pack') === true, 'Expected marketing-launch outputs to persist')
+    assert(qaReview?.inputRefs?.some((ref) => ref.workflowId === 'demo-marketing-launch' && ref.outputKey === 'marketing-pack') === true, 'Expected qa-review marketing handoff to persist')
+    assert(qaReview?.targeting.teamIds?.includes('demo-qa') === true, 'Expected qa-review team target to persist')
+    assert(qaReview?.outputDefinitions?.some((output) => output.key === 'qa-signoff') === true, 'Expected qa-review outputs to persist')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate keeps multiple company applies isolated by prefix', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-multi-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const first = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'alpha-' })
+    const second = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'beta-' })
+
+    assert(first.ok === true, `Expected first import to succeed, got ${first.error || 'unknown error'}`)
+    assert(second.ok === true, `Expected second import to succeed, got ${second.error || 'unknown error'}`)
+
+    const teams = listTeams(tempWorkspace)
+    assert(teams.some((team) => team.id === 'alpha-leadership'), 'Expected alpha leadership team to exist')
+    assert(teams.some((team) => team.id === 'beta-leadership'), 'Expected beta leadership team to exist')
+
+    const alphaKickoff = getWorkflow('alpha-leadership-kickoff')
+    const betaKickoff = getWorkflow('beta-leadership-kickoff')
+    assert(alphaKickoff !== null, 'Expected alpha kickoff workflow to exist')
+    assert(betaKickoff !== null, 'Expected beta kickoff workflow to exist')
+    assert(alphaKickoff?.targeting.teamIds?.includes('alpha-leadership') === true, 'Expected alpha kickoff to target alpha leadership team')
+    assert(betaKickoff?.targeting.teamIds?.includes('beta-leadership') === true, 'Expected beta kickoff to target beta leadership team')
+    assert(alphaKickoff?.name !== betaKickoff?.name, 'Expected imported company workflows to have distinct names')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate re-apply replaces stale workflow targeting', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-refresh-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const kickoffId = 'b2b-leadership-kickoff'
+    const { createWorkflow } = require('./workflows')
+    const stale = createWorkflow({
+      id: kickoffId,
+      name: 'Stale kickoff',
+      description: 'stale',
+      schedule: '0 9 * * 1',
+      enabled: true,
+      executionMode: 'managed',
+      owner: 'b2b-ceo',
+      targeting: {
+        agents: ['b2b-ceo', 'b2b-program-manager'],
+        groups: ['b2b-Leadership'],
+        communities: ['Saas Optimizers'],
+        tags: ['b2b-saas'],
+        teamIds: [],
+      },
+      content: 'stale',
+      author: 'test',
+      created: new Date().toISOString(),
+      modified: new Date().toISOString(),
+    })
+    assert(stale.success === true, `Expected stale workflow creation to succeed, got ${stale.error || 'unknown error'}`)
+
+    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'b2b-' })
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const refreshed = getWorkflow(kickoffId)
+    assert(refreshed !== null, 'Expected kickoff workflow to exist after import')
+    assertEqual((refreshed?.targeting.communities || []).length, 0, 'Expected stale community targeting to be replaced on import')
+    assertEqual(JSON.stringify(refreshed?.targeting.agents || []), JSON.stringify(['b2b-ceo']), 'Expected imported workflow to replace broad agent fanout with owner targeting')
+    assertEqual(JSON.stringify(refreshed?.targeting.tags || []), JSON.stringify([]), 'Expected company import to clear broad tag execution targets when owner/team targets exist')
+    assert((refreshed?.targeting.groups || []).includes('b2b-Leadership') === true, 'Expected imported workflow to namespace group targeting for prefixed company imports')
+    assert(refreshed?.targeting.teamIds?.includes('b2b-leadership') === true, 'Expected kickoff workflow to use imported team targeting')
+    assertEqual(JSON.stringify(refreshed?.targeting.communities || []), JSON.stringify([]), 'Expected kickoff workflow to remain free of stale community targeting after import')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate namespaces groups and communities for prefixed company imports', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-prefix-channels-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const groupsMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'GROUPS.md'), 'utf-8')
+    const communitiesMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'COMMUNITIES.md'), 'utf-8')
+    const kickoff = getWorkflow('test-leadership-kickoff')
+
+    assert(groupsMd.includes('### test-Leadership'), 'Expected prefixed import to namespace workspace group names')
+    assert(communitiesMd.includes('### test-Build-a-Company'), 'Expected prefixed import to namespace workspace community names')
+    assert(kickoff !== null, 'Expected kickoff workflow to exist after prefixed import')
+    assert((kickoff?.targeting.groups || []).includes('test-Leadership') === true, 'Expected kickoff workflow to target namespaced group name')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate sanitizes invalid team ancestry before creating teams', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-teams-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'cycle-company')
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Cycle Company',
+      type: 'organization',
+      kind: 'company',
+      version: '1.0.0',
+      agents: [
+        { id: 'ceo', role: 'CEO' },
+        { id: 'ops', role: 'Ops' },
+      ],
+      teams: [
+        { id: 'company', name: 'Company', leaderAgentId: 'ceo', memberAgentIds: ['ops'], parentTeamId: 'company' },
+        { id: 'ops-team', name: 'Ops Team', leaderAgentId: 'ops', memberAgentIds: [], parentTeamId: 'company' },
+      ],
+      workflows: [],
+    }, null, 2), 'utf-8')
+
+    const imported = importOrganizationTemplate('cycle-company', {})
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const company = getTeam('company')
+    assert(company !== null, 'Expected company team to exist after import')
+    assert(company?.parentTeamId === undefined, 'Expected self-parent cycle to be cleared during import')
+
+    const opsTeam = getTeam('ops-team')
+    assert(opsTeam?.parentTeamId === 'company', 'Expected valid child parent to remain intact')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
 })
 
 // Summary

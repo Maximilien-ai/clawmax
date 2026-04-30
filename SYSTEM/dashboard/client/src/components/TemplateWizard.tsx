@@ -31,19 +31,33 @@ interface WizardGroup {
   tags?: string[]
 }
 
+interface WizardTeam {
+  id: string
+  name: string
+  purpose?: string
+  leaderAgentId?: string
+  memberAgentIds: string[]
+  parentTeamId?: string
+  tags?: string[]
+}
+
 interface WizardWorkflow {
   id: string
   name: string
   description: string
   schedule: string
   executionMode: 'automated' | 'managed'
+  owner?: string
   scaling?: 'singleton' | 'parallel'
   parallelism?: number
   targetAgents: string[]
+  targetTeamIds?: string[]
   targetCommunities?: string[]
   targetGroups?: string[]
   tags?: string[]
   dependsOn?: string[]
+  outputDefinitions?: Array<{ key: string; label?: string; type?: string; help?: string }>
+  inputRefs?: Array<{ workflowId: string; outputKey: string; label?: string; required?: boolean }>
   content: string
 }
 
@@ -64,6 +78,7 @@ interface WizardTeamParameter {
 
 interface WizardState {
   // Step 1: Team Type
+  generationTarget: 'agent' | 'team' | 'company'
   domain: 'business' | 'technical' | 'personal' | 'custom'
   teamDescription: string
   teamName: string
@@ -74,6 +89,7 @@ interface WizardState {
   // Step 3: Communication
   communities: WizardCommunity[]
   groups: WizardGroup[]
+  teams: WizardTeam[]
 
   // Step 4: Workflows
   workflows: WizardWorkflow[]
@@ -88,19 +104,51 @@ interface WizardState {
 }
 
 const DOMAIN_PRESETS: Record<string, { label: string; icon: string; description: string; examples: string[] }> = {
-  business: { label: 'Business', icon: '💼', description: 'Sales, support, HR, marketing, legal teams', examples: ['Sales team with SDRs and account execs', 'Customer support with escalation'] },
+  business: { label: 'Business', icon: '💼', description: 'Sales, support, HR, marketing, legal teams', examples: ['A lead-gen agency company with leadership, offer strategy, outbound, and delivery teams that produce ICPs, lead lists, outreach copy, booked-call plans, and weekly revenue reviews.', 'A niche ecommerce operator company with leadership, merchandising, acquisition, and lifecycle teams that produce offer strategy, product pages, ad concepts, launch plans, and revenue summaries.'] },
   technical: { label: 'Technical', icon: '⚙️', description: 'Engineering, data, DevOps, QA teams', examples: ['Dev team with QA and DevOps', 'Data pipeline team with analysts'] },
   personal: { label: 'Personal', icon: '📚', description: 'Research, writing, study, planning', examples: ['Student research group', 'Technical writing team'] },
   custom: { label: 'Custom', icon: '✨', description: 'Describe any team from scratch', examples: [] },
 }
 
+const REVENUE_COMPANY_PROMPTS = [
+  'A productized service company that sells conversion-focused landing page packages for local businesses. Create a company with leadership, offer strategy, outbound sales, client delivery, and revenue review workflows. It should produce ICPs, lead lists, outreach copy, proposal drafts, delivery plans, and weekly revenue summaries.',
+  'An outbound lead generation agency company for B2B SaaS founders. Create a company with leadership, research, outbound, and operations teams. It should produce an offer brief, ICP definition, target account list, personalized outbound messaging, pipeline review, and a revenue action summary.',
+  'A niche ecommerce operator company launching a premium home office product line. Create a company with leadership, merchandising, acquisition, and lifecycle teams. It should produce offer strategy, pricing, product page copy, ad concepts, launch sequencing, and a revenue-focused weekly operating brief.',
+] as const
+
+const GENERATION_TARGET_COPY: Record<'agent' | 'team' | 'company', { label: string; title: string; description: string; promptLabel: string; promptPlaceholder: string }> = {
+  agent: {
+    label: 'Agent',
+    title: 'Single agent',
+    description: 'One role, one persona, one operating unit. Use this when you want one specialist, not a team or company.',
+    promptLabel: 'Describe the agent you want',
+    promptPlaceholder: 'e.g., A technical founder assistant that drafts strategy memos, investor updates, and product decisions...',
+  },
+  team: {
+    label: 'Team',
+    title: 'One team',
+    description: 'A leader plus a few members working in one lane. Best for a focused operating team rather than a full company.',
+    promptLabel: 'Describe your team',
+    promptPlaceholder: 'e.g., A customer support team with 3 support agents, an escalation engineer, and a knowledge base manager...',
+  },
+  company: {
+    label: 'Company',
+    title: 'Team of teams',
+    description: 'Leadership plus multiple functional teams with chained workflows, handoffs, and company structure.',
+    promptLabel: 'Describe the company you want',
+    promptPlaceholder: 'e.g., A B2B SaaS conversion company with leadership, offer strategy, outbound, delivery, and weekly revenue review teams...',
+  },
+}
+
 const INITIAL_STATE: WizardState = {
+  generationTarget: 'team',
   domain: 'custom',
   teamDescription: '',
   teamName: '',
   agents: [],
   communities: [],
   groups: [],
+  teams: [],
   workflows: [],
   parameters: [],
   description: '',
@@ -440,19 +488,32 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         community: g.community || '',
         tags: g.tags || [],
       })),
+      teams: (initialTemplate.teams || []).map((team: any) => ({
+        id: team.id,
+        name: team.name || team.id,
+        purpose: team.purpose || '',
+        leaderAgentId: team.leaderAgentId || '',
+        memberAgentIds: team.memberAgentIds || [],
+        parentTeamId: team.parentTeamId || '',
+        tags: team.tags || [],
+      })),
       workflows: (initialTemplate.workflows || []).map((w: any) => ({
         id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
         name: w.name || '',
         description: w.description || '',
         schedule: w.schedule || 'manual',
         executionMode: w.executionMode || 'managed',
+        owner: w.owner || '',
         scaling: w.scaling || undefined,
         parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
         targetAgents: w.targeting?.agents || [],
+        targetTeamIds: w.targeting?.teamIds || [],
         targetCommunities: w.targeting?.communities || [],
         targetGroups: w.targeting?.groups || [],
         tags: w.targeting?.tags || [],
         dependsOn: w.dependsOn || [],
+        outputDefinitions: w.outputDefinitions || [],
+        inputRefs: w.inputRefs || [],
         content: w.content || '',
       })),
       parameters: (initialTemplate.parameters || []).map((p: any) => ({
@@ -487,6 +548,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: state.teamDescription,
+          generationTarget: state.generationTarget,
           byokKeys: (openai || anthropic) ? { openai, anthropic } : undefined,
         }),
       })
@@ -511,13 +573,17 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             description: w.description || '',
             schedule: w.schedule || 'manual',
             executionMode: w.executionMode || 'managed',
+            owner: w.owner || '',
             scaling: w.scaling || undefined,
             parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
             targetAgents: w.targeting?.agents || [],
+            targetTeamIds: w.targeting?.teamIds || [],
             targetCommunities: w.targeting?.communities || [],
             targetGroups: w.targeting?.groups || [],
             tags: w.targeting?.tags || [],
             dependsOn: w.dependsOn || [],
+            outputDefinitions: w.outputDefinitions || [],
+            inputRefs: w.inputRefs || [],
             content: mergedContent,
           }
         })
@@ -548,6 +614,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             description: g.description || '',
             community: g.community || (t.communities?.[0]?.name || ''),
             tags: g.tags || [],
+          })),
+          teams: (t.teams || []).map((team: any) => ({
+            id: team.id,
+            name: team.name || team.id,
+            purpose: team.purpose || '',
+            leaderAgentId: team.leaderAgentId || '',
+            memberAgentIds: team.memberAgentIds || [],
+            parentTeamId: team.parentTeamId || '',
+            tags: team.tags || [],
           })),
           workflows: mergedWorkflows,
           parameters: (t.parameters || []).map((p: any) => ({
@@ -618,6 +693,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         community: g.community || undefined,
         tags: g.tags,
       })) : undefined,
+      teams: state.teams.length > 0 ? state.teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        purpose: team.purpose || undefined,
+        leaderAgentId: team.leaderAgentId || undefined,
+        memberAgentIds: team.memberAgentIds || [],
+        parentTeamId: team.parentTeamId || undefined,
+        tags: team.tags || [],
+      })) : undefined,
       workflows: state.workflows.length > 0 ? state.workflows.map(w => ({
         id: w.id,
         name: w.name,
@@ -625,6 +709,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         schedule: w.schedule,
         enabled: true,
         executionMode: w.executionMode,
+        owner: w.owner || undefined,
         scaling: w.scaling,
         parallelism: w.parallelism,
         targeting: {
@@ -632,8 +717,11 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           groups: w.targetGroups || [],
           tags: w.tags || [],
           agents: w.targetAgents,
+          teamIds: w.targetTeamIds || [],
         },
         dependsOn: w.dependsOn,
+        outputDefinitions: w.outputDefinitions && w.outputDefinitions.length > 0 ? w.outputDefinitions : undefined,
+        inputRefs: w.inputRefs && w.inputRefs.length > 0 ? w.inputRefs : undefined,
         content: w.content,
       })) : undefined,
     }
@@ -1003,6 +1091,27 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 className="text-xs px-2 py-1 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
               >
                 {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {state.domain === 'business' && (
+        <div className="mb-4 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/20 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Revenue Company Starters</div>
+          <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-100">
+            Use these to generate commercially credible companies quickly for tomorrow’s demos.
+          </p>
+          <div className="mt-3 grid gap-2">
+            {REVENUE_COMPANY_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => update({ teamDescription: prompt })}
+                className="rounded-md border border-emerald-200 dark:border-emerald-700 bg-white/80 dark:bg-gray-900/30 px-3 py-2 text-left text-sm text-emerald-900 dark:text-emerald-100 hover:border-emerald-400 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 transition-colors"
+              >
+                {prompt}
               </button>
             ))}
           </div>
@@ -1574,6 +1683,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     const agentCount = template.agents?.length || 0
     const communityCount = template.communities?.length || 0
     const groupCount = template.groups?.length || 0
+    const teamCount = template.teams?.length || 0
     const workflowCount = template.workflows?.length || 0
 
     return (
@@ -1601,6 +1711,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                     })),
                     groups: (parsed.groups || []).map((g: any) => ({
                       name: g.name, description: g.description || '', community: g.community || '', tags: g.tags || [],
+                    })),
+                    teams: (parsed.teams || []).map((team: any) => ({
+                      id: team.id,
+                      name: team.name || team.id,
+                      purpose: team.purpose || '',
+                      leaderAgentId: team.leaderAgentId || '',
+                      memberAgentIds: team.memberAgentIds || [],
+                      parentTeamId: team.parentTeamId || '',
+                      tags: team.tags || [],
                     })),
                   })
                   setEditingJson(false)
@@ -1637,6 +1756,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 <span>{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
                 <span>{communityCount} communit{communityCount !== 1 ? 'ies' : 'y'}</span>
                 <span>{groupCount} group{groupCount !== 1 ? 's' : ''}</span>
+                <span>{teamCount} team{teamCount !== 1 ? 's' : ''}</span>
                 <span>{workflowCount} workflow{workflowCount !== 1 ? 's' : ''}</span>
               </div>
               {state.tags.length > 0 && (

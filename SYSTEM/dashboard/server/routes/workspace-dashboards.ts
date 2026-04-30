@@ -5,15 +5,112 @@ import { listAgents, parseGroups, parseGroupsWithMembers } from '../lib/workspac
 import { getBudgetStatus } from '../lib/budget'
 import { getWorkspaceMetering } from '../lib/metering'
 import { getActiveNotifications } from '../lib/notifications'
-import { listWorkflows, listExecutions } from '../lib/workflows'
+import { listWorkflows, listExecutions, resolveWorkflowInputRefs } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getMessages } from '../lib/messages'
+import { listTeams, type Team } from '../lib/teams'
 import fs from 'fs'
 import path from 'path'
 
 const router = Router()
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
 const FILE_PATH_REGEX = /\/[^\s"'<>]+?\.(md|txt|pdf|json|csv|png|jpg|jpeg|gif|html)/gi
+
+export interface WorkspaceDashboardCompanyOption {
+  kind: 'workspace' | 'team' | 'prefix'
+  value: string | null
+  label: string
+}
+
+function normalizeCompanyKey(value: string | null | undefined): string {
+  return String(value || '').trim().toLowerCase()
+}
+
+function getWorkflowCompanyPrefix(name: string | null | undefined): string | null {
+  const trimmed = String(name || '').trim()
+  const match = trimmed.match(/^(.*?)\s+·\s+/)
+  return match?.[1]?.trim() || null
+}
+
+function getWorkflowTeamLabel(name: string | null | undefined): string | null {
+  const trimmed = String(name || '').trim()
+  const withoutPrefix = trimmed.replace(/^(.*?)\s+·\s+/, '')
+  const segment = withoutPrefix.split('/')[0]?.trim()
+  return segment || null
+}
+
+export function inferWorkspaceDashboardCompanies(input: {
+  teams: Team[]
+  workflows: Array<{ name?: string | null }>
+}): WorkspaceDashboardCompanyOption[] {
+  const options: WorkspaceDashboardCompanyOption[] = [{
+    kind: 'workspace',
+    value: null,
+    label: 'Whole workspace',
+  }]
+  const seen = new Set<string>(['workspace:'])
+
+  const topTeams = (input.teams || [])
+    .filter((team) => !team.parentTeamId)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  for (const team of topTeams) {
+    const key = `team:${normalizeCompanyKey(team.id)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push({
+      kind: 'team',
+      value: team.id,
+      label: team.name,
+    })
+  }
+
+  const prefixes = Array.from(new Set(
+    (input.workflows || [])
+      .map((workflow) => getWorkflowCompanyPrefix(workflow.name))
+      .filter((value): value is string => !!value)
+  )).sort((a, b) => a.localeCompare(b))
+
+  const knownLabels = new Set(options.map((option) => normalizeCompanyKey(option.label)))
+  for (const prefix of prefixes) {
+    if (knownLabels.has(normalizeCompanyKey(prefix))) continue
+    const key = `prefix:${normalizeCompanyKey(prefix)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push({
+      kind: 'prefix',
+      value: prefix,
+      label: prefix,
+    })
+  }
+
+  return options
+}
+
+function collectTeamSubtreeIds(rootTeamId: string, teams: Team[]): Set<string> {
+  const childMap = new Map<string, Team[]>()
+  for (const team of teams) {
+    if (!team.parentTeamId) continue
+    childMap.set(team.parentTeamId, [...(childMap.get(team.parentTeamId) || []), team])
+  }
+  const ids = new Set<string>()
+  const stack = [rootTeamId]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (ids.has(current)) continue
+    ids.add(current)
+    for (const child of childMap.get(current) || []) stack.push(child.id)
+  }
+  return ids
+}
+
+function getTeamAgentIds(team: Pick<Team, 'leaderAgentId' | 'memberAgentIds'>): string[] {
+  return Array.from(new Set([team.leaderAgentId, ...(team.memberAgentIds || [])].filter(Boolean) as string[]))
+}
+
+function normalizeGroupName(value: string | null | undefined): string {
+  return String(value || '').trim().toLowerCase()
+}
 
 export function summarizeSentence(value: string, maxLength = 220): string {
   const trimmed = value.replace(/\s+/g, ' ').trim()
@@ -115,6 +212,116 @@ export function normalizeResultArtifacts(input: {
   return artifacts.slice(0, 8)
 }
 
+function buildFocusedCompanyScope(input: {
+  focusKind: 'workspace' | 'team' | 'prefix'
+  focusValue: string | null
+  focusLabel: string | null
+  teams: Team[]
+  workflows: any[]
+  groups: any[]
+  communities: any[]
+}): null | {
+  label: string
+  kind: 'team' | 'prefix'
+  teamIds: Set<string>
+  agentIds: Set<string>
+  workflowIds: Set<string>
+  groupNames: Set<string>
+  communityNames: Set<string>
+  topTeams: Team[]
+} {
+  if (input.focusKind === 'workspace' || !input.focusValue) return null
+
+  if (input.focusKind === 'team') {
+    const rootTeam = input.teams.find((team) => team.id === input.focusValue)
+    if (!rootTeam) return null
+    const teamIds = collectTeamSubtreeIds(rootTeam.id, input.teams)
+    const scopedTeams = input.teams.filter((team) => teamIds.has(team.id))
+    const agentIds = new Set(scopedTeams.flatMap((team) => getTeamAgentIds(team)))
+    const groupNameKeys = new Set(scopedTeams.flatMap((team) => [normalizeGroupName(team.id), normalizeGroupName(team.name)]))
+    const selectedWorkflows = input.workflows.filter((workflow) => {
+      const targeting = workflow.targeting || {}
+      return (
+        (workflow.owner && agentIds.has(workflow.owner)) ||
+        (targeting.agents || []).some((agentId: string) => agentIds.has(agentId)) ||
+        (targeting.teamIds || []).some((teamId: string) => teamIds.has(teamId)) ||
+        (targeting.groups || []).some((groupName: string) => groupNameKeys.has(normalizeGroupName(groupName)))
+      )
+    })
+    const workflowIds = new Set(selectedWorkflows.map((workflow) => workflow.id).filter(Boolean))
+    const groupNames = new Set(
+      (input.groups || [])
+        .filter((group: any) => {
+          const memberIds = (group.members || []).map((member: any) => member.id)
+          return groupNameKeys.has(normalizeGroupName(group.name))
+            || (memberIds.length > 0 && memberIds.every((memberId: string) => agentIds.has(memberId)))
+        })
+        .map((group: any) => group.name)
+    )
+    const communityNames = new Set(
+      (input.communities || [])
+        .filter((community: any) => {
+          const memberIds = (community.members || []).map((member: any) => member.id)
+          return memberIds.length > 0 && memberIds.every((memberId: string) => agentIds.has(memberId))
+        })
+        .map((community: any) => community.name)
+    )
+    return {
+      label: input.focusLabel || rootTeam.name,
+      kind: 'team',
+      teamIds,
+      agentIds,
+      workflowIds,
+      groupNames,
+      communityNames,
+      topTeams: input.teams.filter((team) => team.parentTeamId === rootTeam.id),
+    }
+  }
+
+  const focusPrefix = normalizeCompanyKey(input.focusValue)
+  const selectedWorkflows = input.workflows.filter((workflow) => normalizeCompanyKey(getWorkflowCompanyPrefix(workflow.name)) === focusPrefix)
+  if (selectedWorkflows.length === 0) return null
+  const teamIds = new Set<string>(selectedWorkflows.flatMap((workflow) => workflow.targeting?.teamIds || []))
+  const workflowIds = new Set(selectedWorkflows.map((workflow) => workflow.id).filter(Boolean))
+  const groupNames = new Set<string>(selectedWorkflows.flatMap((workflow) => workflow.targeting?.groups || []))
+  const agentIds = new Set<string>(selectedWorkflows.flatMap((workflow) => [workflow.owner, ...(workflow.targeting?.agents || [])].filter(Boolean)))
+  const matchingTeams = input.teams.filter((team) =>
+    teamIds.has(team.id)
+    || normalizeCompanyKey(team.id).startsWith(focusPrefix)
+    || normalizeCompanyKey(team.name) === focusPrefix
+  )
+  for (const team of matchingTeams) {
+    for (const id of getTeamAgentIds(team)) agentIds.add(id)
+    teamIds.add(team.id)
+  }
+  const matchedGroups = (input.groups || []).filter((group: any) => {
+    const normalized = normalizeCompanyKey(group.name)
+    const memberIds = (group.members || []).map((member: any) => member.id)
+    return groupNames.has(group.name)
+      || normalized.startsWith(focusPrefix)
+      || (memberIds.length > 0 && memberIds.every((memberId: string) => agentIds.has(memberId)))
+  })
+  for (const group of matchedGroups) groupNames.add(group.name)
+  const communityNames = new Set(
+    (input.communities || [])
+      .filter((community: any) => {
+        const memberIds = (community.members || []).map((member: any) => member.id)
+        return memberIds.length > 0 && memberIds.every((memberId: string) => agentIds.has(memberId))
+      })
+      .map((community: any) => community.name)
+  )
+  return {
+    label: input.focusLabel || input.focusValue,
+    kind: 'prefix',
+    teamIds,
+    agentIds,
+    workflowIds,
+    groupNames,
+    communityNames,
+    topTeams: matchingTeams.filter((team) => !team.parentTeamId || !teamIds.has(team.parentTeamId)),
+  }
+}
+
 router.get('/:token', async (req, res) => {
   try {
     const dashboard = getWorkspaceDashboardByToken(req.params.token)
@@ -130,6 +337,7 @@ router.get('/:token', async (req, res) => {
 
     const payload = await workspaceManager.withWorkspace(dashboard.workspaceId, async () => {
       const agents = listAgents()
+      const teams = listTeams()
       const budget = await getBudgetStatus(dashboard.workspaceId)
       const metering = await getWorkspaceMetering(dashboard.workspaceId)
       const notifications = getActiveNotifications()
@@ -149,6 +357,16 @@ router.get('/:token', async (req, res) => {
       const communities = parsedCommunitiesWithMembers.length > 0
         ? parsedCommunitiesWithMembers
         : parsedCommunitiesFallback.map((community) => ({ ...community, members: [] }))
+
+      const companyScope = buildFocusedCompanyScope({
+        focusKind: dashboard.companyFocusKind,
+        focusValue: dashboard.companyFocusValue,
+        focusLabel: dashboard.companyFocusLabel,
+        teams,
+        workflows: listWorkflows(),
+        groups,
+        communities,
+      })
 
       const groupChats = [
         ...groups.map((group) => {
@@ -197,7 +415,27 @@ router.get('/:token', async (req, res) => {
         }),
       ].sort((a, b) => (b.latestMessage?.timestamp || 0) - (a.latestMessage?.timestamp || 0))
 
-      const workflowSummaries = workflows.map((workflow) => {
+      const scopedAgents = companyScope
+        ? agents.filter((agent) => companyScope.agentIds.has(agent.id))
+        : agents
+      const scopedChats = companyScope
+        ? groupChats.filter((chat) => companyScope.groupNames.has(chat.name) || companyScope.communityNames.has(chat.name))
+        : groupChats
+      const scopedWorkflows = companyScope
+        ? workflows.filter((workflow) => companyScope.workflowIds.has(workflow.id))
+        : workflows
+      const scopedTeams = companyScope
+        ? teams.filter((team) => companyScope.teamIds.has(team.id))
+        : teams
+      const scopedNotifications = companyScope
+        ? notifications.filter((notification) => {
+            if (notification.entityType === 'agent') return !!notification.entityId && companyScope.agentIds.has(notification.entityId)
+            if (notification.entityType === 'workflow') return !!notification.workflowId && companyScope.workflowIds.has(notification.workflowId)
+            return true
+          })
+        : notifications
+
+      const workflowSummaries = scopedWorkflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
         const latest = executions[0] || null
         const kickoffLines = extractProjectConfigurationLines(workflow.content || '')
@@ -226,6 +464,8 @@ router.get('/:token', async (req, res) => {
           description: workflow.description,
           enabled: workflow.enabled,
           schedule: workflow.schedule,
+          targetingTeamIds: workflow.targeting?.teamIds || [],
+          inputRefs: workflow.inputRefs || [],
           nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
           status: workflow.status || latest?.status || 'idle',
           latestExecution: latest ? {
@@ -255,6 +495,113 @@ router.get('/:token', async (req, res) => {
         }
       })
 
+      const companyMeteringByAgent = companyScope
+        ? metering.byAgent.filter((entry) => companyScope.agentIds.has(entry.agentId))
+        : metering.byAgent
+      const companyMeteringByWorkflow = companyScope
+        ? metering.byWorkflow.filter((entry) => companyScope.workflowIds.has(entry.workflowId))
+        : metering.byWorkflow
+      const companyTotalCostUsd = companyMeteringByAgent.reduce((sum, entry) => sum + (entry.estimatedCostUsd || 0), 0)
+      const normalizedCompanyGroupNames = new Set(Array.from(companyScope?.groupNames || []).map((name) => normalizeGroupName(name)))
+      const groupDerivedTeams = companyScope
+        ? (groups || [])
+            .filter((group: any) => {
+              const normalizedGroupName = normalizeGroupName(group.name)
+              const memberIds = (group.members || []).map((member: any) => member.id)
+              return normalizedCompanyGroupNames.has(normalizedGroupName)
+                || normalizeCompanyKey(group.name).startsWith(normalizeCompanyKey(companyScope.label))
+                || (memberIds.length > 0 && memberIds.every((memberId: string) => companyScope.agentIds.has(memberId)))
+            })
+            .map((group: any) => {
+              const memberIds = Array.from(new Set((group.members || []).map((member: any) => member.id).filter(Boolean)))
+              const normalizedGroup = normalizeCompanyKey(group.name)
+              const matchingWorkflow = workflowSummaries.find((workflow: any) =>
+                normalizeCompanyKey(workflow.name).includes(normalizedGroup) ||
+                ((workflow as any).targetingTeamIds || []).some((teamId: string) => normalizeCompanyKey(teamId) === normalizedGroup)
+              )
+              const leaderId = memberIds[0] || null
+              return {
+                id: group.name,
+                name: group.name.replace(new RegExp(`^${companyScope.label}-`, 'i'), ''),
+                purpose: group.description || '',
+                leaderAgentId: leaderId,
+                leaderName: leaderId ? (scopedAgents.find((agent) => agent.id === leaderId)?.name || leaderId) : null,
+                memberCount: memberIds.length,
+                parentTeamId: null,
+                workflowCount: matchingWorkflow ? 1 : 0,
+              }
+            })
+        : []
+      const workflowDerivedTeams = companyScope
+        ? Array.from(
+            scopedWorkflows.reduce((map, workflow: any) => {
+              const label = getWorkflowTeamLabel(workflow.name)
+              if (!label) return map
+              const key = normalizeCompanyKey(label)
+              const existing = map.get(key)
+              if (existing) {
+                existing.workflowCount += 1
+                return map
+              }
+              const ownerId = workflow.owner || null
+              map.set(key, {
+                id: key || label,
+                name: label,
+                purpose: workflow.description || '',
+                leaderAgentId: ownerId,
+                leaderName: ownerId ? (scopedAgents.find((agent) => agent.id === ownerId)?.name || ownerId) : null,
+                memberCount: ownerId ? 1 : 0,
+                parentTeamId: null,
+                workflowCount: 1,
+              })
+              return map
+            }, new Map<string, {
+              id: string
+              name: string
+              purpose: string
+              leaderAgentId: string | null
+              leaderName: string | null
+              memberCount: number
+              parentTeamId: string | null
+              workflowCount: number
+            }>())
+          ).map(([, value]) => value)
+        : []
+      const companyDisplayTeams = companyScope
+        ? (scopedTeams.length > 0
+            ? scopedTeams.map((team) => ({
+                id: team.id,
+                name: team.name,
+                purpose: team.purpose || '',
+                leaderAgentId: team.leaderAgentId || null,
+                leaderName: team.leaderAgentId ? (scopedAgents.find((agent) => agent.id === team.leaderAgentId)?.name || team.leaderAgentId) : null,
+                memberCount: getTeamAgentIds(team).length,
+                parentTeamId: team.parentTeamId || null,
+                workflowCount: workflowSummaries.filter((workflow: any) => (workflow as any).targetingTeamIds?.includes(team.id)).length,
+              }))
+            : groupDerivedTeams.length > 0
+              ? groupDerivedTeams
+              : workflowDerivedTeams)
+        : []
+      const companyHandoffs = workflowSummaries
+        .flatMap((workflow) => {
+          const resolvedRefs = resolveWorkflowInputRefs(
+            { inputRefs: Array.isArray((workflow as any).inputRefs) ? (workflow as any).inputRefs : [] },
+            (workflowId) => listExecutions(workflowId, 1)[0] || null
+          )
+          return resolvedRefs.map((inputRef) => ({
+            workflowId: workflow.id,
+            workflowName: workflow.name,
+            upstreamWorkflowId: inputRef.workflowId,
+            label: inputRef.label || inputRef.outputKey,
+            outputKey: inputRef.outputKey,
+            summary: inputRef.summary,
+            artifactPath: inputRef.artifactPath,
+            missing: inputRef.missing,
+          }))
+        })
+        .slice(0, 12)
+
       return {
         refreshedAt: new Date().toISOString(),
         dashboard,
@@ -265,25 +612,51 @@ router.get('/:token', async (req, res) => {
           lastUpdatedAt: new Date().toISOString(),
         },
         overview: {
-          totalAgents: agents.length,
-          onlineAgents: agents.filter(a => a.status === 'online' && !a.paused).length,
-          pausedAgents: agents.filter(a => a.paused).length,
-          failingAgents: notifications.filter(n => n.entityType === 'agent' && n.severity === 'critical').length,
-          activeNotifications: notifications.length,
+          totalAgents: scopedAgents.length,
+          onlineAgents: scopedAgents.filter(a => a.status === 'online' && !a.paused).length,
+          pausedAgents: scopedAgents.filter(a => a.paused).length,
+          failingAgents: scopedNotifications.filter(n => n.entityType === 'agent' && n.severity === 'critical').length,
+          activeNotifications: scopedNotifications.length,
           runningWorkflows: workflowSummaries.filter(w => w.status === 'running').length,
         },
+        company: companyScope ? {
+          kind: companyScope.kind,
+          label: companyScope.label,
+          teamCount: companyDisplayTeams.length,
+          workflowCount: workflowSummaries.length,
+          agentCount: scopedAgents.length,
+          teams: companyDisplayTeams,
+          orgCards: ((companyScope.topTeams.length > 0
+            ? companyScope.topTeams.map((team) => ({
+                id: team.id,
+                name: team.name,
+                purpose: team.purpose || '',
+                leaderAgentId: team.leaderAgentId || null,
+                memberCount: getTeamAgentIds(team).length,
+                workflowCount: workflowSummaries.filter((workflow: any) => (workflow as any).targetingTeamIds?.includes(team.id)).length,
+              }))
+            : companyDisplayTeams.length > 0 ? companyDisplayTeams : workflowDerivedTeams)).slice(0, 8).map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            purpose: team.purpose || '',
+            leaderAgentId: team.leaderAgentId || null,
+            memberCount: typeof team.memberCount === 'number' ? team.memberCount : getTeamAgentIds(team).length,
+            workflowCount: typeof team.workflowCount === 'number' ? team.workflowCount : workflowSummaries.filter((workflow: any) => (workflow as any).targetingTeamIds?.includes(team.id)).length,
+          })),
+          handoffs: companyHandoffs,
+        } : null,
         costs: {
           budget,
           metering: {
-            totalCostUsd: metering.estimatedCostUsd,
+            totalCostUsd: companyScope ? companyTotalCostUsd : metering.estimatedCostUsd,
             totalTraces: metering.totalTraces,
             dailyCost: metering.dailyCost,
             costSummary: metering.costSummary,
-            byAgent: metering.byAgent.slice(0, 10),
-            byWorkflow: metering.byWorkflow.slice(0, 10),
+            byAgent: companyMeteringByAgent.slice(0, 10),
+            byWorkflow: companyMeteringByWorkflow.slice(0, 10),
           },
         },
-        agents: agents.map((agent) => {
+        agents: scopedAgents.map((agent) => {
           const metered = metering.byAgent.find(entry => entry.agentId === agent.id)
           return {
             id: agent.id,
@@ -295,9 +668,9 @@ router.get('/:token', async (req, res) => {
             costUsd: metered?.estimatedCostUsd || 0,
           }
         }),
-        notifications: notifications.slice(0, 20),
+        notifications: scopedNotifications.slice(0, 20),
         workflows: workflowSummaries,
-        groupChats: groupChats.slice(0, 20),
+        groupChats: scopedChats.slice(0, 20),
       }
     })
 

@@ -4,8 +4,9 @@ import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { safeEnv, userExecutionEnv } from './safe-env'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
+import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
 import { isGatewayRunning } from './gateway-rpc'
@@ -37,6 +38,7 @@ export interface AgentTargeting {
   groups: string[]
   tags: string[]
   agents: string[]
+  teamIds?: string[]
 }
 
 export interface Workflow {
@@ -69,12 +71,51 @@ export interface Workflow {
     placeholder?: string
     sensitive?: boolean
   }>
+  outputDefinitions?: Array<{
+    key: string
+    label?: string
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    help?: string
+  }>
+  inputRefs?: Array<{
+    workflowId: string
+    outputKey: string
+    label?: string
+    required?: boolean
+  }>
 }
 
 export interface WorkflowParticipant {
   agentId: string
   agentName: string
   reason: string
+}
+
+export function resolveTargetTeamAgentIds(
+  teamIds: string[] = [],
+  teams: Team[] = listTeams()
+): Map<string, string[]> {
+  const teamsById = new Map(teams.map((team) => [team.id, team]))
+  const targetedTeamIds = new Set<string>()
+  for (const nextTeamId of teamIds.map((teamId) => `${teamId || ''}`.trim()).filter(Boolean)) {
+    if (teamsById.has(nextTeamId)) {
+      targetedTeamIds.add(nextTeamId)
+    }
+  }
+
+  const agentReasons = new Map<string, string[]>()
+  for (const teamId of targetedTeamIds) {
+    const team = teamsById.get(teamId)
+    if (!team) continue
+    const executionIds = team.leaderAgentId
+      ? [team.leaderAgentId]
+      : Array.from(new Set((team.memberAgentIds || []).filter(Boolean)))
+    for (const agentId of executionIds) {
+      agentReasons.set(agentId, [...(agentReasons.get(agentId) || []), `team:${team.id}`])
+    }
+  }
+
+  return agentReasons
 }
 
 export interface WorkflowExecutionParticipant {
@@ -98,6 +139,12 @@ export interface WorkflowExecution {
   participants: WorkflowExecutionParticipant[]
   logs: string[]
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
+  outputs?: Record<string, {
+    type: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    summary?: string
+    artifactPath?: string
+    value?: unknown
+  }>
 }
 
 function expandHomePath(input: string): string {
@@ -127,11 +174,240 @@ export function resolveWorkflowRunInputPath(inputValue: string, workspaceRoot: s
   return path.resolve(workspaceRoot, expanded)
 }
 
+export function normalizeWorkflowExecutionOutputs(
+  outputs?: Record<string, {
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    summary?: string
+    artifactPath?: string
+    value?: unknown
+  }>
+): WorkflowExecution['outputs'] | undefined {
+  if (!outputs || typeof outputs !== 'object') return undefined
+  const normalized = Object.fromEntries(
+    Object.entries(outputs)
+      .map(([key, raw]) => {
+        const normalizedKey = `${key || ''}`.trim()
+        if (!normalizedKey || !raw || typeof raw !== 'object') return null
+        const type = raw.type || 'text'
+        const summary = typeof raw.summary === 'string' ? raw.summary.trim() || undefined : undefined
+        const artifactPath = typeof raw.artifactPath === 'string' ? raw.artifactPath.trim() || undefined : undefined
+        return [normalizedKey, {
+          type,
+          summary,
+          artifactPath,
+          value: raw.value,
+        }]
+      })
+      .filter(Boolean) as Array<[string, NonNullable<WorkflowExecution['outputs']>[string]]>
+  )
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+export function resolveWorkflowInputRefs(
+  workflow: Pick<Workflow, 'inputRefs'>,
+  getExecutionForWorkflowId: (workflowId: string) => WorkflowExecution | null = (workflowId) => listExecutions(workflowId, 1).at(-1) || null
+): Array<{
+  workflowId: string
+  outputKey: string
+  label: string
+  value?: unknown
+  summary?: string
+  artifactPath?: string
+  missing: boolean
+}> {
+  return (workflow.inputRefs || []).map((ref) => {
+    const workflowId = `${ref.workflowId || ''}`.trim()
+    const outputKey = `${ref.outputKey || ''}`.trim()
+    const execution = workflowId ? getExecutionForWorkflowId(workflowId) : null
+    const output = execution?.outputs?.[outputKey]
+    return {
+      workflowId,
+      outputKey,
+      label: ref.label?.trim() || `${workflowId}.${outputKey}`,
+      value: output?.value,
+      summary: output?.summary,
+      artifactPath: output?.artifactPath,
+      missing: !output,
+    }
+  })
+}
+
+function summarizeWorkflowOutputValue(raw: string, maxLength = 220): string | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const singleLine = trimmed.replace(/\s+/g, ' ')
+  return singleLine.length > maxLength ? `${singleLine.slice(0, maxLength - 1)}…` : singleLine
+}
+
+export function compactWorkflowExecutionContent(content: string, maxLength = 2200): string {
+  const trimmed = content.trim()
+  if (trimmed.length <= maxLength) return trimmed
+
+  const lines = trimmed
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  const priorityLines = lines.filter((line) =>
+    /^#{1,3}\s+/.test(line)
+    || /^[-*]\s+/.test(line)
+    || /^(objective|objectives|goal|goals|deliverable|deliverables|output|outputs|input|inputs|constraints?|success criteria|definition of done|next actions?)\b/i.test(line)
+  )
+  const fallbackLines = lines.filter((line) => !priorityLines.includes(line))
+  const ordered = [...priorityLines, ...fallbackLines]
+
+  const kept: string[] = []
+  for (const line of ordered) {
+    const candidate = [...kept, line].join('\n')
+    if (candidate.length > maxLength) break
+    kept.push(line)
+  }
+
+  const compacted = kept.join('\n').trim()
+  return compacted.length < trimmed.length
+    ? `${compacted}\n\n[Workflow instructions truncated for brevity. Focus on the highest-signal goals, inputs, deliverables, and constraints above.]`
+    : compacted
+}
+
+export function deriveWorkflowExecutionOutputs(
+  workflow: Pick<Workflow, 'outputDefinitions' | 'owner'>,
+  participants: Array<Pick<WorkflowExecutionParticipant, 'agentId'> & { response?: string }>,
+  existingOutputs?: WorkflowExecution['outputs']
+): WorkflowExecution['outputs'] | undefined {
+  if (existingOutputs && Object.keys(existingOutputs).length > 0) return existingOutputs
+  const outputDefinition = workflow.outputDefinitions?.[0]
+  if (!outputDefinition?.key) return existingOutputs
+
+  const ownerParticipant = workflow.owner
+    ? participants.find((participant) => participant.agentId === workflow.owner && typeof participant.response === 'string' && participant.response.trim())
+    : undefined
+  const firstParticipantWithResponse = participants.find((participant) => typeof participant.response === 'string' && participant.response.trim())
+  const chosenResponse = ownerParticipant?.response || firstParticipantWithResponse?.response
+  if (!chosenResponse?.trim()) return existingOutputs
+
+  return {
+    [outputDefinition.key]: {
+      type: outputDefinition.type || 'markdown',
+      summary: summarizeWorkflowOutputValue(chosenResponse),
+      value: chosenResponse.trim(),
+    },
+  }
+}
+
+export function persistWorkflowExecutionOutputArtifacts(
+  workflowId: string,
+  outputs?: WorkflowExecution['outputs'],
+  workspaceRoot: string = getWorkspacePath()
+): WorkflowExecution['outputs'] | undefined {
+  if (!outputs || typeof outputs !== 'object') return outputs
+
+  let mutated = false
+  const persistedOutputs = Object.fromEntries(
+    Object.entries(outputs).map(([key, output]) => {
+      if (!output || output.artifactPath) return [key, output]
+
+      const normalizedKey = `${key || ''}`.trim()
+      if (!normalizedKey) return [key, output]
+
+      if ((output.type === 'markdown' || output.type === 'text') && typeof output.value === 'string' && output.value.trim()) {
+        const extension = output.type === 'markdown' ? 'md' : 'txt'
+        const artifactPath = path.posix.join('WORKFLOWS', 'outputs', workflowId, `${normalizedKey}.${extension}`)
+        const absolutePath = path.join(workspaceRoot, artifactPath)
+        fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
+        fs.writeFileSync(absolutePath, output.value.trimEnd() + '\n', 'utf-8')
+        mutated = true
+        return [key, {
+          ...output,
+          artifactPath,
+        }]
+      }
+
+      return [key, output]
+    })
+  ) as WorkflowExecution['outputs']
+
+  return mutated ? persistedOutputs : outputs
+}
+
+function hydrateExecutionArtifacts(
+  workflowId: string,
+  execution: WorkflowExecution,
+  filePath?: string
+): WorkflowExecution {
+  const persistedOutputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
+  if (persistedOutputs !== execution.outputs) {
+    execution.outputs = persistedOutputs
+    if (filePath) {
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(execution, null, 2), 'utf-8')
+      } catch (error) {
+        console.error(`Error persisting hydrated execution ${execution.id}:`, error)
+      }
+    }
+  }
+  return execution
+}
+
 interface WorkflowRuntimeOverrides {
   openai?: string
   anthropic?: string
   gemini?: string
   ollamaBaseUrl?: string
+}
+
+function buildMockWorkflowResponse(
+  workflow: Pick<Workflow, 'name' | 'description' | 'outputDefinitions'>,
+  participant: Pick<WorkflowExecutionParticipant, 'agentId' | 'agentName'>,
+  resolvedInputRefs: Array<{
+    workflowId: string
+    outputKey: string
+    label: string
+    value?: unknown
+    summary?: string
+    artifactPath?: string
+    missing: boolean
+  }>,
+  executionInputs?: Record<string, string>
+): string {
+  const lines = [
+    `# ${workflow.name}`,
+    '',
+    `Mock execution completed by ${participant.agentName} (${participant.agentId}).`,
+  ]
+
+  if (workflow.description?.trim()) {
+    lines.push('', workflow.description.trim())
+  }
+
+  const availableRefs = resolvedInputRefs.filter((ref) => !ref.missing)
+  if (availableRefs.length > 0) {
+    lines.push('', '## Upstream Inputs')
+    for (const ref of availableRefs) {
+      const detail = ref.summary
+        || (typeof ref.value === 'string' ? ref.value : undefined)
+        || ref.artifactPath
+        || `${ref.workflowId}.${ref.outputKey}`
+      lines.push(`- ${ref.label}: ${detail}`)
+    }
+  }
+
+  const explicitInputs = Object.entries(executionInputs || {}).filter(([, value]) => `${value || ''}`.trim())
+  if (explicitInputs.length > 0) {
+    lines.push('', '## Run Inputs')
+    for (const [key, value] of explicitInputs) {
+      lines.push(`- ${key}: ${value}`)
+    }
+  }
+
+  if (workflow.outputDefinitions?.length) {
+    lines.push('', '## Output Contract')
+    for (const outputDefinition of workflow.outputDefinitions) {
+      lines.push(`- ${outputDefinition.label || outputDefinition.key}: mock-ready`)
+    }
+  }
+
+  lines.push('', '## Status', '- Mock pipeline output generated for testing and workflow chaining.')
+  return lines.join('\n')
 }
 
 export function detectParticipantReportedFailure(agentText: string): string | null {
@@ -140,6 +416,9 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
+    if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(line)) {
+      return line
+    }
     if (/^LLM request rejected:/i.test(line)) {
       return line
     }
@@ -166,6 +445,9 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
+  }
+  if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(reportedFailure)) {
+    return `Model provider rejected the request before generation. Raw error: ${reportedFailure}`
   }
   if (/^No execution path configured\b/i.test(reportedFailure) || /^No API keys available\b/i.test(reportedFailure)) {
     return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
@@ -205,7 +487,131 @@ export function summarizeGitHubResultLink(link: string): string {
 }
 
 export function buildWorkflowSessionId(executionId: string, agentId: string): string {
-  return `workflow-${executionId}-${agentId}`
+  const normalizedExecutionId = `${executionId || ''}`.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const normalizedAgentId = `${agentId || ''}`.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const hash = createHash('sha1')
+    .update(`${normalizedExecutionId}:${normalizedAgentId}`)
+    .digest('hex')
+    .slice(0, 10)
+  const agentTail = normalizedAgentId.slice(-18) || 'agent'
+  return `wf-${hash}-${agentTail}`.slice(0, 48)
+}
+
+function resolveAgentSessionsDir(agentId: string, home: string): string {
+  return path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+}
+
+function resolveSessionFileFromEntry(sessionsDir: string, sessionFile: string): string | undefined {
+  const trimmed = sessionFile.trim()
+  if (!trimmed) return undefined
+  const resolved = path.resolve(path.isAbsolute(trimmed) ? trimmed : path.join(sessionsDir, trimmed))
+  const base = path.resolve(sessionsDir)
+  const relative = path.relative(base, resolved)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return undefined
+  return resolved
+}
+
+function readSessionHeaderId(sessionFile: string): string | undefined {
+  try {
+    if (!fs.existsSync(sessionFile)) return undefined
+    const fd = fs.openSync(sessionFile, 'r')
+    try {
+      const buffer = Buffer.alloc(8192)
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0)
+      const firstLine = buffer.subarray(0, bytesRead).toString('utf-8').split('\n')[0]
+      if (!firstLine) return undefined
+      const parsed = JSON.parse(firstLine)
+      return typeof parsed?.id === 'string' ? parsed.id : undefined
+    } finally {
+      fs.closeSync(fd)
+    }
+  } catch {
+    return undefined
+  }
+}
+
+export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home: string = process.env.HOME || ''): boolean {
+  try {
+    if (!agentId || !sessionId || !home) return false
+    const sessionsDir = resolveAgentSessionsDir(agentId, home)
+    const sessionsPath = path.join(sessionsDir, 'sessions.json')
+    if (!fs.existsSync(sessionsPath)) return false
+
+    const raw = fs.readFileSync(sessionsPath, 'utf-8')
+    const sessions = JSON.parse(raw || '{}')
+    if (!sessions || typeof sessions !== 'object' || Array.isArray(sessions)) return false
+
+    let changed = false
+    const mainSessionKey = `agent:${agentId}:main`
+    for (const [key, entry] of Object.entries(sessions) as Array<[string, Record<string, any>]>) {
+      if (!entry || typeof entry !== 'object') continue
+      if (typeof entry.sessionFile !== 'string' || !entry.sessionFile.trim()) continue
+
+      const sessionFile = resolveSessionFileFromEntry(sessionsDir, entry.sessionFile)
+      if (!sessionFile) continue
+
+      const headerId = readSessionHeaderId(sessionFile)
+      const basenameSessionId = path.basename(sessionFile, '.jsonl')
+      const entrySessionId = typeof entry.sessionId === 'string' ? entry.sessionId : ''
+      const workflowOwnedEntry =
+        key === mainSessionKey
+        && (/^(workflow-|wf-)/.test(entrySessionId) || /^(workflow-|wf-)/.test(headerId || basenameSessionId))
+      const shouldInspect = entrySessionId === sessionId || workflowOwnedEntry
+      if (!shouldInspect) continue
+
+      const pointsAtDifferentTranscript = headerId
+        ? headerId !== sessionId
+        : basenameSessionId !== sessionId
+
+      if (pointsAtDifferentTranscript) {
+        delete entry.sessionFile
+        changed = true
+      }
+    }
+
+    if (!changed) return false
+    fs.writeFileSync(sessionsPath, `${JSON.stringify(sessions, null, 2)}\n`, 'utf-8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function getLatestAgentSessionErrorMessage(agentId: string, home: string = process.env.HOME || ''): string | undefined {
+  try {
+    const sessionsDir = resolveAgentSessionsDir(agentId, home)
+    if (!fs.existsSync(sessionsDir)) return undefined
+
+    const files = fs.readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+      .map((entry) => {
+        const fullPath = path.join(sessionsDir, entry.name)
+        return { fullPath, mtimeMs: fs.statSync(fullPath).mtimeMs }
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+
+    for (const file of files.slice(0, 3)) {
+      const lines = fs.readFileSync(file.fullPath, 'utf-8').split('\n').filter(Boolean)
+      for (let index = lines.length - 1; index >= 0; index--) {
+        try {
+          const parsed = JSON.parse(lines[index])
+          const errorMessage = parsed?.message?.errorMessage
+          if (typeof errorMessage === 'string' && errorMessage.trim()) {
+            return errorMessage.trim()
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  return undefined
+}
+
+function enrichAgentContextOverflow(agentId: string, agentText: string): string {
+  if (!/context overflow|prompt too large/i.test(agentText)) return agentText
+  const errorMessage = getLatestAgentSessionErrorMessage(agentId)
+  if (!errorMessage || agentText.includes(errorMessage)) return agentText
+  return `${agentText.trim()}\n\nRuntime error detail: ${errorMessage.slice(0, 500)}`
 }
 
 const DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS = 10 * 60 * 1000
@@ -321,6 +727,7 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: data.created || new Date().toISOString(),
       modified: data.modified || new Date().toISOString(),
@@ -335,6 +742,8 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
       progress: data.progress,
       status: data.status,
       secretRequirements: data.secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     }
   } catch {
     return null
@@ -361,6 +770,8 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.maxRuns) fm.maxRuns = workflow.maxRuns
   if (workflow.runCount) fm.runCount = workflow.runCount
   if (workflow.secretRequirements?.length) fm.secretRequirements = workflow.secretRequirements
+  if (workflow.outputDefinitions?.length) fm.outputDefinitions = workflow.outputDefinitions
+  if (workflow.inputRefs?.length) fm.inputRefs = workflow.inputRefs
 
   return matter.stringify(workflow.content || '', fm)
 }
@@ -536,17 +947,20 @@ export function listWorkflowTemplates(): Workflow[] {
         schedule: data.schedule || '',
         enabled: false, // Templates are disabled by default
         targeting: {
-        communities: data.targeting?.communities || [],
-        groups: data.targeting?.groups || [],
-        tags: data.targeting?.tags || [],
-        agents: data.targeting?.agents || [],
-      },
+          communities: data.targeting?.communities || [],
+          groups: data.targeting?.groups || [],
+          tags: data.targeting?.tags || [],
+          agents: data.targeting?.agents || [],
+          teamIds: data.targeting?.teamIds || [],
+        },
         created: data.created || '',
         modified: data.modified || '',
         author: data.author || 'system',
         owner: data.owner,
         executionMode: data.executionMode || 'automated',
-        content: markdownContent.trim()
+        content: markdownContent.trim(),
+        outputDefinitions: data.outputDefinitions,
+        inputRefs: data.inputRefs,
       }
 
       templates.push(template)
@@ -581,6 +995,7 @@ export function getWorkflow(id: string): Workflow | null {
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: data.created || new Date().toISOString(),
       modified: data.modified || new Date().toISOString(),
@@ -595,6 +1010,9 @@ export function getWorkflow(id: string): Workflow | null {
       type: data.type,
       progress: data.progress,
       status: data.status,
+      secretRequirements: data.secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     })
   } catch (error) {
     console.error(`Error parsing workflow ${id}:`, error)
@@ -643,6 +1061,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
         groups: data.targeting?.groups || [],
         tags: data.targeting?.tags || [],
         agents: data.targeting?.agents || [],
+        teamIds: data.targeting?.teamIds || [],
       },
       created: now,
       modified: now,
@@ -655,6 +1074,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       dependsOn: data.dependsOn,
       type: data.type,
       secretRequirements: (data as any).secretRequirements,
+      outputDefinitions: data.outputDefinitions,
+      inputRefs: data.inputRefs,
     }
 
     // Create file with YAML frontmatter
@@ -675,6 +1096,8 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       ...(workflow.dependsOn?.length && { dependsOn: workflow.dependsOn }),
       ...(workflow.type && { type: workflow.type }),
       ...(workflow.secretRequirements?.length && { secretRequirements: workflow.secretRequirements }),
+      ...(workflow.outputDefinitions?.length && { outputDefinitions: workflow.outputDefinitions }),
+      ...(workflow.inputRefs?.length && { inputRefs: workflow.inputRefs }),
     }
     const fileContent = matter.stringify(workflow.content, frontmatter)
 
@@ -707,7 +1130,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
     }
 
     // Validate cron expression if provided (semantic check beyond schema)
-    if (data.schedule) {
+    if (data.schedule && data.schedule !== 'manual' && data.schedule !== 'once') {
       const cronValidation = validateCron(data.schedule)
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
@@ -743,6 +1166,8 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       ...(updated.progress !== undefined && updated.progress > 0 && { progress: updated.progress }),
       ...(updated.status && updated.status !== 'idle' && { status: updated.status }),
       ...(updated.secretRequirements?.length && { secretRequirements: updated.secretRequirements }),
+      ...(updated.outputDefinitions?.length && { outputDefinitions: updated.outputDefinitions }),
+      ...(updated.inputRefs?.length && { inputRefs: updated.inputRefs }),
     }
     const fileContent = matter.stringify(updated.content, updateFrontmatter)
 
@@ -781,12 +1206,13 @@ export function deleteWorkflow(id: string): { success: boolean; error?: string }
 }
 
 // Resolve participants
-export function resolveParticipants(workflow: Workflow, agents: any[]): WorkflowParticipant[] {
+export function resolveParticipants(workflow: Workflow, agents: any[], teams: Team[] = listTeams()): WorkflowParticipant[] {
   const participants: WorkflowParticipant[] = []
   const directAgentIds = new Set(workflow.targeting.agents || [])
+  const teamAgentReasons = resolveTargetTeamAgentIds(workflow.targeting.teamIds || [], teams)
   const directTags = new Set(workflow.targeting.tags || [])
   const ownerId = workflow.owner?.trim()
-  const hasDirectExecutionTargets = directAgentIds.size > 0 || directTags.size > 0 || !!ownerId
+  const hasDirectExecutionTargets = directAgentIds.size > 0 || directTags.size > 0 || teamAgentReasons.size > 0 || !!ownerId
 
   for (const agent of agents) {
     const reasons: string[] = []
@@ -809,6 +1235,10 @@ export function resolveParticipants(workflow: Workflow, agents: any[]): Workflow
     // Explicit agent ids are also execution targets.
     if (directAgentIds.has(agent.id)) {
       reasons.push(`agent:${agent.id}`)
+    }
+
+    for (const reason of teamAgentReasons.get(agent.id) || []) {
+      reasons.push(reason)
     }
 
     // Groups/communities are primarily output channels. Preserve them as
@@ -865,7 +1295,7 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
     try {
       const filePath = path.join(executionDir, file)
       const content = fs.readFileSync(filePath, 'utf-8')
-      const execution = JSON.parse(content)
+      const execution = hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
       executions.push(execution)
     } catch (error) {
       console.error(`Error reading execution ${file}:`, error)
@@ -885,7 +1315,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    return JSON.parse(content)
+    return hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
   } catch (error) {
     console.error(`Error reading execution ${executionId}:`, error)
     return null
@@ -895,9 +1325,11 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
+  mock?: boolean
   byok?: WorkflowRuntimeOverrides
   secrets?: Record<string, string>
   inputs?: Record<string, string>
+  outputs?: WorkflowExecution['outputs']
   actor?: {
     userId?: string
     login?: string
@@ -974,9 +1406,27 @@ export function triggerWorkflow(workflowId: string, options?: {
     const { listAgents } = require('./workspace')
     const agents = listAgents()
     const workflowParticipants = resolveParticipants(workflow, agents)
+    const resolvedWorkflowParticipants = options?.mock && workflowParticipants.length === 0
+      ? (() => {
+          const seen = new Set<string>()
+          const mockAgentIds = [
+            workflow.owner,
+            ...(workflow.targeting?.agents || []),
+          ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+          return mockAgentIds.flatMap((agentId) => {
+            if (seen.has(agentId)) return []
+            seen.add(agentId)
+            return [{
+              agentId,
+              agentName: agentId,
+              reason: 'mock-target',
+            }]
+          })
+        })()
+      : workflowParticipants
 
     // Convert to execution participants with pending status
-    const executionParticipants: WorkflowExecutionParticipant[] = workflowParticipants.map(p => ({
+    const executionParticipants: WorkflowExecutionParticipant[] = resolvedWorkflowParticipants.map(p => ({
       agentId: p.agentId,
       agentName: p.agentName,
       status: 'pending' as const
@@ -1070,6 +1520,24 @@ export function triggerWorkflow(workflowId: string, options?: {
       runtimeContextLines.push(`- Run-specific instructions: ${runInstructions}`)
       runtimeContextLines.push('- Treat the run-specific instructions as the highest-priority adjustment for this execution only')
     }
+    const resolvedInputRefs = resolveWorkflowInputRefs(workflow)
+    if (resolvedInputRefs.length > 0) {
+      runtimeContextLines.push('- Upstream workflow handoffs available for this run:')
+      for (const ref of resolvedInputRefs) {
+        if (ref.missing) {
+          runtimeContextLines.push(`- ${ref.label}: missing upstream output`)
+          continue
+        }
+        const summary = ref.summary ? `summary: ${ref.summary}` : undefined
+        const artifact = ref.artifactPath ? `artifact: ${ref.artifactPath}` : undefined
+        const valueSummary = typeof ref.value === 'string'
+          ? summarizeWorkflowOutputValue(ref.value, 140)
+          : (ref.value !== undefined ? summarizeWorkflowOutputValue(JSON.stringify(ref.value), 140) : undefined)
+        const value = valueSummary ? `value-summary: ${valueSummary}` : undefined
+        runtimeContextLines.push(`- ${ref.label}: ${[summary, artifact, value].filter(Boolean).join(' | ')}`)
+      }
+      runtimeContextLines.push('- Use the upstream artifact path or summary as the source of truth; do not restate the full upstream document unless necessary.')
+    }
     const resolvedPathInputs = Object.entries(executionInputs)
       .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))
       .map(([label, value]) => ({
@@ -1084,9 +1552,10 @@ export function triggerWorkflow(workflowId: string, options?: {
         runtimeContextLines.push(`- Resolved run input ${entry.label}: raw \`${entry.raw}\` -> absolute \`${entry.resolved}\``)
       }
     }
+    const compactedWorkflowContent = compactWorkflowExecutionContent(workflow.content || 'Execute workflow')
     const executionMessage = runtimeContextLines.length > 0
-      ? `${workflow.content || 'Execute workflow'}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
-      : (workflow.content || 'Execute workflow')
+      ? `${compactedWorkflowContent}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
+      : compactedWorkflowContent
 
     // Create execution record with participants and inputs
     const execution: WorkflowExecution = {
@@ -1098,6 +1567,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       participants: executionParticipants,
       logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`],
       inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
+      outputs: normalizeWorkflowExecutionOutputs(options?.outputs),
     }
 
     // Write execution file
@@ -1107,12 +1577,6 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Run workflow by calling each participant agent directly
     const executeAsync = async () => {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
-      const executionEnv = userExecutionEnv({
-        openai: options?.byok?.openai,
-        anthropic: options?.byok?.anthropic,
-        gemini: options?.byok?.gemini,
-        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
-      })
       const persistExecution = () => {
         try {
           fs.mkdirSync(path.dirname(executionFilePath), { recursive: true })
@@ -1132,6 +1596,63 @@ export function triggerWorkflow(workflowId: string, options?: {
         updateWorkflow(workflowId, { progress } as any)
       }
 
+      if (options?.mock) {
+        for (const participant of executionParticipants) {
+          participant.status = 'running'
+          participant.startedAt = new Date().toISOString()
+          execution.logs.push(`Agent ${participant.agentId} running in mock mode`)
+          updateAggregateProgress()
+          persistExecution()
+
+          const mockResponse = buildMockWorkflowResponse(workflow, participant, resolvedInputRefs, executionInputs)
+          ;(participant as any).response = mockResponse
+          participant.status = 'completed'
+          participant.completedAt = new Date().toISOString()
+          execution.logs.push(`Agent ${participant.agentId} completed mock execution`)
+          updateAggregateProgress()
+          persistExecution()
+        }
+
+        execution.outputs = deriveWorkflowExecutionOutputs(
+          workflow,
+          execution.participants.map((participant) => ({
+            agentId: participant.agentId,
+            response: (participant as any).response,
+          })),
+          execution.outputs
+        )
+        execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
+        execution.status = 'completed'
+        execution.completedAt = new Date().toISOString()
+        execution.logs.push(`Workflow completed at ${execution.completedAt} (mock mode)`)
+        persistExecution()
+        updateWorkflow(workflowId, {
+          status: 'completed',
+          progress: 100,
+        } as any)
+
+        const { readyToRun } = completeWorkflow(workflowId)
+        if (readyToRun.length > 0) {
+          execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
+          persistExecution()
+          for (const nextId of readyToRun) {
+            const nextWf = getWorkflow(nextId)
+            if (nextWf?.enabled) {
+              triggerWorkflow(nextId, { manual: false, mock: true, byok: options?.byok })
+              updateWorkflow(nextId, { status: 'running' } as any)
+            }
+          }
+        }
+        return
+      }
+
+      const executionEnv = userExecutionEnv({
+        openai: options?.byok?.openai,
+        anthropic: options?.byok?.anthropic,
+        gemini: options?.byok?.gemini,
+        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
+      })
+
       const runParticipant = async (participant: WorkflowExecutionParticipant) => {
         try {
           participant.status = 'running' as any
@@ -1147,8 +1668,9 @@ export function triggerWorkflow(workflowId: string, options?: {
               reject(new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`))
               return
             }
-            const useLocal = !isGatewayRunning().running
+            const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+            repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
@@ -1199,7 +1721,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           }))
 
           const agentResult = agentResponse as any
-          const agentText = agentResult.text || ''
+          const rawAgentText = agentResult.text || ''
+          const agentText = enrichAgentContextOverflow(participant.agentId, rawAgentText)
           const agentMeta = agentResult.meta || {}
           const reportedFailure = detectParticipantReportedFailure(agentText)
 
@@ -1332,6 +1855,16 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
 
       await Promise.all(executionParticipants.map(runParticipant))
+
+      execution.outputs = deriveWorkflowExecutionOutputs(
+        workflow,
+        execution.participants.map((participant) => ({
+          agentId: participant.agentId,
+          response: (participant as any).response,
+        })),
+        execution.outputs
+      )
+      execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
 
       // Mark execution complete
       execution.status = execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'

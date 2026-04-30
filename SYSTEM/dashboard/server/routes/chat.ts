@@ -246,7 +246,7 @@ router.post('/:id/chat', (req, res) => {
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
-  const useLocal = !isGatewayRunning().running
+  const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
   const args = [
     'agent',
     '--agent', id,

@@ -19,6 +19,7 @@ import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleD
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
+import { scopeSessionIdToModel, resolveAgentExecutionConfig } from '../lib/agent-execution'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -529,7 +530,7 @@ router.post('/provision', (req, res) => {
 
 - **Created:** ${new Date().toISOString()}
 - **Created By:** ClawMax Dashboard
-- **Model:** ${model || 'default'}
+- **Model:** ${normalizedModel || model || 'default'}
 - **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
 - **AI Description:** ${aiDescription || 'N/A'}
@@ -1552,7 +1553,8 @@ router.post('/:id/chat/messages', async (req, res) => {
     }
 
     // Use the actual UUID session ID if found, otherwise use the key (will create new session)
-    const sessionId = actualSessionId || sessionKey
+    const resolvedAgent = resolveAgentExecutionConfig(id)
+    const sessionId = scopeSessionIdToModel(actualSessionId || sessionKey, resolvedAgent.model)
 
     runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
       const useLocal = !isGatewayConfigured()

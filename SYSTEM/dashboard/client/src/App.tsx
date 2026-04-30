@@ -165,6 +165,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const [page, setPage] = useState<Page>('agents')
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>(['agents']))
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -224,6 +225,15 @@ export default function App() {
   ))
 
   useEffect(() => {
+    setVisitedPages((prev) => {
+      if (prev.has(page)) return prev
+      const next = new Set(prev)
+      next.add(page)
+      return next
+    })
+  }, [page])
+
+  useEffect(() => {
     const load = () =>
       fetch('/api/system')
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
@@ -252,22 +262,13 @@ export default function App() {
   // Poll for running workflows count
   useEffect(() => {
     const checkRunningWorkflows = async () => {
+      if (document.visibilityState !== 'visible') return
       try {
         const res = await fetch('/api/workflows')
         if (!res.ok) return
         const data = await res.json()
         const workflows = data.workflows || []
-
-        const checks = await Promise.all(
-          workflows.map(async (w: any) => {
-            const execRes = await fetch(`/api/workflows/${w.id}/executions?limit=1`)
-            const execData = await execRes.json()
-            const latest = execData.executions?.[0]
-            return latest?.status === 'running'
-          })
-        )
-
-        const count = checks.filter(Boolean).length
+        const count = workflows.filter((w: any) => w.status === 'running').length
         setRunningWorkflowsCount(count)
       } catch (err) {
         console.error('Error checking running workflows:', err)
@@ -275,13 +276,14 @@ export default function App() {
     }
 
     checkRunningWorkflows()
-    const interval = setInterval(checkRunningWorkflows, 5000)
+    const interval = setInterval(checkRunningWorkflows, 15000)
     return () => clearInterval(interval)
   }, [])
 
   // Poll for unread message counts (scoped to current workspace channels)
   useEffect(() => {
     const checkUnread = () => {
+      if (document.visibilityState !== 'visible') return
       Promise.all([
         fetch('/api/message-counts').then(r => r.ok ? r.json() : {}),
         fetch(CHANNEL_API_ENDPOINTS.groups).then(r => r.ok ? r.json() : { groups: [] }),
@@ -304,7 +306,7 @@ export default function App() {
       }).catch(() => {})
     }
     checkUnread()
-    const interval = setInterval(checkUnread, 5000)
+    const interval = setInterval(checkUnread, 15000)
     return () => clearInterval(interval)
   }, [])
 
@@ -463,7 +465,8 @@ export default function App() {
                 } : undefined}
               />
             )}
-            <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
+            {page === 'agents' && (
+            <div className="flex-1 overflow-auto">
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
@@ -476,18 +479,26 @@ export default function App() {
                 isActive={page === 'agents'}
               />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
+            )}
+            {page === 'templates' && (
+            <div className="flex-1 overflow-auto">
               <Templates />
             </div>
+            )}
+            {visitedPages.has('organizations') && (
             <div className={`flex-1 overflow-auto ${page === 'organizations' ? '' : 'hidden'}`}>
               <Organizations
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialCommunityName={initialCommunityName}
                 initialGroupName={initialOrgGroupName}
+                isActive={page === 'organizations'}
               />
             </div>
+            )}
+            {visitedPages.has('workflows') && (
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
               <Workflows
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
@@ -499,15 +510,22 @@ export default function App() {
                 onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 initialWorkflowId={initialWorkflowId}
+                isActive={page === 'workflows'}
               />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
+            )}
+            {page === 'skills' && (
+            <div className="flex-1 overflow-auto">
               <SkillsTest initialAgentId={initialSkillsAgent} />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'keys' ? '' : 'hidden'}`}>
+            )}
+            {page === 'keys' && (
+            <div className="flex-1 overflow-auto">
               <KeysSecrets />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'communication' ? '' : 'hidden'}`}>
+            )}
+            {page === 'communication' && (
+            <div className="flex-1 overflow-auto">
               <Communication
                 onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
                 onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
@@ -519,15 +537,22 @@ export default function App() {
                 isActive={page === 'communication'}
               />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'activity' ? '' : 'hidden'}`}>
+            )}
+            {page === 'activity' && (
+            <div className="flex-1 overflow-auto">
               <Activity isActive={page === 'activity'} onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'logs' ? '' : 'hidden'}`}>
+            )}
+            {page === 'logs' && (
+            <div className="flex-1 overflow-auto">
               <Logs />
             </div>
-            <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
+            )}
+            {page === 'docs' && (
+            <div className="flex-1 overflow-auto">
               <DocHub initialFile={docFile} />
             </div>
+            )}
           </main>
           </div>
         </WorkspaceProvider>
@@ -595,7 +620,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-    <div className="min-h-9 flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0 dark:border-gray-700 md:h-9 md:px-5 md:py-0">
+    <div className="min-h-9 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-12 md:px-5 md:py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -619,7 +644,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           </span>
         )}
         <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
-          <span className="font-mono text-gray-400 dark:text-gray-500 hidden sm:inline">{system?.hostname}</span>
+          <span className="hidden max-w-[14rem] truncate whitespace-nowrap font-mono text-gray-400 dark:text-gray-500 sm:inline">{system?.hostname}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>

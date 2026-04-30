@@ -38,6 +38,7 @@ interface AgentTemplate {
 interface OrganizationTemplate {
   name: string
   type: 'organization'
+  kind?: 'team' | 'company'
   source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
@@ -46,9 +47,43 @@ interface OrganizationTemplate {
   author?: string
   tags?: string[]
   agents: Array<{ id: string; role: string; tags?: string[] }>
+  teams?: Array<{
+    id: string
+    name: string
+    purpose?: string
+    leaderAgentId?: string
+    memberAgentIds?: string[]
+    parentTeamId?: string
+    tags?: string[]
+  }>
   communities?: Array<{ name: string }>
   groups?: Array<{ name: string }>
-  workflows?: Array<{ id: string; name: string; scaling?: 'singleton' | 'parallel'; parallelism?: number }>
+  workflows?: Array<{
+    id: string
+    name: string
+    description?: string
+    schedule?: string
+    owner?: string
+    scaling?: 'singleton' | 'parallel'
+    parallelism?: number
+    targeting?: {
+      communities?: string[]
+      groups?: string[]
+      tags?: string[]
+      agents?: string[]
+    }
+    inputRefs?: Array<{
+      workflowId: string
+      outputKey: string
+      label?: string
+      required?: boolean
+    }>
+    outputDefinitions?: Array<{
+      key: string
+      label?: string
+      type?: string
+    }>
+  }>
   metadata?: {
     createdAt?: string
     updatedAt?: string
@@ -195,11 +230,38 @@ function ImportTemplateModal({
   )
 }
 
+function getTemplateTeamDepth(team: NonNullable<OrganizationTemplate['teams']>[number], byId: Map<string, NonNullable<OrganizationTemplate['teams']>[number]>): number {
+  let depth = 0
+  let currentParentId = team.parentTeamId
+  const visited = new Set<string>()
+  while (currentParentId) {
+    if (visited.has(currentParentId)) break
+    visited.add(currentParentId)
+    const parent = byId.get(currentParentId)
+    if (!parent) break
+    depth += 1
+    currentParentId = parent.parentTeamId
+  }
+  return depth
+}
+
+function getWorkflowTemplateTeamName(
+  workflow: NonNullable<OrganizationTemplate['workflows']>[number],
+  teams: NonNullable<OrganizationTemplate['teams']>
+): string | null {
+  const targetGroups = workflow.targeting?.groups || []
+  if (targetGroups.length === 0) return null
+  const normalizedGroups = new Set(targetGroups.map((group) => group.toLowerCase()))
+  const matched = teams.find((team) => normalizedGroups.has(team.name.toLowerCase()) || normalizedGroups.has(team.id.toLowerCase()))
+  return matched?.name || targetGroups[0] || null
+}
+
 interface TemplateRow {
   key: string
   name: string
   type: Template['type']
   source: 'system' | 'workspace' | 'enterprise'
+  templateLabel: 'agent' | 'team' | 'company' | 'workflow'
   agentCount: number
   groupCount: number
   workflowCount: number
@@ -207,6 +269,20 @@ interface TemplateRow {
   author: string
   tags: string[]
   template: Template
+}
+
+function getOrganizationTemplateKind(template: OrganizationTemplate): 'team' | 'company' {
+  if (template.kind === 'team' || template.kind === 'company') {
+    return template.kind
+  }
+
+  return (template.teams?.length || 0) > 0 ? 'company' : 'team'
+}
+
+function getTemplateLabel(template: Template): TemplateRow['templateLabel'] {
+  if (template.type === 'agent') return 'agent'
+  if (template.type === 'workflow') return 'workflow'
+  return getOrganizationTemplateKind(template)
 }
 
 function getTemplateRow(template: Template): TemplateRow {
@@ -218,6 +294,7 @@ function getTemplateRow(template: Template): TemplateRow {
     name: template.name,
     type: template.type,
     source: template.type === 'workflow' ? 'workspace' : (template.source || 'workspace'),
+    templateLabel: getTemplateLabel(template),
     agentCount: isWorkflow ? template.targeting.agents.length : template.agents.length,
     groupCount: isOrg ? (template.groups?.length || 0) : isWorkflow ? template.targeting.groups.length : 0,
     workflowCount: isOrg ? (template.workflows?.length || 0) : isWorkflow ? 1 : 0,
@@ -282,9 +359,10 @@ export default function Templates() {
     consequences: string[]
     onConfirm: () => Promise<void>
   } | null>(null)
-  const [collapsedSections, setCollapsedSections] = useState<{ agents: boolean; organizations: boolean; workflows: boolean }>({
+  const [collapsedSections, setCollapsedSections] = useState<{ agents: boolean; teams: boolean; companies: boolean; workflows: boolean }>({
     agents: false,
-    organizations: false,
+    teams: false,
+    companies: false,
     workflows: false,
   })
 
@@ -457,7 +535,11 @@ export default function Templates() {
     } else {
       const slug = targetTemplate?.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       const typeParam = type === 'agent' ? 'agents' : 'organizations'
-      const templateLabel = type === 'agent' ? 'agent template' : 'organization template'
+      const templateLabel = type === 'agent'
+        ? 'agent template'
+        : targetTemplate && targetTemplate.type === 'organization'
+          ? `${getOrganizationTemplateKind(targetTemplate)} template`
+          : 'organization template'
 
       setDeleteDialog({
         itemName: name,
@@ -562,6 +644,15 @@ export default function Templates() {
     )
   }, [workflowTemplates, searchQuery])
 
+  const filteredTeamTemplates = React.useMemo(
+    () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team'),
+    [filteredOrgTemplates]
+  )
+  const filteredCompanyTemplates = React.useMemo(
+    () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'company'),
+    [filteredOrgTemplates]
+  )
+
   const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length + filteredWorkflowTemplates.length
   const templateRows = React.useMemo(
     () => [...filteredAgentTemplates, ...filteredOrgTemplates, ...filteredWorkflowTemplates].map(getTemplateRow),
@@ -604,6 +695,14 @@ export default function Templates() {
   }, [])
 
   const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const totalTeamTemplates = React.useMemo(
+    () => orgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team').length,
+    [orgTemplates]
+  )
+  const totalCompanyTemplates = React.useMemo(
+    () => orgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'company').length,
+    [orgTemplates]
+  )
   const workspaceTemplateCount = React.useMemo(
     () => [...agentTemplates, ...orgTemplates].filter((template) => (template.source || 'workspace') === 'workspace').length + workflowTemplates.length,
     [agentTemplates, orgTemplates, workflowTemplates]
@@ -620,6 +719,14 @@ export default function Templates() {
     () => [...sortedTemplateRows.filter(row => row.type === 'organization')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
     [sortedTemplateRows, sourceRank]
   )
+  const sortedTeamRows = React.useMemo(
+    () => sortedOrgRows.filter((row) => row.templateLabel === 'team'),
+    [sortedOrgRows]
+  )
+  const sortedCompanyRows = React.useMemo(
+    () => sortedOrgRows.filter((row) => row.templateLabel === 'company'),
+    [sortedOrgRows]
+  )
   const sortedWorkflowRows = React.useMemo(
     () => [...sortedTemplateRows.filter(row => row.type === 'workflow')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
     [sortedTemplateRows, sourceRank]
@@ -629,7 +736,8 @@ export default function Templates() {
     other: rows.filter((row) => row.source !== 'workspace'),
   }), [])
   const agentRowBuckets = React.useMemo(() => splitRowsBySource(sortedAgentRows), [sortedAgentRows, splitRowsBySource])
-  const orgRowBuckets = React.useMemo(() => splitRowsBySource(sortedOrgRows), [sortedOrgRows, splitRowsBySource])
+  const teamRowBuckets = React.useMemo(() => splitRowsBySource(sortedTeamRows), [sortedTeamRows, splitRowsBySource])
+  const companyRowBuckets = React.useMemo(() => splitRowsBySource(sortedCompanyRows), [sortedCompanyRows, splitRowsBySource])
   const templateSuggestionRows = React.useMemo(() => {
     if (!searchQuery.trim()) return []
     const visibleOrgTemplates = categoryFilter === 'all'
@@ -699,7 +807,7 @@ export default function Templates() {
     )
   }
 
-  const toggleSectionCollapsed = (section: 'agents' | 'organizations' | 'workflows') => {
+  const toggleSectionCollapsed = (section: 'agents' | 'teams' | 'companies' | 'workflows') => {
     setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
   const selectedRows = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
@@ -758,7 +866,7 @@ export default function Templates() {
 
     setDeleteDialog({
       itemName: `${rowsToDelete.length} templates`,
-      consequences: rowsToDelete.map(row => `${row.name} (${row.type})`),
+      consequences: rowsToDelete.map(row => `${row.name} (${row.templateLabel})`),
       onConfirm: async () => {
         try {
           await Promise.all(rowsToDelete.map(async ({ template }) => {
@@ -827,14 +935,16 @@ export default function Templates() {
                 <>
                   {totalFiltered} of {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
                   {' '}{filteredAgentTemplates.length} agent{filteredAgentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{filteredOrgTemplates.length} organization{filteredOrgTemplates.length !== 1 ? 's' : ''},
+                  {' '}{filteredTeamTemplates.length} team{filteredTeamTemplates.length !== 1 ? 's' : ''},
+                  {' '}{filteredCompanyTemplates.length} compan{filteredCompanyTemplates.length !== 1 ? 'y' : 'ies'},
                   {' '}{filteredWorkflowTemplates.length} workflow{filteredWorkflowTemplates.length !== 1 ? 's' : ''}
                 </>
               ) : (
                 <>
                   {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
                   {' '}{agentTemplates.length} agent{agentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{orgTemplates.length} organization{orgTemplates.length !== 1 ? 's' : ''},
+                  {' '}{totalTeamTemplates} team{totalTeamTemplates !== 1 ? 's' : ''},
+                  {' '}{totalCompanyTemplates} compan{totalCompanyTemplates !== 1 ? 'y' : 'ies'},
                   {' '}{workflowTemplates.length} workflow{workflowTemplates.length !== 1 ? 's' : ''}
                 </>
               )}
@@ -1083,7 +1193,7 @@ export default function Templates() {
                     >
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">
-                        {row.type} · {(row.template as any).category || row.author || 'template'}
+                        {row.templateLabel} · {(row.template as any).category || row.author || 'template'}
                       </div>
                       {reasons.length > 0 && (
                         <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
@@ -1119,7 +1229,7 @@ export default function Templates() {
                       className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
                     >
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">{row.type}</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">{row.templateLabel}</div>
                       {reasons.length > 0 && (
                         <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
                           Matches: {reasons.join(', ')}
@@ -1204,36 +1314,36 @@ export default function Templates() {
               </section>
             )}
 
-            {/* Organization Templates */}
-            {filteredOrgTemplates.length > 0 && (
+            {/* Team Templates */}
+            {filteredTeamTemplates.length > 0 && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
                   <button
-                    onClick={() => toggleSectionCollapsed('organizations')}
+                    onClick={() => toggleSectionCollapsed('teams')}
                     className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                   >
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.organizations ? '▸' : '▾'}</span>
-                    <span>🏢 Organization Templates</span>
-                    <span className="text-sm font-normal text-gray-400">({filteredOrgTemplates.length})</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
+                    <span>👥 Team Templates</span>
+                    <span className="text-sm font-normal text-gray-400">({filteredTeamTemplates.length})</span>
                   </button>
                   {selectionMode && (
                     <button
-                      onClick={() => toggleSectionSelection(filteredOrgTemplates.map(getTemplateRow))}
+                      onClick={() => toggleSectionSelection(filteredTeamTemplates.map(getTemplateRow))}
                       className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                     >
-                      {filteredOrgTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Orgs' : 'Select All Orgs'}
+                      {filteredTeamTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Teams' : 'Select All Teams'}
                     </button>
                   )}
                 </div>
-                {!collapsedSections.organizations && (
+                {!collapsedSections.teams && (
                   <div className="space-y-5">
-                    {orgRowBuckets.workspace.length > 0 && (
+                    {teamRowBuckets.workspace.length > 0 && (
                       <div>
-                        {orgRowBuckets.other.length > 0 && (
+                        {teamRowBuckets.other.length > 0 && (
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
                         )}
                         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {orgRowBuckets.workspace.map((row) => (
+                          {teamRowBuckets.workspace.map((row) => (
                             <TemplateCard
                               key={row.key}
                               template={row.template as OrganizationTemplate}
@@ -1250,13 +1360,87 @@ export default function Templates() {
                         </div>
                       </div>
                     )}
-                    {(orgRowBuckets.workspace.length === 0 || orgRowBuckets.other.length > 0) && orgRowBuckets.other.length > 0 && (
+                    {(teamRowBuckets.workspace.length === 0 || teamRowBuckets.other.length > 0) && teamRowBuckets.other.length > 0 && (
                       <div>
-                        {orgRowBuckets.workspace.length > 0 && (
+                        {teamRowBuckets.workspace.length > 0 && (
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
                         )}
                         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {orgRowBuckets.other.map((row) => (
+                          {teamRowBuckets.other.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as OrganizationTemplate}
+                              onDelete={() => handleDelete('organization', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`organization:${(row.template as OrganizationTemplate).slug || ''}`]}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Company Templates */}
+            {filteredCompanyTemplates.length > 0 && (
+              <section>
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleSectionCollapsed('companies')}
+                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                  >
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
+                    <span>🏢 Company Templates</span>
+                    <span className="text-sm font-normal text-gray-400">({filteredCompanyTemplates.length})</span>
+                  </button>
+                  {selectionMode && (
+                    <button
+                      onClick={() => toggleSectionSelection(filteredCompanyTemplates.map(getTemplateRow))}
+                      className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      {filteredCompanyTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Companies' : 'Select All Companies'}
+                    </button>
+                  )}
+                </div>
+                {!collapsedSections.companies && (
+                  <div className="space-y-5">
+                    {companyRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {companyRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {companyRowBuckets.workspace.map((row) => (
+                            <TemplateCard
+                              key={row.key}
+                              template={row.template as OrganizationTemplate}
+                              onDelete={() => handleDelete('organization', row.template.name)}
+                              onApply={() => openApplyForTemplate(row.template)}
+                              onClick={() => setSelectedTemplate(row.template)}
+                              selected={selectedTemplate?.name === row.template.name}
+                              ratingSummary={feedbackSummaries[`organization:${(row.template as OrganizationTemplate).slug || ''}`]}
+                              selectionMode={selectionMode}
+                              isSelected={selectedTemplateKeys.has(row.key)}
+                              onToggleSelect={() => toggleTemplateSelection(row.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(companyRowBuckets.workspace.length === 0 || companyRowBuckets.other.length > 0) && companyRowBuckets.other.length > 0 && (
+                      <div>
+                        {companyRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {companyRowBuckets.other.map((row) => (
                             <TemplateCard
                               key={row.key}
                               template={row.template as OrganizationTemplate}
@@ -1377,25 +1561,25 @@ export default function Templates() {
                 )}
               </section>
             )}
-            {sortedOrgRows.length > 0 && (
+            {sortedTeamRows.length > 0 && (
               <section>
                 <button
-                  onClick={() => toggleSectionCollapsed('organizations')}
+                  onClick={() => toggleSectionCollapsed('teams')}
                   className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                 >
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.organizations ? '▸' : '▾'}</span>
-                  <span>🏢 Organization Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({sortedOrgRows.length})</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
+                  <span>👥 Team Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({sortedTeamRows.length})</span>
                 </button>
-                {!collapsedSections.organizations && (
+                {!collapsedSections.teams && (
                   <div className="space-y-5">
-                    {orgRowBuckets.workspace.length > 0 && (
+                    {teamRowBuckets.workspace.length > 0 && (
                       <div>
-                        {orgRowBuckets.other.length > 0 && (
+                        {teamRowBuckets.other.length > 0 && (
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
                         )}
                         <TemplatesTable
-                          rows={orgRowBuckets.workspace}
+                          rows={teamRowBuckets.workspace}
                           selectionMode={selectionMode}
                           selectedTemplateKeys={selectedTemplateKeys}
                           selectedTemplate={selectedTemplate}
@@ -1410,13 +1594,71 @@ export default function Templates() {
                         />
                       </div>
                     )}
-                    {(orgRowBuckets.workspace.length === 0 || orgRowBuckets.other.length > 0) && orgRowBuckets.other.length > 0 && (
+                    {(teamRowBuckets.workspace.length === 0 || teamRowBuckets.other.length > 0) && teamRowBuckets.other.length > 0 && (
                       <div>
-                        {orgRowBuckets.workspace.length > 0 && (
+                        {teamRowBuckets.workspace.length > 0 && (
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
                         )}
                         <TemplatesTable
-                          rows={orgRowBuckets.other}
+                          rows={teamRowBuckets.other}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+            {sortedCompanyRows.length > 0 && (
+              <section>
+                <button
+                  onClick={() => toggleSectionCollapsed('companies')}
+                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
+                >
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
+                  <span>🏢 Company Templates</span>
+                  <span className="text-sm font-normal text-gray-400">({sortedCompanyRows.length})</span>
+                </button>
+                {!collapsedSections.companies && (
+                  <div className="space-y-5">
+                    {companyRowBuckets.workspace.length > 0 && (
+                      <div>
+                        {companyRowBuckets.other.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={companyRowBuckets.workspace}
+                          selectionMode={selectionMode}
+                          selectedTemplateKeys={selectedTemplateKeys}
+                          selectedTemplate={selectedTemplate}
+                          onSort={handleSort}
+                          sortColumn={sortColumn}
+                          sortDirection={sortDirection}
+                          onToggleSelect={toggleTemplateSelection}
+                          onToggleSelectAll={setSelectedTemplateKeys}
+                          onOpenTemplate={setSelectedTemplate}
+                          onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
+                          onApplyTemplate={openApplyForTemplate}
+                        />
+                      </div>
+                    )}
+                    {(companyRowBuckets.workspace.length === 0 || companyRowBuckets.other.length > 0) && companyRowBuckets.other.length > 0 && (
+                      <div>
+                        {companyRowBuckets.workspace.length > 0 && (
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">System Templates</div>
+                        )}
+                        <TemplatesTable
+                          rows={companyRowBuckets.other}
                           selectionMode={selectionMode}
                           selectedTemplateKeys={selectedTemplateKeys}
                           selectedTemplate={selectedTemplate}
@@ -1752,7 +1994,7 @@ function TemplatesTable({
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{row.type}</td>
+                  <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{row.templateLabel}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.agentCount}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.groupCount}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.workflowCount}</td>
@@ -1935,6 +2177,20 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
   const { showSuccess, showError } = useToast()
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
+  const organizationKind = isOrg ? getOrganizationTemplateKind(template as OrganizationTemplate) : null
+  const organizationTemplate = isOrg ? template as OrganizationTemplate : null
+  const templateTeams = organizationTemplate?.teams || []
+  const teamsById = new Map(templateTeams.map((team) => [team.id, team]))
+  const sortedTeams = [...templateTeams].sort((a, b) => {
+    const depthDiff = getTemplateTeamDepth(a, teamsById) - getTemplateTeamDepth(b, teamsById)
+    if (depthDiff !== 0) return depthDiff
+    return a.name.localeCompare(b.name)
+  })
+  const workflowsByTeamName = new Map<string, NonNullable<OrganizationTemplate['workflows']>[number][]>()
+  for (const workflow of organizationTemplate?.workflows || []) {
+    const teamName = getWorkflowTemplateTeamName(workflow, templateTeams) || 'Unassigned'
+    workflowsByTeamName.set(teamName, [...(workflowsByTeamName.get(teamName) || []), workflow])
+  }
   const canDelete = template.type === 'workflow' || template.source === 'workspace'
   const templateEmoji = (template as any).emoji
   const [feedbackSummary, setFeedbackSummary] = useState<TemplateFeedbackSummary | null>(null)
@@ -2011,10 +2267,10 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
         <div className="p-6 space-y-4">
           {/* Type & Version */}
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{templateEmoji || (isOrg ? '🏢' : isWorkflow ? '⚡' : '🤖')}</span>
+            <span className="text-2xl">{templateEmoji || (isOrg ? (organizationKind === 'company' ? '🏢' : '👥') : isWorkflow ? '⚡' : '🤖')}</span>
             <div>
               <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {isOrg ? 'Organization Template' : isWorkflow ? 'Workflow Template' : 'Agent Template'}
+                {isOrg ? (organizationKind === 'company' ? 'Company Template' : 'Team Template') : isWorkflow ? 'Workflow Template' : 'Agent Template'}
               </div>
               <div className="text-xs text-gray-400">Version {template.version}</div>
             </div>
@@ -2244,6 +2500,45 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
             </div>
           )}
 
+          {isOrg && sortedTeams.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
+                Teams ({sortedTeams.length})
+              </h3>
+              <div className="space-y-2">
+                {sortedTeams.map((team) => {
+                  const depth = getTemplateTeamDepth(team, teamsById)
+                  return (
+                    <div
+                      key={team.id}
+                      className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-2"
+                      style={{ marginLeft: depth * 16 }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-amber-900 dark:text-amber-200">{team.name}</span>
+                            <span className="text-[11px] font-mono text-amber-700 dark:text-amber-400">{team.id}</span>
+                          </div>
+                          {team.purpose && (
+                            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">{team.purpose}</p>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400">
+                          {team.leaderAgentId ? `Lead: ${team.leaderAgentId}` : 'No lead'}
+                        </div>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-amber-700 dark:text-amber-400">
+                        {team.parentTeamId && <span>Parent: {team.parentTeamId}</span>}
+                        <span>Members: {team.memberAgentIds?.length || 0}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Workflows (for org templates) */}
           {isOrg && (template as any).workflows && (template as any).workflows.length > 0 && (
             <div>
@@ -2251,15 +2546,29 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
                 Workflows ({(template as any).workflows.length})
               </h3>
               <div className="space-y-2">
-                {(template as any).workflows.map((wf: any, idx: number) => (
-                  <div key={idx} className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-amber-900 dark:text-amber-200">{wf.name}</span>
-                      <span className="text-xs font-mono text-amber-600 dark:text-amber-400">{wf.schedule === 'manual' ? 'Manual' : wf.schedule}</span>
+                {Array.from(workflowsByTeamName.entries()).map(([teamName, workflows]) => (
+                  <div key={teamName} className="rounded border border-amber-200 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/10 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      {teamName} Team
                     </div>
-                    {wf.description && (
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{wf.description}</p>
-                    )}
+                    <div className="space-y-2">
+                      {workflows.map((wf, idx) => (
+                        <div key={`${wf.id}:${idx}`} className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-amber-900 dark:text-amber-200">{wf.name}</span>
+                            <span className="text-xs font-mono text-amber-600 dark:text-amber-400">{wf.schedule === 'manual' ? 'Manual' : wf.schedule}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-amber-700 dark:text-amber-300">
+                            {wf.owner && <span>Owner: {wf.owner}</span>}
+                            {wf.inputRefs && wf.inputRefs.length > 0 && <span>{wf.inputRefs.length} input{wf.inputRefs.length === 1 ? '' : 's'}</span>}
+                            {wf.outputDefinitions && wf.outputDefinitions.length > 0 && <span>{wf.outputDefinitions.length} output{wf.outputDefinitions.length === 1 ? '' : 's'}</span>}
+                          </div>
+                          {wf.description && (
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{wf.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

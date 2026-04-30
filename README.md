@@ -279,6 +279,10 @@ WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 # - non-interactive hosted runtime with no dashboard .env: hidden
 DASHBOARD_ENABLE_OLLAMA=false
 
+# Optional local Ollama runtime endpoint used by dashboard/server execution paths.
+# This is the env var the runtime actually reads. Do not use DASHBOARD_OLLAMA_BASE_URL.
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+
 # Optional extra partner roots
 CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS
 ```
@@ -288,6 +292,8 @@ Notes:
 - `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
 - If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
 - `DASHBOARD_ENABLE_OLLAMA` controls only whether Ollama appears in the dashboard UI. It does not provision an Ollama runtime for hosted deployments.
+- `OLLAMA_BASE_URL` is the runtime env var used by dashboard/server execution. `DASHBOARD_OLLAMA_BASE_URL` is not used.
+- Browser-local BYOK / Workspaces Integrations Ollama settings help the UI and request-scoped execution, but operator-managed local runtime setups should still prefer setting `OLLAMA_BASE_URL` in `SYSTEM/dashboard/.env` so chat/workflows have a stable local execution path after restart.
 
 ### First Steps
 

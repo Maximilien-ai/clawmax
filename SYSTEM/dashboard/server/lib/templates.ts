@@ -7,10 +7,12 @@ import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
+import { createTeam, getTeam, updateTeam, type TeamInput } from './teams'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
-import { resetAgentSessionsForModelChange } from './agent-model'
+import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { safeEnv } from './safe-env'
+import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 
 // Template storage paths (dynamic functions)
 
@@ -115,6 +117,66 @@ function buildWorkflowDependencyAliasMap(workflows: Workflow[]): Record<string, 
   return aliasMap
 }
 
+export function summarizeImportedProjectContext(projectContext: string, maxLength = 900): string {
+  const lines = projectContext
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^##\s+/i.test(line))
+
+  const kept: string[] = []
+  for (const line of lines) {
+    const normalized = /^[-*]\s+/.test(line) ? line : `- ${line}`
+    kept.push(normalized)
+    const candidate = kept.join('\n')
+    if (candidate.length >= maxLength) break
+  }
+
+  const summary = kept.join('\n').slice(0, maxLength).trim()
+  if (!summary) return ''
+  return summary.length < kept.join('\n').trim().length ? `${summary}\n- Additional project context omitted for brevity.` : summary
+}
+
+function sanitizeImportedTemplateTeams(teams?: Team[]): Team[] | undefined {
+  if (!teams || teams.length === 0) return teams
+
+  const ids = new Set(teams.map((team) => `${team.id || ''}`.trim()).filter(Boolean))
+  const firstPass = teams.map((team) => {
+    const parentTeamId = team.parentTeamId?.trim() || undefined
+    return {
+      ...team,
+      parentTeamId: parentTeamId && ids.has(parentTeamId) && parentTeamId !== team.id ? parentTeamId : undefined,
+    }
+  })
+  const byId = new Map(firstPass.map((team) => [team.id, team]))
+
+  return firstPass.map((team) => {
+    let parentTeamId = team.parentTeamId?.trim() || undefined
+    if (!parentTeamId) {
+      return {
+        ...team,
+        parentTeamId: undefined,
+      }
+    }
+
+    const ancestry = new Set<string>([team.id])
+    let cursor: string | undefined = parentTeamId
+    while (cursor) {
+      if (ancestry.has(cursor)) {
+        parentTeamId = undefined
+        break
+      }
+      ancestry.add(cursor)
+      cursor = byId.get(cursor)?.parentTeamId?.trim() || undefined
+    }
+
+    return {
+      ...team,
+      parentTeamId,
+    }
+  })
+}
+
 // Ensure template directories exist
 export function ensureTemplateDirs(): void {
   // Global directories
@@ -185,6 +247,16 @@ export interface Group {
   channels?: string[]
 }
 
+export interface Team {
+  id: string
+  name: string
+  purpose?: string
+  leaderAgentId?: string
+  memberAgentIds?: string[]
+  parentTeamId?: string
+  tags?: string[]
+}
+
 export interface Workflow {
   id: string
   name: string
@@ -201,13 +273,27 @@ export interface Workflow {
     groups: string[]
     tags: string[]
     agents: string[]
+    teamIds?: string[]
   }
+  outputDefinitions?: Array<{
+    key: string
+    label?: string
+    type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
+    help?: string
+  }>
+  inputRefs?: Array<{
+    workflowId: string
+    outputKey: string
+    label?: string
+    required?: boolean
+  }>
   content: string
 }
 
 export interface OrganizationTemplate {
   name: string
   type: 'organization'
+  kind?: 'team' | 'company'
   source?: 'system' | 'workspace' | 'enterprise'
   slug?: string
   version: string
@@ -223,6 +309,7 @@ export interface OrganizationTemplate {
     max: number
   }>
   agents: OrganizationTemplateAgent[]
+  teams?: Team[]
   communities?: Community[]
   groups?: Group[]
   workflows?: Workflow[]
@@ -308,6 +395,74 @@ function normalizeTemplateForUse(template: Template): Template {
   }
 }
 
+function classifyOrganizationTemplate(template: OrganizationTemplate): 'team' | 'company' {
+  return (template.teams?.length || 0) > 0 ? 'company' : 'team'
+}
+
+function withDerivedTemplateFields(template: Template): Template {
+  if (template.type !== 'organization') return template
+  return {
+    ...template,
+    kind: classifyOrganizationTemplate(template),
+  }
+}
+
+function toCanonicalTemplateSource(source?: TemplateSource): CanonicalTemplateFeedbackSource {
+  return source === 'system' ? 'system' : 'user'
+}
+
+function toCanonicalTemplateType(template: Template): CanonicalTemplateFeedbackType {
+  if (template.type === 'agent') return 'agent'
+  return classifyOrganizationTemplate(template) === 'company' ? 'company' : 'team'
+}
+
+export function buildTemplateFeedbackMetadata(template: Template): {
+  templateId: string
+  templateType: CanonicalTemplateFeedbackType
+  templateSlug: string
+  templateSource: CanonicalTemplateFeedbackSource
+  templateTags: string[]
+  templateInfo: Record<string, any>
+} {
+  const templateSlug = template.slug || slugify(template.name)
+  const templateSource = toCanonicalTemplateSource((template as any).source)
+  const templateType = toCanonicalTemplateType(template)
+  const templateTags = normalizeTagList((template as any).tags)
+  const templateInfo: Record<string, any> = {
+    title: template.name,
+    version: (template as any).version || '1.0.0',
+  }
+
+  if ((template as any).author) templateInfo.owner = (template as any).author
+
+  if (template.type === 'agent') {
+    const firstAgent = template.agents?.[0]
+    if (firstAgent?.role) templateInfo.persona = firstAgent.role
+    if (firstAgent?.name) templateInfo.agentName = firstAgent.name
+  } else {
+    templateInfo.kind = classifyOrganizationTemplate(template)
+    if (template.teams?.length) templateInfo.teamCount = template.teams.length
+    if (template.workflows?.length) templateInfo.workflowCount = template.workflows.length
+    const firstDepartment = template.teams?.[0]?.name || template.groups?.[0]?.name || template.communities?.[0]?.name
+    if (firstDepartment) templateInfo.department = firstDepartment
+  }
+
+  return {
+    templateId: `${templateSource}:${templateSlug}`,
+    templateType,
+    templateSlug,
+    templateSource,
+    templateTags,
+    templateInfo,
+  }
+}
+
+function stripDerivedTemplateFields(template: Template): Template {
+  if (template.type !== 'organization') return template
+  const { kind: _kind, ...rest } = template
+  return rest
+}
+
 function bumpPatchVersion(version?: string): string {
   const match = String(version || '1.0.0').match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!match) return '1.0.1'
@@ -337,9 +492,96 @@ function snapshotExistingTemplateVersion(templateDir: string, version?: string):
   }
 }
 
+type OpenClawAgentRegistrationResult =
+  | { status: 'created' }
+  | { status: 'already-registered' }
+  | { status: 'updated-existing' }
+
+export function isOpenClawAgentAlreadyExistsError(err: unknown): boolean {
+  const anyErr = err as any
+  const text = [
+    anyErr?.message,
+    anyErr?.stdout?.toString?.(),
+    anyErr?.stderr?.toString?.(),
+    String(err || ''),
+  ].filter(Boolean).join('\n')
+  return /Agent\s+"?[^"\n]+"?\s+already exists/i.test(text)
+}
+
+function readOpenClawConfig(configPath: string): any {
+  if (!fs.existsSync(configPath)) return { agents: { list: [] } }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8') || '{}')
+    if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
+    if (!Array.isArray(parsed.agents.list)) parsed.agents.list = []
+    return parsed
+  } catch {
+    return { agents: { list: [] } }
+  }
+}
+
+export function upsertOpenClawAgentRegistration(
+  configPath: string,
+  agentId: string,
+  workspaceArg: string,
+  agentDirArg: string
+): OpenClawAgentRegistrationResult | null {
+  const config = readOpenClawConfig(configPath)
+  const existing = config.agents.list.find((agent: any) => agent?.id === agentId)
+  if (!existing) return null
+
+  const desired = {
+    ...existing,
+    id: agentId,
+    name: existing.name || agentId,
+    workspace: workspaceArg,
+    agentDir: agentDirArg,
+  }
+  const changed =
+    existing.name !== desired.name
+    || existing.workspace !== workspaceArg
+    || existing.agentDir !== agentDirArg
+
+  if (changed) {
+    Object.assign(existing, desired)
+    fs.mkdirSync(path.dirname(configPath), { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    return { status: 'updated-existing' }
+  }
+
+  return { status: 'already-registered' }
+}
+
+function ensureOpenClawAgentRegisteredForWorkspace(
+  agentId: string,
+  workspaceArg: string,
+  agentDirArg: string,
+  registrationEnv: NodeJS.ProcessEnv
+): OpenClawAgentRegistrationResult {
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+  if (existing) return existing
+
+  try {
+    execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      env: registrationEnv,
+    })
+    return { status: 'created' }
+  } catch (err) {
+    if (isOpenClawAgentAlreadyExistsError(err)) {
+      const adopted = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+      if (adopted) return adopted
+    }
+    throw err
+  }
+}
+
 function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
   agentsToCreate: Array<{ id: string; skills?: string[] }>
+  appliedModelsByAgentId?: Record<string, string | undefined>
   template: OrganizationTemplate
   prefix: string
   suffix: string
@@ -347,7 +589,7 @@ function runOrganizationPostImportSetup(args: {
   agentsDir: string
   workflowOverrides?: Record<string, string>
 }) {
-  const { createdAgents, agentsToCreate, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
+  const { createdAgents, agentsToCreate, appliedModelsByAgentId, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
 
   // Agent registration is required before workflows can run against new agents.
   // Do this synchronously so an immediate post-apply workflow run doesn't fail.
@@ -357,12 +599,14 @@ function runOrganizationPostImportSetup(args: {
       const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
       const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
 
-      execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        env: registrationEnv,
-      })
-      console.log(`Registered agent ${agentId} in openclaw.json`)
+      const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, registrationEnv)
+      if (registration.status === 'created') {
+        console.log(`Registered agent ${agentId} in openclaw.json`)
+      } else if (registration.status === 'updated-existing') {
+        console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
+      } else {
+        console.log(`Agent ${agentId} already registered in openclaw.json`)
+      }
 
       const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
@@ -371,6 +615,14 @@ function runOrganizationPostImportSetup(args: {
       )
       if (!registered) {
         throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
+      }
+
+      const appliedModel = appliedModelsByAgentId?.[agentId]?.trim()
+      if (appliedModel) {
+        const update = updateAgentModelInConfigFile(configPath, agentId, appliedModel, { workspacePath: workspaceArg })
+        if (!update.ok) {
+          throw new Error(update.error || `Failed to persist model ${appliedModel} for ${agentId}`)
+        }
       }
 
       fs.mkdirSync(agentDirArg, { recursive: true })
@@ -415,7 +667,7 @@ function runOrganizationPostImportSetup(args: {
 
     const kickoffContent = workflowOverrides?.[kickoffWorkflow.id] || kickoffWorkflow.content || ''
     const configMatch = kickoffContent.match(/## (?:Project Configuration|Your Tasks|Configuration)[\s\S]*?(?=\n## |\n---|\Z)/i)
-    const projectContext = configMatch ? configMatch[0].trim() : ''
+    const projectContext = configMatch ? summarizeImportedProjectContext(configMatch[0].trim()) : ''
     if (!projectContext) return
 
     for (const agentId of createdAgents) {
@@ -582,7 +834,7 @@ export function validateTemplateReferences(template: Template): { valid: boolean
   }
 
   // Check workflow targeting references
-  for (const wf of t.workflows || []) {
+    for (const wf of t.workflows || []) {
     for (const agentId of wf.targeting?.agents || []) {
       if (!agentIds.has(agentId)) {
         warnings.push(`Workflow "${wf.name}" targets unknown agent "${agentId}"`)
@@ -591,6 +843,11 @@ export function validateTemplateReferences(template: Template): { valid: boolean
     for (const group of wf.targeting?.groups || []) {
       if (!groupNames.has(group)) {
         warnings.push(`Workflow "${wf.name}" targets unknown group "${group}"`)
+      }
+    }
+    for (const teamId of wf.targeting?.teamIds || []) {
+      if (!(t.teams || []).some((team: any) => team.id === teamId)) {
+        warnings.push(`Workflow "${wf.name}" targets unknown team "${teamId}"`)
       }
     }
   }
@@ -646,6 +903,7 @@ export function parseTemplateMd(content: string): Template | null {
     if (data.aiPrompt) template.metadata = { ...(template.metadata || {}), aiPrompt: data.aiPrompt }
 
     // v1 legacy: all data in frontmatter
+    if (data.teams) template.teams = data.teams
     if (data.communities) template.communities = data.communities
     if (data.groups) template.groups = data.groups
     if (data.workflows) template.workflows = data.workflows
@@ -655,6 +913,7 @@ export function parseTemplateMd(content: string): Template | null {
       const parsed = parseTemplateMdBody(body)
       if (!template.description && parsed.description) template.description = parsed.description
       if (parsed.agents.length > 0) template.agents = parsed.agents
+      if (parsed.teams.length > 0 && !template.teams) template.teams = parsed.teams
       if (parsed.communities.length > 0 && !template.communities) template.communities = parsed.communities
       if (parsed.groups.length > 0 && !template.groups) template.groups = parsed.groups
       if (parsed.workflows.length > 0 && !template.workflows) template.workflows = parsed.workflows
@@ -725,12 +984,13 @@ function splitMarkdownH3Blocks(content: string): string[] {
 function parseTemplateMdBody(body: string): {
   description: string
   agents: any[]
+  teams: any[]
   communities: any[]
   groups: any[]
   workflows: any[]
   agentFiles: OrganizationTemplateAgentFiles
 } {
-  const result = { description: '', agents: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[], agentFiles: {} as OrganizationTemplateAgentFiles }
+  const result = { description: '', agents: [] as any[], teams: [] as any[], communities: [] as any[], groups: [] as any[], workflows: [] as any[], agentFiles: {} as OrganizationTemplateAgentFiles }
 
   // Split into sections by ## headers
   const sections: Record<string, string> = {}
@@ -793,6 +1053,34 @@ function parseTemplateMdBody(body: string): {
             skills: skillsMatch ? skillsMatch[1].split(',').map((s: string) => s.trim()) : [],
           })
         }
+      }
+    }
+  }
+
+  // Parse ## Teams — bullet list:
+  // - **Engineering** — Builds the product (id: engineering; leader: eng-lead; members: eng1, eng2; parent: leadership; tags: platform, core)
+  if (sections['teams']) {
+    for (const line of sections['teams'].trim().split('\n')) {
+      const match = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:—|-)\s*(.+?)(?:\s+\((.+)\))?$/)
+      if (!match) continue
+      const team: any = {
+        name: match[1].trim(),
+        purpose: match[2].trim(),
+      }
+      const attrs = (match[3] || '').split(';').map((part) => part.trim()).filter(Boolean)
+      for (const attr of attrs) {
+        const [rawKey, ...rawValueParts] = attr.split(':')
+        const key = rawKey?.trim()
+        const value = rawValueParts.join(':').trim()
+        if (key === 'id') team.id = value
+        if (key === 'leader') team.leaderAgentId = value
+        if (key === 'members') team.memberAgentIds = value.split(',').map((item) => item.trim()).filter(Boolean)
+        if (key === 'parent') team.parentTeamId = value
+        if (key === 'tags') team.tags = value.split(',').map((item) => item.trim()).filter(Boolean)
+      }
+      if (team.name) {
+        if (!team.id) team.id = slugify(team.name)
+        result.teams.push(team)
       }
     }
   }
@@ -886,6 +1174,7 @@ function parseTemplateMdBody(body: string): {
             const [label, rawValues] = segment.split(':').map((part) => part.trim())
             const values = (rawValues || '').split(',').map((value) => value.trim()).filter(Boolean)
             if (label === 'agents') workflow.targeting.agents = values
+            if (label === 'teams') workflow.targeting.teamIds = values
             if (label === 'groups') workflow.targeting.groups = values
             if (label === 'communities') workflow.targeting.communities = values
             if (label === 'tags') workflow.targeting.tags = values
@@ -974,6 +1263,23 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
     lines.push('')
   }
 
+  // ## Teams
+  if (t.teams?.length) {
+    lines.push('## Teams')
+    lines.push('')
+    for (const team of t.teams) {
+      const attrs: string[] = []
+      if (team.id) attrs.push(`id: ${team.id}`)
+      if (team.leaderAgentId) attrs.push(`leader: ${team.leaderAgentId}`)
+      if (team.memberAgentIds?.length) attrs.push(`members: ${team.memberAgentIds.join(', ')}`)
+      if (team.parentTeamId) attrs.push(`parent: ${team.parentTeamId}`)
+      if (team.tags?.length) attrs.push(`tags: ${team.tags.join(', ')}`)
+      const suffix = attrs.length > 0 ? ` (${attrs.join('; ')})` : ''
+      lines.push(`- **${team.name}** — ${team.purpose || ''}${suffix}`.trimEnd())
+    }
+    lines.push('')
+  }
+
   // ## Communities
   if (t.communities?.length) {
     lines.push('## Communities')
@@ -1011,6 +1317,7 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
       }
       const targets = []
       if (w.targeting?.agents?.length) targets.push(`agents: ${w.targeting.agents.join(', ')}`)
+      if (w.targeting?.teamIds?.length) targets.push(`teams: ${w.targeting.teamIds.join(', ')}`)
       if (w.targeting?.groups?.length) targets.push(`groups: ${w.targeting.groups.join(', ')}`)
       if (w.targeting?.tags?.length) targets.push(`tags: ${w.targeting.tags.join(', ')}`)
       if (targets.length) lines.push(`- **Targets:** ${targets.join('; ')}`)
@@ -1192,7 +1499,7 @@ export function saveTemplate(
     const nextVersion = existingTemplate ? bumpPatchVersion(existingTemplate.version) : (template.version || '1.0.0')
     const sanitizedTemplate: Template = template.type === 'organization'
       ? {
-          ...template,
+          ...stripDerivedTemplateFields(template),
           version: nextVersion,
           source: undefined,
           slug: undefined,
@@ -1327,10 +1634,11 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
       }
     } catch (err) {
       console.error(`Failed to read template at ${entry.dir}:`, err)
+      }
     }
-  }
 
   return Array.from(templates.values())
+    .map((template) => withDerivedTemplateFields(template))
 }
 
 /**
@@ -1347,14 +1655,14 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
 
   if (fs.existsSync(workspaceTemplateDir)) {
     const template = readTemplateFromDir(workspaceTemplateDir)
-    if (template) return { ...template, source: 'workspace', slug }
+    if (template) return withDerivedTemplateFields({ ...template, source: 'workspace', slug })
   }
 
   for (const root of parseExtraTemplateRoots()) {
     for (const entry of collectTemplateDirsFromRoot(root, type, 'enterprise')) {
       if (entry.slug !== slug) continue
       const template = readTemplateFromDir(entry.dir)
-      if (template) return { ...template, source: 'enterprise', slug }
+      if (template) return withDerivedTemplateFields({ ...template, source: 'enterprise', slug })
     }
   }
 
@@ -1365,7 +1673,7 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
 
   if (fs.existsSync(globalTemplateDir)) {
     const template = readTemplateFromDir(globalTemplateDir)
-    if (template) return { ...template, source: 'system', slug }
+    if (template) return withDerivedTemplateFields({ ...template, source: 'system', slug })
   }
 
   return null
@@ -1525,11 +1833,13 @@ export function importAgentFromTemplate(
     // Check workspace templates first (user-created, higher priority)
     let templateDir = path.join(getAgentTemplatesDir(), templateSlug)
     let templateJsonPath = path.join(templateDir, 'template.json')
+    let templateSource: TemplateSource = 'workspace'
 
     // If not found in workspace, check global system templates
     if (!fs.existsSync(templateJsonPath)) {
       templateDir = path.join(getGlobalAgentTemplatesDir(), templateSlug)
       templateJsonPath = path.join(templateDir, 'template.json')
+      templateSource = 'system'
     }
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -1537,6 +1847,7 @@ export function importAgentFromTemplate(
     }
 
     const template: AgentTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+    const feedbackTemplate = { ...template, source: templateSource, slug: templateSlug } as AgentTemplate
 
     if (template.type !== 'agent') {
       return { ok: false, error: 'Only agent templates can be imported via this endpoint' }
@@ -1627,6 +1938,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
     }
 
     initializeTemplateCreatedAgent(targetAgentId)
+    recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 
     return { ok: true, agentId: targetAgentId }
   } catch (err) {
@@ -1928,11 +2240,13 @@ export function importOrganizationTemplate(
     // Check workspace templates first (user templates)
     let templateDir = path.join(getOrgTemplatesDir(), templateSlug)
     let templateJsonPath = path.join(templateDir, 'template.json')
+    let templateSource: TemplateSource = 'workspace'
 
     // If not found in workspace, check global templates (system templates)
     if (!fs.existsSync(templateJsonPath)) {
       templateDir = path.join(getGlobalOrgTemplatesDir(), templateSlug)
       templateJsonPath = path.join(templateDir, 'template.json')
+      templateSource = 'system'
     }
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -1940,15 +2254,35 @@ export function importOrganizationTemplate(
     }
 
     const template: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
+    const feedbackTemplate = withDerivedTemplateFields({ ...template, source: templateSource, slug: templateSlug } as OrganizationTemplate) as OrganizationTemplate
 
     if (template.type !== 'organization') {
       return { ok: false, error: 'Only organization templates can be imported via this endpoint' }
     }
 
     const adjustedTemplate: OrganizationTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-    const groupRenames = options?.groupRenames || {}
-    const communityRenames = options?.communityRenames || {}
+    const prefix = options?.prefix || ''
+    const suffix = options?.suffix || ''
+    const namespaceChannelName = (value: string) => `${prefix}${value}${suffix}`.trim()
+    const groupRenames = { ...(options?.groupRenames || {}) }
+    const communityRenames = { ...(options?.communityRenames || {}) }
     const workflowRenames = options?.workflowRenames || {}
+    const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
+
+    if ((prefix || suffix) && adjustedTemplate.groups) {
+      for (const group of adjustedTemplate.groups) {
+        const currentName = `${group?.name || ''}`.trim()
+        if (!currentName || groupRenames[currentName]) continue
+        groupRenames[currentName] = namespaceChannelName(currentName)
+      }
+    }
+    if ((prefix || suffix) && adjustedTemplate.communities) {
+      for (const community of adjustedTemplate.communities) {
+        const currentName = `${community?.name || ''}`.trim()
+        if (!currentName || communityRenames[currentName]) continue
+        communityRenames[currentName] = namespaceChannelName(currentName)
+      }
+    }
 
     if (adjustedTemplate.communities) {
       adjustedTemplate.communities = adjustedTemplate.communities.map((community) => ({
@@ -1973,6 +2307,10 @@ export function importOrganizationTemplate(
       communities: (agent.communities || []).map((communityName) => communityRenames[communityName] || communityName),
       groups: (agent.groups || []).map((groupName) => groupRenames[groupName] || groupName),
     }))
+
+    if (adjustedTemplate.teams) {
+      adjustedTemplate.teams = sanitizeImportedTemplateTeams(adjustedTemplate.teams)
+    }
 
     if (adjustedTemplate.workflows) {
       const templateWorkflowPrefix = slugify(adjustedTemplate.name || templateSlug)
@@ -2033,6 +2371,28 @@ export function importOrganizationTemplate(
         },
         dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || legacyWorkflowIdMap[dependencyId] || dependencyId),
       }))
+
+      if ((adjustedTemplate.teams || []).length > 0) {
+        adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => {
+          const hasPreciseExecutionTarget =
+            Boolean(`${(workflow as any).owner || ''}`.trim()) ||
+            (workflow.targeting?.agents || []).length > 0 ||
+            (workflow.targeting?.teamIds || []).length > 0
+
+          if (!hasPreciseExecutionTarget) return workflow
+
+          return {
+            ...workflow,
+            targeting: {
+              ...workflow.targeting,
+              // Tags are broad execution selectors. Company workflows with an
+              // owner, direct agent, or team target should not fan back out to
+              // every agent that shares a category tag.
+              tags: [],
+            },
+          }
+        })
+      }
     }
 
     // Validate template
@@ -2041,10 +2401,35 @@ export function importOrganizationTemplate(
       return { ok: false, error: `Template validation failed: ${validation.errors?.join(', ')}` }
     }
 
-    const prefix = options?.prefix || ''
-    const suffix = options?.suffix || ''
-    const includeBuiltIn = options?.includeBuiltIn !== false // Default to true
     const createdAgents: string[] = []
+    const appliedModelsByAgentId: Record<string, string | undefined> = {}
+    const teamNameById = new Map((adjustedTemplate.teams || []).map((team) => [team.id, team.name]))
+
+    const mapImportedId = (value: string) => `${prefix}${value}${suffix}`
+    const getWorkflowScopeLabel = (workflow: Workflow): string | undefined => {
+      const firstTeamId = workflow.targeting?.teamIds?.[0]
+      if (firstTeamId) return teamNameById.get(firstTeamId) || firstTeamId
+      const firstGroup = workflow.targeting?.groups?.[0]
+      if (firstGroup?.trim()) return firstGroup.trim()
+      const firstCommunity = workflow.targeting?.communities?.[0]
+      if (firstCommunity?.trim()) return firstCommunity.trim()
+      return undefined
+    }
+    const getImportedWorkflowName = (workflow: Workflow): string => {
+      const explicitRename = workflowRenames[workflow.id]
+      if (explicitRename?.trim()) return explicitRename.trim()
+
+      const importNamespace = `${prefix}${suffix}`.trim().replace(/^[-_]+|[-_]+$/g, '')
+      const baseCompanyLabel = `${adjustedTemplate.name || templateSlug}`.trim()
+      const companyLabel = importNamespace || baseCompanyLabel
+      const scopeLabel = getWorkflowScopeLabel(workflow)
+      const workflowName = `${workflow.name || workflow.id}`.trim()
+      if (!companyLabel) return scopeLabel ? `${scopeLabel} / ${workflowName}` : workflowName
+      if (scopeLabel && !workflowName.toLowerCase().includes(scopeLabel.toLowerCase())) {
+        return `${companyLabel} · ${scopeLabel} / ${workflowName}`
+      }
+      return `${companyLabel} · ${workflowName}`
+    }
 
     // Expand parameterized agents based on agentCounts
     const paramAgentIds = new Set((adjustedTemplate as any).parameters?.map((p: any) => p.agentId) || [])
@@ -2072,12 +2457,9 @@ export function importOrganizationTemplate(
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
         const { getBestAvailableModel: getBest } = require('./dashboard-env')
-        const { readWorkspaceIntegrationConfig } = require('./workspace-integrations')
-        const integrationConfig = readWorkspaceIntegrationConfig()
-        const workspacePreferredModel =
-          integrationConfig.preferredModel
-          || (integrationConfig.ollamaDefaultModel ? `ollama/${integrationConfig.ollamaDefaultModel}` : undefined)
-        const appliedModel = options?.modelOverride || templateAgent.model || workspacePreferredModel || getBest()
+        const applySystemTemplateLatest = templateSource === 'system'
+        const appliedModel = options?.modelOverride || (applySystemTemplateLatest ? undefined : templateAgent.model) || getBest()
+        appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
         if (!/^[a-z][a-z0-9_-]*$/.test(targetAgentId)) {
@@ -2548,76 +2930,127 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
-      // Step 5: Create/update workflows from template
+      // Step 5: Create/update teams from template
+      if (adjustedTemplate.teams && adjustedTemplate.teams.length > 0) {
+        for (const templateTeam of adjustedTemplate.teams) {
+          const mappedTeamId = `${prefix}${templateTeam.id}${suffix}`
+          const mappedParentTeamId = templateTeam.parentTeamId
+            ? `${prefix}${templateTeam.parentTeamId}${suffix}`
+            : undefined
+          const teamInput: TeamInput = {
+            id: mappedTeamId,
+            name: templateTeam.name,
+            purpose: templateTeam.purpose,
+            leaderAgentId: templateTeam.leaderAgentId ? `${prefix}${templateTeam.leaderAgentId}${suffix}` : undefined,
+            memberAgentIds: (templateTeam.memberAgentIds || []).map((agentId) => `${prefix}${agentId}${suffix}`),
+            parentTeamId: mappedParentTeamId,
+            tags: templateTeam.tags,
+          }
+
+          const existingTeam = getTeam(mappedTeamId)
+          if (existingTeam) {
+            const updated = updateTeam(mappedTeamId, teamInput)
+            if (!updated) {
+              throw new Error(`Failed to update imported team: ${mappedTeamId}`)
+            }
+          } else {
+            createTeam(teamInput)
+          }
+        }
+      }
+
+      // Step 6: Create/update workflows from template
       if (adjustedTemplate.workflows && adjustedTemplate.workflows.length > 0) {
         const existingWorkflows = listWorkflows()
         const existingWorkflowMap = new Map(existingWorkflows.map(w => [w.id, w]))
         const workflowIdMap: Record<string, string> = {}
 
         for (const wf of adjustedTemplate.workflows) {
+          const mappedWorkflowId = mapImportedId(wf.id)
+          workflowIdMap[wf.id] = mappedWorkflowId
+
           // Update targeting to use new agent IDs if prefix/suffix was applied
           const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
-          const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || dep)
+          const newTeamIds = (wf.targeting.teamIds || []).map(teamId => `${prefix}${teamId}${suffix}`)
+          const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || mapImportedId(dep))
+          const mappedInputRefs = wf.inputRefs?.map((ref) => ({
+            ...ref,
+            workflowId: workflowIdMap[ref.workflowId] || mapImportedId(ref.workflowId),
+          }))
+          const importedWorkflowName = getImportedWorkflowName(wf)
 
-          const existing = existingWorkflowMap.get(wf.id)
+          const updatedTargeting = {
+            ...wf.targeting,
+            agents: newAgents,
+            teamIds: newTeamIds,
+          }
+
+          // For managed workflows, auto-assign owner from first targeted agent.
+          // If the imported workflow already specifies an owner, remap it into the
+          // current namespace and preserve it.
+          const execMode = wf.executionMode || 'automated'
+          const importedOwner = `${(wf as any).owner || ''}`.trim()
+          const mappedOwner = importedOwner ? `${prefix}${importedOwner}${suffix}` : ''
+          const owner = execMode === 'managed'
+            ? (mappedOwner || newAgents[0] || createdAgents[0] || undefined)
+            : (mappedOwner || undefined)
+
+          const existing = existingWorkflowMap.get(mappedWorkflowId)
           if (existing) {
-            // Workflow exists - merge new targeting with existing
+            // Workflow exists - imported workflows should replace targeting so
+            // stale communities/groups/agents from prior applies do not survive.
             const existingAgents = existing.targeting.agents || []
             const existingGroups = existing.targeting.groups || []
             const existingCommunities = existing.targeting.communities || []
             const existingTags = existing.targeting.tags || []
-
-            const newGroups = wf.targeting.groups || []
-            const newCommunities = wf.targeting.communities || []
-            const newTags = wf.targeting.tags || []
-
-            const mergedAgents = [...new Set([...existingAgents, ...newAgents])]
-            const mergedGroups = [...new Set([...existingGroups, ...newGroups])]
-            const mergedCommunities = [...new Set([...existingCommunities, ...newCommunities])]
-            const mergedTags = [...new Set([...existingTags, ...newTags])]
+            const existingTeamIds = existing.targeting.teamIds || []
+            const newGroups = updatedTargeting.groups || []
+            const newCommunities = updatedTargeting.communities || []
+            const newTags = updatedTargeting.tags || []
             const existingDependsOn = existing.dependsOn || []
             const dependencyChanged = JSON.stringify(existingDependsOn) !== JSON.stringify(mappedDependsOn || [])
             const typeChanged = existing.type !== wf.type
             const scheduleChanged = existing.schedule !== wf.schedule
             const executionModeChanged = existing.executionMode !== (wf.executionMode || 'automated')
+            const ownerChanged = `${existing.owner || ''}` !== `${owner || ''}`
+            const targetingChanged = JSON.stringify(existing.targeting || {}) !== JSON.stringify(updatedTargeting)
 
-            // Check if there are any new targets to add
             const needsUpdate =
-              mergedAgents.length > existingAgents.length ||
-              mergedGroups.length > existingGroups.length ||
-              mergedCommunities.length > existingCommunities.length ||
-              mergedTags.length > existingTags.length ||
+              targetingChanged ||
               dependencyChanged ||
               typeChanged ||
               scheduleChanged ||
-              executionModeChanged
+              executionModeChanged ||
+              ownerChanged
 
             if (needsUpdate) {
               const { updateWorkflow } = require('./workflows')
-              const result = updateWorkflow(existing.id, {
-                schedule: wf.schedule,
+              const updateData: any = {
+                name: importedWorkflowName,
                 executionMode: wf.executionMode || 'automated',
-                targeting: {
-                  agents: mergedAgents,
-                  groups: mergedGroups,
-                  communities: mergedCommunities,
-                  tags: mergedTags
-                },
-                dependsOn: mappedDependsOn,
-                type: wf.type,
-              })
+                owner,
+                targeting: updatedTargeting,
+                ...((typeof wf.schedule === 'string' && wf.schedule.trim().length > 0) ? { schedule: wf.schedule } : {}),
+                ...(mappedDependsOn !== undefined ? { dependsOn: mappedDependsOn } : {}),
+                ...(wf.type !== undefined ? { type: wf.type } : {}),
+                ...((wf as any).secretRequirements !== undefined ? { secretRequirements: (wf as any).secretRequirements } : {}),
+                ...(wf.outputDefinitions !== undefined ? { outputDefinitions: wf.outputDefinitions } : {}),
+                ...(mappedInputRefs !== undefined ? { inputRefs: mappedInputRefs } : {}),
+              }
+              const result = updateWorkflow(existing.id, updateData)
 
               if (result.success) {
-                workflowIdMap[wf.id] = existing.id
                 const changes = []
-                if (mergedAgents.length > existingAgents.length) changes.push(`${mergedAgents.length - existingAgents.length} agent(s)`)
-                if (mergedGroups.length > existingGroups.length) changes.push(`${mergedGroups.length - existingGroups.length} group(s)`)
-                if (mergedCommunities.length > existingCommunities.length) changes.push(`${mergedCommunities.length - existingCommunities.length} communit${mergedCommunities.length - existingCommunities.length > 1 ? 'ies' : 'y'}`)
-                if (mergedTags.length > existingTags.length) changes.push(`${mergedTags.length - existingTags.length} tag(s)`)
+                if (JSON.stringify(existingAgents) !== JSON.stringify(updatedTargeting.agents || [])) changes.push('agent targeting')
+                if (JSON.stringify(existingGroups) !== JSON.stringify(newGroups)) changes.push('group targeting')
+                if (JSON.stringify(existingCommunities) !== JSON.stringify(newCommunities)) changes.push('community targeting')
+                if (JSON.stringify(existingTags) !== JSON.stringify(newTags)) changes.push('tag targeting')
+                if (JSON.stringify(existingTeamIds) !== JSON.stringify(updatedTargeting.teamIds || [])) changes.push('team targeting')
                 if (dependencyChanged) changes.push('dependencies')
                 if (typeChanged) changes.push('type')
                 if (scheduleChanged) changes.push('schedule')
                 if (executionModeChanged) changes.push('execution mode')
+                if (ownerChanged) changes.push('owner')
                 console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
               } else {
                 console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
@@ -2627,21 +3060,10 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             }
           } else {
             // Workflow doesn't exist - create it
-            const updatedTargeting = {
-              ...wf.targeting,
-              agents: newAgents
-            }
-
-            // For managed workflows, auto-assign owner from first targeted agent
-            const execMode = wf.executionMode || 'automated'
-            const owner = execMode === 'managed'
-              ? (newAgents[0] || createdAgents[0] || undefined)
-              : undefined
-
-            console.log(`[Template Import] Creating workflow "${wf.name}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
+            console.log(`[Template Import] Creating workflow "${importedWorkflowName}" (${execMode}) with ${newAgents.length} agents${owner ? `, owner=${owner}` : ''}`)
             const result = createWorkflow({
-              id: wf.id, // Preserve template's workflow ID for dependsOn references
-              name: wf.name,
+              id: mappedWorkflowId,
+              name: importedWorkflowName,
               description: wf.description || `${wf.name} workflow`,
               schedule: wf.schedule,
               enabled: wf.enabled !== false,
@@ -2653,13 +3075,13 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               dependsOn: mappedDependsOn,
               type: wf.type,
               secretRequirements: (wf as any).secretRequirements,
+              outputDefinitions: wf.outputDefinitions,
+              inputRefs: mappedInputRefs,
             })
 
             if (!result.success) {
               console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
               // Don't fail the whole import for workflow creation failures
-            } else if (result.id) {
-              workflowIdMap[wf.id] = result.id
             }
           }
         }
@@ -2668,6 +3090,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       runOrganizationPostImportSetup({
         createdAgents,
         agentsToCreate,
+        appliedModelsByAgentId,
         template: adjustedTemplate,
         prefix,
         suffix,
@@ -2675,6 +3098,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         agentsDir: getAgentsDir(),
         workflowOverrides: options?.workflowOverrides,
       })
+
+      recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 
       return { ok: true, agentIds: createdAgents }
     } catch (err) {

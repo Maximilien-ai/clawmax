@@ -3,6 +3,7 @@ import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 
 interface GroupEntry {
   name: string
@@ -37,7 +38,25 @@ interface Workflow {
     groups: string[]
     tags: string[]
     agents: string[]
+    teamIds?: string[]
   }
+}
+
+interface WorkflowExecutionOutputSummary {
+  status: 'completed' | 'failed' | 'running' | 'paused'
+  summary?: string
+  artifactPath?: string
+  outputLabel?: string
+}
+
+interface OrganizationsProps {
+  onNavigateToAgent?: (agentId: string) => void
+  onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToGroup?: (groupName: string) => void
+  onNavigateToDoc?: (file: string) => void
+  initialCommunityName?: string
+  initialGroupName?: string
+  isActive?: boolean
 }
 
 interface Community {
@@ -57,21 +76,466 @@ interface Group {
   members: Agent[]
 }
 
+interface Team {
+  id: string
+  name: string
+  purpose?: string
+  leaderAgentId?: string
+  memberAgentIds: string[]
+  parentTeamId?: string
+  tags: string[]
+}
+
+type OrganizationViewMode = 'structure' | 'org-chart'
+type OrgChartDensity = 'comfortable' | 'compact' | 'dense'
+
 const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
   offline: 'bg-yellow-400',
   unknown: 'bg-gray-300',
 }
 
+const WORKFLOW_OUTPUT_STATUS_BADGE: Record<WorkflowExecutionOutputSummary['status'], string> = {
+  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  running: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+  paused: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+}
+
+const ORG_CHART_DENSITY_PRESETS: Record<OrgChartDensity, {
+  cardWidth: number
+  childColumnWidth: number
+  childGap: number
+  topPaddingClass: string
+  rowGapClass: string
+  stemHeightClass: string
+  connectorInset: number
+}> = {
+  comfortable: {
+    cardWidth: 208,
+    childColumnWidth: 188,
+    childGap: 16,
+    topPaddingClass: 'px-3',
+    rowGapClass: 'gap-5',
+    stemHeightClass: 'h-5',
+    connectorInset: 94,
+  },
+  compact: {
+    cardWidth: 200,
+    childColumnWidth: 180,
+    childGap: 14,
+    topPaddingClass: 'px-3',
+    rowGapClass: 'gap-5',
+    stemHeightClass: 'h-5',
+    connectorInset: 90,
+  },
+  dense: {
+    cardWidth: 180,
+    childColumnWidth: 164,
+    childGap: 10,
+    topPaddingClass: 'px-2',
+    rowGapClass: 'gap-4',
+    stemHeightClass: 'h-4',
+    connectorInset: 82,
+  },
+}
+
+function TeamTreeNode({
+  team,
+  depth,
+  teamChildren,
+  teamWorkflows,
+  latestWorkflowOutputs,
+  agentNameById,
+  onNavigateToAgent,
+  onNavigateToWorkflow,
+  onNavigateToDoc,
+  onDeleteTeam,
+  onDeleteCompany,
+  collapsedCompanyIds,
+  onToggleCompanyCollapsed,
+  visitedTeamIds,
+}: {
+  team: Team
+  depth: number
+  teamChildren: Map<string, Team[]>
+  teamWorkflows: Map<string, Workflow[]>
+  latestWorkflowOutputs: Map<string, WorkflowExecutionOutputSummary>
+  agentNameById: Record<string, string>
+  onNavigateToAgent?: (agentId: string) => void
+  onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToDoc?: (file: string) => void
+  onDeleteTeam?: (teamId: string) => void
+  onDeleteCompany?: (teamId: string) => void
+  collapsedCompanyIds?: Set<string>
+  onToggleCompanyCollapsed?: (teamId: string) => void
+  visitedTeamIds?: Set<string>
+}) {
+  const isSyntheticCompanyRootTeam = (candidate: Team) =>
+    !candidate.parentTeamId && (
+      candidate.id === 'organization'
+      || candidate.tags.includes('company-root')
+      || candidate.tags.includes('organization')
+    )
+  const visited = visitedTeamIds || new Set<string>()
+  if (visited.has(team.id)) {
+    return (
+      <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+        Skipped recursive team reference for `{team.id}`
+      </div>
+    )
+  }
+  const nextVisited = new Set(visited)
+  nextVisited.add(team.id)
+  const children = teamChildren.get(team.id) || []
+  const workflows = teamWorkflows.get(team.id) || []
+  const leaderLabel = team.leaderAgentId ? (agentNameById[team.leaderAgentId] || team.leaderAgentId) : null
+  const isTopLevelCompany = !team.parentTeamId
+  const isSyntheticCompanyRoot = isSyntheticCompanyRootTeam(team)
+  const isCollapsed = isTopLevelCompany && collapsedCompanyIds?.has(team.id)
+  const collectSubtreeStats = (root: Team) => {
+    const memberIds = new Set<string>()
+    let workflowCount = 0
+    let teamCount = 0
+    const queue: Team[] = [root]
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (seen.has(current.id)) continue
+      seen.add(current.id)
+      teamCount += 1
+      if (current.leaderAgentId) memberIds.add(current.leaderAgentId)
+      for (const memberId of current.memberAgentIds || []) memberIds.add(memberId)
+      workflowCount += (teamWorkflows.get(current.id) || []).length
+      for (const child of teamChildren.get(current.id) || []) queue.push(child)
+    }
+    return {
+      memberCount: memberIds.size,
+      teamCount,
+      workflowCount,
+    }
+  }
+  const subtreeStats = collectSubtreeStats(team)
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900/40 p-4"
+        style={{ marginLeft: depth * 20 }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {isTopLevelCompany && onToggleCompanyCollapsed && (
+                <button
+                  onClick={() => onToggleCompanyCollapsed(team.id)}
+                  className="text-xs text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+                  title={isCollapsed ? 'Expand company' : 'Collapse company'}
+                >
+                  {isCollapsed ? '▶' : '▼'}
+                </button>
+              )}
+              {!isSyntheticCompanyRoot && (
+                <span className="text-xs font-mono text-amber-700 dark:text-amber-400">{team.id}</span>
+              )}
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{team.name}</h3>
+              {children.length > 0 && (
+                <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                  {children.length} subteam{children.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+            {team.purpose && !isSyntheticCompanyRoot && (
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{team.purpose}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {leaderLabel && team.leaderAgentId && (
+              <button
+                onClick={() => onNavigateToAgent?.(team.leaderAgentId!)}
+                className="rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+              >
+                Lead: {leaderLabel}
+              </button>
+            )}
+            <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
+              {(isSyntheticCompanyRoot ? subtreeStats.memberCount : team.memberAgentIds.length)} member{(isSyntheticCompanyRoot ? subtreeStats.memberCount : team.memberAgentIds.length) === 1 ? '' : 's'}
+            </span>
+            {isSyntheticCompanyRoot && (
+              <>
+                <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
+                  {Math.max(subtreeStats.teamCount - 1, 0)} team{Math.max(subtreeStats.teamCount - 1, 0) === 1 ? '' : 's'}
+                </span>
+                <span className="rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-600 dark:text-gray-300">
+                  {subtreeStats.workflowCount} workflow{subtreeStats.workflowCount === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
+            {onDeleteTeam && (
+              <button
+                onClick={() => onDeleteTeam(team.id)}
+                className="rounded-full border border-red-200 dark:border-red-800 p-1.5 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Delete team"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+            {onDeleteCompany && !team.parentTeamId && (
+              <button
+                onClick={() => onDeleteCompany(team.id)}
+                className="rounded-full border border-red-200 dark:border-red-800 px-2.5 py-1 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Delete company"
+              >
+                Delete company
+              </button>
+            )}
+          </div>
+        </div>
+
+        {!isCollapsed && team.tags.length > 0 && !isSyntheticCompanyRoot && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {team.tags.map((tag) => (
+              <span key={tag} className="rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!isCollapsed && workflows.length > 0 && !isSyntheticCompanyRoot && (
+          <div className="mt-3 rounded-md border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+              Workflows ({workflows.length})
+            </div>
+            <div className="mt-2 space-y-2">
+              {workflows.map((workflow) => {
+                const latestOutput = latestWorkflowOutputs.get(workflow.id)
+                return (
+                <div
+                  key={workflow.id}
+                  className="rounded border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                      className="text-left text-sm font-medium text-sky-900 hover:text-sky-700 hover:underline dark:text-sky-200 dark:hover:text-sky-100"
+                    >
+                      {workflow.name}
+                    </button>
+                    <span className="text-[11px] font-mono text-sky-700 dark:text-sky-300">{workflow.schedule === 'manual' ? 'Manual' : workflow.schedule}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-sky-700 dark:text-sky-300">
+                    {workflow.owner && <span>Owner: {workflow.owner}</span>}
+                    <span>{workflow.participantCount} participant{workflow.participantCount === 1 ? '' : 's'}</span>
+                  </div>
+                  {latestOutput && (
+                    <div className="mt-2 rounded border border-sky-200 dark:border-sky-700 bg-sky-50/80 dark:bg-sky-900/20 p-2 text-[11px] text-sky-800 dark:text-sky-200">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium">
+                          Latest Output
+                          {latestOutput.outputLabel ? `: ${latestOutput.outputLabel}` : ''}
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${WORKFLOW_OUTPUT_STATUS_BADGE[latestOutput.status]}`}>
+                          {latestOutput.status}
+                        </span>
+                      </div>
+                      {latestOutput.summary && (
+                        <div className="mt-1 line-clamp-3 text-xs">{latestOutput.summary}</div>
+                      )}
+                      {latestOutput.artifactPath && (
+                        <div className="mt-2 text-[11px] font-mono text-sky-700 dark:text-sky-300 break-all">
+                          {latestOutput.artifactPath}
+                        </div>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {latestOutput.artifactPath && onNavigateToDoc && (
+                          <button
+                            onClick={() => onNavigateToDoc(latestOutput.artifactPath!)}
+                            className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                          >
+                            Open Output File
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                          className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                        >
+                          Open Workflow
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )})}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!isCollapsed && children.length > 0 && (
+        <div className="space-y-3">
+          {children.map((child) => (
+            <TeamTreeNode
+              key={child.id}
+              team={child}
+              depth={depth + 1}
+              teamChildren={teamChildren}
+              teamWorkflows={teamWorkflows}
+              latestWorkflowOutputs={latestWorkflowOutputs}
+              agentNameById={agentNameById}
+              onNavigateToAgent={onNavigateToAgent}
+              onNavigateToWorkflow={onNavigateToWorkflow}
+              onNavigateToDoc={onNavigateToDoc}
+              onDeleteTeam={onDeleteTeam}
+              onDeleteCompany={onDeleteCompany}
+              collapsedCompanyIds={collapsedCompanyIds}
+              onToggleCompanyCollapsed={onToggleCompanyCollapsed}
+              visitedTeamIds={nextVisited}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OrgChartNode({
+  team,
+  teamChildren,
+  teamWorkflows,
+  latestWorkflowOutputs,
+  agentNameById,
+  onNavigateToAgent,
+  onNavigateToWorkflow,
+  visitedTeamIds,
+  density,
+}: {
+  team: Team
+  teamChildren: Map<string, Team[]>
+  teamWorkflows: Map<string, Workflow[]>
+  latestWorkflowOutputs: Map<string, WorkflowExecutionOutputSummary>
+  agentNameById: Record<string, string>
+  onNavigateToAgent?: (agentId: string) => void
+  onNavigateToWorkflow?: (workflowId: string) => void
+  visitedTeamIds?: Set<string>
+  density: OrgChartDensity
+}) {
+  const densityPreset = ORG_CHART_DENSITY_PRESETS[density]
+  const visited = visitedTeamIds || new Set<string>()
+  if (visited.has(team.id)) {
+    return (
+      <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+        Recursive reference skipped: {team.id}
+      </div>
+    )
+  }
+  const nextVisited = new Set(visited)
+  nextVisited.add(team.id)
+  const children = teamChildren.get(team.id) || []
+  const workflows = teamWorkflows.get(team.id) || []
+  const leaderLabel = team.leaderAgentId ? (agentNameById[team.leaderAgentId] || team.leaderAgentId) : null
+
+  return (
+    <div className="flex flex-col items-center">
+      <div
+        className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm px-3 py-2.5"
+        style={{ maxWidth: `${densityPreset.cardWidth}px` }}
+      >
+        <div className="text-[11px] font-mono uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {team.id}
+        </div>
+        <div className="mt-0.5 text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+          {team.name}
+        </div>
+        {leaderLabel && team.leaderAgentId && (
+          <button
+            onClick={() => onNavigateToAgent?.(team.leaderAgentId!)}
+            className="mt-1.5 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            Lead: {leaderLabel}
+          </button>
+        )}
+        {team.purpose && (
+          <p className="mt-1.5 line-clamp-3 text-[11px] leading-4 text-slate-600 dark:text-slate-400">
+            {team.purpose}
+          </p>
+        )}
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="rounded-full border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
+            {team.memberAgentIds.length} members
+          </span>
+          {workflows.map((workflow) => {
+            const output = latestWorkflowOutputs.get(workflow.id)
+            return (
+              <button
+                key={workflow.id}
+                onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                className="max-w-full truncate rounded-full border border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[9px] text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+                title={output?.summary || workflow.description}
+              >
+                {workflow.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {children.length > 0 && (
+        <>
+          <div className={`${densityPreset.stemHeightClass} w-0.5 bg-slate-500 dark:bg-slate-500`} />
+          <div className="inline-flex flex-col items-center">
+            <div
+              className="border-t-2 border-slate-500 dark:border-slate-500"
+              style={{
+                marginLeft: `${densityPreset.connectorInset}px`,
+                marginRight: `${densityPreset.connectorInset}px`,
+                width: `calc(100% - ${densityPreset.connectorInset * 2}px)`,
+              }}
+            />
+            <div
+              className="inline-grid pt-4"
+              style={{
+                gap: `${densityPreset.childGap}px`,
+                gridTemplateColumns: `repeat(${children.length}, ${densityPreset.childColumnWidth}px)`,
+              }}
+            >
+              {children.map((child) => (
+                <div key={child.id} className="flex flex-col items-center">
+                  <div className={`${densityPreset.stemHeightClass} w-0.5 bg-slate-500 dark:bg-slate-500`} />
+                  <OrgChartNode
+                    team={child}
+                    teamChildren={teamChildren}
+                    teamWorkflows={teamWorkflows}
+                    latestWorkflowOutputs={latestWorkflowOutputs}
+                    agentNameById={agentNameById}
+                    onNavigateToAgent={onNavigateToAgent}
+                    onNavigateToWorkflow={onNavigateToWorkflow}
+                    visitedTeamIds={nextVisited}
+                    density={density}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function getOrgMetaStorageKey(workspaceId?: string | null) {
   return `org-meta:${workspaceId || 'default'}`
 }
 
-export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToGroup, initialCommunityName, initialGroupName }: { onNavigateToAgent?: (agentId: string) => void, onNavigateToWorkflow?: (workflowId: string) => void, onNavigateToGroup?: (groupName: string) => void, initialCommunityName?: string, initialGroupName?: string }) {
+export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToGroup, onNavigateToDoc, initialCommunityName, initialGroupName, isActive = true }: OrganizationsProps) {
   const { activeWorkspace } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<any[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<any[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [allWorkflows, setAllWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCommunities, setExpandedCommunities] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -81,8 +545,22 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const groupRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [communityWorkflows, setCommunityWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
+  const [latestWorkflowOutputs, setLatestWorkflowOutputs] = useState<Map<string, WorkflowExecutionOutputSummary>>(new Map())
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
+  const [teamsSectionCollapsed, setTeamsSectionCollapsed] = useState(false)
+  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<string>>(new Set())
+  const [organizationViewMode, setOrganizationViewMode] = useState<OrganizationViewMode>(() => {
+    if (typeof window === 'undefined') return 'structure'
+    const saved = localStorage.getItem('organizations-view-mode')
+    return saved === 'org-chart' ? 'org-chart' : 'structure'
+  })
+  const [orgChartZoom, setOrgChartZoom] = useState(1)
+  const [orgChartDensity, setOrgChartDensity] = useState<OrgChartDensity>(() => {
+    if (typeof window === 'undefined') return 'compact'
+    const saved = localStorage.getItem('organizations-chart-density')
+    return saved === 'comfortable' || saved === 'compact' || saved === 'dense' ? saved : 'compact'
+  })
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [orgName, setOrgName] = useState('Workspace Org')
   const [orgDescription, setOrgDescription] = useState('Describe this workspace organization')
@@ -98,25 +576,43 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [newGroupCommunity, setNewGroupCommunity] = useState('')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
-    type: 'community' | 'group'
+    type: 'community' | 'group' | 'team' | 'company'
     name: string
+    targetId?: string
     consequences: string[]
   } | null>(null)
   const [finalDeleteDialog, setFinalDeleteDialog] = useState<{
-    type: 'community'
+    type: 'community' | 'company'
     name: string
+    targetId?: string
     consequences: string[]
   } | null>(null)
   const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
   const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem('organizations-view-mode', organizationViewMode)
+  }, [organizationViewMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem('organizations-chart-density', orgChartDensity)
+  }, [orgChartDensity])
+
+  useEffect(() => {
+    if (organizationViewMode !== 'org-chart') return
+    setCommunitiesSectionCollapsed(true)
+    setGroupsSectionCollapsed(true)
+  }, [organizationViewMode])
+
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  useEffect(() => {
+  const loadOrgMeta = useCallback(() => {
     const suggestedName = activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org'
     let nextName = suggestedName
     let nextDescription = 'Describe this workspace organization'
@@ -138,6 +634,16 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setOrgDraftDescription(nextDescription)
   }, [activeWorkspace?.id, activeWorkspace?.name])
 
+  useEffect(() => {
+    loadOrgMeta()
+  }, [loadOrgMeta])
+
+  useEffect(() => {
+    const handleOrgMetaUpdate = () => loadOrgMeta()
+    window.addEventListener('teams-updated', handleOrgMetaUpdate)
+    return () => window.removeEventListener('teams-updated', handleOrgMetaUpdate)
+  }, [loadOrgMeta])
+
   const saveOrgMeta = () => {
     const nextName = orgDraftName.trim() || (activeWorkspace?.name?.trim() ? `${activeWorkspace.name} Org` : 'Workspace Org')
     const nextDescription = orgDraftDescription.trim() || 'Describe this workspace organization'
@@ -155,19 +661,25 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
   const fetchData = useCallback(async () => {
     try {
-      const [agentsRes, communitiesRes, groupsRes] = await Promise.all([
+      const [agentsRes, communitiesRes, groupsRes, teamsRes, workflowsRes] = await Promise.all([
         fetch('/api/agents'),
         fetch('/api/communities'),
-        fetch('/api/groups')
+        fetch('/api/groups'),
+        fetch('/api/teams'),
+        fetch('/api/workflows'),
       ])
 
       const agentsData = await agentsRes.json()
       const communitiesData = await communitiesRes.json()
       const groupsData = await groupsRes.json()
+      const teamsData = await teamsRes.json().catch(() => ({ teams: [] }))
+      const workflowsData = await workflowsRes.json().catch(() => ({ workflows: [] }))
 
       setAgents(agentsData.agents || [])
       setWorkspaceCommunities(communitiesData.communities || [])
       setWorkspaceGroups(groupsData.groups || [])
+      setTeams(Array.isArray(teamsData.teams) ? teamsData.teams : [])
+      setAllWorkflows(Array.isArray(workflowsData.workflows) ? workflowsData.workflows : [])
       setLoading(false)
     } catch (err) {
       console.error('Failed to fetch data:', err)
@@ -176,18 +688,22 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   }, [])
 
   useEffect(() => {
+    if (!isActive) return
+    if (!loading && agents.length > 0) return
     fetchData()
-  }, [fetchData])
+  }, [fetchData, isActive, loading, agents.length])
 
   useEffect(() => {
     const handleWorkspaceUpdate = () => fetchData()
     window.addEventListener('channels-updated', handleWorkspaceUpdate)
     window.addEventListener('agents-updated', handleWorkspaceUpdate)
     window.addEventListener('workflows-updated', handleWorkspaceUpdate)
+    window.addEventListener('teams-updated', handleWorkspaceUpdate)
     return () => {
       window.removeEventListener('channels-updated', handleWorkspaceUpdate)
       window.removeEventListener('agents-updated', handleWorkspaceUpdate)
       window.removeEventListener('workflows-updated', handleWorkspaceUpdate)
+      window.removeEventListener('teams-updated', handleWorkspaceUpdate)
     }
   }, [fetchData])
 
@@ -286,6 +802,139 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       g.members.some(m => m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query))
     )
   }, [groups, searchQuery])
+
+  const displayTeams = useMemo(() => buildOrganizationDisplayTeams({
+    persistedTeams: teams,
+    agents,
+    groups: groups.map((group) => ({
+      name: group.name,
+      members: group.members.map((member) => ({ id: member.id })),
+    })),
+    workflows: allWorkflows,
+    organizationName: orgName,
+    organizationDescription: orgDescription,
+  }), [teams, agents, groups, allWorkflows, orgName, orgDescription])
+
+  const filteredTeams = useMemo(() => {
+    if (!searchQuery.trim()) return displayTeams
+    const query = searchQuery.toLowerCase()
+    return displayTeams.filter((team) =>
+      team.name.toLowerCase().includes(query) ||
+      team.id.toLowerCase().includes(query) ||
+      team.purpose?.toLowerCase().includes(query) ||
+      team.leaderAgentId?.toLowerCase().includes(query) ||
+      team.memberAgentIds.some((memberId) => memberId.toLowerCase().includes(query)) ||
+      team.tags.some((tag) => tag.toLowerCase().includes(query))
+    )
+  }, [displayTeams, searchQuery])
+
+  const teamChildren = useMemo(() => {
+    const map = new Map<string, Team[]>()
+    filteredTeams.forEach((team) => {
+      const key = team.parentTeamId || '__root__'
+      const list = map.get(key) || []
+      list.push(team)
+      map.set(key, list)
+    })
+    for (const list of map.values()) {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return map
+  }, [filteredTeams])
+  const teamWorkflows = useMemo(() => {
+    const workflowsByTeam = new Map<string, Workflow[]>()
+    const teamMembership = filteredTeams.map((team) => ({
+      team,
+      agentIds: new Set([team.leaderAgentId, ...(team.memberAgentIds || [])].filter(Boolean) as string[]),
+    }))
+    const groupNameToTeamIds = new Map<string, string[]>()
+    for (const team of filteredTeams) {
+      for (const key of [team.name.toLowerCase(), team.id.toLowerCase()]) {
+        groupNameToTeamIds.set(key, [...(groupNameToTeamIds.get(key) || []), team.id])
+      }
+    }
+    for (const workflow of allWorkflows) {
+      const owner = workflow.owner?.toLowerCase()
+      const targetedAgents = new Set((workflow.targeting?.agents || []).map((agentId) => agentId.toLowerCase()))
+      const directTeamMatch = (workflow.targeting?.teamIds || []).find((teamId) =>
+        filteredTeams.some((team) => team.id === teamId)
+      )
+      const ownerMatchedTeam = owner
+        ? teamMembership.find(({ agentIds }) => Array.from(agentIds).some((agentId) => agentId.toLowerCase() === owner))
+        : undefined
+      const targetedMatchedTeam = teamMembership.find(({ agentIds }) =>
+        Array.from(agentIds).some((agentId) => targetedAgents.has(agentId.toLowerCase()))
+      )
+      const fallbackGroupMatch = (workflow.targeting?.groups || [])
+        .flatMap((groupName) => groupNameToTeamIds.get(groupName.toLowerCase()) || [])
+        .find(Boolean)
+      const teamId = directTeamMatch || ownerMatchedTeam?.team.id || targetedMatchedTeam?.team.id || fallbackGroupMatch
+      if (!teamId) continue
+      workflowsByTeam.set(teamId, [...(workflowsByTeam.get(teamId) || []), workflow])
+    }
+    for (const workflows of workflowsByTeam.values()) {
+      workflows.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return workflowsByTeam
+  }, [allWorkflows, filteredTeams])
+
+  useEffect(() => {
+    if (!isActive) return
+    const workflowIds = Array.from(new Set(Array.from(teamWorkflows.values()).flat().map((workflow) => workflow.id)))
+    const missingIds = workflowIds.filter((id) => !latestWorkflowOutputs.has(id))
+    if (missingIds.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      const entries = await Promise.all(missingIds.map(async (workflowId) => {
+        try {
+          const executionsResp = await fetch(`/api/workflows/${workflowId}/executions?limit=1`)
+          if (!executionsResp.ok) return null
+          const executionsData = await executionsResp.json()
+          const latestExecution = executionsData.executions?.[0]
+          if (!latestExecution?.id) return [workflowId, { status: latestExecution?.status || 'completed' }] as const
+
+          const detailResp = await fetch(`/api/workflows/${workflowId}/executions/${latestExecution.id}`)
+          if (!detailResp.ok) return [workflowId, { status: latestExecution.status || 'completed' }] as const
+          const detail = await detailResp.json()
+          const outputs = detail?.outputs && typeof detail.outputs === 'object' ? Object.entries(detail.outputs) : []
+          const firstOutput = outputs[0] as [string, any] | undefined
+          const outputValue = typeof firstOutput?.[1]?.summary === 'string'
+            ? firstOutput[1].summary
+            : typeof firstOutput?.[1]?.value === 'string'
+              ? firstOutput[1].value
+              : undefined
+          return [workflowId, {
+            status: detail.status || latestExecution.status || 'completed',
+            outputLabel: firstOutput?.[0],
+            summary: outputValue ? `${outputValue}`.slice(0, 220) : undefined,
+            artifactPath: typeof firstOutput?.[1]?.artifactPath === 'string' ? firstOutput[1].artifactPath : undefined,
+          }] as const
+        } catch {
+          return null
+        }
+      }))
+
+      if (cancelled) return
+      setLatestWorkflowOutputs((prev) => {
+        const next = new Map(prev)
+        for (const entry of entries) {
+          if (!entry) continue
+          next.set(entry[0], entry[1])
+        }
+        return next
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isActive, teamWorkflows, latestWorkflowOutputs])
+
+  const agentNameById = useMemo(
+    () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])) as Record<string, string>,
+    [agents]
+  )
 
   // Filter agents based on search query (exclude archived)
   const filteredAgents = useMemo(() => {
@@ -586,27 +1235,157 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setDeleteDialog({ type: 'group', name: groupName, consequences })
   }
 
+  const getCompanyDeleteSourceTeams = (rootTeamId: string) => (
+    teams.some((team) => team.id === rootTeamId) ? teams : displayTeams
+  )
+
+  const buildCompanyDeletePlan = (rootTeamId: string) => buildOrganizationDeletePlan({
+    rootTeamId,
+    teams: getCompanyDeleteSourceTeams(rootTeamId),
+    groups: groups as any,
+    communities: communities as any,
+    workflows: allWorkflows,
+  })
+
+  const handleDeleteCompany = (teamId: string) => {
+    const sourceTeams = getCompanyDeleteSourceTeams(teamId)
+    const team = sourceTeams.find((entry) => entry.id === teamId)
+    if (!team) return
+
+    const plan = buildCompanyDeletePlan(teamId)
+    if (plan.teamIds.length === 0) return
+
+    const consequences: string[] = []
+    const plannedTeams = plan.teamIds
+      .map((id) => sourceTeams.find((entry) => entry.id === id))
+      .filter(Boolean) as Team[]
+    const plannedWorkflows = plan.workflowIds
+      .map((id) => allWorkflows.find((workflow) => workflow.id === id))
+      .filter(Boolean) as Workflow[]
+
+    consequences.push(`${plannedTeams.length} team${plannedTeams.length !== 1 ? 's' : ''} will be deleted`)
+    plannedTeams.slice(0, 8).forEach((entry) => {
+      consequences.push(`  • ${entry.name} (${entry.id})`)
+    })
+    if (plannedTeams.length > 8) {
+      consequences.push(`  • ...and ${plannedTeams.length - 8} more teams`)
+    }
+
+    if (plan.agentIds.length > 0) {
+      consequences.push(`${plan.agentIds.length} agent${plan.agentIds.length !== 1 ? 's' : ''} will be deleted from the workspace`)
+      plan.agentIds.slice(0, 8).forEach((agentId) => {
+        consequences.push(`  • ${agentNameById[agentId] || agentId} (${agentId})`)
+      })
+      if (plan.agentIds.length > 8) {
+        consequences.push(`  • ...and ${plan.agentIds.length - 8} more agents`)
+      }
+    }
+
+    if (plannedWorkflows.length > 0) {
+      consequences.push(`${plannedWorkflows.length} workflow${plannedWorkflows.length !== 1 ? 's' : ''} will be deleted`)
+      plannedWorkflows.slice(0, 8).forEach((workflow) => {
+        consequences.push(`  • ${workflow.name}`)
+      })
+      if (plannedWorkflows.length > 8) {
+        consequences.push(`  • ...and ${plannedWorkflows.length - 8} more workflows`)
+      }
+    }
+
+    if (plan.groupNames.length > 0) {
+      consequences.push(`${plan.groupNames.length} group${plan.groupNames.length !== 1 ? 's' : ''} will be deleted`)
+      plan.groupNames.slice(0, 8).forEach((groupName) => {
+        consequences.push(`  • ${groupName}`)
+      })
+    }
+
+    if (plan.communityNames.length > 0) {
+      consequences.push(`${plan.communityNames.length} communit${plan.communityNames.length !== 1 ? 'ies' : 'y'} will be cascade deleted`)
+      plan.communityNames.slice(0, 8).forEach((communityName) => {
+        consequences.push(`  • ${communityName}`)
+      })
+    }
+
+    consequences.push('Cascade delete removes this top-level company slice, its nested teams, related workflows, and imported agents')
+
+    setDeleteDialog({ type: 'company', name: team.name, targetId: team.id, consequences })
+  }
+
+  const handleDeleteTeam = (teamId: string) => {
+    const team = teams.find((entry) => entry.id === teamId)
+    if (!team) return
+
+    const consequences: string[] = []
+    const collectDescendantTeams = (parentId: string): Team[] => {
+      const directChildren = teams.filter((entry) => entry.parentTeamId === parentId)
+      return directChildren.flatMap((child) => [child, ...collectDescendantTeams(child.id)])
+    }
+    const childTeams = collectDescendantTeams(teamId)
+    const workflows = teamWorkflows.get(teamId) || []
+
+    if (team.parentTeamId) {
+      consequences.push(`Reports to team: ${team.parentTeamId}`)
+    }
+    if (childTeams.length > 0) {
+      consequences.push(`${childTeams.length} child team${childTeams.length !== 1 ? 's' : ''} will be deleted with this team`)
+      childTeams.forEach((child) => {
+        consequences.push(`  • ${child.name} (${child.id})`)
+      })
+    }
+    if (team.memberAgentIds.length > 0) {
+      consequences.push(`${team.memberAgentIds.length} agent${team.memberAgentIds.length !== 1 ? 's' : ''} remain in the workspace`)
+    }
+    if (workflows.length > 0) {
+      consequences.push(`${workflows.length} workflow${workflows.length !== 1 ? 's' : ''} remain, but lose this team attachment`)
+      workflows.forEach((workflow) => {
+        consequences.push(`  • ${workflow.name}`)
+      })
+    }
+    consequences.push('This removes the selected team and all nested subteams from the organization structure')
+
+    setDeleteDialog({ type: 'team', name: teamId, consequences })
+  }
+
   const confirmDelete = async () => {
     if (!deleteDialog) return
 
-    const { type, name } = deleteDialog
-    if (type === 'community') {
-      setFinalDeleteDialog({ type, name, consequences: deleteDialog.consequences })
+    const { type, name, targetId } = deleteDialog
+    if (type === 'community' || type === 'company') {
+      setFinalDeleteDialog({ type, name, targetId, consequences: deleteDialog.consequences })
       setDeleteDialog(null)
       return
     }
 
-    const endpoint = type === 'community'
-      ? `/api/communities/${encodeURIComponent(name)}?cascade=1`
-      : `/api/groups/${encodeURIComponent(name)}`
+    const endpoint = type === 'group'
+      ? `/api/groups/${encodeURIComponent(name)}`
+      : `/api/teams/${encodeURIComponent(name)}`
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'DELETE'
-      })
+      let response: Response
+      if (type === 'team') {
+        const collectDescendantIds = (parentId: string): string[] => {
+          const directChildren = teams.filter((entry) => entry.parentTeamId === parentId)
+          return directChildren.flatMap((child) => [child.id, ...collectDescendantIds(child.id)])
+        }
+        const idsToDelete = [...collectDescendantIds(name), name]
+        let failed = false
+        for (const teamId of idsToDelete) {
+          const teamResponse = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
+            method: 'DELETE'
+          })
+          if (!teamResponse.ok) {
+            failed = true
+            break
+          }
+        }
+        response = new Response(null, { status: failed ? 500 : 200 })
+      } else {
+        response = await fetch(endpoint, {
+          method: 'DELETE'
+        })
+      }
 
       if (response.ok) {
-        showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
+        showToast(`${type === 'group' ? 'Group' : 'Team'} "${name}" deleted`, 'success')
         setDeleteDialog(null)
         window.dispatchEvent(new CustomEvent('channels-updated'))
         window.dispatchEvent(new CustomEvent('agents-updated'))
@@ -624,16 +1403,83 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const confirmFinalDelete = async () => {
     if (!finalDeleteDialog) return
 
-    const { type, name } = finalDeleteDialog
-    const endpoint = `/api/communities/${encodeURIComponent(name)}?cascade=1`
+    const { type, name, targetId } = finalDeleteDialog
+
+    const isOkay = (response: Response) => response.ok || response.status === 404
 
     try {
-      const response = await fetch(endpoint, {
+      if (type === 'company') {
+        const plan = buildCompanyDeletePlan(targetId || name)
+        const teamDepth = (teamId: string): number => {
+          let depth = 0
+          const sourceTeams = teams.length > 0 ? teams : displayTeams
+          let cursor = sourceTeams.find((team) => team.id === teamId)?.parentTeamId
+          const visited = new Set<string>()
+          while (cursor && !visited.has(cursor)) {
+            visited.add(cursor)
+            depth += 1
+            cursor = sourceTeams.find((team) => team.id === cursor)?.parentTeamId
+          }
+          return depth
+        }
+
+        let failed = false
+        for (const communityName of plan.communityNames) {
+          const response = await fetch(`/api/communities/${encodeURIComponent(communityName)}?cascade=1`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const workflowId of plan.workflowIds) {
+          const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const groupName of plan.groupNames) {
+          const response = await fetch(`/api/groups/${encodeURIComponent(groupName)}`, {
+            method: 'DELETE'
+          })
+          if (!isOkay(response)) failed = true
+        }
+        for (const agentId of plan.agentIds) {
+          const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ removeStateDir: true }),
+          })
+          if (!isOkay(response)) failed = true
+        }
+        if (teams.length > 0) {
+          const orderedTeamIds = [...plan.teamIds].sort((a, b) => teamDepth(b) - teamDepth(a))
+          for (const teamId of orderedTeamIds) {
+            const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
+              method: 'DELETE'
+            })
+            if (!isOkay(response)) failed = true
+          }
+        }
+
+        if (!failed) {
+          showToast(`Company "${name}" deleted`, 'success')
+          setFinalDeleteDialog(null)
+          window.dispatchEvent(new CustomEvent('channels-updated'))
+          window.dispatchEvent(new CustomEvent('agents-updated'))
+          window.dispatchEvent(new CustomEvent('workflows-updated'))
+          window.dispatchEvent(new CustomEvent('teams-updated'))
+          fetchData()
+        } else {
+          showToast(`Cascade delete incomplete for company "${name}"`, 'error')
+        }
+        return
+      }
+
+      const response = await fetch(`/api/communities/${encodeURIComponent(name)}?cascade=1`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
-        showToast(`${type === 'community' ? 'Community' : 'Group'} "${name}" deleted`, 'success')
+        showToast(`${type === 'community' ? 'Community' : 'Company'} "${name}" deleted`, 'success')
         setFinalDeleteDialog(null)
         window.dispatchEvent(new CustomEvent('channels-updated'))
         window.dispatchEvent(new CustomEvent('agents-updated'))
@@ -673,6 +1519,30 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+            <button
+              onClick={() => setOrganizationViewMode('structure')}
+              className={`px-3 py-2 text-sm transition-colors ${
+                organizationViewMode === 'structure'
+                  ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              title="Structure view"
+            >
+              ☰
+            </button>
+            <button
+              onClick={() => setOrganizationViewMode('org-chart')}
+              className={`px-3 py-2 text-sm border-l border-gray-200 dark:border-gray-700 transition-colors ${
+                organizationViewMode === 'org-chart'
+                  ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              title="Org chart view"
+            >
+              ◇
+            </button>
+          </div>
           <button
             onClick={expandAll}
             className="text-sm font-medium text-sky-600 hover:text-sky-800 transition-colors"
@@ -791,6 +1661,143 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               </div>
             </div>
           </div>
+
+          {displayTeams.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
+              <div className="px-4 py-3 border-b border-gray-200 bg-amber-50 dark:bg-amber-900/20 flex items-center justify-between dark:border-gray-700">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTeamsSectionCollapsed(!teamsSectionCollapsed)}>
+                  <span className="text-sm">{teamsSectionCollapsed ? '▶' : '▼'}</span>
+                  <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                    🏢 Company Structure ({displayTeams.length})
+                  </h2>
+                </div>
+                <div className="text-xs text-amber-700 dark:text-amber-400">
+                  {filteredTeams.filter((team) => !team.parentTeamId).length} top-level · {filteredTeams.filter((team) => !!team.parentTeamId).length} nested
+                </div>
+              </div>
+              {!teamsSectionCollapsed && (
+                <div className="p-4">
+                  <div className="mb-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Top Level</div>
+                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{filteredTeams.filter((team) => !team.parentTeamId).length}</div>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Nested Teams</div>
+                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{filteredTeams.filter((team) => !!team.parentTeamId).length}</div>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Leaders</div>
+                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{new Set(filteredTeams.map((team) => team.leaderAgentId).filter(Boolean)).size}</div>
+                    </div>
+                  </div>
+
+                  {organizationViewMode === 'structure' ? (
+                    <div className="space-y-3">
+                      {(teamChildren.get('__root__') || []).map((team) => (
+                        <TeamTreeNode
+                          key={team.id}
+                          team={team}
+                          depth={0}
+                          teamChildren={teamChildren}
+                          teamWorkflows={teamWorkflows}
+                          latestWorkflowOutputs={latestWorkflowOutputs}
+                          agentNameById={agentNameById}
+                          onNavigateToAgent={onNavigateToAgent}
+                          onNavigateToWorkflow={onNavigateToWorkflow}
+                          onNavigateToDoc={onNavigateToDoc}
+                          onDeleteTeam={teams.length > 0 ? handleDeleteTeam : undefined}
+                          onDeleteCompany={displayTeams.length > 0 ? handleDeleteCompany : undefined}
+                          collapsedCompanyIds={collapsedCompanyIds}
+                          onToggleCompanyCollapsed={(teamId) => setCollapsedCompanyIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(teamId)) next.delete(teamId)
+                            else next.add(teamId)
+                            return next
+                          })}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className="relative overflow-auto pb-2"
+                      onWheel={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          e.preventDefault()
+                          setOrgChartZoom((zoom) => Math.max(0.25, Math.min(2, zoom - e.deltaY * 0.002)))
+                        }
+                      }}
+                    >
+                      <div className="absolute top-2 right-2 z-20 flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-0.5">
+                          {(['comfortable', 'compact', 'dense'] as OrgChartDensity[]).map((density) => (
+                            <button
+                              key={density}
+                              onClick={() => setOrgChartDensity(density)}
+                              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                                orgChartDensity === density
+                                  ? 'bg-sky-500 text-white'
+                                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                              }`}
+                              title={`${density[0].toUpperCase()}${density.slice(1)} spacing`}
+                            >
+                              {density === 'comfortable' ? 'Roomy' : density === 'compact' ? 'Compact' : 'Dense'}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => setOrgChartZoom((zoom) => Math.max(0.25, zoom - 0.15))}
+                          className="flex h-6 w-6 items-center justify-center text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        >
+                          −
+                        </button>
+                        <span className="w-10 text-center text-[10px] text-gray-400">{Math.round(orgChartZoom * 100)}%</span>
+                        <button
+                          onClick={() => setOrgChartZoom((zoom) => Math.min(2, zoom + 0.15))}
+                          className="flex h-6 w-6 items-center justify-center text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        >
+                          +
+                        </button>
+                        {orgChartZoom !== 1 && (
+                          <button
+                            onClick={() => setOrgChartZoom(1)}
+                            className="px-1 text-[10px] text-sky-500 hover:text-sky-700"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          transform: `scale(${orgChartZoom})`,
+                          transformOrigin: 'top left',
+                          minWidth: orgChartZoom < 1 ? `${100 / orgChartZoom}%` : undefined,
+                        }}
+                      >
+                        <div className={`min-w-max ${ORG_CHART_DENSITY_PRESETS[orgChartDensity].topPaddingClass}`}>
+                          <div className={`flex flex-col items-center ${ORG_CHART_DENSITY_PRESETS[orgChartDensity].rowGapClass}`}>
+                            {(teamChildren.get('__root__') || []).map((team) => (
+                              <OrgChartNode
+                                key={team.id}
+                                team={team}
+                                teamChildren={teamChildren}
+                                teamWorkflows={teamWorkflows}
+                                latestWorkflowOutputs={latestWorkflowOutputs}
+                                agentNameById={agentNameById}
+                                onNavigateToAgent={onNavigateToAgent}
+                                onNavigateToWorkflow={onNavigateToWorkflow}
+                                density={orgChartDensity}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* All Agents */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
@@ -931,16 +1938,51 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           <h4 className="text-xs font-semibold text-purple-700 mb-1.5">
                             Workflows ({communityWorkflows.get(community.name)?.length || 0})
                           </h4>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="space-y-2">
                             {(communityWorkflows.get(community.name) || []).sort((a, b) => a.name.localeCompare(b.name)).map(workflow => (
-                              <button
+                              <div
                                 key={workflow.id}
-                                onClick={() => onNavigateToWorkflow?.(workflow.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-purple-200 bg-purple-50 font-medium hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer dark:border-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 dark:hover:border-purple-600 dark:text-purple-300"
-                                title={`Go to ${workflow.name} in Workflows page`}
+                                className="rounded border border-purple-200 bg-purple-50/80 p-2 dark:border-purple-700 dark:bg-purple-900/20"
                               >
-                                {workflow.name}
-                              </button>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <button
+                                    onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                    className="text-left text-xs font-semibold text-purple-800 hover:text-purple-900 hover:underline dark:text-purple-300"
+                                    title={`Go to ${workflow.name} in Workflows page`}
+                                  >
+                                    {workflow.name}
+                                  </button>
+                                  <span className="rounded-full border border-purple-200 px-2 py-0.5 text-[10px] text-purple-700 dark:border-purple-700 dark:text-purple-300">
+                                    {workflow.schedule === 'manual' ? 'Manual' : workflow.schedule}
+                                  </span>
+                                </div>
+                                {latestWorkflowOutputs.get(workflow.id)?.summary && (
+                                  <div className="mt-1 text-xs text-purple-900 dark:text-purple-100 line-clamp-3">
+                                    {latestWorkflowOutputs.get(workflow.id)?.summary}
+                                  </div>
+                                )}
+                                {latestWorkflowOutputs.get(workflow.id)?.artifactPath && (
+                                  <div className="mt-2 text-[11px] font-mono text-purple-700 dark:text-purple-300 break-all">
+                                    {latestWorkflowOutputs.get(workflow.id)?.artifactPath}
+                                  </div>
+                                )}
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {latestWorkflowOutputs.get(workflow.id)?.artifactPath && onNavigateToDoc && (
+                                    <button
+                                      onClick={() => onNavigateToDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
+                                      className="rounded border border-purple-300 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                                    >
+                                      Open Output File
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                    className="rounded border border-purple-300 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                                  >
+                                    Open Workflow
+                                  </button>
+                                </div>
+                              </div>
                             ))}
                             {(communityWorkflows.get(community.name)?.length === 0) && (
                               <span className="text-xs text-gray-400 italic">No workflows</span>
@@ -1106,16 +2148,51 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           <h4 className="text-xs font-semibold text-indigo-700 mb-1.5">
                             Workflows ({groupWorkflows.get(group.name)?.length || 0})
                           </h4>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="space-y-2">
                             {(groupWorkflows.get(group.name) || []).sort((a, b) => a.name.localeCompare(b.name)).map(workflow => (
-                              <button
+                              <div
                                 key={workflow.id}
-                                onClick={() => onNavigateToWorkflow?.(workflow.id)}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer dark:border-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/40 dark:hover:border-indigo-600 dark:text-indigo-300"
-                                title={`Go to ${workflow.name} in Workflows page`}
+                                className="rounded border border-indigo-200 bg-indigo-50/80 p-2 dark:border-indigo-700 dark:bg-indigo-900/20"
                               >
-                                {workflow.name}
-                              </button>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <button
+                                    onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                    className="text-left text-xs font-semibold text-indigo-800 hover:text-indigo-900 hover:underline dark:text-indigo-300"
+                                    title={`Go to ${workflow.name} in Workflows page`}
+                                  >
+                                    {workflow.name}
+                                  </button>
+                                  <span className="rounded-full border border-indigo-200 px-2 py-0.5 text-[10px] text-indigo-700 dark:border-indigo-700 dark:text-indigo-300">
+                                    {workflow.schedule === 'manual' ? 'Manual' : workflow.schedule}
+                                  </span>
+                                </div>
+                                {latestWorkflowOutputs.get(workflow.id)?.summary && (
+                                  <div className="mt-1 text-xs text-indigo-900 dark:text-indigo-100 line-clamp-3">
+                                    {latestWorkflowOutputs.get(workflow.id)?.summary}
+                                  </div>
+                                )}
+                                {latestWorkflowOutputs.get(workflow.id)?.artifactPath && (
+                                  <div className="mt-2 text-[11px] font-mono text-indigo-700 dark:text-indigo-300 break-all">
+                                    {latestWorkflowOutputs.get(workflow.id)?.artifactPath}
+                                  </div>
+                                )}
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {latestWorkflowOutputs.get(workflow.id)?.artifactPath && onNavigateToDoc && (
+                                    <button
+                                      onClick={() => onNavigateToDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
+                                      className="rounded border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+                                    >
+                                      Open Output File
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => onNavigateToWorkflow?.(workflow.id)}
+                                    className="rounded border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+                                  >
+                                    Open Workflow
+                                  </button>
+                                </div>
+                              </div>
                             ))}
                             {(groupWorkflows.get(group.name)?.length === 0) && (
                               <span className="text-xs text-gray-400 italic">No workflows</span>
@@ -1355,7 +2432,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       <ConfirmDeleteDialog
         isOpen={deleteDialog !== null}
         itemName={deleteDialog?.name || ''}
-        itemType={deleteDialog?.type || 'item'}
+        itemType={deleteDialog?.type === 'company' ? 'company' : deleteDialog?.type || 'item'}
         consequences={deleteDialog?.consequences}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteDialog(null)}
@@ -1364,8 +2441,10 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       <ConfirmDeleteDialog
         isOpen={finalDeleteDialog !== null}
         itemName={finalDeleteDialog?.name || ''}
-        itemType="Final Warning"
-        warningMessage="This is a cascading delete. It will remove the community and all linked groups, member agents, and related workflows. This action is intended for full teardown, not cleanup."
+        itemType={finalDeleteDialog?.type === 'company' ? 'company (final warning)' : 'Final Warning'}
+        warningMessage={finalDeleteDialog?.type === 'company'
+          ? 'This cascade delete will remove the selected company slice, including listed teams, agents, workflows, groups, and isolated communities. This action cannot be undone.'
+          : 'This is a cascading delete. It will remove the community and all linked groups, member agents, and related workflows. This action is intended for full teardown, not cleanup.'}
         consequences={finalDeleteDialog?.consequences}
         onConfirm={confirmFinalDelete}
         onCancel={() => setFinalDeleteDialog(null)}

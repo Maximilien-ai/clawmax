@@ -319,6 +319,36 @@ else
   fail "Templates API unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running Teams unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/teams.test.ts > /tmp/clawmax-teams.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-teams.out; then
+  teams_count=$(grep "Tests passed:" /tmp/clawmax-teams.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Teams unit tests (${teams_count:-?} tests)"
+else
+  fail "Teams unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Template feedback unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/template-feedback.test.ts > /tmp/clawmax-template-feedback.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-template-feedback.out; then
+  template_feedback_count=$(grep "Tests passed:" /tmp/clawmax-template-feedback.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template feedback unit tests (${template_feedback_count:-?} tests)"
+else
+  fail "Template feedback unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Organization structure client unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/organizationTeams.test.ts > /tmp/clawmax-organization-teams.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-organization-teams.out; then
+  organization_teams_count=$(grep "Tests passed:" /tmp/clawmax-organization-teams.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Organization structure client unit tests (${organization_teams_count:-?} tests)"
+else
+  fail "Organization structure client unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Notifications unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/notifications.test.ts > /tmp/clawmax-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
@@ -419,10 +449,10 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
+OPENCLAW_WORKSPACE=/tmp/clawmax-workflows-test npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
   wf_count=$(grep "Passed:" /tmp/clawmax-workflows.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
-  pass "Workflows unit tests (${wf_count:-?} tests)"
+  pass "Workflows unit tests (${wf_count:-?} tests in server/lib/workflows.test.ts)"
 else
   fail "Workflows unit tests"
 fi
@@ -560,9 +590,51 @@ echo -e "${YELLOW}→ Running Workflow routes unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/workflows.test.ts > /tmp/clawmax-workflow-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-routes.out; then
   workflow_routes_count=$(grep "Tests passed:" /tmp/clawmax-workflow-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-  pass "Workflow routes unit tests (${workflow_routes_count:-?} tests)"
+  workflow_total=$(( ${wf_count:-0} + ${workflow_routes_count:-0} ))
+  pass "Workflow routes unit tests (${workflow_routes_count:-?} tests in server/routes/workflows.test.ts)"
+  pass "Workflow test total (${workflow_total} tests across lib + routes)"
 else
   fail "Workflow routes unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workspace dashboard library unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboards.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-dashboards.out; then
+  workspace_dashboards_count=$(grep "Tests passed:" /tmp/clawmax-workspace-dashboards.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace dashboard library unit tests (${workspace_dashboards_count:-?} tests)"
+else
+  fail "Workspace dashboard library unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Workspace dashboard route helper unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboard-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-dashboard-routes.out; then
+  workspace_dashboard_routes_count=$(grep "Tests passed:" /tmp/clawmax-workspace-dashboard-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace dashboard route helper unit tests (${workspace_dashboard_routes_count:-?} tests)"
+else
+  fail "Workspace dashboard route helper unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running AI generator unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-generator.test.ts > /tmp/clawmax-ai-generator.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-generator.out; then
+  ai_generator_count=$(grep "Tests passed:" /tmp/clawmax-ai-generator.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI generator unit tests (${ai_generator_count:-?} tests)"
+else
+  fail "AI generator unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Build-a-Company demo smoke tests...${NC}"
+npx ts-node --transpileOnly server/lib/build-company-demo-smoke.test.ts > /tmp/clawmax-build-company-demo-smoke.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-build-company-demo-smoke.out; then
+  build_company_demo_smoke_count=$(grep "Tests passed:" /tmp/clawmax-build-company-demo-smoke.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Build-a-Company demo smoke tests (${build_company_demo_smoke_count:-?} tests)"
+else
+  fail "Build-a-Company demo smoke tests"
 fi
 
 echo ""

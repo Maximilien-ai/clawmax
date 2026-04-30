@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClawMax.ai | Build-a-Company Hackathon</title>
+    <style>
+      :root {
+        --bg: #f5f2e8;
+        --ink: #111827;
+        --muted: rgba(17, 24, 39, 0.72);
+        --line: rgba(17, 24, 39, 0.08);
+        --teal: #12b5a6;
+        --cyan: #2474ff;
+        --lime: #c6f24a;
+        --orange: #d96b23;
+        --panel: rgba(255, 255, 255, 0.78);
+        --panel-border: rgba(17, 24, 39, 0.08);
+        --deep: #0f172a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        overflow: hidden;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 14% 16%, rgba(198, 242, 74, 0.26), transparent 22%),
+          radial-gradient(circle at 86% 12%, rgba(36, 116, 255, 0.13), transparent 20%),
+          radial-gradient(circle at 55% 110%, rgba(217, 107, 35, 0.13), transparent 30%),
+          linear-gradient(180deg, #fbfaf6 0%, #f5f2e8 48%, #efe9da 100%);
+      }
+
+      .page {
+        position: relative;
+        min-height: 100vh;
+        padding: 24px 28px 18px;
+        overflow: hidden;
+      }
+
+      .bg-photo,
+      .bg-overlay,
+      .bg-grid,
+      .bg-wave {
+        position: absolute;
+        inset: 0;
+      }
+
+      .bg-photo {
+        background-image: url("./clawmax-front-back-offices.jpg");
+        background-size: cover;
+        background-position: center top;
+        opacity: 0.06;
+        filter: saturate(0.9);
+      }
+
+      .bg-overlay {
+        background:
+          linear-gradient(180deg, rgba(255, 251, 244, 0.64) 0%, rgba(245, 242, 232, 0.86) 50%, rgba(239, 233, 218, 0.96) 100%),
+          linear-gradient(108deg, rgba(255, 255, 255, 0.64) 0%, rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.52) 100%);
+      }
+
+      .bg-grid {
+        opacity: 0.22;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 92px 92px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.12));
+      }
+
+      .bg-wave {
+        top: auto;
+        bottom: -5vh;
+        height: 32vh;
+        background:
+          radial-gradient(80% 100% at 50% 100%, rgba(255, 180, 92, 0.24), rgba(255, 180, 92, 0) 70%),
+          linear-gradient(180deg, rgba(112, 184, 255, 0.04), rgba(112, 184, 255, 0));
+        transform: skewY(-5deg);
+      }
+
+      .frame {
+        position: relative;
+        z-index: 1;
+        min-height: calc(100vh - 42px);
+        display: grid;
+        grid-template-columns: minmax(0, 1.92fr) 258px;
+        gap: 14px;
+        align-items: start;
+      }
+
+      .left {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .brandbar {
+        display: inline-flex;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 16px;
+        border: 1px solid var(--panel-border);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(18px);
+        width: fit-content;
+      }
+
+      .brandbar img {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+      }
+
+      .brandcopy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .brandcopy strong {
+        font-size: 24px;
+        letter-spacing: 0.02em;
+      }
+
+      .brandcopy span {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+      }
+
+      .eyebrow {
+        margin: 18px 0 10px;
+        color: #4c5f12;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(42px, 5.35vw, 74px);
+        line-height: 0.88;
+        letter-spacing: -0.058em;
+        font-weight: 800;
+        max-width: 1320px;
+      }
+
+      h1 .accent {
+        color: var(--teal);
+      }
+
+      .subhead {
+        margin: 14px 0 0;
+        max-width: 1180px;
+        font-size: 21px;
+        line-height: 1.26;
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 16px 0 0;
+        max-width: 1080px;
+      }
+
+      .chip {
+        padding: 8px 13px;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 24, 39, 0.08);
+        background: rgba(255, 255, 255, 0.7);
+        font-size: 15px;
+        font-weight: 650;
+        color: var(--deep);
+        backdrop-filter: blur(12px);
+      }
+
+      .highlights {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 28px;
+        align-items: stretch;
+      }
+
+      .feature-card,
+      .dashboard-card,
+      .lane-card {
+        border-radius: 28px;
+        border: 1px solid var(--panel-border);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.58)),
+          radial-gradient(circle at 10% 10%, rgba(36, 116, 255, 0.08), transparent 36%);
+        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+
+      .feature-card {
+        padding: 16px 18px 16px;
+      }
+
+      .kicker {
+        display: inline-block;
+        margin-bottom: 9px;
+        color: #557100;
+        font-size: 12px;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .feature {
+        padding: 12px 13px 11px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(17, 24, 39, 0.08);
+      }
+
+      .feature strong {
+        display: block;
+        font-size: 19px;
+        margin-bottom: 6px;
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.28;
+      }
+
+      .dashboard-card {
+        padding: 12px 14px 12px;
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .dashboard-block {
+        padding: 9px 10px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(17, 24, 39, 0.08);
+      }
+
+      .dashboard-block strong {
+        display: block;
+        font-size: 17px;
+        margin-bottom: 3px;
+      }
+
+      .dashboard-block p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.2;
+      }
+
+      .right {
+        padding: 16px 15px 12px;
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(18px);
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        align-self: start;
+      }
+
+      .right h3 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 850;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--lime);
+      }
+
+      .right .title {
+        font-size: 31px;
+        line-height: 0.98;
+        font-weight: 800;
+        margin: 0;
+        color: #f8fbff;
+      }
+
+      .right .body {
+        margin: 0;
+        color: rgba(240, 246, 255, 0.8);
+        font-size: 15px;
+        line-height: 1.28;
+      }
+
+      .stack {
+        display: grid;
+        gap: 7px;
+      }
+
+      .stack-item {
+        padding: 7px 10px;
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .stack-item strong {
+        display: block;
+        font-size: 17px;
+        margin-bottom: 2px;
+        color: #f8fbff;
+      }
+
+      .stack-item span {
+        display: block;
+        color: rgba(240, 246, 255, 0.76);
+        font-size: 13px;
+        line-height: 1.24;
+      }
+
+      .qr-wrap {
+        margin-top: 10px;
+        padding: 8px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.96);
+        display: flex;
+        justify-content: center;
+      }
+
+      .qr-wrap img {
+        width: 100%;
+        max-width: 132px;
+        aspect-ratio: 1;
+        object-fit: contain;
+      }
+
+      .link-block {
+        margin-top: 0;
+      }
+
+      .link-block span {
+        display: block;
+        color: var(--lime);
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 3px;
+      }
+
+      .link-block strong {
+        font-size: 16px;
+        color: #f8fbff;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="bg-photo"></div>
+      <div class="bg-overlay"></div>
+      <div class="bg-grid"></div>
+      <div class="bg-wave"></div>
+
+      <div class="frame">
+        <section class="left">
+          <div>
+            <div class="brandbar">
+              <img src="./clawmax-logo.jpg" alt="ClawMax.ai logo" />
+              <div class="brandcopy">
+                <strong>ClawMax.ai</strong>
+                <span>AI agents in production</span>
+              </div>
+            </div>
+
+            <div class="eyebrow">ClawMax.ai x OpenAI x AGI House · Build-a-Company Revenue Hackathon</div>
+
+            <h1>
+              <span class="accent">From prompts</span> to
+              company systems
+              that <span class="accent">plan, hand off,</span> and ship.
+            </h1>
+
+            <p class="subhead">
+              Weekend build: ClawMax now models companies as teams of teams, chains markdown handoffs across workflows,
+              and gives each company a visible operating structure instead of one flat pile of agents.
+            </p>
+
+            <div class="chips">
+              <div class="chip">Company templates</div>
+              <div class="chip">Team-targeted workflows</div>
+              <div class="chip">Markdown handoffs</div>
+              <div class="chip">Org chart + structure view</div>
+              <div class="chip">Named company pipelines</div>
+              <div class="chip">Company dashboards</div>
+              <div class="chip">AI-generated templates</div>
+              <div class="chip">Company import / export</div>
+              <div class="chip">Full OpenClaw compatibility</div>
+            </div>
+
+            <div class="highlights">
+              <div class="feature-card">
+                <span class="kicker">What shipped this weekend</span>
+                <div class="feature-grid">
+                  <div class="feature">
+                    <strong>Teams + Companies</strong>
+                    <p>Templates now define teams, leaders, nested orgs, and company roots instead of only flat organizations.</p>
+                  </div>
+                  <div class="feature">
+                    <strong>Workflow Handoffs</strong>
+                    <p>Workflows produce markdown outputs and downstream workflows consume them through explicit handoff refs.</p>
+                  </div>
+                  <div class="feature">
+                    <strong>Company Imports</strong>
+                    <p>Multiple companies can coexist in one workspace with namespaced workflows, isolated delete, and cleaner org synthesis.</p>
+                  </div>
+                  <div class="feature">
+                    <strong>AI Generation</strong>
+                    <p>Generated companies now infer chains, output contracts, and team-aware workflow targets instead of disconnected prompts.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dashboard-card">
+                <span class="kicker">Why the dashboard matters</span>
+                <div class="dashboard-grid">
+                  <div class="dashboard-block">
+                    <strong>Company Input</strong>
+                    <p>Enter the company brief, goals, context, and constraints in one place.</p>
+                  </div>
+                  <div class="dashboard-block">
+                    <strong>Company Org</strong>
+                    <p>See teams, leaders, hierarchy, workflow ownership, and the operating structure clearly.</p>
+                  </div>
+                  <div class="dashboard-block">
+                    <strong>Company Output</strong>
+                    <p>Consume output in the dashboard: handoffs, artifacts, schedules, and the latest deliverables.</p>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </section>
+
+        <aside class="right">
+          <h3>Sign up + star on GitHub</h3>
+          <p class="title">See ClawMax build operating companies</p>
+          <p class="body">
+            Visit ClawMax.ai after the demo, sign up for updates, and support the open source work by starring the project on GitHub.
+          </p>
+
+          <div class="stack">
+            <div class="stack-item">
+              <strong>Template types</strong>
+              <span>Users should choose whether they are generating an agent, team, or company instead of relying on ambiguous prompt guessing.</span>
+            </div>
+            <div class="stack-item">
+              <strong>Company dashboard</strong>
+              <span>The next key surface is a company-specific dashboard for inputs, org context, workflow schedules, and outputs.</span>
+            </div>
+            <div class="stack-item">
+              <strong>Demo targets</strong>
+              <span>Hack test company, B2B company, and one more example company to validate the pattern end to end.</span>
+            </div>
+          </div>
+
+          <div class="qr-wrap">
+            <img src="./build-a-company-qr.png" alt="QR code to ClawMax.ai" />
+          </div>
+
+          <div class="link-block">
+            <span>Link</span>
+            <strong>https://clawmax.ai</strong>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </body>
+</html>

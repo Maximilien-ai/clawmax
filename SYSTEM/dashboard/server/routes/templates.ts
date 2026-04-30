@@ -23,11 +23,12 @@ import {
   getGlobalOrgTemplatesDir,
   readOrganizationTemplateAgentFiles,
   readWorkspaceAgentFilesForOrganizationTemplate,
+  buildTemplateFeedbackMetadata,
 } from '../lib/templates'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
-import { generateTemplateFromNL, setRequestByokKeys } from '../lib/ai-generator'
+import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestByokKeys } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
-import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateFeedbackSummary } from '../lib/template-feedback'
+import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateApplyCount, getTemplateFeedbackSummary } from '../lib/template-feedback'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
@@ -367,11 +368,17 @@ router.post('/:type/:slug/feedback', async (req, res) => {
   const session = getAuthenticatedSession(req)
   const actorKey = session?.email || session?.login || 'dashboard-user'
   const actorDisplay = session?.name || session?.email || session?.login || 'Dashboard User'
+  const feedbackMetadata = buildTemplateFeedbackMetadata(template as any)
 
   try {
     const result = await addTemplateFeedback({
-      templateType,
+      templateType: feedbackMetadata.templateType,
       templateSlug: slug,
+      templateId: feedbackMetadata.templateId,
+      templateSource: feedbackMetadata.templateSource,
+      applyCount: getTemplateApplyCount(feedbackMetadata.templateId),
+      templateTags: feedbackMetadata.templateTags,
+      templateInfo: feedbackMetadata.templateInfo,
       templateName: template.name,
       rating: numericRating,
       easyToUse: easyToUseValue,
@@ -589,14 +596,14 @@ router.post('/validate', (req, res) => {
 
 // POST /api/templates/generate - Generate an organization template from natural language
 router.post('/generate', async (req, res) => {
-  const { description, byokKeys } = req.body
+  const { description, byokKeys, generationTarget } = req.body
   if (!description || typeof description !== 'string') {
     return res.status(400).json({ error: 'description is required' })
   }
 
   try {
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
-    const template = await generateTemplateFromNL(description)
+    const template = await generateTemplateFromNL(description, normalizeTemplateGenerationTarget(generationTarget))
     res.json({ ok: true, template })
   } catch (err: any) {
     console.error('Error generating template:', err)

@@ -36,6 +36,11 @@
       "items": { "$ref": "#/definitions/agent" },
       "description": "Agent definitions"
     },
+    "teams": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/team" },
+      "description": "Team definitions"
+    },
     "communities": {
       "type": "array",
       "items": { "$ref": "#/definitions/community" },
@@ -115,6 +120,28 @@
         }
       }
     },
+    "team": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string" },
+        "leaderAgentId": { "type": "string" },
+        "memberAgentIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parentTeamId": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "group": {
       "type": "object",
       "required": ["name"],
@@ -177,6 +204,10 @@
               "items": { "type": "string" }
             },
             "agents": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "teamIds": {
               "type": "array",
               "items": { "type": "string" }
             }

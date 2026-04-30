@@ -1,8 +1,66 @@
 import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
 import { getPreferredAnthropicModel } from './model-discovery'
+import { getBestAvailableModel } from './dashboard-env'
 
 type AIProvider = 'openai' | 'anthropic'
+export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
+
+export function normalizeTemplateGenerationTarget(value: unknown): TemplateGenerationTarget {
+  return value === 'company' || value === 'agent' ? value : 'team'
+}
+
+export function shouldGenerateCompanyTemplate(description: string, generationTarget: TemplateGenerationTarget = 'team'): boolean {
+  const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
+  if (normalizedTarget === 'company') return true
+  if (normalizedTarget === 'agent') return false
+  if (promptImpliesCompany(description)) return true
+
+  const lower = description.toLowerCase()
+  const functionalHits = [
+    /\bleadership\b/,
+    /\bresearch\b/,
+    /\bmarketing\b/,
+    /\bsales\b/,
+    /\boutbound\b/,
+    /\bdelivery\b/,
+    /\boperations\b/,
+    /\bengineering\b/,
+    /\bproduct\b/,
+    /\bstrategy\b/,
+  ].reduce((count, pattern) => count + (pattern.test(lower) ? 1 : 0), 0)
+
+  if (promptImpliesRevenue(description) && functionalHits >= 2) return true
+  if (/\b(team of teams|multiple teams|several teams|leadership plus)\b/i.test(description)) return true
+  return false
+}
+
+export function ensureGeneratedCompanyRoot(teams: any[], companyName: string, shouldBiasRevenue: boolean = false) {
+  if (!Array.isArray(teams) || teams.length === 0) return teams
+  const rootLikeTeam = teams.find((team) => (team.tags || []).includes('org-root') || (team.tags || []).includes('company'))
+  if (rootLikeTeam) return teams
+
+  const leadershipTeam = teams.find((team) => normalizeGenerationName(team.id) === 'leadership')
+  const rootLeader = leadershipTeam?.leaderAgentId || leadershipTeam?.memberAgentIds?.[0] || teams[0]?.leaderAgentId || teams[0]?.memberAgentIds?.[0]
+  const rootId = slugifyGeneratedTemplateValue(companyName || 'company', 'company-root')
+  const nextTeams = teams.map((team) => (
+    team.id === leadershipTeam?.id
+      ? { ...team, parentTeamId: rootId }
+      : team
+  ))
+
+  return [
+    {
+      id: rootId,
+      name: companyName || 'Company',
+      purpose: shouldBiasRevenue ? 'Root company team for revenue leadership and operating lanes.' : 'Root company team for leadership and operating lanes.',
+      leaderAgentId: rootLeader,
+      memberAgentIds: [],
+      tags: ['company', 'org-root'],
+    },
+    ...nextTeams,
+  ]
+}
 
 function getPreferredAnthropicGenerationModel(): string {
   const override = process.env.CLAWMAX_ANTHROPIC_GENERATION_MODEL?.trim()
@@ -168,6 +226,29 @@ function promptImpliesScaling(text: string): boolean {
   return /\b(collection|multiple|many|batch|catalog|lots of|set of|images|photos|posts|items|products|assets)\b/i.test(text)
 }
 
+function promptImpliesCompany(text: string): boolean {
+  return /\b(company|business|startup|agency|studio|firm|operator|ecommerce|e-commerce|revenue|sales pipeline|lead gen|outbound|client acquisition|offer|pricing)\b/i.test(text)
+}
+
+function promptImpliesRevenue(text: string): boolean {
+  return /\b(revenue|profit|sales|sell|paying customers|pipeline|qualified leads|booked calls|closed deals|inbound|outbound|conversion|pricing|offer|retainer|subscriptions?)\b/i.test(text)
+}
+
+function promptExplicitlyRequestsMultipleCommunities(text: string): boolean {
+  return /\b(two|2|multiple|separate|distinct)\s+communities\b|\bseparate umbrellas\b|\bdifferent umbrella communities\b/i.test(text)
+}
+
+function buildSoberCompanyName(description: string): string {
+  const text = description.toLowerCase()
+  if (/\bhomepage\b/.test(text) && /\bconversion\b/.test(text)) return 'Homepage Conversion Studio'
+  if (/\blanding page\b/.test(text) && /\bconversion\b/.test(text)) return 'Landing Page Growth Studio'
+  if (/\boutbound\b/.test(text) && /\blead generation\b|\blead gen\b/.test(text)) return 'Outbound Growth Studio'
+  if (/\bb2b\b/.test(text) && /\bsaas\b/.test(text) && /\bconversion\b/.test(text)) return 'B2B SaaS Conversion Studio'
+  if (/\becommerce\b|\be-commerce\b/.test(text)) return 'Ecommerce Operating Studio'
+  if (promptImpliesRevenue(description)) return 'Revenue Operations Studio'
+  return 'Operating Company'
+}
+
 function roleImpliesScalableLane(role: string, agentId: string): boolean {
   const value = `${role} ${agentId}`.toLowerCase()
   return /\b(writer|selector|reviewer|analyst|researcher|specialist|editor|creator|curator|planner)\b/.test(value)
@@ -224,11 +305,20 @@ function buildExampleAwarePromptContext(description: string): string {
     sections.push('The prompt implies potentially many assets/items/posts, so the middle workflow stages should support scalable or parallel work where appropriate while kickoff and finalization remain singleton steps.')
   }
 
+  if (promptImpliesCompany(description)) {
+    sections.push('The prompt implies a company rather than a simple team. Favor a company-shaped template with leadership, operating lanes, and visible handoffs across functions.')
+  }
+
+  if (promptImpliesRevenue(description)) {
+    sections.push('The prompt is revenue-oriented. The generated company should produce commercially concrete outputs such as offers, ICPs, lead lists, outreach copy, pricing, launch plans, funnel metrics, and next revenue actions.')
+  }
+
   return sections.join('\n\n')
 }
 
-function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?: boolean; isFinal?: boolean }): string {
+function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?: boolean; isFinal?: boolean; firstOnly?: boolean; isFirst?: boolean }): string {
   if (options?.finalOnly && !options?.isFinal) return ''
+  if (options?.firstOnly && !options?.isFirst) return ''
 
   const urls = extractPromptUrls(description).slice(0, 3)
   const examples = summarizePromptExamples(description).slice(0, 4)
@@ -249,6 +339,295 @@ function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?
     for (const item of styleGuidance) lines.push(`  - ${item}`)
   }
   return lines.join('\n')
+}
+
+function normalizeGenerationName(value: string): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
+function inferCompanyWorkflowTeamId(
+  workflow: any,
+  teams: any[] = [],
+  groups: any[] = []
+): string | undefined {
+  const normalizedWorkflowText = normalizeGenerationName([
+    workflow?.id,
+    workflow?.name,
+    workflow?.description,
+    ...(Array.isArray(workflow?.targeting?.groups) ? workflow.targeting.groups : []),
+  ].filter(Boolean).join(' '))
+
+  const normalizedTargetGroups = new Set<string>(
+    (Array.isArray(workflow?.targeting?.groups) ? workflow.targeting.groups : [])
+      .map((groupName: string) => normalizeGenerationName(groupName))
+      .filter(Boolean)
+  )
+
+  const groupToTeamId = new Map<string, string>()
+  for (const group of groups || []) {
+    const normalizedGroupName = normalizeGenerationName(String(group?.name || ''))
+    if (!normalizedGroupName) continue
+    const matchingTeam = (teams || []).find((team: any) => {
+      const teamId = normalizeGenerationName(String(team?.id || ''))
+      const teamName = normalizeGenerationName(String(team?.name || ''))
+      return teamId === normalizedGroupName || teamName === normalizedGroupName
+    })
+    if (matchingTeam?.id) {
+      groupToTeamId.set(normalizedGroupName, matchingTeam.id)
+    }
+  }
+
+  for (const normalizedGroupName of normalizedTargetGroups) {
+    const matchedTeamId = groupToTeamId.get(normalizedGroupName)
+    if (matchedTeamId) return matchedTeamId
+  }
+
+  const scoredTeams = (teams || []).map((team: any) => {
+    const aliases = Array.from(new Set([
+      normalizeGenerationName(String(team?.id || '')),
+      normalizeGenerationName(String(team?.name || '')),
+    ].filter(Boolean)))
+    const score = aliases.reduce((total, alias) => total + (alias && normalizedWorkflowText.includes(alias) ? 1 : 0), 0)
+    return { team, score }
+  }).filter(({ score }) => score > 0)
+
+  if (scoredTeams.length > 0) {
+    scoredTeams.sort((a, b) => b.score - a.score)
+    return scoredTeams[0].team.id
+  }
+
+  if (/\bkickoff|leadership|executive|strategy|brief\b/.test(normalizedWorkflowText)) {
+    return (teams || []).find((team: any) => normalizeGenerationName(team.id) === 'leadership')?.id
+  }
+
+  return (teams || [])[0]?.id
+}
+
+export function applyCompanyWorkflowExecutionDefaults(
+  workflows: any[],
+  teams: any[] = [],
+  groups: any[] = []
+): any[] {
+  if (!Array.isArray(workflows) || workflows.length === 0) return Array.isArray(workflows) ? workflows : []
+
+  const teamsById = new Map((teams || []).map((team: any) => [team.id, team]))
+
+  return workflows.map((workflow: any, idx: number, arr: any[]) => {
+    const matchedTeamId = inferCompanyWorkflowTeamId(workflow, teams, groups)
+    const matchedTeam = matchedTeamId ? teamsById.get(matchedTeamId) : undefined
+    const explicitAgentTargets = Array.from(new Set(
+      (Array.isArray(workflow?.targeting?.agents) ? workflow.targeting.agents : [])
+        .map((agentId: string) => `${agentId || ''}`.trim())
+        .filter(Boolean)
+    ))
+    const ownerAgentId = `${workflow.owner || ''}`.trim()
+    const agentTargets = matchedTeam?.leaderAgentId
+      ? [matchedTeam.leaderAgentId]
+      : (ownerAgentId ? [ownerAgentId] : explicitAgentTargets)
+    const priorOutputRef = idx > 0
+      ? 'Use the latest approved markdown handoff from the previous workflow as input. Do not restate the full project context.'
+      : 'Use the company brief and current request as the only required starting context.'
+    const outputInstruction = idx === arr.length - 1
+      ? 'Produce the final markdown deliverable and state where it was posted or saved.'
+      : 'Produce one concise markdown handoff for the next workflow and post a short summary in the working channel.'
+
+    const compactInstructions = [
+      workflow.content ? String(workflow.content).split('\n').slice(0, 4).join('\n').trim() : '',
+      `- ${priorOutputRef}`,
+      `- ${outputInstruction}`,
+      matchedTeam?.name ? `- Work as the ${matchedTeam.name} team and keep updates visible in its channel.` : '',
+    ].filter(Boolean)
+
+    return {
+      ...workflow,
+      owner: matchedTeam?.leaderAgentId || agentTargets[0] || workflow.owner,
+      targeting: {
+        communities: [],
+        groups: [],
+        agents: agentTargets,
+        teamIds: matchedTeam?.id ? [matchedTeam.id] : (Array.isArray(workflow.targeting?.teamIds) ? workflow.targeting.teamIds : []),
+        // In company templates, tags are categorization metadata in the AI output.
+        // Keeping them as execution targets fans a one-owner workflow back out to
+        // every similarly tagged agent.
+        tags: [],
+      },
+      content: compactInstructions.join('\n'),
+    }
+  })
+}
+
+function buildDefaultWorkflowOutputDefinition(
+  workflow: { id?: string; name?: string; description?: string },
+  usedKeys: Set<string>
+): { key: string; label: string; type: 'markdown' } {
+  const sourceText = `${workflow.name || ''} ${workflow.description || ''}`.toLowerCase()
+  const preferredKey =
+    /\b(plan|execution|delivery|milestone)\b/.test(sourceText) ? 'plan'
+      : /\b(kickoff|brief|intake|direction|strategy)\b/.test(sourceText) ? 'brief'
+        : /\b(engineering|spec|technical)\b/.test(sourceText) ? 'spec'
+          : /\b(marketing|launch|campaign|messaging)\b/.test(sourceText) ? 'launch-pack'
+            : /\b(review|qa|signoff|summary|final|closeout)\b/.test(sourceText) ? 'summary'
+              : `${slugifyGeneratedTemplateValue(workflow.id || workflow.name || 'workflow', 'workflow')}-output`
+
+  let key = preferredKey
+  let suffix = 2
+  while (usedKeys.has(key)) {
+    key = `${preferredKey}-${suffix}`
+    suffix += 1
+  }
+  usedKeys.add(key)
+
+  const labelBase = workflow.name?.trim() || workflow.id?.trim() || 'Workflow'
+  return {
+    key,
+    label: `${labelBase} Output`,
+    type: 'markdown',
+  }
+}
+
+export function applyGeneratedWorkflowHandoffs(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length === 0) return []
+
+  const usedOutputKeys = new Set<string>()
+  const normalizedOutputsByWorkflowId = new Map<string, { key: string; label: string; type: 'markdown' }>()
+
+  const withOutputs = workflows.map((workflow: any) => {
+    const existingOutputDefinitions = Array.isArray(workflow.outputDefinitions) ? workflow.outputDefinitions : []
+    const primaryOutput = existingOutputDefinitions[0]
+      ? {
+          key: String(existingOutputDefinitions[0].key || '').trim() || buildDefaultWorkflowOutputDefinition(workflow, usedOutputKeys).key,
+          label: String(existingOutputDefinitions[0].label || '').trim() || `${workflow.name || workflow.id || 'Workflow'} Output`,
+          type: 'markdown' as const,
+          help: existingOutputDefinitions[0].help,
+        }
+      : buildDefaultWorkflowOutputDefinition(workflow, usedOutputKeys)
+
+    usedOutputKeys.add(primaryOutput.key)
+    normalizedOutputsByWorkflowId.set(workflow.id, {
+      key: primaryOutput.key,
+      label: primaryOutput.label,
+      type: 'markdown',
+    })
+
+    return {
+      ...workflow,
+      outputDefinitions: existingOutputDefinitions.length > 0
+        ? [
+            {
+              ...existingOutputDefinitions[0],
+              key: primaryOutput.key,
+              label: primaryOutput.label,
+              type: 'markdown',
+            },
+            ...existingOutputDefinitions.slice(1),
+          ]
+        : [primaryOutput],
+    }
+  })
+
+  return withOutputs.map((workflow: any, idx: number) => {
+    const existingInputRefs = Array.isArray(workflow.inputRefs) ? workflow.inputRefs : []
+    if (existingInputRefs.length > 0) return workflow
+
+    const dependencyIds = Array.isArray(workflow.dependsOn) && workflow.dependsOn.length > 0
+      ? workflow.dependsOn
+      : (idx > 0 ? [withOutputs[idx - 1].id] : [])
+
+    const inferredInputRefs = dependencyIds
+      .map((workflowId: string) => {
+        const upstreamOutput = normalizedOutputsByWorkflowId.get(workflowId)
+        if (!upstreamOutput) return null
+        return {
+          workflowId,
+          outputKey: upstreamOutput.key,
+          label: upstreamOutput.label,
+          required: true,
+        }
+      })
+      .filter(Boolean)
+
+    if (inferredInputRefs.length === 0) return workflow
+
+    return {
+      ...workflow,
+      inputRefs: inferredInputRefs,
+    }
+  })
+}
+
+export function enforceVisibleCompanyWorkflowChain(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length <= 1) return Array.isArray(workflows) ? workflows : []
+
+  return workflows.map((workflow: any, idx: number, arr: any[]) => {
+    if (idx === 0) {
+      return {
+        ...workflow,
+        dependsOn: [],
+      }
+    }
+
+    const previousId = arr[idx - 1]?.id
+    const existingDependsOn = Array.isArray(workflow.dependsOn) ? workflow.dependsOn.filter(Boolean) : []
+    const nextDependsOn = previousId
+      ? [previousId, ...existingDependsOn.filter((dependencyId: string) => dependencyId !== previousId)]
+      : existingDependsOn
+
+    return {
+      ...workflow,
+      dependsOn: nextDependsOn,
+    }
+  })
+}
+
+export function normalizeGeneratedWorkflowReferences(workflows: any[]): any[] {
+  if (!Array.isArray(workflows) || workflows.length === 0) return []
+
+  const aliasToId = new Map<string, string>()
+  for (const workflow of workflows) {
+    const id = String(workflow.id || '').trim()
+    const sourceId = String(workflow._sourceId || '').trim()
+    const sourceName = String(workflow._sourceName || workflow.name || '').trim()
+    const slugName = slugifyGeneratedTemplateValue(sourceName, 'workflow')
+    const normalizedText = `${id} ${sourceId} ${sourceName} ${slugName}`.toLowerCase()
+    const heuristicAliases = [
+      normalizedText.includes('kickoff') ? 'kickoff' : '',
+      normalizedText.includes('strategy') && normalizedText.includes('brief') ? 'strategy-brief' : '',
+      normalizedText.includes('research') && normalizedText.includes('icp') ? 'market-research' : '',
+      normalizedText.includes('outreach') || normalizedText.includes('proposal') ? 'outreach' : '',
+      normalizedText.includes('revenue') && normalizedText.includes('summary') ? 'revenue-summary' : '',
+    ]
+    for (const alias of [id, sourceId, sourceName, slugName, ...heuristicAliases]) {
+      const normalizedAlias = String(alias || '').trim()
+      if (normalizedAlias) aliasToId.set(normalizedAlias, id)
+    }
+  }
+
+  return workflows.map((workflow) => {
+    const normalizedDependsOn = Array.from(new Set(
+      (Array.isArray(workflow.dependsOn) ? workflow.dependsOn : [])
+        .map((dependencyId: string) => aliasToId.get(String(dependencyId || '').trim()) || String(dependencyId || '').trim())
+        .filter(Boolean)
+        .filter((dependencyId: string) => dependencyId !== workflow.id)
+    ))
+
+    const normalizedInputRefs = (Array.isArray(workflow.inputRefs) ? workflow.inputRefs : [])
+      .map((inputRef: any) => ({
+        ...inputRef,
+        workflowId: aliasToId.get(String(inputRef.workflowId || '').trim()) || String(inputRef.workflowId || '').trim(),
+      }))
+      .filter((inputRef: any) => inputRef.workflowId && inputRef.workflowId !== workflow.id)
+
+    const { _sourceId, _sourceName, ...rest } = workflow
+    return {
+      ...rest,
+      dependsOn: normalizedDependsOn,
+      inputRefs: normalizedInputRefs,
+    }
+  })
 }
 
 export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
@@ -383,7 +762,7 @@ export async function generateAgentMeta(description: string): Promise<{
   } catch {}
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o-mini'),
+    model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
@@ -393,8 +772,8 @@ Available skills that can be assigned: ${availableSkills.join(', ') || 'gh-issue
 
 Available models:
 - anthropic/${getPreferredAnthropicGenerationModel()} (best available Anthropic generation model)
-- openai/gpt-4o (best for general purpose, creative tasks)
-- openai/gpt-4o-mini (best for simple tasks, cost-efficient)
+- openai/gpt-5 (latest OpenAI reasoning model when available)
+- openai/gpt-4o (strong default OpenAI general-purpose model)
 
 IMPORTANT: If the user mentions a specific name for the agent (e.g., "Create jarvis", "Make a bot called Friday"), use that name. The name should be a simple, clean identifier.
 
@@ -424,7 +803,7 @@ Rules:
   return {
     name: parsed.name || 'New Agent',
     tags: parsed.tags || [],
-    model: parsed.model || `anthropic/${getPreferredAnthropicGenerationModel()}`,
+    model: parsed.model || getBestAvailableModel(),
     skills: parsed.skills || [],
   }
 }
@@ -704,10 +1083,19 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 /**
  * Generate an organization template from natural language description.
  */
-export async function generateTemplateFromNL(description: string): Promise<any> {
+export async function generateTemplateFromNL(description: string, generationTarget: TemplateGenerationTarget = 'team'): Promise<any> {
   getAvailableProvider(_requestByokKeys)
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
+  const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
+  const shouldGenerateCompany = shouldGenerateCompanyTemplate(description, normalizedTarget)
+  const shouldBiasRevenue = promptImpliesRevenue(description)
+  const explicitMultiCommunityRequest = promptExplicitlyRequestsMultipleCommunities(description)
+  let availableSkills: string[] = []
+  try {
+    const { listAvailableSkills } = require('./skills')
+    availableSkills = listAvailableSkills().map((s: any) => s.id || s.name).filter(Boolean)
+  } catch {}
 
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
@@ -731,7 +1119,7 @@ A template has:
   - communities: array of community names
   - groups: array of group names
   - identity: multiline string describing role, responsibilities, expertise
-  - tools: array of tool names (e.g., "gh-issues", "github", "web-search", "code-review")
+  - skills: optional array of skill IDs chosen from the available list when relevant
 - communities: array with name, description, tags
 - groups: array with name, description, community (parent), tags
 - workflows: array of workflow definitions, each with:
@@ -754,6 +1142,11 @@ Important structure rules:
 - Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
 - Do not create a community and a group that represent the same concept with different names.
 - If unsure, create 1 community and 3-6 groups.
+- If the prompt describes a company, startup, agency, studio, operator, or revenue engine, generate a company-style template rather than a generic team.
+- For company-style templates, include a teams array with leadership plus 2-4 functional teams and at least one nested sub-team when appropriate.
+- Keep company structures legible and demo-friendly: leadership, delivery/product, go-to-market, and operations only when justified.
+- For company-style templates, prefer a sober descriptive company name. Avoid gimmicky agency names like "ConversionMax", "Growthify", or "RevenueGenius".
+- For company-style templates, default to exactly 1 shared community for the company and use groups for functional lanes such as leadership, strategy, research, sales, delivery, and operations.
 
 Important workflow behavior rules:
 - Always create 2-4 workflows for the team unless the prompt explicitly asks for none.
@@ -767,6 +1160,12 @@ Important workflow behavior rules:
 - Avoid vague workflow content like "work on the task"; be concrete about what agents should discuss, produce, and publish.
 - When the user provides examples, URLs, formats, or style references, preserve and use them explicitly in agent responsibilities and workflow content.
 - If the prompt includes sample outputs or product pages, tell the team to refer back to them and match the requested style.
+- For company-style templates, make workflows form a visible business chain with handoffs, not isolated tasks.
+- For revenue-oriented prompts, workflows must produce commercially concrete artifacts such as offer briefs, ICPs, lead lists, outreach copy, pricing, launch plans, pipeline reviews, delivery plans, and revenue summaries.
+- For revenue-oriented prompts, prefer a chain like strategy -> offer/ICP -> acquisition or delivery -> revenue review/final brief.
+- Assign 1-4 relevant skills to agents when the role clearly benefits from them.
+- Prefer exact skill IDs from this installed skill list: ${availableSkills.join(', ') || 'github, web-search, code-review, slack, jira'}.
+- Do not invent fake skill IDs. If none fit, omit the skills field.
 
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
@@ -789,6 +1188,8 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       ...(text.includes('meta') ? ['meta'] : []),
       ...(text.includes('ad') || text.includes('ads') ? ['ads'] : []),
       ...(text.includes('marketing') ? ['marketing'] : []),
+      ...(shouldGenerateCompany ? ['company'] : []),
+      ...(shouldBiasRevenue ? ['revenue'] : []),
     ]))
     const fallbackPrimaryTag = slugifyGeneratedTemplateValue(
       inferredTemplateTags[0]
@@ -796,11 +1197,18 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       || 'team',
       'team'
     )
+    if (shouldGenerateCompany && (typeof parsed.name !== 'string' || /^[A-Z][A-Za-z0-9]+(?:Max|ify|ly|gen|matic|hub|labs)$/i.test(parsed.name) || !/\s/.test(String(parsed.name || '').trim()))) {
+      parsed.name = buildSoberCompanyName(description)
+    }
     const inferredAgentTags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags])).slice(0, 3)
 
     parsed.tags = Array.from(new Set([fallbackPrimaryTag, ...inferredTemplateTags]))
     parsed.agents = (parsed.agents || []).map((agent: any) => ({
       ...agent,
+      skills: Array.from(new Set([
+        ...(Array.isArray(agent.skills) ? agent.skills : []),
+        ...(Array.isArray(agent.tools) ? agent.tools : []),
+      ])).filter(Boolean).slice(0, 4),
       tags: Array.from(new Set([
         fallbackPrimaryTag,
         ...(Array.isArray(agent.tags) ? agent.tags : []),
@@ -819,15 +1227,18 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     }
 
     const normalizedTeamName = String(parsed.name || 'Team').trim()
-    const allowMultipleCommunities =
-      (parsed.groups || []).length >= 7 ||
-      /\b(platform|ops|operations|customer|client|external|internal|partner|community-facing|field team|back office)\b/i.test(description)
+    const allowMultipleCommunities = shouldGenerateCompany
+      ? explicitMultiCommunityRequest
+      : (
+          (parsed.groups || []).length >= 7 ||
+          /\b(platform|ops|operations|customer|client|external|internal|partner|community-facing|field team|back office)\b/i.test(description)
+        )
 
     if (Array.isArray(parsed.communities) && parsed.communities.length > 1 && !allowMultipleCommunities) {
       parsed.communities = [
         {
           ...parsed.communities[0],
-          name: normalizedTeamName || parsed.communities[0]?.name || 'Team',
+          name: shouldGenerateCompany ? 'Company' : (normalizedTeamName || parsed.communities[0]?.name || 'Team'),
           description: parsed.communities[0]?.description || `Shared coordination space for ${normalizedTeamName || 'this team'}`,
           tags: Array.from(new Set([
             ...(Array.isArray(parsed.communities[0]?.tags) ? parsed.communities[0].tags : []),
@@ -906,15 +1317,21 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
     const fallbackCommunity = parsed.communities[0]?.name
     const fallbackGroup = parsed.groups[0]?.name
-    parsed.agents = (parsed.agents || []).map((agent: any) => ({
-      ...agent,
-      communities: Array.isArray(agent.communities) && agent.communities.length > 0
-        ? agent.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
-        : (fallbackCommunity ? [fallbackCommunity] : []),
-      groups: Array.isArray(agent.groups) && agent.groups.length > 0
-        ? agent.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
-        : (fallbackGroup ? [fallbackGroup] : []),
-    }))
+    const validCommunityNames = new Set((parsed.communities || []).map((community: any) => String(community?.name || '').trim()).filter(Boolean))
+    parsed.agents = (parsed.agents || []).map((agent: any) => {
+      const normalizedCommunities = Array.isArray(agent.communities) && agent.communities.length > 0
+        ? agent.communities
+          .map((communityName: string) => communityRenameMap.get(communityName) || communityName)
+          .filter((communityName: string) => validCommunityNames.has(communityName))
+        : []
+      return {
+        ...agent,
+        communities: normalizedCommunities.length > 0 ? normalizedCommunities : (fallbackCommunity ? [fallbackCommunity] : []),
+        groups: Array.isArray(agent.groups) && agent.groups.length > 0
+          ? agent.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
+          : (fallbackGroup ? [fallbackGroup] : []),
+      }
+    })
 
     const baseWorkflowTags = inferredTemplateTags.slice(0, 2)
     let sourceWorkflows = Array.isArray(parsed.workflows) ? parsed.workflows : []
@@ -978,7 +1395,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
     parsed.workflows = orderedWorkflows.map((workflow: any, idx: number, arr: any[]) => {
       const workflowCommunityTargets = workflow.targeting?.communities?.length
         ? workflow.targeting.communities.map((communityName: string) => communityRenameMap.get(communityName) || communityName)
-        : (fallbackCommunity ? [fallbackCommunity] : [])
+          .filter((communityName: string) => validCommunityNames.has(communityName))
+        : []
+      const normalizedWorkflowCommunityTargets = workflowCommunityTargets.length > 0 ? workflowCommunityTargets : (fallbackCommunity ? [fallbackCommunity] : [])
       const workflowGroupTargets = workflow.targeting?.groups?.length
         ? workflow.targeting.groups.map((groupName: string) => groupRenameMap.get(groupName) || groupName)
         : (fallbackGroup ? [fallbackGroup] : [])
@@ -988,39 +1407,37 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       const collaborationBlock = [
         '## Coordination',
         workflowGroupTargets.length > 0
-          ? `- Post progress updates and handoffs in group(s): ${workflowGroupTargets.join(', ')}.`
-          : '- Post progress updates and handoffs in the team group channel.',
-        workflowCommunityTargets.length > 0
-          ? `- Share broader status or stakeholder-facing updates in community(s): ${workflowCommunityTargets.join(', ')}.`
-          : '- Share broader status updates in the main team community.',
+          ? `- Post updates in: ${workflowGroupTargets.join(', ')}.`
+          : '- Post updates in the working group.',
+        normalizedWorkflowCommunityTargets.length > 0
+          ? `- Share major status in: ${normalizedWorkflowCommunityTargets.join(', ')}.`
+          : '- Share major status in the main community.',
       ].join('\n')
       const outputBlock = isFinal
         ? [
             '## Final Output',
-            '- Produce the final deliverable or explicitly confirm that it was completed.',
-            '- State where the final output was posted, saved, or shared.',
+            '- Produce the final markdown deliverable and state where it was saved or posted.',
           ].join('\n')
         : [
             '## Output',
-            '- Produce a concrete intermediate artifact such as a brief, draft, shortlist, checklist, report, or recommendation.',
-            '- Post a short summary of that artifact in the target group/community.',
+            '- Produce one concrete markdown handoff for the next workflow and post a short summary.',
           ].join('\n')
       const kickoffBlock = isKickoff
         ? [
             '## Kickoff',
-            '- Clarify goals, constraints, timing, and success criteria for this run.',
-            '- Assign initial work across the team and publish the kickoff plan in the team channels.',
+            '- Clarify goals, constraints, and success criteria.',
+            '- Publish a concise kickoff plan.',
           ].join('\n')
         : ''
       const scalingBlock = shouldScaleMiddleWork && isMiddle
         ? [
             '## Scaling',
-            '- This stage should support many items/assets/posts in parallel where appropriate.',
-            '- Split the work into batches or parallel lanes, keep progress visible in the working group, and consolidate the best results for the next step.',
+            '- Split the work into batches or parallel lanes where useful.',
+            '- Consolidate the best results for the next step.',
           ].join('\n')
         : ''
       const referenceBlock = promptContext
-        ? buildWorkflowReferenceBlock(description, { finalOnly: false, isFinal })
+        ? buildWorkflowReferenceBlock(description, { firstOnly: true, isFirst: isKickoff })
         : ''
       const contentSections = [workflow.content || '', kickoffBlock, collaborationBlock, outputBlock].filter(Boolean)
       if (scalingBlock) contentSections.splice(Math.max(contentSections.length - 1, 1), 0, scalingBlock)
@@ -1046,8 +1463,11 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
       return {
         ...workflow,
+        _sourceId: workflow.id,
+        _sourceName: workflow.name,
         id: normalizedId,
         name: normalizedName,
+        owner: workflow.owner || workflow.targeting?.agents?.[0] || undefined,
         scaling: isMiddle && shouldScaleMiddleWork ? 'parallel' : 'singleton',
         parallelism: isMiddle && shouldScaleMiddleWork
           ? Math.min(10, Math.max(2, Number(workflow.parallelism) || 3))
@@ -1062,7 +1482,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
                 : 'Execute the next stage of work and share progress.'
         ),
         targeting: {
-          communities: workflowCommunityTargets,
+          communities: normalizedWorkflowCommunityTargets,
           groups: workflowGroupTargets,
           agents: workflow.targeting?.agents || [],
           tags: Array.from(new Set([
@@ -1074,6 +1494,133 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
         content: contentSections.join('\n\n'),
       }
     })
+
+    if (shouldGenerateCompany) {
+      parsed.workflows = enforceVisibleCompanyWorkflowChain(parsed.workflows)
+    }
+    parsed.workflows = normalizeGeneratedWorkflowReferences(parsed.workflows)
+    parsed.workflows = applyGeneratedWorkflowHandoffs(parsed.workflows)
+
+    if (shouldGenerateCompany) {
+      const leadershipRegex = /\b(lead|head|director|manager|founder|ceo|chief|owner)\b/i
+      const leadAgents = (parsed.agents || []).filter((agent: any) => leadershipRegex.test(`${agent.role || ''} ${(agent.tags || []).join(' ')}`))
+      const leadershipLead = leadAgents[0] || parsed.agents?.[0]
+      const uniqueGroups: string[] = Array.from(
+        new Set<string>(
+          (parsed.groups || [])
+            .map((group: any) => String(group?.name || '').trim())
+            .filter((name: string) => Boolean(name))
+        )
+      )
+      const operationalGroups = uniqueGroups
+        .filter((name) => !/^status$/i.test(name))
+        .filter((name) => !/^leadership$/i.test(String(name).trim()))
+        .slice(0, 4)
+      const generatedTeams: any[] = []
+      const companyRootId = slugifyGeneratedTemplateValue(parsed.name || 'company', 'company-root')
+
+      if (leadershipLead) {
+        generatedTeams.push({
+          id: companyRootId,
+          name: parsed.name || 'Company',
+          purpose: shouldBiasRevenue ? 'Root company team for revenue leadership and operating lanes.' : 'Root company team for leadership and operating lanes.',
+          leaderAgentId: leadershipLead.id,
+          memberAgentIds: [],
+          tags: ['company', 'org-root'],
+        })
+        generatedTeams.push({
+          id: 'leadership',
+          name: 'Leadership',
+          purpose: shouldBiasRevenue ? 'Set company direction, revenue goals, and operating priorities.' : 'Set company direction and operating priorities.',
+          leaderAgentId: leadershipLead.id,
+          memberAgentIds: leadAgents.slice(1, 3).map((agent: any) => agent.id),
+          parentTeamId: companyRootId,
+          tags: shouldBiasRevenue ? ['leadership', 'revenue'] : ['leadership'],
+        })
+      }
+
+      for (const groupName of operationalGroups) {
+        const normalizedGroupName = String(groupName)
+        const groupMembers = (parsed.agents || []).filter((agent: any) => (agent.groups || []).includes(normalizedGroupName))
+        const teamLead = groupMembers.find((agent: any) => leadershipRegex.test(`${agent.role || ''} ${(agent.tags || []).join(' ')}`)) || groupMembers[0]
+        generatedTeams.push({
+          id: slugifyGeneratedTemplateValue(normalizedGroupName, 'team'),
+          name: humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName),
+          purpose: shouldBiasRevenue
+            ? `Own ${humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName).toLowerCase()} execution tied to company revenue.`
+            : `Own ${humanizeGeneratedChannelName(normalizedGroupName, normalizedGroupName).toLowerCase()} execution for the company.`,
+          leaderAgentId: teamLead?.id,
+          memberAgentIds: groupMembers.filter((agent: any) => agent.id !== teamLead?.id).map((agent: any) => agent.id),
+          parentTeamId: leadershipLead ? 'leadership' : undefined,
+          tags: [slugifyGeneratedTemplateValue(normalizedGroupName, 'team')],
+        })
+      }
+
+      if (generatedTeams.length >= 3) {
+        const nestedParent = generatedTeams.find((team) => /\b(delivery|service|operations|engineering|product)\b/i.test(team.id))
+        if (nestedParent) {
+          generatedTeams.push({
+            id: `${nestedParent.id}-execution`,
+            name: `${nestedParent.name} Execution`,
+            purpose: `Break ${nestedParent.name.toLowerCase()} work into execution lanes and milestones.`,
+            leaderAgentId: nestedParent.leaderAgentId,
+            memberAgentIds: [],
+            parentTeamId: nestedParent.id,
+            tags: ['execution'],
+          })
+        }
+      }
+
+      if (generatedTeams.length > 0) {
+        parsed.teams = ensureGeneratedCompanyRoot(generatedTeams, parsed.name || 'Company', shouldBiasRevenue)
+      }
+    }
+
+    if (shouldBiasRevenue && Array.isArray(parsed.workflows) && parsed.workflows.length > 0) {
+      const fallbackOutputKeys = ['strategy-brief', 'offer-and-icp', 'pipeline-plan', 'revenue-summary']
+      const fallbackOutputLabels = ['Strategy Brief', 'Offer & ICP', 'Pipeline Plan', 'Revenue Summary']
+      parsed.workflows = parsed.workflows.map((workflow: any, idx: number, arr: any[]) => {
+        const previous = arr[idx - 1]
+        const existingOutputDefinitions = Array.isArray(workflow.outputDefinitions) ? workflow.outputDefinitions : []
+        const existingInputRefs = Array.isArray(workflow.inputRefs) ? workflow.inputRefs : []
+        const extraSections = [
+          idx === 0 ? '## Revenue Goal\n- Define the commercial goal, buyer, pricing logic, and the fastest credible path to revenue.' : '',
+          idx > 0 && idx < arr.length - 1 ? '## Commercial Handoff\n- Use the upstream artifact as required input. Convert it into the next commercially useful asset and post the handoff summary visibly.' : '',
+          idx === arr.length - 1 ? '## Revenue Check\n- State what revenue-oriented outputs were produced, what is ready to ship or sell, and the top next actions to move toward real customers or revenue.' : '',
+        ].filter(Boolean)
+
+        return {
+          ...workflow,
+          outputDefinitions: existingOutputDefinitions.length > 0 ? existingOutputDefinitions : [
+            {
+              key: fallbackOutputKeys[Math.min(idx, fallbackOutputKeys.length - 1)],
+              label: fallbackOutputLabels[Math.min(idx, fallbackOutputLabels.length - 1)],
+              type: 'markdown',
+            },
+          ],
+          inputRefs: idx > 0
+            ? (existingInputRefs.length > 0 ? existingInputRefs : [
+                {
+                  workflowId: previous.id,
+                  outputKey: previous.outputDefinitions?.[0]?.key || fallbackOutputKeys[Math.min(idx - 1, fallbackOutputKeys.length - 1)],
+                  label: previous.outputDefinitions?.[0]?.label || fallbackOutputLabels[Math.min(idx - 1, fallbackOutputLabels.length - 1)],
+                  required: true,
+                },
+              ])
+            : existingInputRefs,
+          content: [workflow.content || '', ...extraSections].filter(Boolean).join('\n\n'),
+        }
+      })
+      parsed.workflows = enforceVisibleCompanyWorkflowChain(parsed.workflows)
+      parsed.workflows = normalizeGeneratedWorkflowReferences(parsed.workflows)
+      parsed.workflows = applyGeneratedWorkflowHandoffs(parsed.workflows)
+    }
+
+    if (shouldGenerateCompany && Array.isArray(parsed.teams) && parsed.teams.length > 0) {
+      parsed.workflows = applyCompanyWorkflowExecutionDefaults(parsed.workflows, parsed.teams, parsed.groups)
+      parsed.workflows = normalizeGeneratedWorkflowReferences(parsed.workflows)
+      parsed.workflows = applyGeneratedWorkflowHandoffs(parsed.workflows)
+    }
 
     if (!Array.isArray(parsed.parameters) || parsed.parameters.length === 0) {
       parsed.parameters = buildScalableTeamParameters(parsed.agents || [], shouldScaleMiddleWork)

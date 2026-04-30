@@ -270,6 +270,40 @@ function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<
   }
 }
 
+const METERING_FETCH_ERROR_LOG_WINDOW_MS = 60_000
+let meteringFetchFailureState: {
+  message: string
+  loggedAt: number
+  suppressedCount: number
+} | null = null
+
+function clearMeteringFetchFailureState() {
+  meteringFetchFailureState = null
+}
+
+export function recordMeteringFetchFailure(message: string, now: number = Date.now()): string | null {
+  const previous = meteringFetchFailureState
+  if (!previous) {
+    meteringFetchFailureState = { message, loggedAt: now, suppressedCount: 0 }
+    return message
+  }
+
+  if (previous.message !== message || now - previous.loggedAt >= METERING_FETCH_ERROR_LOG_WINDOW_MS) {
+    const suffix = previous.suppressedCount > 0 && previous.message === message
+      ? ` (suppressed ${previous.suppressedCount} similar failures)`
+      : ''
+    meteringFetchFailureState = { message, loggedAt: now, suppressedCount: 0 }
+    return `${message}${suffix}`
+  }
+
+  previous.suppressedCount += 1
+  return null
+}
+
+export function resetMeteringFetchFailureStateForTests() {
+  clearMeteringFetchFailureState()
+}
+
 function fetchOpikTraces(projectName: string, size: number = 100): Promise<TraceData[]> {
   const config = getOpikConfig()
   if (!config.apiKey) return Promise.resolve([])
@@ -290,14 +324,19 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data)
+          clearMeteringFetchFailureState()
           resolve(parsed.content || [])
         } catch {
+          clearMeteringFetchFailureState()
           resolve([])
         }
       })
     })
     req.on('error', (err) => {
-      console.error('[Metering] Failed to fetch traces:', err.message)
+      const message = recordMeteringFetchFailure(err.message)
+      if (message) {
+        console.warn('[Metering] Failed to fetch traces:', message)
+      }
       resolve([])
     })
     req.end()

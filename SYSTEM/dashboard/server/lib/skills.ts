@@ -409,9 +409,20 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
       throw new Error(`Agent ${agentId} not found in openclaw.json`)
     }
 
+    const normalizedSkillIds = Array.from(new Set(skillIds))
+    const existingSkills = config.agents.list[agentIndex].skills
+    const currentSkills: string[] = Array.isArray(existingSkills)
+      ? [...existingSkills]
+      : []
+    const unchanged = currentSkills.length === normalizedSkillIds.length
+      && currentSkills.every((skillId: string, index: number) => skillId === normalizedSkillIds[index])
+    if (unchanged) {
+      return
+    }
+
     config.agents.list[agentIndex] = {
       ...config.agents.list[agentIndex],
-      skills: skillIds,
+      skills: normalizedSkillIds,
     }
 
     // Stamp metadata (critical for OpenClaw compatibility)
@@ -620,7 +631,10 @@ function loadOpenClawConfig(): OpenClawConfig {
  * - Audit logging
  */
 function saveOpenClawConfig(config: OpenClawConfig): void {
-  console.warn('⚠️  saveOpenClawConfig() is deprecated - use Gateway RPC instead')
+  if (!saveOpenClawConfigDeprecationWarned) {
+    console.warn('⚠️  saveOpenClawConfig() is deprecated - use Gateway RPC instead')
+    saveOpenClawConfigDeprecationWarned = true
+  }
   try {
     // Create backup before saving
     const backupPath = `${OPENCLAW_CONFIG_PATH}.bak`
@@ -628,12 +642,18 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
 
     writeDashboardManagedOpenClawConfig(OPENCLAW_CONFIG_PATH, config, 'setAgentSkills')
 
-    console.log('Successfully saved openclaw.json (DEPRECATED PATH)')
+    if (!saveOpenClawConfigDeprecatedPathLogged) {
+      console.log('Successfully saved openclaw.json (DEPRECATED PATH)')
+      saveOpenClawConfigDeprecatedPathLogged = true
+    }
   } catch (err) {
     console.error('Error saving openclaw.json:', err)
     throw new Error('Failed to save openclaw.json')
   }
 }
+
+let saveOpenClawConfigDeprecationWarned = false
+let saveOpenClawConfigDeprecatedPathLogged = false
 
 // ============================================================================
 // Workspace Custom Skills Management
