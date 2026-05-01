@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -356,7 +356,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         body: JSON.stringify({
           content: userMessage,
           mentions: mentionedAgents.map(a => a.id),
-          byok: readStoredByokKeys(),
+          byok: byokForRequest(),
         }),
       })
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
-import { readStoredByokKeys, hasAiGenerationAccess } from '../lib/byok'
+import { byokForRequest, readStoredByokKeys, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
@@ -533,7 +533,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         manual: true,
-        byok: readStoredByokKeys(),
+        byok: byokForRequest(),
         secrets,
         inputs: options?.inputs,
       }),

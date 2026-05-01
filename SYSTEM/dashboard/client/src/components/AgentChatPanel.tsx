@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -334,7 +334,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const r = await fetch(`/api/agents/${agentId}/chat/readiness`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ byok: readStoredByokKeys() }),
+        body: JSON.stringify({ byok: byokForRequest() }),
       })
       const data = await r.json().catch(() => ({}))
       if (r.ok && data.available !== false) {
@@ -439,7 +439,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend, sessionId, byok: readStoredByokKeys() }),
+        body: JSON.stringify({ message: textToSend, sessionId, byok: byokForRequest() }),
         signal: abortControllerRef.current.signal
       })
 

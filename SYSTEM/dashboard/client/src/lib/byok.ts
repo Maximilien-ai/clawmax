@@ -19,6 +19,13 @@ export interface StoredByokKeys {
   partnerValues?: Record<string, Record<string, string>>
 }
 
+export interface ByokRequestPayload {
+  openai?: string
+  anthropic?: string
+  gemini?: string
+  ollamaBaseUrl?: string
+}
+
 interface AiExecutionConfig {
   allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
@@ -84,6 +91,17 @@ export function writeStoredByokKeys(keys: StoredByokKeys) {
   }
 }
 
+/** Translate browser storage shape into the request shape expected by server routes. */
+export function byokForRequest(): ByokRequestPayload {
+  const keys = readStoredByokKeys()
+  return {
+    openai: keys.openai,
+    anthropic: keys.anthropic,
+    gemini: keys.geminiApiKey,
+    ollamaBaseUrl: keys.ollamaBaseUrl,
+  }
+}
+
 /** Check if any LLM API keys are available (BYOK, system, or user defaults) */
 export function hasAnyLLMKeys(config?: { systemKeyDefaults?: { openai?: boolean; anthropic?: boolean }; userKeyDefaults?: { openai?: boolean; anthropic?: boolean } }): boolean {
   const byok = readStoredByokKeys()
@@ -142,11 +160,10 @@ export async function fetchModelsWithByok(): Promise<{ models: string[]; modelsB
 
 /** Refresh models (clear cache) with BYOK keys */
 export async function refreshModelsWithByok(): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
-  const keys = readStoredByokKeys()
   const res = await fetch('/api/agents/models/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ openai: keys.openai, anthropic: keys.anthropic, gemini: keys.geminiApiKey, ollamaBaseUrl: keys.ollamaBaseUrl }),
+    body: JSON.stringify(byokForRequest()),
   })
   if (!res.ok) throw new Error('Failed to refresh models')
   return res.json()
