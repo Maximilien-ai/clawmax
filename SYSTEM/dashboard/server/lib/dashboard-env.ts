@@ -6,6 +6,7 @@ export interface ProviderKeys {
   openai?: string
   anthropic?: string
   gemini?: string
+  ollamaBaseUrl?: string
 }
 
 export interface MaintenanceBannerConfig {

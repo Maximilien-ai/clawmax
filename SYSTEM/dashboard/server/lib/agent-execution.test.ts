@@ -413,6 +413,73 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama 
   assert(restoredConfig === beforeConfig, 'Expected openclaw.json restored after temporary Ollama override')
 })
 
+test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provider config', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-ollama', workspace: path.join(home, 'workspace', 'AGENTS', 'test-ollama'), agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test-ollama', { ollamaBaseUrl: 'http://127.0.0.1:11434/' }, 'ollama/qwen2.5:latest', 'ollama', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert(currentConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected temporary Ollama base URL injected')
+    assert(currentConfig.models.providers.ollama.api === 'ollama', 'Expected temporary Ollama api marker injected')
+    assert(currentConfig.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected model to remain intact during Ollama execution')
+  })
+
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary Ollama provider config removed after execution')
+})
+
+test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        ollama: {
+          api: 'ollama',
+          baseUrl: 'http://old-host:11434',
+          headers: {
+            'X-Test': 'keep-me'
+          }
+        }
+      }
+    },
+    agents: {
+      list: [
+        { id: 'test-ollama', workspace: path.join(home, 'workspace', 'AGENTS', 'test-ollama'), agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test-ollama', { ollamaBaseUrl: 'http://127.0.0.1:11434' }, 'ollama/qwen2.5:latest', 'ollama', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert(currentConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected temporary Ollama base URL override')
+    assert(currentConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected existing Ollama provider fields preserved during override')
+  })
+
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(restoredConfig.models.providers.ollama.baseUrl === 'http://old-host:11434', 'Expected prior Ollama base URL restored')
+  assert(restoredConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected prior Ollama provider fields restored')
+})
+
 test('withTemporaryAgentAuthProfiles resets stale main sessions when the configured model changes', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const sessionsDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'sessions')

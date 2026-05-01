@@ -20,6 +20,16 @@ interface AuthProfileFile {
   usageStats?: Record<string, any>
 }
 
+interface OpenClawConfigFile {
+  models?: {
+    providers?: Record<string, any>
+  }
+  agents?: {
+    list?: Array<Record<string, any>>
+  }
+  [key: string]: any
+}
+
 type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
@@ -188,6 +198,18 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
   }
 }
 
+function readOpenClawConfigFile(configPath: string): OpenClawConfigFile {
+  return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+}
+
+function writeOpenClawConfigFile(configPath: string, config: OpenClawConfigFile) {
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
+function cloneJsonValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
+}
+
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
@@ -249,6 +271,54 @@ export async function withTemporaryAgentAuthProfiles<T>(
       throw new Error(restore.error || `Failed to restore model override for ${agentId}`)
     }
   }
+  const readCurrentOllamaProviderConfig = () => {
+    if (!hadConfig) return { exists: false, config: undefined as Record<string, any> | undefined }
+    const config = readOpenClawConfigFile(configPath)
+    const providerConfig = config.models?.providers?.ollama
+    return {
+      exists: Object.prototype.hasOwnProperty.call(config.models?.providers || {}, 'ollama'),
+      config: providerConfig && typeof providerConfig === 'object' ? cloneJsonValue(providerConfig) : providerConfig,
+    }
+  }
+  const applyOllamaProviderConfig = (baseUrl?: string) => {
+    if (!hadConfig) return false
+    const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, '')
+    const config = readOpenClawConfigFile(configPath)
+    const providers = config.models?.providers || {}
+    const previousProviderConfig = providers.ollama
+    const nextProviderConfig = previousProviderConfig && typeof previousProviderConfig === 'object'
+      ? cloneJsonValue(previousProviderConfig)
+      : {}
+    if (normalizedBaseUrl) {
+      nextProviderConfig.baseUrl = normalizedBaseUrl
+    }
+    if (!nextProviderConfig.api) {
+      nextProviderConfig.api = 'ollama'
+    }
+    config.models = config.models || {}
+    config.models.providers = providers
+    config.models.providers.ollama = nextProviderConfig
+    writeOpenClawConfigFile(configPath, config)
+    return true
+  }
+  const restoreOllamaProviderConfig = (previous: { exists: boolean; config?: Record<string, any> }) => {
+    if (!hadConfig) return
+    const config = readOpenClawConfigFile(configPath)
+    config.models = config.models || {}
+    config.models.providers = config.models.providers || {}
+    if (previous.exists) {
+      config.models.providers.ollama = previous.config
+    } else {
+      delete config.models.providers.ollama
+      if (Object.keys(config.models.providers).length === 0) {
+        delete config.models.providers
+      }
+      if (config.models && Object.keys(config.models).length === 0) {
+        delete config.models
+      }
+    }
+    writeOpenClawConfigFile(configPath, config)
+  }
 
   const runWithConfigMutationLock = async <R>(fn: () => R | Promise<R>): Promise<R> => {
     const previous = openClawConfigMutationLock
@@ -279,22 +349,42 @@ export async function withTemporaryAgentAuthProfiles<T>(
   if (preferredProvider === 'ollama') {
     const currentConfigModel = readCurrentModel()
     const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
+    const previousOllamaProvider = readCurrentOllamaProviderConfig()
+    const normalizedOllamaBaseUrl = providerKeys.ollamaBaseUrl?.trim().replace(/\/+$/, '')
     const shouldOverrideModel = Boolean(
       hadConfig &&
       preferredModel &&
       preferredModel !== previousModel
     )
+    const shouldInjectOllamaProvider = Boolean(
+      hadConfig &&
+      (
+        (normalizedOllamaBaseUrl && !previousOllamaProvider.exists) ||
+        (normalizedOllamaBaseUrl && previousOllamaProvider.config?.baseUrl !== normalizedOllamaBaseUrl) ||
+        (previousOllamaProvider.exists && !previousOllamaProvider.config?.api)
+      )
+    )
 
-    if (!shouldOverrideModel) {
+    if (!shouldOverrideModel && !shouldInjectOllamaProvider) {
       return await fn()
     }
 
     return await runWithConfigMutationLock(async () => {
-      applyModelOverride(preferredModel)
+      if (shouldInjectOllamaProvider) {
+        applyOllamaProviderConfig(normalizedOllamaBaseUrl)
+      }
+      if (shouldOverrideModel) {
+        applyModelOverride(preferredModel)
+      }
       try {
         return await fn()
       } finally {
-        restoreModelOverride(previousModel)
+        if (shouldOverrideModel) {
+          restoreModelOverride(previousModel)
+        }
+        if (shouldInjectOllamaProvider) {
+          restoreOllamaProviderConfig(previousOllamaProvider)
+        }
       }
     })
   }
