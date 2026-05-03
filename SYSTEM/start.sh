@@ -24,6 +24,14 @@ if [ -z "$CORS_ORIGIN" ]; then
   export CORS_ORIGIN="$FRONTEND_ORIGIN"
 fi
 
+# Default to auth bypass for local dev unless auth was explicitly configured.
+# This keeps `./SYSTEM/start.sh` friction-free while allowing callers to opt back
+# into GitHub OAuth or email OTP by setting env vars before launch.
+if [ -z "$DASHBOARD_AUTH_MODE" ] && [ -z "$BYPASS_OAUTH" ] && [ -z "$DASHBOARD_AUTH_DISABLED" ]; then
+  export DASHBOARD_AUTH_MODE="bypass"
+  export BYPASS_OAUTH="true"
+fi
+
 # Set workspace to WORKSPACES/default if not already set
 if [ -z "$OPENCLAW_WORKSPACE" ]; then
   export OPENCLAW_WORKSPACE="$REPO_ROOT/WORKSPACES/default"
