@@ -1363,20 +1363,28 @@ export function ByokWizard({
                   )}
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {providerChecks.map((provider) => (
-                      <div
+                      <button
                         key={provider.id}
-                        className={`rounded-lg border px-3 py-2 ${
+                        type="button"
+                        onClick={() => setModelTab(provider.id as ModelTab)}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                          modelTab === provider.id
+                            ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
+                            : ''
+                        }${
                           provider.available
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
                             : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
                         }`}
+                        aria-pressed={modelTab === provider.id}
+                        title={`Switch to ${provider.label} settings`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium">{provider.label}</span>
                           <span className="text-xs uppercase tracking-wide opacity-80">{provider.available ? 'available' : 'missing'}</span>
                         </div>
                         <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
