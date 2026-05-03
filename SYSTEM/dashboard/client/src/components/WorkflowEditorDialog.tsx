@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatAgentOptionLabel } from '../lib/agentLabels'
 
 interface AgentTargeting {
   communities: string[]
@@ -676,7 +677,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   <option value="">Select agent...</option>
                   {agents.map(agent => (
                     <option key={agent.id} value={agent.id}>
-                      {agent.name || agent.id}
+                      {formatAgentOptionLabel(agent)}
                     </option>
                   ))}
                 </select>
@@ -761,7 +762,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                             }}
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{agent.name || agent.id}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{formatAgentOptionLabel(agent)}</span>
                         </label>
                       ))
                     )}

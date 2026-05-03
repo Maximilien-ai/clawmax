@@ -24,8 +24,9 @@ import { OnboardingWizard } from './components/OnboardingWizard'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
+import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
 
-type Page = 'agents' | 'activity' | 'communication' | 'docs' | 'templates' | 'organizations' | 'workflows' | 'skills' | 'keys' | 'logs'
+type Page = DashboardPage
 
 interface SystemInfo {
   hostname: string
@@ -164,8 +165,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('agents')
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>(['agents']))
+  const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([pathToPage(window.location.pathname)]))
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -232,6 +233,28 @@ export default function App() {
       return next
     })
   }, [page])
+
+  useEffect(() => {
+    const canonicalPath = pageToPath(page)
+    if (window.location.pathname !== canonicalPath) {
+      window.history.pushState({}, '', canonicalPath)
+    }
+  }, [page])
+
+  useEffect(() => {
+    const initialPage = pathToPage(window.location.pathname)
+    const initialPath = pageToPath(initialPage)
+    if (window.location.pathname !== initialPath) {
+      window.history.replaceState({}, '', initialPath)
+    }
+
+    const handlePopState = () => {
+      setPage(pathToPage(window.location.pathname))
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   useEffect(() => {
     const load = () =>

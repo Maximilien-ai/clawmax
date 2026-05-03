@@ -421,6 +421,24 @@ else
   fail "Channel API helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Navigation helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/navigation.test.ts > /tmp/clawmax-navigation.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-navigation.out; then
+  navigation_count=$(grep "Tests passed:" /tmp/clawmax-navigation.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Navigation helper unit tests (${navigation_count:-?} tests)"
+else
+  fail "Navigation helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent label helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentLabels.test.ts > /tmp/clawmax-agent-labels.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-labels.out; then
+  agent_labels_count=$(grep "Tests passed:" /tmp/clawmax-agent-labels.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent label helper unit tests (${agent_labels_count:-?} tests)"
+else
+  fail "Agent label helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maintenanceBannerView.test.ts > /tmp/clawmax-maintenance-banner-view.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then
