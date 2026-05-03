@@ -1695,20 +1695,21 @@ export function triggerWorkflow(workflowId: string, options?: {
                 proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
                 proc.on('close', (code: number) => {
                   clearTimeout(timer)
-                  if (code !== 0 && !stdout) {
+                  const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
+                  if (code !== 0 && !payloadText) {
                     reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
                     innerResolve()
                     return
                   }
                   try {
-                    const result = JSON.parse(stdout)
+                    const result = JSON.parse(payloadText)
                     const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
                     // Extract meta for tracing
                     const meta = result?.result?.meta || result?.meta || {}
                     const agentMeta = meta.agentMeta || {}
                     resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
                   } catch {
-                    resolve({ text: stdout.trim(), meta: {}, durationMs: 0 } as any)
+                    resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
                   }
                   innerResolve()
                 })
@@ -2011,4 +2012,18 @@ export function getDAGStatus(): Array<{
       type: wf.type || 'recurring',
     }
   })
+}
+export function extractWorkflowAgentResultPayload(stdout: string, stderr: string): string {
+  const trimmedStdout = stdout.trim()
+  if (trimmedStdout) return trimmedStdout
+
+  const trimmedStderr = stderr.trim()
+  if (!trimmedStderr) return ''
+
+  const jsonObjectStart = trimmedStderr.indexOf('{')
+  const jsonArrayStart = trimmedStderr.indexOf('[')
+  const starts = [jsonObjectStart, jsonArrayStart].filter((index) => index >= 0)
+  if (starts.length === 0) return ''
+  const jsonStart = Math.min(...starts)
+  return trimmedStderr.slice(jsonStart).trim()
 }

@@ -403,6 +403,15 @@ else
   fail "Gateway diagnostics unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway RPC unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc.test.ts > /tmp/clawmax-gateway-rpc.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc.out; then
+  gateway_rpc_count=$(grep "Passed:" /tmp/clawmax-gateway-rpc.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Gateway RPC unit tests (${gateway_rpc_count:-?} tests)"
+else
+  fail "Gateway RPC unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Communication bulk actions unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/communicationBulkActions.test.ts > /tmp/clawmax-communication-bulk-actions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-communication-bulk-actions.out; then

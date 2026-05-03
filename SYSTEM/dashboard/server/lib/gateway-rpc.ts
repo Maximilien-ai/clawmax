@@ -14,26 +14,35 @@ interface GatewayConfig {
   }
 }
 
+function parseGatewayConfig(config: any): GatewayConfig | null {
+  const port = config?.gateway?.port
+  const token = config?.gateway?.auth?.token || config?.gateway?.remote?.token
+  if (!port || !token) {
+    return null
+  }
+
+  return {
+    port,
+    auth: {
+      mode: config?.gateway?.auth?.mode || 'token',
+      token,
+    },
+  }
+}
+
 function loadGatewayConfigFromDisk(): GatewayConfig | null {
   try {
     const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
     const content = fs.readFileSync(configPath, 'utf-8')
     const config = JSON.parse(content)
-
-    if (!config.gateway?.port || !config.gateway?.auth?.token) {
-      return null
-    }
-
-    return {
-      port: config.gateway.port,
-      auth: {
-        mode: config.gateway.auth.mode || 'token',
-        token: config.gateway.auth.token,
-      },
-    }
+    return parseGatewayConfig(config)
   } catch {
     return null
   }
+}
+
+export const __test = {
+  parseGatewayConfig,
 }
 
 interface RPCRequest {

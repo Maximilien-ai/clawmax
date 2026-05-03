@@ -39,6 +39,7 @@ import {
   deriveWorkflowExecutionOutputs,
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
+  extractWorkflowAgentResultPayload,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -89,6 +90,14 @@ test('validateCron returns human-readable description', () => {
   const result = validateCron('0 9 * * *')
   assert(result.humanReadable !== undefined, 'Should have humanReadable')
   assert(result.humanReadable!.toLowerCase().includes('9'), 'Should mention 9')
+})
+
+test('extractWorkflowAgentResultPayload falls back to stderr json when stdout is empty', () => {
+  const payload = extractWorkflowAgentResultPayload(
+    '',
+    'Gateway warning: embedded fallback engaged\n{"payloads":[{"text":"hello from stderr json"}]}'
+  )
+  assert(payload.includes('"hello from stderr json"'), `Expected stderr JSON payload, got ${payload}`)
 })
 
 // ============================================================================
