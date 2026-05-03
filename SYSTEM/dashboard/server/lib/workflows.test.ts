@@ -221,6 +221,7 @@ test('parseWorkflowMd parses valid markdown', () => {
 name: Test Parse
 description: Parse test
 schedule: "0 9 * * *"
+timezone: America/Los_Angeles
 executionMode: automated
 targeting:
   agents: [agent-1]
@@ -237,6 +238,7 @@ Do the thing.
   assert(wf !== null, 'Should parse')
   assert(wf!.name === 'Test Parse', 'Name should match')
   assert(wf!.schedule === '0 9 * * *', 'Schedule should match')
+  assert(wf!.timezone === 'America/Los_Angeles', 'Timezone should match')
   assert(wf!.content.includes('Do the thing'), 'Content should be body')
 })
 
@@ -253,6 +255,7 @@ test('workflowToMarkdown round-trips', () => {
 
   const parsed = parseWorkflowMd(md)
   assert(parsed?.name === wf.name, 'Round-trip name should match')
+  assert(parsed?.timezone === (wf.timezone || 'UTC'), 'Round-trip timezone should match')
 })
 
 // ============================================================================

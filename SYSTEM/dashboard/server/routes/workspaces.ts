@@ -93,7 +93,7 @@ router.put('/:id/activate', (req, res) => {
   try {
     const { id } = req.params
     workspaceManager.setActiveWorkspace(id)
-    syncAllWorkflows()
+    syncAllWorkflows({ syncCronRegistrations: true })
 
     res.json({ ok: true })
   } catch (err: any) {

@@ -7,6 +7,26 @@ const DAY_NAMES: Record<string, number> = {
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6
 }
 
+const WEEKDAY_PARTS: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+}
+
+const dateFormatterCache = new Map<string, Intl.DateTimeFormat>()
+
+type ZonedDateParts = {
+  minute: number
+  hour: number
+  dayOfMonth: number
+  month: number
+  dayOfWeek: number
+}
+
 type CronField = {
   any: boolean
   values: Set<number>
@@ -65,9 +85,48 @@ function parseCronField(
   return { any: false, values }
 }
 
-function matchesDay(date: Date, dayOfMonth: CronField, dayOfWeek: CronField): boolean {
-  const domMatch = dayOfMonth.any || dayOfMonth.values.has(date.getDate())
-  const dowMatch = dayOfWeek.any || dayOfWeek.values.has(date.getDay())
+function getDateFormatter(timezone: string): Intl.DateTimeFormat {
+  const cached = dateFormatterCache.get(timezone)
+  if (cached) return cached
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  })
+  dateFormatterCache.set(timezone, formatter)
+  return formatter
+}
+
+function normalizeCronTimezone(timezone?: string): string {
+  const normalized = `${timezone || ''}`.trim() || 'UTC'
+  try {
+    getDateFormatter(normalized).format(new Date())
+    return normalized
+  } catch {
+    return 'UTC'
+  }
+}
+
+function getZonedDateParts(date: Date, timezone: string): ZonedDateParts {
+  const parts = getDateFormatter(timezone).formatToParts(date)
+  const weekday = parts.find((part) => part.type === 'weekday')?.value?.slice(0, 3).toLowerCase() || 'sun'
+  return {
+    minute: Number(parts.find((part) => part.type === 'minute')?.value || 0),
+    hour: Number(parts.find((part) => part.type === 'hour')?.value || 0),
+    dayOfMonth: Number(parts.find((part) => part.type === 'day')?.value || 1),
+    month: Number(parts.find((part) => part.type === 'month')?.value || 1),
+    dayOfWeek: WEEKDAY_PARTS[weekday] ?? 0,
+  }
+}
+
+function matchesDay(dateParts: ZonedDateParts, dayOfMonth: CronField, dayOfWeek: CronField): boolean {
+  const domMatch = dayOfMonth.any || dayOfMonth.values.has(dateParts.dayOfMonth)
+  const dowMatch = dayOfWeek.any || dayOfWeek.values.has(dateParts.dayOfWeek)
 
   if (dayOfMonth.any && dayOfWeek.any) return true
   if (dayOfMonth.any) return dowMatch
@@ -75,13 +134,14 @@ function matchesDay(date: Date, dayOfMonth: CronField, dayOfWeek: CronField): bo
   return domMatch || dowMatch
 }
 
-export function getNextCronRun(cronExpression: string, fromDate = new Date()): Date | null {
+export function getNextCronRun(cronExpression: string, fromDate = new Date(), timezone = 'UTC'): Date | null {
   if (!cronExpression || cronExpression === 'manual') return null
 
   const parts = cronExpression.trim().split(/\s+/)
   if (parts.length !== 5) return null
 
   try {
+    const normalizedTimezone = normalizeCronTimezone(timezone)
     const minute = parseCronField(parts[0], 0, 59)
     const hour = parseCronField(parts[1], 0, 23)
     const dayOfMonth = parseCronField(parts[2], 1, 31)
@@ -94,11 +154,12 @@ export function getNextCronRun(cronExpression: string, fromDate = new Date()): D
 
     const maxIterations = 60 * 24 * 400
     for (let i = 0; i < maxIterations; i++) {
+      const zoned = getZonedDateParts(candidate, normalizedTimezone)
       if (
-        (minute.any || minute.values.has(candidate.getMinutes())) &&
-        (hour.any || hour.values.has(candidate.getHours())) &&
-        (month.any || month.values.has(candidate.getMonth() + 1)) &&
-        matchesDay(candidate, dayOfMonth, dayOfWeek)
+        (minute.any || minute.values.has(zoned.minute)) &&
+        (hour.any || hour.values.has(zoned.hour)) &&
+        (month.any || month.values.has(zoned.month)) &&
+        matchesDay(zoned, dayOfMonth, dayOfWeek)
       ) {
         return new Date(candidate)
       }
@@ -110,4 +171,3 @@ export function getNextCronRun(cronExpression: string, fromDate = new Date()): D
 
   return null
 }
-

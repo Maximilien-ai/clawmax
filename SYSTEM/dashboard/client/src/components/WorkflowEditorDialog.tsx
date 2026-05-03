@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
 
 interface AgentTargeting {
@@ -27,6 +27,7 @@ interface WorkflowFormData {
   name: string
   description: string
   schedule: string
+  timezone: string
   enabled: boolean
   executionMode: 'automated' | 'managed'
   owner?: string
@@ -69,11 +70,16 @@ interface WorkflowEditorDialogProps {
   mode: 'create' | 'edit'
 }
 
+function getBrowserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
 export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
   const [formData, setFormData] = useState<WorkflowFormData>({
     name: '',
     description: '',
     schedule: '0 9 * * *',
+    timezone: getBrowserTimezone(),
     enabled: true,
     executionMode: 'automated',
       targeting: {
@@ -122,6 +128,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     const saved = localStorage.getItem('recent-cron-expressions')
     return saved ? JSON.parse(saved) : []
   })
+  const timezoneOptions = useMemo(() => {
+    const browserTimezone = getBrowserTimezone()
+    const supported = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+    return Array.from(new Set([browserTimezone, 'UTC', ...supported]))
+  }, [])
 
   // Load available agents, communities, groups, and extract all tags
   useEffect(() => {
@@ -155,6 +166,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       name: '',
       description: '',
       schedule: '0 9 * * *',
+      timezone: getBrowserTimezone(),
       enabled: true,
       executionMode: 'automated',
       targeting: {
@@ -166,6 +178,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       },
       content: '',
       ...initialData,
+      timezone: initialData?.timezone || getBrowserTimezone(),
       targeting: {
         communities: initialData?.targeting?.communities || [],
         groups: initialData?.targeting?.groups || [],
@@ -222,7 +235,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       const r = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiCronInput.trim() })
+        body: JSON.stringify({ text: aiCronInput.trim(), tz: formData.timezone })
       })
       const data = await r.json()
       if (data.valid && data.cron) {
@@ -620,6 +633,28 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Format: minute hour day month weekday
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+                Timezone *
+              </label>
+              <input
+                type="text"
+                list="workflow-timezones"
+                value={formData.timezone}
+                onChange={e => setFormData({ ...formData, timezone: e.target.value || 'UTC' })}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-700 focus:ring-sky-500"
+                placeholder="America/Los_Angeles"
+              />
+              <datalist id="workflow-timezones">
+                {timezoneOptions.map((timezone) => (
+                  <option key={timezone} value={timezone} />
+                ))}
+              </datalist>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Cron schedules and next-run previews are evaluated in this IANA timezone.
               </p>
             </div>
 

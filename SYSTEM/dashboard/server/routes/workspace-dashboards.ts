@@ -466,7 +466,7 @@ router.get('/:token', async (req, res) => {
           schedule: workflow.schedule,
           targetingTeamIds: workflow.targeting?.teamIds || [],
           inputRefs: workflow.inputRefs || [],
-          nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
+          nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
           status: workflow.status || latest?.status || 'idle',
           latestExecution: latest ? {
             id: latest.id,

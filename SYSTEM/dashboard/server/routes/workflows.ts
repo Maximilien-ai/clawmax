@@ -13,6 +13,8 @@ import {
   completeWorkflow,
   getDAGStatus,
   parseWorkflowMd,
+  syncWorkflowToCron,
+  removeCronJob,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
@@ -21,6 +23,26 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
+
+function synchronizeWorkflowScheduling(workflowId: string): string[] {
+  const warnings: string[] = []
+  const workflow = getWorkflow(workflowId)
+  if (!workflow) return warnings
+
+  const participants = resolveParticipants(workflow, listAgents()).map((participant) => participant.agentId)
+  const syncResult = syncWorkflowToCron(workflow, participants)
+  if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
+    warnings.push(syncResult.error || 'Failed to sync workflow with gateway cron')
+  } else if ((workflow.cronJobId || undefined) !== syncResult.cronJobId) {
+    const persistResult = updateWorkflow(workflow.id, { cronJobId: syncResult.cronJobId })
+    if (!persistResult.success) {
+      warnings.push(persistResult.error || 'Failed to persist workflow cron registration')
+    }
+  }
+
+  syncAllWorkflows({ syncCronRegistrations: false })
+  return warnings
+}
 
 function getWorkflowExecutionsDir(): string {
   return require('path').join(getWorkspacePath(), 'WORKFLOWS', 'executions')
@@ -60,12 +82,12 @@ router.post('/import-md', (req, res) => {
  * Convert natural language to cron expression using AI
  */
 router.post('/generate-cron', (req, res) => {
-  const { text } = req.body
+  const { text, tz } = req.body
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' })
   }
 
-  generateCronFromText(text)
+  generateCronFromText(text, typeof tz === 'string' ? tz : undefined)
     .then(result => {
       if (result.error) {
         return res.status(500).json({ error: result.error })
@@ -135,7 +157,7 @@ router.get('/', (req, res) => {
         description: workflow.description,
         schedule: workflow.schedule,
         scheduleHuman: cronInfo.humanReadable || workflow.schedule,
-        nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
+        nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
         enabled: workflow.enabled,
         executionMode: workflow.executionMode,
         owner: workflow.owner,
@@ -197,7 +219,7 @@ router.get('/:id', (req, res) => {
     const response = {
       ...workflow,
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
-      nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule)?.toISOString() || null : null,
+      nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
       participantCount: participants.length,
       resolvedParticipants: participants.map(p => ({ id: p.agentId, name: p.agentName, reason: p.reason }))
     }
@@ -288,8 +310,8 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error, validationErrors: result.errors })
     }
 
-    syncAllWorkflows() // Update scheduler
-    res.status(201).json({ id: result.id, message: 'Workflow created successfully' })
+    const warnings = synchronizeWorkflowScheduling(result.id!)
+    res.status(201).json({ id: result.id, message: 'Workflow created successfully', warnings })
   } catch (error: any) {
     console.error('Error creating workflow:', error)
     res.status(500).json({ error: 'Failed to create workflow', message: error.message })
@@ -317,8 +339,8 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error, validationErrors: result.errors })
     }
 
-    syncAllWorkflows() // Update scheduler
-    res.json({ message: 'Workflow updated successfully' })
+    const warnings = synchronizeWorkflowScheduling(id)
+    res.json({ message: 'Workflow updated successfully', warnings })
   } catch (error: any) {
     console.error('Error updating workflow:', error)
     res.status(500).json({ error: 'Failed to update workflow', message: error.message })
@@ -337,6 +359,7 @@ router.delete('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
+    const existing = getWorkflow(id)
     const result = deleteWorkflow(id)
 
     if (!result.success) {
@@ -346,7 +369,10 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to delete workflow', details: result.error })
     }
 
-    syncAllWorkflows() // Update scheduler
+    if (existing?.cronJobId) {
+      removeCronJob(existing.cronJobId)
+    }
+    syncAllWorkflows({ syncCronRegistrations: false })
     res.json({ message: 'Workflow deleted successfully' })
   } catch (error: any) {
     console.error('Error deleting workflow:', error)

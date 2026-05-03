@@ -28,6 +28,11 @@
       "minLength": 1,
       "description": "Cron expression (e.g. '0 9 * * 1') or 'manual' for manual-only triggers"
     },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "description": "IANA timezone used to evaluate the workflow schedule, e.g. 'America/Los_Angeles'."
+    },
     "enabled": {
       "type": "boolean",
       "description": "Whether the workflow is active. Defaults to true."

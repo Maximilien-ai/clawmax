@@ -560,9 +560,18 @@ echo ""
 echo -e "${YELLOW}→ Running Cron next-run unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/cron-next-run.test.ts > /tmp/clawmax-cron-next-run.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-cron-next-run.out; then
-  pass "Cron next-run unit tests (5 tests)"
+  pass "Cron next-run unit tests (6 tests)"
 else
   fail "Cron next-run unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Scheduler unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/scheduler.test.ts > /tmp/clawmax-scheduler.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-scheduler.out; then
+  pass "Scheduler unit tests (2 tests)"
+else
+  fail "Scheduler unit tests"
 fi
 
 echo ""

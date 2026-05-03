@@ -46,6 +46,7 @@ export interface Workflow {
   name: string
   description: string
   schedule: string
+  timezone?: string
   enabled: boolean
   targeting: AgentTargeting
   created: string
@@ -721,6 +722,7 @@ export function parseWorkflowMd(content: string, id?: string): Workflow | null {
       name: data.name || id || '',
       description: data.description || '',
       schedule: data.schedule || 'manual',
+      timezone: data.timezone || 'UTC',
       enabled: data.enabled !== false,
       targeting: {
         communities: data.targeting?.communities || [],
@@ -759,6 +761,7 @@ export function workflowToMarkdown(workflow: Workflow): string {
     name: workflow.name,
     description: workflow.description,
     schedule: workflow.schedule,
+    timezone: workflow.timezone || 'UTC',
     enabled: workflow.enabled,
     targeting: workflow.targeting,
     created: workflow.created,
@@ -848,6 +851,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
       '--name', jobName,
       '--agent', agentId,
       '--cron', `"${workflow.schedule}"`,
+      '--tz', workflow.timezone || 'UTC',
       '--message', JSON.stringify(workflow.content).slice(0, 2000),
       ...(agentModel ? ['--model', agentModel] : []),
       '--no-deliver',
@@ -945,6 +949,7 @@ export function listWorkflowTemplates(): Workflow[] {
         name: data.name || path.basename(file, '.md'),
         description: data.description || '',
         schedule: data.schedule || '',
+        timezone: data.timezone || 'UTC',
         enabled: false, // Templates are disabled by default
         targeting: {
           communities: data.targeting?.communities || [],
@@ -989,6 +994,7 @@ export function getWorkflow(id: string): Workflow | null {
       name: data.name || '',
       description: data.description || '',
       schedule: data.schedule || '',
+      timezone: data.timezone || 'UTC',
       enabled: data.enabled !== false, // Default to true
       targeting: {
         communities: data.targeting?.communities || [],
@@ -1055,6 +1061,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       name,
       description,
       schedule,
+      timezone: data.timezone || 'UTC',
       enabled: data.enabled !== false,
       targeting: {
         communities: data.targeting?.communities || [],
@@ -1084,6 +1091,7 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       name: workflow.name,
       description: workflow.description,
       schedule: workflow.schedule,
+      timezone: workflow.timezone || 'UTC',
       enabled: workflow.enabled,
       targeting: workflow.targeting,
       created: workflow.created,
@@ -1151,6 +1159,7 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       name: updated.name,
       description: updated.description,
       schedule: updated.schedule,
+      timezone: updated.timezone || 'UTC',
       enabled: updated.enabled,
       targeting: updated.targeting,
       created: updated.created,

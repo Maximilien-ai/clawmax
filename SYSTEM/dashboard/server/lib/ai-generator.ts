@@ -1636,13 +1636,20 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
  * Convert natural language schedule description to a cron expression.
  * Returns the cron expression and a human-readable confirmation.
  */
-export async function generateCronFromText(text: string): Promise<{ cron: string; explanation: string; error?: string }> {
+export async function generateCronFromText(text: string, timezone?: string): Promise<{ cron: string; explanation: string; error?: string }> {
   const apiKey = resolveSystemExecutionProviderKeys().openai
   if (!apiKey || apiKey.trim() === '') {
     return { cron: '', explanation: '', error: 'No OpenAI API key configured' }
   }
 
   try {
+    const normalizedTimezone = `${timezone || ''}`.trim() || 'UTC'
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: normalizedTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
     const completion = await getSystemOpenAiClient().chat.completions.create({
       model: resolveModel('gpt-4o-mini'),
       messages: [
@@ -1657,6 +1664,8 @@ Rules:
 - If the request is impossible or nonsensical, set cron to "" and explain why in the explanation field
 - For "every N minutes" use */N in the minute field
 - For specific times, use 24-hour format
+- Interpret times in timezone ${normalizedTimezone}
+- Treat "today", "tomorrow", and similar relative dates relative to ${today} in timezone ${normalizedTimezone}
 - Examples: "every weekday at 9am" → "0 9 * * 1-5", "twice daily" → "0 9,17 * * *", "every 5 minutes" → "*/5 * * * *"`
         },
         {
