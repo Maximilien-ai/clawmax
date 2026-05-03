@@ -103,7 +103,7 @@ function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai/') || model.startsWith('gpt-') || model.startsWith('o1')) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
-  if (model.startsWith('gemini/') || model.startsWith('gemini-')) return 'gemini'
+  if (model.startsWith('gemini/') || model.startsWith('gemini-') || model.startsWith('google/')) return 'gemini'
   if (model.startsWith('ollama/') || model.includes(':')) return 'ollama'
   return null
 }
@@ -167,12 +167,12 @@ function normalizeSessionModel(model?: string): string | undefined {
   if (!model) return undefined
   const trimmed = model.trim()
   if (!trimmed) return undefined
-  if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('ollama/')) {
+  if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('google/') || trimmed.startsWith('ollama/')) {
     return trimmed
   }
   if (trimmed.startsWith('claude')) return `anthropic/${trimmed}`
   if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1')) return `openai/${trimmed}`
-  if (trimmed.startsWith('gemini-')) return `gemini/${trimmed}`
+  if (trimmed.startsWith('gemini-')) return `google/${trimmed}`
   if (trimmed.includes(':')) return `ollama/${trimmed}`
   return trimmed
 }
@@ -217,7 +217,7 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
   if (providerKeys.openai) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openai }
     // Set lastGood if this is preferred OR if it's the only key available
-    if (preferredProvider === 'openai' || !providerKeys.anthropic) {
+    if (preferredProvider === 'openai' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
       lastGood.openai = 'openai-key'
     }
   }
@@ -229,8 +229,10 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
   }
   if (providerKeys.gemini) {
     profiles['gemini-key'] = { type: 'api_key', provider: 'gemini', key: providerKeys.gemini }
+    profiles['google-key'] = { type: 'api_key', provider: 'google', key: providerKeys.gemini }
     if (preferredProvider === 'gemini' || (!providerKeys.openai && !providerKeys.anthropic)) {
       lastGood.gemini = 'gemini-key'
+      lastGood.google = 'google-key'
     }
   }
 

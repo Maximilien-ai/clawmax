@@ -98,6 +98,31 @@ test('resolveAgentExecutionConfig detects ollama provider from model', () => {
   assert(resolved.provider === 'ollama', 'Expected provider derived from Ollama model')
 })
 
+test('resolveAgentExecutionConfig detects google-prefixed Gemini provider from model', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-gemini')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-gemini', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** google/gemini-2.5-flash\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-gemini', workspace: agentWorkspace, agentDir, model: 'google/gemini-2.5-flash' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('test-gemini')
+  assert(resolved.model === 'google/gemini-2.5-flash', 'Expected Google Gemini model to resolve')
+  assert(resolved.provider === 'gemini', 'Expected provider derived from Google Gemini model')
+})
+
 test('resolveAgentExecutionConfig prefers the active workspace agent when ids collide across workspaces', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
@@ -278,6 +303,33 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   assert(restored.profiles['anthropic-key']?.key === 'stale-anthropic', 'Expected previous auth profile restored')
   assert(restored.lastGood?.anthropic === 'anthropic-key', 'Expected previous lastGood restored')
   assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
+})
+
+test('withTemporaryAgentAuthProfiles writes both gemini and google auth profiles for Gemini execution', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'openai-key', gemini: 'gemini-key' }, 'google/gemini-2.5-flash', 'gemini', async () => {
+    const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(current.profiles['gemini-key']?.provider === 'gemini', 'Expected gemini auth profile during execution')
+    assert(current.profiles['google-key']?.provider === 'google', 'Expected google auth profile during execution')
+    assert(current.lastGood?.google === 'google-key', 'Expected google provider selected as lastGood')
+    assert(!current.lastGood?.openai, 'Did not expect openai lastGood to override Gemini preference')
+  })
 })
 
 test('withTemporaryAgentAuthProfiles preserves gateway config fields during temporary model override', async () => {

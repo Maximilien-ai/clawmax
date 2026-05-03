@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/dashboard-env.test.ts
  */
 
-import { getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './dashboard-env'
+import { getBestAvailableModel, getCostEfficientModel, getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './dashboard-env'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -62,6 +62,11 @@ test('explicit DASHBOARD_ENABLE_OLLAMA=true enables Ollama UI even in managed ru
 
 test('explicit DASHBOARD_ENABLE_OLLAMA=false disables Ollama UI in local runtime', () => {
   assert(isOllamaUiEnabled({ DASHBOARD_PORT: '3001', DASHBOARD_ENABLE_OLLAMA: 'false' }) === false, 'Expected explicit false to disable Ollama UI')
+})
+
+test('Gemini defaults use google-prefixed model ids', () => {
+  assert(getBestAvailableModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed recommended Gemini model')
+  assert(getCostEfficientModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed cost-efficient Gemini model')
 })
 
 test('maintenance banner stays disabled by default when env is unset', () => {

@@ -76,10 +76,9 @@ const FALLBACK_OPENAI = [
 ]
 
 const FALLBACK_GEMINI = [
-  'gemini/gemini-2.5-pro',
-  'gemini/gemini-2.5-flash',
-  'gemini/gemini-2.5-flash-lite',
-  'gemini/gemini-2.0-flash',
+  'google/gemini-2.5-flash',
+  'google/gemini-2.5-flash-lite',
+  'google/gemini-2.0-flash',
 ]
 
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
@@ -180,7 +179,7 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
       .map((m) => m.name.replace(/^models\//, ''))
       .filter((id) => id.startsWith('gemini-') && !id.includes('embedding'))
       .sort()
-      .map((id) => `gemini/${id}`)
+      .map((id) => `google/${id}`)
 
     if (models.length === 0) return FALLBACK_GEMINI
     setCache('gemini', models)

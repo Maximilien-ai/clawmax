@@ -1536,9 +1536,9 @@ export function ByokWizard({
                             )}
                             {hasGeminiAvailable && (
                               <>
-                                <option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (best reasoning)</option>
-                                <option value="gemini/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
-                                <option value="gemini/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
+                                <option value="google/gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (best reasoning)</option>
+                                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
+                                <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
                               </>
                             )}
                             {ollamaEnabled && ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}

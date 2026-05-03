@@ -126,8 +126,8 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                   || models.find((m: string) => m.startsWith('openai/'))
                   || models[0]
               } else if (hasGeminiKey) {
-                defaultModel = models.find((m: string) => m === 'gemini/gemini-2.5-pro' || m === 'gemini/gemini-2.5-flash')
-                  || models.find((m: string) => m.startsWith('gemini/'))
+                defaultModel = models.find((m: string) => m === 'google/gemini-2.5-flash' || m === 'google/gemini-3.1-pro-preview')
+                  || models.find((m: string) => m.startsWith('google/'))
                   || models[0]
               } else if (hasAnthropicKey) {
                 defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
