@@ -18,7 +18,7 @@ import {
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
-import { generateCronFromText, generateWorkflowFromNL } from '../lib/ai-generator'
+import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
@@ -91,6 +91,14 @@ router.post('/generate-cron', (req, res) => {
     .then(result => {
       if (result.error) {
         return res.status(500).json({ error: result.error })
+      }
+
+      if (isOneTimeScheduleRequest(text)) {
+        return res.json({
+          cron: '',
+          explanation: result.explanation || explainOneTimeCronLimitation(),
+          valid: false,
+        })
       }
 
       // Validate the generated cron

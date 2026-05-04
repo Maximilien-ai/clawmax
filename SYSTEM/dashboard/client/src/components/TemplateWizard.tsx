@@ -833,13 +833,14 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const handleAiCronForWorkflow = async (idx: number) => {
     const workflow = state.workflows[idx]
     if (!workflow?.schedule.trim() || aiCronLoadingIndex !== null) return
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     setAiCronLoadingIndex(idx)
     setWorkflowCronHints(prev => ({ ...prev, [idx]: '' }))
     try {
       const resp = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: workflow.schedule.trim() }),
+        body: JSON.stringify({ text: workflow.schedule.trim(), tz: timezone }),
       })
       const data = await resp.json().catch(() => ({}))
       if (data.valid && data.cron) {

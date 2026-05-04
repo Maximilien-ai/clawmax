@@ -169,6 +169,15 @@ export function parseJsonResponse<T>(raw: string, fallback: T): T {
   }
 }
 
+export function isOneTimeScheduleRequest(text: string): boolean {
+  const normalized = `${text || ''}`.toLowerCase()
+  return /\b(just once|one time|one-time|only once|run once|single run)\b/.test(normalized)
+}
+
+export function explainOneTimeCronLimitation(): string {
+  return 'Cron expressions always repeat. A one-time run cannot be expressed as a cron schedule. Trigger the workflow manually instead.'
+}
+
 function slugifyGeneratedTemplateValue(value: string, fallback = 'workflow'): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback
 }
@@ -1637,6 +1646,13 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
  * Returns the cron expression and a human-readable confirmation.
  */
 export async function generateCronFromText(text: string, timezone?: string): Promise<{ cron: string; explanation: string; error?: string }> {
+  if (isOneTimeScheduleRequest(text)) {
+    return {
+      cron: '',
+      explanation: explainOneTimeCronLimitation(),
+    }
+  }
+
   const apiKey = resolveSystemExecutionProviderKeys().openai
   if (!apiKey || apiKey.trim() === '') {
     return { cron: '', explanation: '', error: 'No OpenAI API key configured' }
@@ -1662,6 +1678,8 @@ Rules:
 - Use standard 5-field cron syntax
 - If the request is ambiguous, pick the most reasonable interpretation
 - If the request is impossible or nonsensical, set cron to "" and explain why in the explanation field
+- Cron expressions ALWAYS repeat. If the user asks to run something just once, one time, only once, or a single time, you MUST set cron to "" and explain that one-time runs must be triggered manually.
+- Do NOT infer a recurring schedule from a one-time request.
 - For "every N minutes" use */N in the minute field
 - For specific times, use 24-hour format
 - Interpret times in timezone ${normalizedTimezone}

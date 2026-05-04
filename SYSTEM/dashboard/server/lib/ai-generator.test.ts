@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs, ensureGeneratedCompanyRoot, enforceVisibleCompanyWorkflowChain, extractJsonResponseText, normalizeGeneratedSkillScaffold, normalizeGeneratedWorkflowReferences, parseJsonResponse, shouldGenerateCompanyTemplate } from './ai-generator'
+import { applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs, ensureGeneratedCompanyRoot, enforceVisibleCompanyWorkflowChain, explainOneTimeCronLimitation, extractJsonResponseText, isOneTimeScheduleRequest, normalizeGeneratedSkillScaffold, normalizeGeneratedWorkflowReferences, parseJsonResponse, shouldGenerateCompanyTemplate } from './ai-generator'
 
 let passed = 0
 let failed = 0
@@ -34,6 +34,17 @@ test('parseJsonResponse returns fallback on invalid json', () => {
   const fallback = { cron: '', explanation: '' }
   const parsed = parseJsonResponse('not json at all', fallback)
   assert.deepStrictEqual(parsed, fallback)
+})
+
+test('isOneTimeScheduleRequest detects one-time cron requests', () => {
+  assert.strictEqual(isOneTimeScheduleRequest('Run it just once today at 4 pm'), true)
+  assert.strictEqual(isOneTimeScheduleRequest('one-time run tomorrow morning'), true)
+  assert.strictEqual(isOneTimeScheduleRequest('every weekday at 9am'), false)
+})
+
+test('explainOneTimeCronLimitation returns actionable guidance', () => {
+  assert.match(explainOneTimeCronLimitation(), /Cron expressions always repeat/i)
+  assert.match(explainOneTimeCronLimitation(), /manually/i)
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {
