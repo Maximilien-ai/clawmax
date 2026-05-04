@@ -59,6 +59,13 @@ function testTimezoneAwareNextRun() {
   assert.strictEqual(next!.toISOString(), '2026-03-23T16:00:00.000Z', 'Should resolve 9am Los Angeles correctly across UTC boundary')
 }
 
+function testRareAnnualNextRun() {
+  const from = new Date('2026-05-03T00:10:00Z')
+  const next = getNextCronRun('0 16 2 5 *', from, 'UTC')
+  assert.ok(next, 'Should return a date for annual schedule')
+  assert.strictEqual(next!.toISOString(), '2027-05-02T16:00:00.000Z', 'Should jump to the next annual occurrence')
+}
+
 function run() {
   testHourlyNextRun()
   testWeekdayNextRun()
@@ -66,6 +73,7 @@ function run() {
   testDisabledInvalidCronReturnsNull()
   testStepCron()
   testTimezoneAwareNextRun()
+  testRareAnnualNextRun()
   console.log('All tests passed')
 }
 

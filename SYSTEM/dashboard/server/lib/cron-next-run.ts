@@ -20,6 +20,7 @@ const WEEKDAY_PARTS: Record<string, number> = {
 const dateFormatterCache = new Map<string, Intl.DateTimeFormat>()
 
 type ZonedDateParts = {
+  year: number
   minute: number
   hour: number
   dayOfMonth: number
@@ -92,6 +93,7 @@ function getDateFormatter(timezone: string): Intl.DateTimeFormat {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     weekday: 'short',
+    year: 'numeric',
     month: 'numeric',
     day: 'numeric',
     hour: 'numeric',
@@ -116,12 +118,54 @@ function getZonedDateParts(date: Date, timezone: string): ZonedDateParts {
   const parts = getDateFormatter(timezone).formatToParts(date)
   const weekday = parts.find((part) => part.type === 'weekday')?.value?.slice(0, 3).toLowerCase() || 'sun'
   return {
+    year: Number(parts.find((part) => part.type === 'year')?.value || 1970),
     minute: Number(parts.find((part) => part.type === 'minute')?.value || 0),
     hour: Number(parts.find((part) => part.type === 'hour')?.value || 0),
     dayOfMonth: Number(parts.find((part) => part.type === 'day')?.value || 1),
     month: Number(parts.find((part) => part.type === 'month')?.value || 1),
     dayOfWeek: WEEKDAY_PARTS[weekday] ?? 0,
   }
+}
+
+function findNextValue(field: CronField, current: number): number | null {
+  if (field.any) return current
+  const sortedValues = Array.from(field.values).sort((a, b) => a - b)
+  for (const value of sortedValues) {
+    if (value >= current) return value
+  }
+  return null
+}
+
+function buildUtcCalendarDate(year: number, month: number, dayOfMonth: number): ZonedDateParts {
+  const date = new Date(Date.UTC(year, month - 1, dayOfMonth, 0, 0, 0, 0))
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    dayOfMonth: date.getUTCDate(),
+    hour: 0,
+    minute: 0,
+    dayOfWeek: 0,
+  }
+}
+
+function addCalendarDays(dateParts: ZonedDateParts, days: number): ZonedDateParts {
+  return buildUtcCalendarDate(dateParts.year, dateParts.month, dateParts.dayOfMonth + days)
+}
+
+function toUtcFromZonedParts(
+  target: Pick<ZonedDateParts, 'year' | 'month' | 'dayOfMonth' | 'hour' | 'minute'>,
+  timezone: string
+): Date {
+  let utcMillis = Date.UTC(target.year, target.month - 1, target.dayOfMonth, target.hour, target.minute, 0, 0)
+  for (let i = 0; i < 6; i += 1) {
+    const actual = getZonedDateParts(new Date(utcMillis), timezone)
+    const actualAsUtc = Date.UTC(actual.year, actual.month - 1, actual.dayOfMonth, actual.hour, actual.minute, 0, 0)
+    const targetAsUtc = Date.UTC(target.year, target.month - 1, target.dayOfMonth, target.hour, target.minute, 0, 0)
+    const diff = targetAsUtc - actualAsUtc
+    if (diff === 0) break
+    utcMillis += diff
+  }
+  return new Date(utcMillis)
 }
 
 function matchesDay(dateParts: ZonedDateParts, dayOfMonth: CronField, dayOfWeek: CronField): boolean {
@@ -155,10 +199,87 @@ export function getNextCronRun(cronExpression: string, fromDate = new Date(), ti
     const maxIterations = 60 * 24 * 400
     for (let i = 0; i < maxIterations; i++) {
       const zoned = getZonedDateParts(candidate, normalizedTimezone)
+      if (!month.any && !month.values.has(zoned.month)) {
+        const nextMonth = findNextValue(month, zoned.month + 1)
+        const targetMonth = nextMonth ?? findNextValue(month, 1)
+        if (targetMonth == null) return null
+        const targetYear = nextMonth != null ? zoned.year : zoned.year + 1
+        candidate.setTime(toUtcFromZonedParts({
+          year: targetYear,
+          month: targetMonth,
+          dayOfMonth: 1,
+          hour: 0,
+          minute: 0,
+        }, normalizedTimezone).getTime())
+        continue
+      }
+
+      if (!matchesDay(zoned, dayOfMonth, dayOfWeek)) {
+        const nextDay = addCalendarDays(zoned, 1)
+        candidate.setTime(toUtcFromZonedParts({
+          year: nextDay.year,
+          month: nextDay.month,
+          dayOfMonth: nextDay.dayOfMonth,
+          hour: 0,
+          minute: 0,
+        }, normalizedTimezone).getTime())
+        continue
+      }
+
+      if (!hour.any && !hour.values.has(zoned.hour)) {
+        const nextHour = findNextValue(hour, zoned.hour + 1)
+        if (nextHour != null) {
+          candidate.setTime(toUtcFromZonedParts({
+            year: zoned.year,
+            month: zoned.month,
+            dayOfMonth: zoned.dayOfMonth,
+            hour: nextHour,
+            minute: 0,
+          }, normalizedTimezone).getTime())
+          continue
+        }
+
+        const nextDay = addCalendarDays(zoned, 1)
+        const firstHour = findNextValue(hour, 0)
+        if (firstHour == null) return null
+        candidate.setTime(toUtcFromZonedParts({
+          year: nextDay.year,
+          month: nextDay.month,
+          dayOfMonth: nextDay.dayOfMonth,
+          hour: firstHour,
+          minute: 0,
+        }, normalizedTimezone).getTime())
+        continue
+      }
+
+      if (!minute.any && !minute.values.has(zoned.minute)) {
+        const nextMinute = findNextValue(minute, zoned.minute + 1)
+        if (nextMinute != null) {
+          candidate.setTime(toUtcFromZonedParts({
+            year: zoned.year,
+            month: zoned.month,
+            dayOfMonth: zoned.dayOfMonth,
+            hour: zoned.hour,
+            minute: nextMinute,
+          }, normalizedTimezone).getTime())
+          continue
+        }
+
+        const nextHour = addCalendarDays(zoned, zoned.hour >= 23 ? 1 : 0)
+        const wrappedHour = zoned.hour >= 23 ? 0 : zoned.hour + 1
+        const firstMinute = findNextValue(minute, 0)
+        if (firstMinute == null) return null
+        candidate.setTime(toUtcFromZonedParts({
+          year: nextHour.year,
+          month: nextHour.month,
+          dayOfMonth: nextHour.dayOfMonth,
+          hour: wrappedHour,
+          minute: firstMinute,
+        }, normalizedTimezone).getTime())
+        continue
+      }
+
       if (
-        (minute.any || minute.values.has(zoned.minute)) &&
-        (hour.any || hour.values.has(zoned.hour)) &&
-        (month.any || month.values.has(zoned.month)) &&
         matchesDay(zoned, dayOfMonth, dayOfWeek)
       ) {
         return new Date(candidate)
