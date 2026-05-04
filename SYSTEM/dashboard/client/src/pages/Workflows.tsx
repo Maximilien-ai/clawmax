@@ -105,6 +105,9 @@ interface StructuredWorkflowInputField {
 }
 
 const RUN_INSTRUCTIONS_KEY = 'Run Instructions'
+const WORKFLOW_POLL_INTERVAL_MS = 30000
+const WORKFLOW_ACTIVE_POLL_INTERVAL_MS = 10000
+const WORKFLOW_EXECUTION_POLL_INTERVAL_MS = 10000
 
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
 type WorkflowHealthState = 'running' | 'enabled' | 'failed' | 'paused' | 'disabled'
@@ -476,17 +479,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }).catch(() => {})
   }, [isActive, workflows.length, agentCosts, costTrackingEnabled])
 
-  // Auto-refresh in DAG view (10s silent polling for live progress)
-  useEffect(() => {
-    if (!isActive) return
-    if (viewMode !== 'dag') return
-    const interval = setInterval(() => {
-      if (document.visibilityState !== 'visible') return
-      fetchWorkflows(true)
-    }, 15000)
-    return () => clearInterval(interval)
-  }, [isActive, viewMode, rateLimitedUntil])
-
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
   const selectedWorkflowRef = useRef(selectedWorkflow)
@@ -699,10 +691,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     ? summarizeSecretReadiness(triggeringWorkflow.secretRequirements || [], workflowSecrets)
     : null
 
-  // Lightweight polling for running workflow status while on the workflows page.
+  // Consolidated polling for workflow list / DAG freshness while on the workflows page.
   useEffect(() => {
     if (!isActive) return
-    const checkRunningWorkflows = async () => {
+    const pollWorkflows = async () => {
       if (document.visibilityState !== 'visible') return
       if (Date.now() < rateLimitedUntil) return
       try {
@@ -722,15 +714,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         setWorkflows(nextWorkflows)
         setRunningWorkflows(running)
       } catch (err) {
-        console.error('Error checking running workflows:', err)
+        console.error('Error polling workflows:', err)
       }
     }
 
-    checkRunningWorkflows()
-    const interval = setInterval(checkRunningWorkflows, 15000)
+    pollWorkflows()
+    const intervalMs = (viewMode === 'dag' || runningWorkflows.size > 0)
+      ? WORKFLOW_ACTIVE_POLL_INTERVAL_MS
+      : WORKFLOW_POLL_INTERVAL_MS
+    const interval = setInterval(pollWorkflows, intervalMs)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, rateLimitedUntil, markRateLimited])
+  }, [isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size])
 
   // Handle initialWorkflowId
   useEffect(() => {
@@ -799,6 +794,33 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const fetchExecutionDetails = async (workflowId: string, executionId: string, silent = false) => {
     if (Date.now() < rateLimitedUntil) return
     try {
+      if (silent) {
+        const execResp = await fetch(`/api/workflows/${workflowId}/executions/${executionId}`)
+        if (isRateLimitedResponse(execResp)) return
+        if (!execResp.ok) throw new Error('Failed to fetch execution')
+        const execution = await execResp.json()
+        setSelectedExecution(execution)
+        if (execution?.status !== 'running') {
+          const [workflowResp, executionsResp] = await Promise.all([
+            fetch(`/api/workflows/${workflowId}`),
+            fetch(`/api/workflows/${workflowId}/executions?limit=20`)
+          ])
+          if (isRateLimitedResponse(workflowResp) || isRateLimitedResponse(executionsResp)) {
+            return
+          }
+          const workflow = workflowResp.ok ? await workflowResp.json() : null
+          const executionsData = executionsResp.ok ? await executionsResp.json() : { executions: [] }
+          const sortedExecutions = (executionsData.executions || []).sort((a: WorkflowExecution, b: WorkflowExecution) => {
+            if (a.status === 'running' && b.status !== 'running') return -1
+            if (a.status !== 'running' && b.status === 'running') return 1
+            return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+          })
+          setExecutionWorkflow(workflow)
+          setExecutionsList(sortedExecutions)
+        }
+        return
+      }
+
       const [execResp, workflowResp, executionsResp] = await Promise.all([
         fetch(`/api/workflows/${workflowId}/executions/${executionId}`),
         fetch(`/api/workflows/${workflowId}`),
@@ -900,7 +922,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         if (document.visibilityState !== 'visible') return
         if (Date.now() < rateLimitedUntil) return
         fetchExecutionDetails(selectedExecution.workflowId, selectedExecution.id, true)
-      }, 3000) // Poll every 3 seconds
+      }, WORKFLOW_EXECUTION_POLL_INTERVAL_MS)
       return () => clearInterval(interval)
     }
   }, [selectedExecution?.id, selectedExecution?.status, rateLimitedUntil])
