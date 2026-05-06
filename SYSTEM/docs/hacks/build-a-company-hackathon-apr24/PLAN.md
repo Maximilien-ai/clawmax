@@ -1,11 +1,11 @@
 # Build-a-Company Hackathon — April 24-26, 2026
 
 > **Event:** [AGI House - Build-a-Company Hackathon](https://luma.com/buildacompany?tk=1zlVZU)
-> **Branch:** `feat/build-a-company-hackathon`
+> **Branch:** merged to `main` via PR #110
 > **Working Window:** April 24-26, 2026
 > **Goal:** evolve ClawMax from agent/team orchestration into company-level orchestration with teams, teams-of-teams, chained team workflows, and team-facing output surfaces.
 
-## Status — April 26, 2026
+## Status — April 30, 2026
 
 ### Landed
 
@@ -19,12 +19,18 @@
 - [x] company delete flow with cascading confirmation
 - [x] company/workflow import namespacing for multiple applies
 - [x] hack test company template upgraded to explicit rooted company structure
+- [x] template wizard company/team/agent generation mode selector
+- [x] company-scoped shared dashboard view with input, output, org summary, handoffs, costs, notifications, agents, workflows, and group chats
+- [x] template feedback payload expansion for web analytics, with local/OSS skip behavior
+- [x] build-a-company presentation page for demo day
 
 ### In Progress
 
-- [ ] B2B generated company chaining and handoff validation
-- [ ] company-scoped dashboard view for input/output/org
+- [ ] B2B generated company chaining and handoff validation across fresh delete/reapply cycles
+- [ ] company delete/reapply cleanup hardening for agents, agent files, workflows, outputs, dashboards, and generated org state
+- [ ] AI-generated company hierarchy normalization so generated B2B companies import as one rooted company with child teams
 - [ ] third example company for demo validation
+- [ ] full 1.4.0 smoke test on `main`
 
 ### Scope Simplification For Demo
 
@@ -437,9 +443,17 @@ This is concrete, easy to explain, and directly shows teams-of-teams plus workfl
 - [x] add a first-pass Teams UI
 - [x] add org hierarchy / org chart view
 - [x] extend generator flow for team/company creation
-- [ ] add first-pass team dashboard/page
-- [ ] create one end-to-end demo path
-- [ ] document follow-up gaps after hackathon
+- [x] add first-pass team/company dashboard/page
+- [ ] create one end-to-end demo path that survives fresh delete/reapply and workflow reruns
+- [x] document follow-up gaps after hackathon
+
+## Follow-Up Gaps For 1.4.0
+
+- Company delete must be deterministic before release: no stale agent IDs, agent folders, workflow outputs, dashboards, or org nodes after delete.
+- AI-generated company hierarchy needs one canonical root. Per-lane wrapper roots and duplicate root rendering are confusing and should be fixed before broad release.
+- Workflow handoff rendering is good for explicit templates, but AI-generated templates still need validation that dependencies are created, displayed, and used for downstream unlocks.
+- Company dashboards should stay compact and data-tolerant: missing org/handoff/output data should degrade to summaries, not empty large panels or crashes.
+- Demo-ready validation should focus on two known paths first: build-a-company hack test and B2B SaaS conversion company. A third example is useful only after those two are repeatable.
 
 ## Suggestions
 

@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-24
-**Current Version**: v1.3.17 / main
+**Last Updated**: 2026-04-30
+**Current Version**: v1.4.0-pre / main
 
 ---
 
@@ -17,17 +17,7 @@
 
 ---
 
-### 2. Compact dashboard upward reorder
-**Severity**: Medium
-**Status**: Known bug
-
-In compact dashboard layout editing, dragging a section downward or across columns works, but dragging a tile upward within the same column is still unreliable.
-
-**Workaround**: Drag downward first, or move the card across columns and back.
-
----
-
-### 3. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
+### 2. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
 **Severity**: Low
 **Status**: By design
 
@@ -35,7 +25,7 @@ Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, 
 
 ---
 
-### 4. Ollama UI visibility and runtime env can be confused
+### 3. Ollama UI visibility and runtime env can be confused
 **Severity**: Medium
 **Status**: Known limitation / operator gotcha
 
@@ -43,7 +33,7 @@ The dashboard uses `DASHBOARD_ENABLE_OLLAMA` only to control whether Ollama appe
 
 ---
 
-### 5. DAG connector lines overlap nodes on complex layouts
+### 4. DAG connector lines overlap nodes on complex layouts
 **Severity**: Low (cosmetic)
 **Status**: Known limitation
 
@@ -51,7 +41,7 @@ SVG bezier curves can pass through nodes when the layout has many parallel workf
 
 ---
 
-### 6. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
+### 5. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
 **Severity**: Medium
 **Status**: Known issue, defer to Friday hardening
 
@@ -142,6 +132,7 @@ Workaround:
 
 ## Resolved Recently (v1.1.16–v1.1.20)
 
+- **Compact dashboard upward reorder** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target
 - **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
 - **OAuth button when not configured** — shows setup instructions instead of broken button
 - **System.* null access in TopBar** — all system fields use optional chaining

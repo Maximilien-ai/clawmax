@@ -104,6 +104,7 @@ cleanup_started_processes() {
 INITIAL_BACKEND_PIDS="$(port_pids "$BACKEND_PORT")"
 INITIAL_FRONTEND_PIDS="$(port_pids "$FRONTEND_PORT")"
 STARTED_SERVER=false
+START_WITH_RESTART=false
 
 echo "Dashboard test wrapper"
 echo "API: $API_BASE"
@@ -114,12 +115,14 @@ if ! health_ready; then
   echo "Dashboard health check is not ready; starting dashboard..."
   if [ -n "$INITIAL_BACKEND_PIDS$INITIAL_FRONTEND_PIDS" ]; then
     echo "Ports are occupied but health is failing; restarting dashboard ports before testing."
-    START_ARGS=(--restart)
-  else
-    START_ARGS=()
+    START_WITH_RESTART=true
   fi
   STARTED_SERVER=true
-  CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" "${START_ARGS[@]}"
+  if [ "$START_WITH_RESTART" = true ]; then
+    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+  else
+    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh"
+  fi
 
   if ! wait_for_health 60; then
     echo "Dashboard did not become healthy on $API_BASE"

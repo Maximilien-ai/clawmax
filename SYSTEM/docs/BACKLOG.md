@@ -1,7 +1,31 @@
 # Backlog
 
-> Last updated: April 24, 2026
+> Last updated: April 30, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
+
+## 1.4.0 Monday Release Focus
+
+Target: ship the merged build-a-company work as a stable `1.4.0` image/release by Monday.
+
+Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
+
+### Must Fix / Validate Before Release
+
+- [ ] **Full `SYSTEM/test-with-server.sh` green on main** — wrapper now starts the dashboard automatically, but the current run must finish green after the `START_ARGS` shell fix.
+- [ ] **Context-overflow regression stays fixed across fresh workflow runs** — previous branch fix reduced stale session/cache prompt bloat; validate with a fresh technical-writing workflow and a fresh build-a-company workflow after restart.
+- [ ] **Company delete cleanup is complete** — deleting a company must remove generated agents, agent files, teams, workflows, groups/communities when isolated, outputs, and invalidate generated dashboards enough that reapply does not hit `Agent already exists`.
+- [ ] **Generated company hierarchy is not duplicated or flattened** — AI-generated company apply should produce one rooted company with child teams, not one wrapper/root per lane and not duplicate root rendering in the org page.
+- [ ] **Generated workflow handoffs are connected and visible** — AI-generated company workflows should produce dependency edges, unlock downstream workflows, and surface output/handoff documents as links where possible.
+- [ ] **Company dashboards are demo-safe** — detail and compact views should show company input, org summary, workflow handoffs/output, artifact links, and consistent spend totals without crashing when data is missing.
+- [ ] **Workspace switcher/top bar handles long workspace names** — long names should not clip the top bar and dropdown rows should show enough readable workspace identity.
+- [ ] **Launch smoke checklist executed** — fresh workspace: BYOK, apply hack-test company, run kickoff chain, generate/apply B2B company, run at least one handoff path, open company dashboard, delete/reapply one company.
+
+### Should Fix If Time Allows
+
+- [ ] **Dashboard notification result links open in-place viewer consistently** — communication links now navigate correctly, but dashboard notification artifact links should stay in dashboard and open the same document viewer.
+- [ ] **Gateway/skills readiness polish** — Doctor/readiness should clearly distinguish dev gateway not running, missing skill catalog entries, and managed-runtime behavior without noisy log spam.
+- [ ] **Third example company** — useful for confidence, but lower priority than making hack-test + B2B deterministic.
+- [ ] **Release docs/changelog pass** — summarize company templates, team/org views, handoffs, company dashboards, template feedback payload, and test wrapper in release notes.
 
 ## Top Priority
 
@@ -25,9 +49,9 @@
 - [x] **Email OTP auth mode for single-user cloud/on-prem installs** — secure email code login mode shipped between GitHub OAuth and bypass, with allowlisted email(s), short-lived hashed OTPs, Resend delivery, rate limiting, a local dev `log` mode, and focused OTP auth tests. Spec: `SYSTEM/docs/features/EMAIL_OTP_AUTH.md`
 - [ ] **OTP log-mode safety follow-through** — once real email OTP delivery is stable in cloud, treat `OTP_DEV_MODE=log` as explicit test/debug-only behavior: add a visible UI warning when enabled, document that production instances should leave it unset, and verify it is disabled on normal customer/demo environments after live debugging is complete.
 - [x] **Parallel workflow session-lock follow-through** — issue `#100`: workflow/chat/channel agent execution now shares the same bounded session-lock serialization and retry path, and the follow-through issue has been closed.
-- [ ] **Phantom workflow residue after archive/delete + reapply** — reproduce whether archiving/deleting agents in one workspace and then applying the same team/template in a new workspace can surface stale previous workflow/execution artifacts ("phantom workflows"). If reproducible, treat as a high-priority workspace isolation / cleanup bug.
+- [ ] **Phantom workflow/company residue after archive/delete + reapply** — deleting or archiving generated companies must not leave stale agents, agent files, teams, workflows, dashboards, outputs, or execution artifacts that block reapply or show as "phantom" org/workflow state. Treat as a 1.4.0 release blocker until company delete/reapply is deterministic.
 - [x] **Template apply group conflict detection and resolution** — shipped first pass: template apply now detects conflicting groups/communities and agent IDs, supports channel rename-on-apply, and provides direct recovery paths from the blocked Deploy step.
-- [ ] **Multi-workflow apply conflict follow-through** — repeated applies into the same workspace can still surface intermittent workflow-level collisions or reuse behavior that is not fully detected/resolved during template apply. Capture crisp repros and tighten conflict preflight plus rename/remap behavior for overlapping pipeline/workflow names.
+- [ ] **Multi-workflow/company apply conflict follow-through** — repeated applies into the same workspace can still surface workflow-level collisions, stale agent IDs, or hierarchy reuse behavior that is not fully detected/resolved during template apply. Capture crisp repros and tighten conflict preflight plus rename/remap behavior for overlapping company/workflow names.
 - [x] **Workflow run-level override input** — shipped first pass: users can run workflows with one-off run instructions/inputs that apply only to that execution, including direct trigger flow and DAG-trigger flow without permanently editing the workflow body.
 - [x] **Template apply progress feedback gap** — fixed first pass: template apply now reports intermediate progress through validation, skill setup, generation, write, and refresh phases instead of long silent gaps.
 - [x] **Workflow targeting conflates participants with output channels** — fixed: workflow execution now prefers explicit owner/agents/tags for participants, while groups/communities remain output channels unless no clearer execution target exists.
@@ -56,51 +80,13 @@
 - [ ] **Native gateway usage polling / scope cleanup** — dashboard `sessions.usage` polling is currently disabled in favor of Opik-backed metering because the gateway path requires scopes like `operator.read` and creates repeated log noise. Revisit only if we need native gateway usage stats again.
 - [ ] **Template apply tool readiness probes** — extend the new pre-apply readiness step with per-skill / per-tool checks so users can see whether assigned tools are actually usable before deploying a team
 - [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
-- [ ] **Workflow result surfacing in notifications and workspace dashboards** — when a workflow produces a strong final artifact or summary, surface a prominent “latest result” link/card in notifications and the workspace dashboard so users do not have to dig through busy group chat threads to find the outcome. Start with Lu.ma-style synthesis workflows, then generalize to other templates.
+- [x] **Workflow result surfacing in notifications and workspace dashboards** — first pass shipped: workflow outputs/artifacts can surface in org pages, shared/company dashboards, and notifications with output-file affordances. Keep notification grouping and external-result types open separately.
 - [ ] **Notification burst grouping / deduplication** — collapse near-identical notification bursts (for example multiple agents updating the same file class during one workflow window) into grouped summaries like `4 agents updated MEMORY.md`, with optional drill-down into the underlying per-agent events. Prioritize workflow-result, workspace-artifact, and repeated agent-status notifications so the feed becomes a summary surface instead of a noisy event log.
 - [ ] **Senso and external artifact result notifications** — file artifacts and GitHub issue/PR links now surface into `Results`, but Senso outputs and other external result types still need first-class notification hooks plus dashboard surfacing so users can see all meaningful agent outputs in one place.
 - [ ] **First-run onboarding wizard follow-through** — the initial wizard should grow from simple route guidance into a richer setup flow: detect BYOK readiness, offer OpenClaw agent import vs. create-team paths, suggest templates by category/use case, and disappear automatically once the workspace is meaningfully initialized.
 - [ ] **Workflow customization form parity follow-through** — keep auditing template apply / workflow customization field handling so dropdowns, textareas, and other structured run-input fields always persist into workflow markdown/overrides correctly and do not trip false required-field validation.
 - [ ] **Doctor messaging copy polish for managed runtimes** — the new managed-runtime guidance is directionally correct, but copy like “disabled in this Linux instance runtime” is still too broad. Tighten wording so it points at the managed runtime/supervision model, not Linux itself.
 - [ ] **Template-guided onboarding** — onboarding should collect lightweight signals like category, focus, and free-form intent, then recommend a short list of best-fit templates using metadata + semantic matching + iterative AI suggestion.
-
-## Today Focus — April 2, 2026
-
-- [x] **AI-assisted template/workflow discovery suggestions** — when exact or strong search matches are missing, show similar templates/workflows and AI recommendations instead of a dead end. GitHub: `#81`
-- [ ] **Agent-to-agent direct messaging follow-through** — validate the post-merge user path on top of the new direct messaging API and close any UX/runtime gaps. GitHub: `#64`
-- [x] **Template schema validation on import** — validate imported `TEMPLATE.md` / `template.json` against the public contract before save. GitHub: `#87`
-- [x] **Default channel fan-out** — group and community chat now goes to all members by default unless the user narrows with explicit `@mentions`. GitHub: `#92`
-- [x] **Agent chat streaming improvement** — agent chat now streams live stdout deltas through SSE and keeps explicit dashboard session continuity. GitHub: `#15`
-- [x] **Event planning proposal templates** — added small, medium, and large event-planning templates plus an `Events` discovery filter in the Templates page. GitHub: `#95`
-
-## April Launch Readiness
-
-### Immediate Demo / Release Blockers
-- [ ] **OAuth clean-room auth test** — GitHub OAuth verified locally; still run end-to-end on a fresh machine/config and document exact setup failures
-- [x] **Audit `./setup.sh` after OTP/auth changes** — completed a bootstrap audit and aligned local setup with the tested OpenClaw runtime pin, added generated `JWT_SECRET` for OTP/GitHub auth modes, and guarded macOS-only gateway service install behavior so Linux/dev bootstrap no longer assumes `launchctl`.
-- [x] **Workspaces Integrations live validation pass** — run the full integrations flow on a freshly restarted dashboard: save local settings, verify Senso/GitHub defaults flow into template apply, and confirm key-validation fallback vs. live validation behavior is understandable. GitHub: `#75`
-- [x] **Workspaces Integrations deeper runtime follow-through** — non-secret workspace defaults now persist per workspace and flow through template apply plus workflow execution inputs/runtime context. Keep the live end-to-end verification pass as a separate launch-readiness item. GitHub: `#77`
-- [ ] **Security follow-through** — re-check auth-required API coverage, cookie/session behavior, and production env defaults after OAuth rollout
-
-### Security (Sprint Priority #1)
-- [ ] **Google/Apple auth** — add after GitHub (lower priority for v1)
-
-### Cost Management (Sprint Priority #2)
-- [x] **Per-agent cost limits** — individual agent limits (currently workspace-level only)
-- [x] **Cost notifications** — toast/alert when approaching limits, email notification option
-- [x] **Cost dashboard refinement** — per-workflow cost breakdown, daily/weekly trends. GitHub: `#78`
-
-### Backup & Restore (Sprint Priority #3)
-- [ ] **Workspace backup** — zip workspace + config, downloadable from UI. Trigger manually or schedule.
-- [x] **Workspace restore** — ZIP import/restore shipped in the workspace switcher for exported workspace archives. Keep follow-through on compatibility, conflict handling, and cloud validation.
-- [ ] **Auto-backup** — optional scheduled backups (daily/weekly)
-
-### Customer-Facing Visibility (High Priority)
-- [x] **Workspace summary dashboard** — shareable one-page live workspace view for consumers, not just builders. Include overview cards, costs/budget, agent status, active notifications, workflow now/history/next run, kickoff input summary, and recent result links. Support section selection at generation time and persistent copy/open/delete management for generated links. Spec: `SYSTEM/docs/features/WORKSPACE_SUMMARY_DASHBOARD.md`
-- [x] **Workspace dashboard compact charts** — added compact-mode segmented summary bars for agent status, workflow state, and notification severity so stakeholder views fit closer to one screen without relying only on text.
-- [x] **Workflow input normalization for dashboards** — kickoff/project configuration summaries now prefer structured workflow configuration extraction over raw execution-log tails.
-- [x] **Workflow output + artifact normalization for dashboards** — shared dashboards now normalize participant-result summaries plus labeled artifact links and workspace file references into a consistent result surface.
-- [x] **Workspace dashboard compact reorder bug** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target.
 
 ## Hack / Research
 
@@ -150,13 +136,13 @@
 ### Launch Readiness
 - [ ] **Maintenance status page handoff / review** — web-team issue opened in `Maximilien-ai/clawmax-ai-web#19` for the status/details page linked from the new dashboard maintenance banner. Follow through on final URL, ownership, scheduled/in-progress/completed copy, and precise data-safety wording before broader operator rollout.
 - [ ] **Deployment handoff verification** — verify the public repo Docker/Podman contract is sufficient for downstream deployment teams and document any gaps without forking the contract
-- [ ] **Launch smoke checklist** — define and run one short end-to-end smoke path covering login, template apply, workflow trigger, dashboards, and integrations save/apply
+- [ ] **Launch smoke checklist** — run one short end-to-end smoke path covering login/BYOK, template apply, workflow trigger, company dashboards, delete/reapply, and integrations save/apply
 - [ ] **Signup/invite path verification** — verify the user-facing signup and invitation path is coherent from ClawMax.ai through first dashboard access
 - [ ] **First-user operations checklist** — prepare the minimum runbook for triaging auth, provider, template-apply, and workflow-execution issues during early user onboarding
 
 ### Quality & Testing
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching
-- [ ] **Dashboard smoke suite** — one-command local smoke run for key UI/API flows
+- [x] **Dashboard smoke suite wrapper** — first pass shipped as `SYSTEM/test-with-server.sh`, which starts/restarts the dashboard on selected ports, runs `SYSTEM/test.sh`, and cleans up processes it started. Keep broader browser/UI automation open under dashboard regression automation.
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
 
 ### UX & Product Polish
