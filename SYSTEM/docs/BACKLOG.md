@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: April 30, 2026
+> Last updated: May 6, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## 1.4.0 Monday Release Focus
@@ -26,6 +26,13 @@ Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 - [ ] **Gateway/skills readiness polish** — Doctor/readiness should clearly distinguish dev gateway not running, missing skill catalog entries, and managed-runtime behavior without noisy log spam.
 - [ ] **Third example company** — useful for confidence, but lower priority than making hack-test + B2B deterministic.
 - [ ] **Release docs/changelog pass** — summarize company templates, team/org views, handoffs, company dashboards, template feedback payload, and test wrapper in release notes.
+
+### New Customer UX Follow-Through
+
+- [ ] **Agent card actions visibility** — make the vertical overflow menu affordance more visible in light and dark mode so users discover agent actions more easily. GitHub: `#125`
+- [ ] **Quick agent budget action** — add a direct agent-card action to edit an agent budget with current agent and workspace budget context. GitHub: `#127`
+- [ ] **Waiting-for-input notification deep-linking / richer context** — clicking a waiting-for-input notification should take the user to the exact request location or provide clearer context inline. GitHub: `#128`
+- [ ] **Communication chat flicker during refresh** — reduce or eliminate visible thread flicker while a communication chat is open. GitHub: `#126`
 
 ## Top Priority
 
