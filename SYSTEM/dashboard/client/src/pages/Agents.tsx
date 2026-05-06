@@ -3095,7 +3095,7 @@ const AgentCard = React.memo(function AgentCard({
             <button
               ref={actionsButtonRef}
               onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu) }}
-              className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-[18px] font-black leading-none text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-gray-600 dark:bg-gray-700/80 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600 dark:hover:text-white dark:focus:ring-sky-800"
               title="More actions"
             >
               ⋮
@@ -3642,7 +3642,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           <button
             ref={actionsButtonRef}
             onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
-            className="text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors text-base leading-none p-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="inline-flex h-6.5 w-6.5 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-[17px] font-black leading-none text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-gray-600 dark:bg-gray-700/80 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600 dark:hover:text-white dark:focus:ring-sky-800"
             aria-label="More actions"
             title="More actions"
           >
