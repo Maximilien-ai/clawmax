@@ -40,6 +40,7 @@ import {
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
+  summarizeAgentInputRequest,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -440,6 +441,20 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
     detectParticipantReportedFailure("Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.") === "Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.",
     'Expected provider runtime detail to be treated as failure'
   )
+})
+
+test('summarizeAgentInputRequest extracts direct user asks for notifications', () => {
+  const summary = summarizeAgentInputRequest('I can continue, but I need your decision. Please confirm whether we should target founders or growth leads for the first outbound campaign. Once you confirm, I will finish the draft.')
+  assert(
+    /Please confirm whether we should target founders or growth leads/i.test(summary),
+    `Expected direct request to be preserved, got: ${summary}`
+  )
+})
+
+test('summarizeAgentInputRequest falls back to a short tail summary', () => {
+  const summary = summarizeAgentInputRequest('Status update. We completed the draft. Next blocker is choosing the final launch date and budget owner so the workflow can proceed without ambiguity.')
+  assert(summary.length <= 220, `Expected fallback summary to stay compact, got length ${summary.length}`)
+  assert(/launch date and budget owner/i.test(summary), `Expected fallback summary to retain relevant context, got: ${summary}`)
 })
 
 test('extractGitHubResultLinks finds issue and PR URLs cleanly', () => {

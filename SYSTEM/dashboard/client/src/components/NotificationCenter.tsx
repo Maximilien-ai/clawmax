@@ -216,6 +216,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
   const notificationHasViewAction = (n: Notification) =>
     !n.grouped && (
     (n.type === 'artifact-update' && (Boolean(n.artifactPath) || Boolean(n.artifactUrl))) ||
+    (n.entityType === 'agent' && n.blockerType === 'input') ||
     Boolean(n.entityId && !n.blockerType && n.entityType !== 'agent') ||
     n.entityType === 'budget'
     )
@@ -432,26 +433,39 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
 
                           {/* Blocker: input — text field + submit */}
                           {n.blockerType === 'input' && (
-                            <div className="flex gap-1.5 mt-2">
-                              <input
-                                type="text"
-                                value={inputValues[n.id] || ''}
-                                onChange={e => setInputValues(prev => ({ ...prev, [n.id]: e.target.value }))}
-                                placeholder="Type your response..."
-                                className="flex-1 text-[11px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' && inputValues[n.id]?.trim()) {
-                                    executeAction(n.id, 'input', inputValues[n.id])
-                                  }
-                                }}
-                              />
-                              <button
-                                onClick={() => executeAction(n.id, 'input', inputValues[n.id])}
-                                disabled={processingId === n.id || !inputValues[n.id]?.trim()}
-                                className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors disabled:opacity-50"
-                              >
-                                Submit
-                              </button>
+                            <div className="mt-2 space-y-2">
+                              <div className="rounded-md border border-sky-100 bg-sky-50/80 px-2.5 py-2 text-[11px] text-sky-800 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-200">
+                                Review the agent details if you need more context before replying. The response below is sent directly back to the waiting agent.
+                              </div>
+                              <div className="flex gap-1.5">
+                                <input
+                                  type="text"
+                                  value={inputValues[n.id] || ''}
+                                  onChange={e => setInputValues(prev => ({ ...prev, [n.id]: e.target.value }))}
+                                  placeholder="Type the answer or decision the agent is waiting for..."
+                                  className="flex-1 text-[11px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && inputValues[n.id]?.trim()) {
+                                      executeAction(n.id, 'input', inputValues[n.id])
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => executeAction(n.id, 'input', inputValues[n.id])}
+                                  disabled={processingId === n.id || !inputValues[n.id]?.trim()}
+                                  className="text-[11px] px-2.5 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 rounded font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors disabled:opacity-50"
+                                >
+                                  Submit
+                                </button>
+                              </div>
+                              {n.entityId && onNavigateToAgent && (
+                                <button
+                                  onClick={() => { onNavigateToAgent(n.entityId!); setOpen(false) }}
+                                  className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
+                                >
+                                  Open agent details →
+                                </button>
+                              )}
                             </div>
                           )}
 

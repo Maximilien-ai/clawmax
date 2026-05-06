@@ -119,6 +119,26 @@ export function resolveTargetTeamAgentIds(
   return agentReasons
 }
 
+export function summarizeAgentInputRequest(agentText: string): string {
+  const normalized = `${agentText || ''}`.replace(/\s+/g, ' ').trim()
+  if (!normalized) return 'Open the agent to review the input request and provide the missing detail.'
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+  const primarySentence = sentences.find((sentence) =>
+    /please\s+(?:choose|decide|confirm|approve)|what should|which (?:one|option)|can you|could you|would you|should we|do you want/i.test(sentence)
+  )
+  const secondarySentence = sentences.find((sentence) =>
+    /waiting for|blocked by|need(?:s)?/i.test(sentence)
+  )
+  const summary = primarySentence || secondarySentence || normalized.slice(-220).trim()
+  if (summary.length <= 220) {
+    return summary
+  }
+  return `${summary.slice(0, 217).trimEnd()}...`
+}
+
 export interface WorkflowExecutionParticipant {
   agentId: string
   agentName: string
@@ -1758,7 +1778,7 @@ export function triggerWorkflow(workflowId: string, options?: {
             createNotification({
               type: 'agent-needs-decision',
               title: `${participant.agentId} needs input`,
-              message: agentText.slice(-200),
+              message: summarizeAgentInputRequest(agentText),
               entityId: participant.agentId,
               entityType: 'agent',
               fingerprint: `agent-question:${workflowId}:${participant.agentId}:${execution.id}`,
