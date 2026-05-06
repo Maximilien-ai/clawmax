@@ -4,7 +4,15 @@
  * Run with: npx ts-node --transpileOnly server/lib/dashboard-env.test.ts
  */
 
-import { getBestAvailableModel, getCostEfficientModel, getDefaultOllamaBaseUrl, getMaintenanceBanner, isManagedRuntime, isOllamaUiEnabled } from './dashboard-env'
+import {
+  allowSystemKeysForUserExecution,
+  getBestAvailableModel,
+  getCostEfficientModel,
+  getDefaultOllamaBaseUrl,
+  getMaintenanceBanner,
+  isManagedRuntime,
+  isOllamaUiEnabled,
+} from './dashboard-env'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -67,6 +75,11 @@ test('explicit DASHBOARD_ENABLE_OLLAMA=false disables Ollama UI in local runtime
 test('Gemini defaults use google-prefixed model ids', () => {
   assert(getBestAvailableModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed recommended Gemini model')
   assert(getCostEfficientModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed cost-efficient Gemini model')
+})
+
+test('system key execution gate honors explicit env file flag', () => {
+  assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }) === true, 'Expected explicit env-file true to enable system keys')
+  assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }) === false, 'Expected explicit env-file false to disable system keys')
 })
 
 test('maintenance banner stays disabled by default when env is unset', () => {

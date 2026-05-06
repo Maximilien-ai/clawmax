@@ -188,7 +188,14 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
 }
 
 export function allowSystemKeysForUserExecution(rawEnv: Record<string, string> = dashboardEnv): boolean {
-  return firstNonEmpty(rawEnv, 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION') === 'true'
+  const fromEnvFile = firstNonEmpty(rawEnv, 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION')
+  if (fromEnvFile !== undefined) {
+    return fromEnvFile === 'true'
+  }
+  if (rawEnv === dashboardEnv && isContainerMode) {
+    return (process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION?.trim() || '') === 'true'
+  }
+  return false
 }
 
 export function resolveUserExecutionProviderKeys(
