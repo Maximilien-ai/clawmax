@@ -270,6 +270,21 @@ function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<
   }
 }
 
+function isLocalDashboardInstanceId(value: string): boolean {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    const hostname = url.hostname.toLowerCase()
+    return hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname === '0.0.0.0'
+      || hostname === '::1'
+      || hostname.endsWith('.local')
+  } catch {
+    return false
+  }
+}
+
 const METERING_FETCH_ERROR_LOG_WINDOW_MS = 60_000
 let meteringFetchFailureState: {
   message: string
@@ -349,7 +364,10 @@ export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): b
   const traceDashboardInstanceId = String(meta.dashboard_instance_id || '').trim().toLowerCase()
   const viewerDashboardInstanceId = String(viewer.dashboardInstanceId || '').trim().toLowerCase()
   if (viewerDashboardInstanceId && traceDashboardInstanceId && traceDashboardInstanceId !== viewerDashboardInstanceId) {
-    return false
+    const bothLocalDashboards = isLocalDashboardInstanceId(viewerDashboardInstanceId) && isLocalDashboardInstanceId(traceDashboardInstanceId)
+    if (!bothLocalDashboards) {
+      return false
+    }
   }
   if (viewer.userId && meta.user_id && String(meta.user_id) === String(viewer.userId)) return true
   if (viewer.login && meta.user_login && String(meta.user_login).toLowerCase() === String(viewer.login).toLowerCase()) return true

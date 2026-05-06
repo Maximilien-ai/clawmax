@@ -273,6 +273,50 @@ async function run() {
     assert(allowed === true, 'Expected missing dashboard_instance_id to remain eligible for viewer-scoped metering')
   })
 
+  await test('traceMatchesViewer allows local dashboard instance id mismatches for dev', () => {
+    const trace = {
+      id: 'a4',
+      name: 'agent.chat.one',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'one',
+        dashboard_instance_id: 'http://localhost:3001',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      dashboardInstanceId: 'http://localhost:3002',
+    })
+
+    assert(allowed === true, 'Expected local dashboard instance ids to be treated as equivalent for dev metering')
+  })
+
+  await test('traceMatchesViewer still rejects hosted dashboard instance id mismatches', () => {
+    const trace = {
+      id: 'a5',
+      name: 'agent.chat.one',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'one',
+        dashboard_instance_id: 'https://prod-a.example.com',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      dashboardInstanceId: 'https://prod-b.example.com',
+    })
+
+    assert(allowed === false, 'Expected hosted dashboard instance id mismatches to remain isolated')
+  })
+
   await test('recordMeteringFetchFailure throttles repeated identical errors and reports suppression counts', () => {
     resetMeteringFetchFailureStateForTests()
 
