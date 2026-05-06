@@ -466,6 +466,14 @@ else
   fail "Dashboard env unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
+sh dashboard/docker-entrypoint.test.sh > /tmp/clawmax-docker-entrypoint.out 2>&1 || true
+if grep -q "docker-entrypoint gateway tests passed" /tmp/clawmax-docker-entrypoint.out; then
+  pass "Docker entrypoint gateway tests"
+else
+  fail "Docker entrypoint gateway tests"
+fi
+
 echo -e "${YELLOW}→ Running Cloud maintenance status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/cloud-maintenance-status.test.ts > /tmp/clawmax-cloud-maintenance-status.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-cloud-maintenance-status.out; then
