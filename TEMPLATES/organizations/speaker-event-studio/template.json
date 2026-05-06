@@ -228,7 +228,7 @@
           "event-director"
         ]
       },
-      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Run Inputs\n- **Event name and goal:** {{eventNameAndGoal}}\n- **Date, venue, and format:** {{dateVenueAndFormat}}\n- **Expected attendees:** {{expectedAttendees}}\n- **Speaker count:** {{speakerCount}}\n- **Key audience outcome:** {{keyAudienceOutcome}}\n- **Output artifact:** {{outputArtifact}}\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
+      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Run Inputs\n- **Event name and goal:** [event name and goal]\n- **Date, venue, and format:** [date, venue, and format]\n- **Expected attendees:** [expected attendees]\n- **Speaker count:** [speaker count]\n- **Key audience outcome:** [key audience outcome]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [

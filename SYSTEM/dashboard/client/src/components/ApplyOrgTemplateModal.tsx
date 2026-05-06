@@ -172,6 +172,11 @@ function parseWorkflowConfigFields(content?: string | null): WorkflowConfigField
   return fields
 }
 
+function isTemplateTokenValue(value: string): boolean {
+  const trimmed = value.trim()
+  return /^\[[^\]]*\]$/.test(trimmed) || /^\{\{[^}]+\}\}$/.test(trimmed)
+}
+
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
   const { activeWorkspace } = useWorkspace()
   const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
@@ -1812,7 +1817,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   const m = currentContent.match(lineRegex)
                   if (!m) return ''
                   const val = m[1].trim()
-                  return val.startsWith('[') ? '' : val
+                  return isTemplateTokenValue(val) ? '' : val
                 }
 
                 const setFieldValue = (label: string, value: string) => {

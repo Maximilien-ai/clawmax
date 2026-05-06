@@ -1375,6 +1375,25 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
   }
 })
 
+test('system organization templates do not contain raw mustache workflow placeholders', () => {
+  const templatesDir = path.resolve(process.cwd(), '..', '..', 'TEMPLATES', 'organizations')
+  const placeholderHits: string[] = []
+
+  for (const slug of fs.readdirSync(templatesDir)) {
+    const templatePath = path.join(templatesDir, slug, 'template.json')
+    if (!fs.existsSync(templatePath)) continue
+    const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'))
+    for (const workflow of template.workflows || []) {
+      const content = typeof workflow?.content === 'string' ? workflow.content : ''
+      if (/\{\{[^}]+\}\}/.test(content)) {
+        placeholderHits.push(`${slug}:${workflow.id}`)
+      }
+    }
+  }
+
+  assertEqual(JSON.stringify(placeholderHits), JSON.stringify([]), `Expected no raw mustache placeholders, got ${placeholderHits.join(', ')}`)
+})
+
 // Summary
 setTimeout(() => {
   console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)

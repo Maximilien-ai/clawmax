@@ -175,7 +175,7 @@
           "event-lead"
         ]
       },
-      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Run Inputs\n- **Event type:** {{eventType}}\n- **Event date and time:** {{eventDateTime}}\n- **Expected guests:** {{expectedGuests}}\n- **Venue or format:** {{venueOrFormat}}\n- **Food and drink plan:** {{foodAndDrinkPlan}}\n- **Output artifact:** {{outputArtifact}}\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Choose the final planning artifact the host should receive\n5. Summarize the event plan in Status\n6. Flag the few decisions that the host must make next",
+      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Run Inputs\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [event date and time]\n- **Expected guests:** [expected guests]\n- **Venue or format:** [venue or format]\n- **Food and drink plan:** [food and drink plan]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Choose the final planning artifact the host should receive\n5. Summarize the event plan in Status\n6. Flag the few decisions that the host must make next",
       "enabled": true,
       "executionMode": "managed",
       "tags": [

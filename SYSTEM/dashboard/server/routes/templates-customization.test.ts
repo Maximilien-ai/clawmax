@@ -62,6 +62,25 @@ test('rejects invalid workflow placeholders and bad URLs', () => {
   assert(result.errors.some((error) => error.includes('empty required field')), 'Expected empty required field error')
 })
 
+test('rejects unresolved mustache-style workflow placeholders', () => {
+  const result = validateOrganizationCustomization({
+    workflows: [
+      {
+        id: 'wf-raw-template',
+        name: 'Workflow With Raw Template Tokens',
+        content: `
+- **Event date and time:** {{eventDateTime}}
+- **Expected guests:** {{expectedGuests}}
+`,
+      },
+    ],
+  })
+
+  assert(result.valid === false, 'Expected validation to fail')
+  assert(result.errors.some((error) => error.includes('Event date and time')), 'Expected unresolved event date error')
+  assert(result.errors.some((error) => error.includes('Expected guests')), 'Expected unresolved expected guests error')
+})
+
 test('accepts valid github repo and optional placeholders', () => {
   const result = validateOrganizationCustomization({
     useGithub: true,

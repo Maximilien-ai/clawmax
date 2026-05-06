@@ -176,7 +176,13 @@ function isValidUrl(value: string): boolean {
 
 function isPlaceholderValue(value: string): boolean {
   const trimmed = value.trim()
-  return !trimmed || /^\[[^\]]*\]$/.test(trimmed) || trimmed === '...' || trimmed === '…'
+  return (
+    !trimmed ||
+    /^\[[^\]]*\]$/.test(trimmed) ||
+    /^\{\{[^}]+\}\}$/.test(trimmed) ||
+    trimmed === '...' ||
+    trimmed === '…'
+  )
 }
 
 export function validateOrganizationCustomization(
