@@ -3090,6 +3090,15 @@ const AgentCard = React.memo(function AgentCard({
               💬
             </button>
           )}
+          {costTrackingEnabled && (
+            <button
+              onClick={e => { e.stopPropagation(); onSetBudget() }}
+              className="text-gray-300 hover:text-emerald-600 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+              title="Update agent budget"
+            >
+              💲
+            </button>
+          )}
           {/* Actions menu */}
           <div className="relative">
             <button
@@ -3586,6 +3595,15 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               title="View docs"
             >
               📄
+            </button>
+          )}
+          {costTrackingEnabled && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onSetBudget(); }}
+              className="text-gray-300 hover:text-emerald-600 transition-colors text-xs leading-none"
+              title="Update agent budget"
+            >
+              💲
             </button>
           )}
         </div>

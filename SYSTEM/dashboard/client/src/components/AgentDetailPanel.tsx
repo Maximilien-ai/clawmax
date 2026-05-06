@@ -33,6 +33,21 @@ interface AgentActivity {
   }
 }
 
+interface WorkspaceBudgetStatus {
+  enabled: boolean
+  reason?: string
+  config?: {
+    limitUsd: number
+    warningPct: number
+    enforced: boolean
+    paused: boolean
+  }
+  currentSpendUsd?: number
+  remainingUsd?: number
+  usedPct?: number
+  level?: 'ok' | 'warning' | 'exceeded'
+}
+
 const STATUS_TEXT = {
   online: 'text-green-700 bg-green-50',
   offline: 'text-yellow-700 bg-yellow-50',
@@ -119,6 +134,7 @@ export default function AgentDetailPanel({
   const [costLimit, setCostLimit] = useState<number | null>(null)
   const [costLimitInput, setCostLimitInput] = useState('')
   const [editingCostLimit, setEditingCostLimit] = useState(false)
+  const [workspaceBudget, setWorkspaceBudget] = useState<WorkspaceBudgetStatus | null>(null)
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
@@ -150,6 +166,7 @@ export default function AgentDetailPanel({
     if (!costTrackingEnabled) {
       setCostLimit(null)
       setCostLimitInput('')
+      setWorkspaceBudget(null)
       return
     }
     // Fetch cost limit
@@ -160,6 +177,10 @@ export default function AgentDetailPanel({
         setCostLimitInput(d.limitUsd ? String(d.limitUsd) : '')
       })
       .catch(() => {})
+    fetch('/api/budget')
+      .then(r => r.json())
+      .then(d => setWorkspaceBudget(d))
+      .catch(() => setWorkspaceBudget(null))
   }, [fetchActivity, agent.id, costTrackingEnabled])
 
   useEffect(() => {
@@ -223,6 +244,11 @@ export default function AgentDetailPanel({
 
   // Derive the relative agent dir path (e.g. AGENTS/max0)
   const relDir = agent.workspacePath.split('/').slice(-2).join('/')
+  const workspaceBudgetLevelClass = workspaceBudget?.level === 'exceeded'
+    ? 'text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-900/20 dark:border-red-800'
+    : workspaceBudget?.level === 'warning'
+      ? 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/20 dark:border-amber-800'
+      : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/20 dark:border-emerald-800'
   const openWorkspaceFile = useCallback((fileName: string) => {
     if (!onNavigateToDoc) return
     onNavigateToDoc(`${relDir}/${fileName}`)
@@ -315,34 +341,64 @@ export default function AgentDetailPanel({
           )}
 
           {costTrackingEnabled && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Cost limit:</span>
-              {editingCostLimit ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-gray-400">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={costLimitInput}
-                    onChange={(e) => setCostLimitInput(e.target.value)}
-                    placeholder="e.g. 1.00"
-                    className="w-20 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    autoFocus
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCostLimit(); if (e.key === 'Escape') setEditingCostLimit(false) }}
-                  />
-                  <button onClick={handleSaveCostLimit} className="text-sky-600 dark:text-sky-400 hover:underline">Save</button>
-                  <button onClick={() => setEditingCostLimit(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                    Agent budget
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-xs">
+                    <span className="text-gray-500 dark:text-gray-400">Cost limit:</span>
+                    {editingCostLimit ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-400">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={costLimitInput}
+                          onChange={(e) => setCostLimitInput(e.target.value)}
+                          placeholder="e.g. 1.00"
+                          className="w-20 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCostLimit(); if (e.key === 'Escape') setEditingCostLimit(false) }}
+                        />
+                        <button onClick={handleSaveCostLimit} className="text-sky-600 dark:text-sky-400 hover:underline">Save</button>
+                        <button onClick={() => setEditingCostLimit(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setCostLimitInput(costLimit ? String(costLimit) : ''); setEditingCostLimit(true) }}
+                        className="text-gray-700 dark:text-gray-200 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                        title="Set per-agent cost limit"
+                      >
+                        {costLimit ? `$${costLimit.toFixed(2)}` : 'No limit set'}
+                        <span className="ml-1 text-gray-300 dark:text-gray-600">✏️</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <button
-                  onClick={() => { setCostLimitInput(costLimit ? String(costLimit) : ''); setEditingCostLimit(true) }}
-                  className="text-gray-600 dark:text-gray-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-                  title="Set per-agent cost limit"
-                >
-                  {costLimit ? `$${costLimit.toFixed(2)}` : 'No limit set'}
-                  <span className="ml-1 text-gray-300 dark:text-gray-600">✏️</span>
-                </button>
+                {workspaceBudget?.enabled && workspaceBudget.config ? (
+                  <div className={`rounded-lg border px-3 py-2 text-xs ${workspaceBudgetLevelClass}`}>
+                    <div className="font-semibold">Workspace budget</div>
+                    <div className="mt-1">
+                      ${Number(workspaceBudget.currentSpendUsd || 0).toFixed(2)} spent of ${workspaceBudget.config.limitUsd.toFixed(2)}
+                    </div>
+                    <div>
+                      ${Number(workspaceBudget.remainingUsd || 0).toFixed(2)} remaining · {Number(workspaceBudget.usedPct || 0).toFixed(1)}% used
+                    </div>
+                  </div>
+                ) : workspaceBudget?.enabled === false ? (
+                  <div className="rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">
+                    Workspace budget unavailable
+                    {workspaceBudget.reason ? ` · ${workspaceBudget.reason}` : ''}
+                  </div>
+                ) : null}
+              </div>
+              {workspaceBudget?.enabled && workspaceBudget.config && (
+                <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                  Per-agent limits should stay at or below the workspace limit of ${workspaceBudget.config.limitUsd.toFixed(2)}.
+                </div>
               )}
             </div>
           )}
