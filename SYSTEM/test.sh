@@ -474,6 +474,14 @@ else
   fail "Docker entrypoint gateway tests"
 fi
 
+echo -e "${YELLOW}→ Running Dockerfile OpenClaw builder tests...${NC}"
+sh dockerfile-openclaw-builder.test.sh > /tmp/clawmax-dockerfile-openclaw-builder.out 2>&1 || true
+if grep -q "dockerfile openclaw builder tests passed" /tmp/clawmax-dockerfile-openclaw-builder.out; then
+  pass "Dockerfile OpenClaw builder tests"
+else
+  fail "Dockerfile OpenClaw builder tests"
+fi
+
 echo -e "${YELLOW}→ Running Cloud maintenance status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/cloud-maintenance-status.test.ts > /tmp/clawmax-cloud-maintenance-status.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-cloud-maintenance-status.out; then

@@ -16,7 +16,8 @@ WORKDIR /opt/openclaw-src
 RUN git clone https://github.com/openclaw/openclaw.git . \
   && git checkout "${OPENCLAW_GIT_REF}"
 
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm install -g pnpm
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
 RUN npm run build
 RUN npm pack
 
