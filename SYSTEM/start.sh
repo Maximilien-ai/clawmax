@@ -75,6 +75,20 @@ restart_port_if_needed() {
   fi
 }
 
+read_dotenv_var() {
+  local key="$1"
+  if [ ! -f ".env" ]; then
+    return 0
+  fi
+  local raw
+  raw=$(grep -E "^${key}=" .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
+  raw="${raw%\"}"
+  raw="${raw#\"}"
+  raw="${raw%\'}"
+  raw="${raw#\'}"
+  printf '%s' "$raw"
+}
+
 ensure_local_gateway_ready() {
   if [ "$(uname -s)" != "Darwin" ] || ! command -v openclaw >/dev/null 2>&1; then
     return
@@ -273,18 +287,24 @@ else
       echo "Logs: tail -f /tmp/dashboard.log"
       echo "Stop: ./SYSTEM/stop.sh"
 
-      # Load .env for config checks
-      if [ -f ".env" ]; then
-        . ./.env
-      fi
+      # Read only the keys we need for config checks. Sourcing .env directly
+      # breaks when values contain spaces, which is valid for dotenv files.
+      local_bypass_oauth="${BYPASS_OAUTH:-$(read_dotenv_var BYPASS_OAUTH)}"
+      local_auth_disabled="${DASHBOARD_AUTH_DISABLED:-$(read_dotenv_var DASHBOARD_AUTH_DISABLED)}"
+      local_github_client_id="${GITHUB_CLIENT_ID:-$(read_dotenv_var GITHUB_CLIENT_ID)}"
+      local_system_anthropic_key="${SYSTEM_ANTHROPIC_API_KEY:-$(read_dotenv_var SYSTEM_ANTHROPIC_API_KEY)}"
+      local_system_openai_key="${SYSTEM_OPENAI_API_KEY:-$(read_dotenv_var SYSTEM_OPENAI_API_KEY)}"
+      local_anthropic_key="${ANTHROPIC_API_KEY:-$(read_dotenv_var ANTHROPIC_API_KEY)}"
+      local_openai_key="${OPENAI_API_KEY:-$(read_dotenv_var OPENAI_API_KEY)}"
+      local_opik_key="${OPIK_API_KEY:-$(read_dotenv_var OPIK_API_KEY)}"
 
       # Check authentication config
-      if [ "$BYPASS_OAUTH" = "true" ] || [ "$DASHBOARD_AUTH_DISABLED" = "true" ]; then
+      if [ "$local_bypass_oauth" = "true" ] || [ "$local_auth_disabled" = "true" ]; then
         echo ""
         echo "⚠ OAuth bypassed (BYPASS_OAUTH=true) — no login required"
         echo "  All API endpoints are open. Do NOT use in production."
       else
-        if [ -z "$GITHUB_CLIENT_ID" ] || [ "$GITHUB_CLIENT_ID" = "your-github-client-id" ]; then
+        if [ -z "$local_github_client_id" ] || [ "$local_github_client_id" = "your-github-client-id" ]; then
           echo ""
           echo "⚠ GitHub OAuth not configured (GITHUB_CLIENT_ID missing)"
           echo "  Either:"
@@ -295,7 +315,7 @@ else
 
       # Check for AI model API keys
       ENV_API_KEYS_MISSING=false
-      if [ -z "$SYSTEM_ANTHROPIC_API_KEY" ] && [ -z "$SYSTEM_OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+      if [ -z "$local_system_anthropic_key" ] && [ -z "$local_system_openai_key" ] && [ -z "$local_anthropic_key" ] && [ -z "$local_openai_key" ]; then
         ENV_API_KEYS_MISSING=true
       fi
       if [ "$ENV_API_KEYS_MISSING" = true ]; then
@@ -306,7 +326,7 @@ else
       fi
 
       # Check Opik metering
-      if [ -z "$OPIK_API_KEY" ] || [ "$OPIK_API_KEY" = "your-opik-key-here" ]; then
+      if [ -z "$local_opik_key" ] || [ "$local_opik_key" = "your-opik-key-here" ]; then
         echo ""
         echo "ℹ Opik metering not configured (optional)"
         echo "  Add OPIK_API_KEY to .env for token/cost tracking."
