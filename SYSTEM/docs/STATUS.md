@@ -1,23 +1,23 @@
 # ClawMax Status
 
-**Current Version**: v1.3.17
-**Last Updated**: April 24, 2026
-**Status**: `v1.3.17` is the latest release on `main`
+**Current Version**: v1.4.0-rc1
+**Last Updated**: May 7, 2026
+**Status**: `v1.4.0-rc1` is the current release candidate on `main`
 
 ---
 
 ## Current State
 
-- `main` now includes the `v1.3.17` clean-room setup and runtime contention hardening line
-- `setup.sh` now aligns dashboard token placement, `.env` shell safety, and non-default dashboard port/URL propagation with the real server/test contract
-- `SYSTEM/start.sh` and `SYSTEM/test.sh` are more reliable in scripted fresh-start validation flows
-- workflow, chat, and channel execution now share the same same-agent serialization and session-lock retry behavior
-- issue `#11` clean-room setup validation is closed with repeatable harness coverage
-- issue `#100` parallel workflow session-lock follow-through is closed with shared runtime-path serialization
-- issue `#106` README release cleanup is closed and the release surfaces are trimmed to the current line
+- `main` now carries the `1.4.0` release-candidate line: company dashboards, richer company/workflow templates, timezone-correct scheduling, gateway fallback hardening, metering caching, and recent customer UX follow-through
+- `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green on the current default-safe path, including the Docker smoke tests that were failing earlier this week
+- workflow scheduling now respects persisted workflow timezones in previews, node-cron execution, and gateway cron sync
+- local/hosted runtime compatibility improved across Gemini, Ollama, gateway fallback, and scheduled system-key execution paths
+- recent customer UX fixes shipped: visible agent-card actions, quick budget action, richer waiting-for-input context, communication flicker reduction, and skill-centric reverse assignment
+- issue `#95` event-template refinement follow-through is shipped in the current line; customer verification remains the main final gate for the remaining recent runtime reports
 
 ## Release References
 
 - changelog: [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md)
 - latest release notes: [README.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/README.md)
+- release candidate checklist: [RELEASE_1_4_0_RC1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_1_4_0_RC1.md)
 - older release planning context: [RELEASE_1_3_0_PREP_2026-04-13.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RELEASE_1_3_0_PREP_2026-04-13.md)

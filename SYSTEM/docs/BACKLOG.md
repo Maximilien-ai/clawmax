@@ -1,38 +1,35 @@
 # Backlog
 
-> Last updated: May 6, 2026
+> Last updated: May 7, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
-## 1.4.0 Monday Release Focus
+## 1.4.0 RC1 Release Focus
 
-Target: ship the merged build-a-company work as a stable `1.4.0` image/release by Monday.
+Target: finish RC1 validation today, then promote the same line to `1.4.0` once the manual release pass is clean.
 
 Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 
 ### Must Fix / Validate Before Release
 
-- [ ] **Full `SYSTEM/test-with-server.sh` green on main** — wrapper now starts the dashboard automatically, but the current run must finish green after the `START_ARGS` shell fix.
-- [ ] **Context-overflow regression stays fixed across fresh workflow runs** — previous branch fix reduced stale session/cache prompt bloat; validate with a fresh technical-writing workflow and a fresh build-a-company workflow after restart.
-- [ ] **Company delete cleanup is complete** — deleting a company must remove generated agents, agent files, teams, workflows, groups/communities when isolated, outputs, and invalidate generated dashboards enough that reapply does not hit `Agent already exists`.
-- [ ] **Generated company hierarchy is not duplicated or flattened** — AI-generated company apply should produce one rooted company with child teams, not one wrapper/root per lane and not duplicate root rendering in the org page.
-- [ ] **Generated workflow handoffs are connected and visible** — AI-generated company workflows should produce dependency edges, unlock downstream workflows, and surface output/handoff documents as links where possible.
-- [ ] **Company dashboards are demo-safe** — detail and compact views should show company input, org summary, workflow handoffs/output, artifact links, and consistent spend totals without crashing when data is missing.
-- [ ] **Workspace switcher/top bar handles long workspace names** — long names should not clip the top bar and dropdown rows should show enough readable workspace identity.
-- [ ] **Launch smoke checklist executed** — fresh workspace: BYOK, apply hack-test company, run kickoff chain, generate/apply B2B company, run at least one handoff path, open company dashboard, delete/reapply one company.
+- [x] **Full `SYSTEM/test-with-server.sh` green on main** — default-safe suite is green after startup-wrapper, path, and Docker smoke-test fixes.
+- [x] **Context-overflow regression stays fixed across fresh workflow runs** — customer verification passed on the restored runtime line.
+- [x] **Company delete / hierarchy / handoff / dashboard safety fixes landed** — the release line now includes the build-a-company follow-through that made company apply/delete/dashboard flows demo-safe again.
+- [x] **Workspace switcher/top bar handles long workspace names** — shipped in `cec97e4`.
+- [ ] **RC1 manual smoke checklist executed** — run the release-candidate manual checklist in `SYSTEM/docs/RELEASE_1_4_0_RC1.md`.
+- [ ] **Customer verification window for recent runtime fixes closes cleanly** — `#122`, `#123`, and `#124` are fixed and waiting only on external confirmation/reopen policy.
 
 ### Should Fix If Time Allows
 
-- [ ] **Dashboard notification result links open in-place viewer consistently** — communication links now navigate correctly, but dashboard notification artifact links should stay in dashboard and open the same document viewer.
-- [ ] **Gateway/skills readiness polish** — Doctor/readiness should clearly distinguish dev gateway not running, missing skill catalog entries, and managed-runtime behavior without noisy log spam.
-- [ ] **Third example company** — useful for confidence, but lower priority than making hack-test + B2B deterministic.
-- [ ] **Release docs/changelog pass** — summarize company templates, team/org views, handoffs, company dashboards, template feedback payload, and test wrapper in release notes.
+- [x] **Release docs/changelog pass** — README, changelog, status, known-issues, backlog, and RC1 checklist now reflect the release-candidate line.
+- [ ] **README/doc polish final sweep** — one more wording pass after the manual RC1 test run, especially around company dashboards, skill reverse assignment, and metering caching.
+- [ ] **Customer follow-up / close loop** — if `p11n-com` does not reply within the verification window, post one more follow-up and close with reopen guidance.
 
 ### New Customer UX Follow-Through
 
-- [ ] **Agent card actions visibility** — make the vertical overflow menu affordance more visible in light and dark mode so users discover agent actions more easily. GitHub: `#125`
-- [ ] **Quick agent budget action** — add a direct agent-card action to edit an agent budget with current agent and workspace budget context. GitHub: `#127`
-- [ ] **Waiting-for-input notification deep-linking / richer context** — clicking a waiting-for-input notification should take the user to the exact request location or provide clearer context inline. GitHub: `#128`
-- [ ] **Communication chat flicker during refresh** — reduce or eliminate visible thread flicker while a communication chat is open. GitHub: `#126`
+- [x] **Agent card actions visibility** — shipped in `6b10df1`. GitHub: `#125`
+- [x] **Quick agent budget action** — shipped in `35eff15`. GitHub: `#127`
+- [x] **Waiting-for-input notification deep-linking / richer context** — shipped in `d4104a4`. GitHub: `#128`
+- [x] **Communication chat flicker during refresh** — shipped in `bd6d22d`. GitHub: `#126`
 
 ## Top Priority
 

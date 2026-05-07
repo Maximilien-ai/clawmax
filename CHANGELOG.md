@@ -2,6 +2,21 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.0-rc1] - 2026-05-07
+
+### Release Candidate — Product, Runtime, and Release Hardening
+- **Company and Dashboard Flows** — the `1.4.0` line now includes company-aware template/org/dashboard work from the build-a-company push, including richer company workflows, handoff-oriented outputs, and safer company dashboard rendering paths
+- **Workflow Scheduling Correctness** — workflow timezones now persist and drive next-run previews, in-process cron execution, AI cron generation context, and gateway cron sync with explicit timezone handling
+- **Gateway Runtime Reliability** — gateway fallback execution, token resolution, cron registration, and container startup paths were hardened so local and hosted flows use the intended execution path more consistently
+- **Provider Runtime Compatibility** — Gemini now uses the correct `google/*` provider ids, Ollama local runs seed compatible provider config automatically, and scheduled workflows can intentionally use system keys when allowed
+- **Metering Stability and Performance** — local metering now survives dashboard URL/port changes, server-side metering results are cached/merged monotonically, and Budget & Metering no longer blanks on each tab switch
+- **Dashboard UX Improvements** — agent-card overflow actions are more visible, agent cards now support quick budget editing with workspace budget context, waiting-for-input notifications are clearer, communication chat refresh flicker is reduced, and Skills now supports reverse assignment from a selected skill
+- **Template/Workflow Polish** — event-planning templates now request richer kickoff inputs and produce more concrete markdown deliverables across downstream workflows
+- **Release/Test Hardening** — `SYSTEM/test-with-server.sh` auto-starts the dashboard reliably, startup no longer shell-sources `.env`, and Docker smoke tests now run through stable absolute paths in the system suite
+
+### Quality
+- **Validation Gate** — validated on the current line with green `SYSTEM/test-with-server.sh` default-safe coverage (`72 passed, 0 failed`), targeted TypeScript/test-suite checks, and focused regressions for metering, gateway runtime paths, scheduler timezone behavior, communication caching, skill assignment, and template audits
+
 ## [v1.3.17] - 2026-04-24
 
 ### Fixes — Clean-Room Setup and Runtime Contention Hardening

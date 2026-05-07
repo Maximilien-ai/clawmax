@@ -5,33 +5,31 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.17-green.svg)](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.3.17)
-[![Tests](https://img.shields.io/badge/tests-52%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.4.0--rc1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Recent Stability Work (v1.3.12–v1.3.17 line)
+## 🔥 Release Candidate: v1.4.0-rc1
 
-- Setup, auth, and operator hygiene improved:
-  - first-run token generation no longer prints the full dashboard API token into stdout/container logs
-  - `setup.sh` now writes `DASHBOARD_PUBLIC_URL`, documents `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS`, and normalizes `OPIK_PROJECT_NAME=clawmax`
-  - Communications now defaults to the card/grid view on fresh dashboards
-- Workflow and template reliability improved:
-  - organization template markdown round-trip now preserves agent `communities` and `groups`
-  - heavier workflows use a safer default agent timeout (`10 minutes`) with `CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS` override support
-  - workflow-created artifact notifications are moving away from fake asset-dir actors toward real agent attribution where the runner can identify the writer
-- Activity, metering, and day-to-day dashboard use improved:
-  - metering no longer drops valid OPIK traces just because `dashboard_instance_id` is missing from the trace metadata
-  - `Activity & Budget` refreshes when you switch back to it instead of requiring a browser refresh
-  - DocHub now shows created/updated timestamps and light `new` / `updated` hints for asset files
-  - Communications selection mode now supports bulk clear-history in addition to bulk delete
-  - a generic env-driven maintenance banner contract is available for planned maintenance messaging without hardcoding ClawMax.ai-specific behavior
-- Validation is safer by default:
-  - plain `./SYSTEM/test.sh` is now read-only against a live dashboard
-  - destructive/live mutation coverage remains under `./SYSTEM/test.sh integration`
-  - the visible default-safe test summary continues to grow as focused suites are added
+- Company and workflow orchestration are much stronger:
+  - build-a-company templates now support company-aware org structure, workflow handoffs, company dashboards, and richer event/business template outputs
+  - workflow scheduling now honors saved workflow timezones end to end, including next-run previews, in-process cron execution, and gateway cron sync
+  - gateway fallback, cron registration, and gateway-token/runtime compatibility paths were hardened across local and hosted flows
+- Runtime/provider reliability improved:
+  - Gemini now uses the correct `google/*` provider ids across UI and execution
+  - Ollama local execution seeds the expected provider config for OpenClaw runtime paths
+  - scheduled workflows can use system keys intentionally when configured, and local dev auth bypass is now scoped to dev startup only
+- Dashboard day-to-day UX improved:
+  - metering stays visible across local dashboard URLs, now uses monotonic caching, and no longer blanks on every Budget & Metering tab switch
+  - communication chat refresh flicker is reduced substantially by stable message caching and change detection
+  - agent cards have more visible action affordances, quick budget access, and better waiting-for-input follow-through
+  - skills now support reverse assignment from the skill view itself
+- Release/test ergonomics improved:
+  - `SYSTEM/test-with-server.sh` now starts the dashboard automatically and the default-safe suite is green at `72` tests
+  - Docker smoke tests, startup `.env` parsing, and clean-room/test-wrapper paths were stabilized for repeatable release validation
 
-## 🔥 Latest Release: v1.3.17
+## 🔥 Previous Release: v1.3.17
 
 - Clean-room setup and release-gate reliability improved:
   - `setup.sh` now aligns token placement, shell-safe `.env` generation, and non-default dashboard port/URL propagation with the actual dashboard/test contract

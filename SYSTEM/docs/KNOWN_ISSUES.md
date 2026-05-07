@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-30
-**Current Version**: v1.4.0-pre / main
+**Last Updated**: 2026-05-07
+**Current Version**: v1.4.0-rc1
 
 ---
 
@@ -130,7 +130,7 @@ Workaround:
 
 ---
 
-## Resolved Recently (v1.1.16–v1.1.20)
+## Resolved Recently (v1.4.0 line)
 
 - **Compact dashboard upward reorder** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target
 - **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
