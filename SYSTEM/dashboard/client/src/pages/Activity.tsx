@@ -38,6 +38,18 @@ const EMPTY_METERING: MeteringData = {
   byWorkflow: [],
 }
 
+let cachedActivityMetering: MeteringData | null = null
+let cachedActivityBudget: {
+  config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }
+  currentSpendUsd: number
+  remainingUsd: number
+  usedPct: number
+  level: 'ok' | 'warning' | 'exceeded'
+} | null = null
+let cachedActivityCostBudgetEnabled = true
+let cachedActivityCostBudgetReason = ''
+let cachedActivityAgentCostLimits: Record<string, number> = {}
+
 interface ActivityEntry {
   agentId: string
   file: string
@@ -112,15 +124,15 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [debugAgent, setDebugAgent] = useState<string | null>(null)
   const [showSystemLogs, setShowSystemLogs] = useState(false)
   const [showDoctor, setShowDoctor] = useState(false)
-  const [metering, setMetering] = useState<MeteringData | null>(null)
-  const [meteringLoading, setMeteringLoading] = useState(true)
+  const [metering, setMetering] = useState<MeteringData | null>(cachedActivityMetering)
+  const [meteringLoading, setMeteringLoading] = useState(!cachedActivityMetering)
   const [showMetering, setShowMetering] = useState(true)
-  const [costBudgetEnabled, setCostBudgetEnabled] = useState(true)
-  const [costBudgetReason, setCostBudgetReason] = useState('')
-  const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(null)
-  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>({})
+  const [costBudgetEnabled, setCostBudgetEnabled] = useState(cachedActivityCostBudgetEnabled)
+  const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReason)
+  const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(cachedActivityBudget)
+  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimits)
   const [editingBudget, setEditingBudget] = useState(false)
-  const [budgetInput, setBudgetInput] = useState('')
+  const [budgetInput, setBudgetInput] = useState(cachedActivityBudget ? String(cachedActivityBudget.config.limitUsd) : '')
   const lastActivationRefreshRef = useRef(0)
 
   const isBudgetResponse = (value: any): value is {
@@ -156,7 +168,9 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }, [])
 
   const fetchMetering = useCallback(() => {
-    setMeteringLoading(true)
+    if (!cachedActivityMetering) {
+      setMeteringLoading(true)
+    }
     fetch('/api/metering')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -164,21 +178,41 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
           setCostBudgetEnabled(false)
           setCostBudgetReason(typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.')
           setMetering(null)
+          cachedActivityCostBudgetEnabled = false
+          cachedActivityCostBudgetReason = typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.'
+          cachedActivityMetering = null
           return
         }
         setCostBudgetEnabled(true)
         setCostBudgetReason('')
-        setMetering(isMeteringResponse(d) ? d : EMPTY_METERING)
+        cachedActivityCostBudgetEnabled = true
+        cachedActivityCostBudgetReason = ''
+        const nextMetering = isMeteringResponse(d) ? d : EMPTY_METERING
+        cachedActivityMetering = nextMetering
+        setMetering(nextMetering)
       })
-      .catch(() => setMetering(EMPTY_METERING))
+      .catch(() => {
+        if (!cachedActivityMetering) {
+          cachedActivityMetering = EMPTY_METERING
+          setMetering(EMPTY_METERING)
+        }
+      })
       .finally(() => setMeteringLoading(false))
   }, [])
 
   const fetchAgentCostLimits = useCallback(() => {
     fetch('/api/agents/cost-limits')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
-      .catch(() => setAgentCostLimits({}))
+      .then(d => {
+        const limits = d?.limits && typeof d.limits === 'object' ? d.limits : {}
+        cachedActivityAgentCostLimits = limits
+        setAgentCostLimits(limits)
+      })
+      .catch(() => {
+        if (!Object.keys(cachedActivityAgentCostLimits).length) {
+          setAgentCostLimits({})
+        }
+      })
   }, [])
 
   const fetchBudget = useCallback(() => {
@@ -187,11 +221,14 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
       .then(d => {
         if (d && d.enabled === false) {
           setBudget(null)
+          cachedActivityBudget = null
         } else if (isBudgetResponse(d)) {
           setBudget(d)
           setBudgetInput(String(d.config.limitUsd))
+          cachedActivityBudget = d
         } else {
           setBudget(null)
+          cachedActivityBudget = null
         }
       })
       .catch(() => {})

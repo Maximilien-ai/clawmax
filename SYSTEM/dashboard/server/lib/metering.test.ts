@@ -7,6 +7,7 @@
 import {
   aggregateWorkspaceMeteringFromTraces,
   buildDailyCostSeries,
+  mergeWorkspaceMetering,
   recordMeteringFetchFailure,
   resetMeteringFetchFailureStateForTests,
   summarizeCostWindows,
@@ -315,6 +316,94 @@ async function run() {
     })
 
     assert(allowed === false, 'Expected hosted dashboard instance id mismatches to remain isolated')
+  })
+
+  await test('mergeWorkspaceMetering preserves highest known values across refreshes', () => {
+    const previous = {
+      totalTraces: 10,
+      totalInputTokens: 1000,
+      totalOutputTokens: 500,
+      totalTokens: 1500,
+      estimatedCostUsd: 1.25,
+      dailyCost: [
+        { date: '2026-05-06', estimatedCostUsd: 1.25, traceCount: 10 },
+      ],
+      costSummary: { todayCostUsd: 1.25, last7dCostUsd: 1.25, avgDailyCostUsd: 1.25 },
+      byAgent: [
+        {
+          agentId: 'alpha',
+          totalCalls: 10,
+          totalInputTokens: 1000,
+          totalOutputTokens: 500,
+          totalTokens: 1500,
+          estimatedCostUsd: 1.25,
+          avgDurationMs: 1000,
+          lastActivity: '2026-05-06T12:00:00.000Z',
+          models: { 'gpt-4o-mini': 10 },
+        },
+      ],
+      byWorkflow: [
+        {
+          workflowId: 'kickoff',
+          workflowName: 'Kickoff',
+          totalRuns: 3,
+          totalTokens: 1500,
+          estimatedCostUsd: 1.25,
+          avgDurationMs: 2500,
+          lastRun: '2026-05-06T12:00:00.000Z',
+        },
+      ],
+      period: 'all',
+    }
+
+    const next = {
+      totalTraces: 8,
+      totalInputTokens: 800,
+      totalOutputTokens: 400,
+      totalTokens: 1200,
+      estimatedCostUsd: 0.9,
+      dailyCost: [
+        { date: '2026-05-06', estimatedCostUsd: 0.9, traceCount: 8 },
+        { date: '2026-05-07', estimatedCostUsd: 0.2, traceCount: 2 },
+      ],
+      costSummary: { todayCostUsd: 0.2, last7dCostUsd: 1.1, avgDailyCostUsd: 0.55 },
+      byAgent: [
+        {
+          agentId: 'alpha',
+          totalCalls: 8,
+          totalInputTokens: 800,
+          totalOutputTokens: 400,
+          totalTokens: 1200,
+          estimatedCostUsd: 0.9,
+          avgDurationMs: 900,
+          lastActivity: '2026-05-07T12:00:00.000Z',
+          models: { 'gpt-4o-mini': 8 },
+        },
+      ],
+      byWorkflow: [
+        {
+          workflowId: 'kickoff',
+          workflowName: 'Kickoff',
+          totalRuns: 2,
+          totalTokens: 1200,
+          estimatedCostUsd: 0.9,
+          avgDurationMs: 2400,
+          lastRun: '2026-05-07T12:00:00.000Z',
+        },
+      ],
+      period: 'all',
+    }
+
+    const merged = mergeWorkspaceMetering(previous as any, next as any)
+    assert(merged.totalTraces === 10, 'Expected cached total trace count to remain monotonic')
+    assert(Math.abs(merged.estimatedCostUsd - 1.25) < 0.0001, 'Expected cached total cost to remain monotonic')
+    assert(merged.dailyCost.length === 2, 'Expected merged daily cost buckets to union previous and next values')
+    const today = merged.dailyCost.find((entry) => entry.date === '2026-05-06')
+    const newDay = merged.dailyCost.find((entry) => entry.date === '2026-05-07')
+    assert(!!today && Math.abs(today!.estimatedCostUsd - 1.25) < 0.0001, 'Expected existing daily bucket to keep max value')
+    assert(!!newDay && Math.abs(newDay!.estimatedCostUsd - 0.2) < 0.0001, 'Expected new daily bucket to be added')
+    assert(merged.byAgent[0].totalCalls === 10, 'Expected per-agent totals to remain monotonic')
+    assert(merged.byWorkflow[0].totalRuns === 3, 'Expected per-workflow totals to remain monotonic')
   })
 
   await test('recordMeteringFetchFailure throttles repeated identical errors and reports suppression counts', () => {

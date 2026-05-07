@@ -270,6 +270,110 @@ function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<
   }
 }
 
+const METERING_CACHE_TTL_MS = 30_000
+
+interface MeteringCacheEntry {
+  data: WorkspaceMetering
+  fetchedAt: number
+  refreshPromise?: Promise<WorkspaceMetering>
+}
+
+const meteringCache = new Map<string, MeteringCacheEntry>()
+
+function getViewerCacheKey(viewer?: MeteringViewer): string {
+  if (!viewer) return 'viewer:public'
+  return [
+    `user:${viewer.userId || ''}`,
+    `login:${viewer.login || ''}`,
+    `email:${viewer.email || ''}`,
+    `dashboard:${viewer.dashboardInstanceId || ''}`,
+  ].join('|')
+}
+
+function getMeteringCacheKey(workspaceId?: string, viewer?: MeteringViewer): string {
+  return `${workspaceId || 'active'}::${getViewerCacheKey(viewer)}`
+}
+
+export function mergeWorkspaceMetering(previous: WorkspaceMetering, next: WorkspaceMetering): WorkspaceMetering {
+  const mergedDailyCost = new Map<string, { date: string; estimatedCostUsd: number; traceCount: number }>()
+  for (const entry of previous.dailyCost || []) {
+    mergedDailyCost.set(entry.date, { ...entry })
+  }
+  for (const entry of next.dailyCost || []) {
+    const existing = mergedDailyCost.get(entry.date)
+    mergedDailyCost.set(entry.date, {
+      date: entry.date,
+      estimatedCostUsd: Math.max(existing?.estimatedCostUsd || 0, entry.estimatedCostUsd || 0),
+      traceCount: Math.max(existing?.traceCount || 0, entry.traceCount || 0),
+    })
+  }
+
+  const mergedAgents = new Map<string, AgentMetering>()
+  for (const entry of previous.byAgent || []) {
+    mergedAgents.set(entry.agentId, { ...entry, models: { ...(entry.models || {}) } })
+  }
+  for (const entry of next.byAgent || []) {
+    const existing = mergedAgents.get(entry.agentId)
+    if (!existing) {
+      mergedAgents.set(entry.agentId, { ...entry, models: { ...(entry.models || {}) } })
+      continue
+    }
+    const mergedModels = { ...(existing.models || {}) }
+    for (const [model, count] of Object.entries(entry.models || {})) {
+      mergedModels[model] = Math.max(mergedModels[model] || 0, count || 0)
+    }
+    mergedAgents.set(entry.agentId, {
+      ...existing,
+      totalCalls: Math.max(existing.totalCalls || 0, entry.totalCalls || 0),
+      totalInputTokens: Math.max(existing.totalInputTokens || 0, entry.totalInputTokens || 0),
+      totalOutputTokens: Math.max(existing.totalOutputTokens || 0, entry.totalOutputTokens || 0),
+      totalTokens: Math.max(existing.totalTokens || 0, entry.totalTokens || 0),
+      estimatedCostUsd: Math.max(existing.estimatedCostUsd || 0, entry.estimatedCostUsd || 0),
+      avgDurationMs: Math.max(existing.avgDurationMs || 0, entry.avgDurationMs || 0),
+      lastActivity: [existing.lastActivity, entry.lastActivity].filter(Boolean).sort().slice(-1)[0] || '',
+      models: mergedModels,
+    })
+  }
+
+  const mergedWorkflows = new Map<string, WorkflowMetering>()
+  for (const entry of previous.byWorkflow || []) {
+    mergedWorkflows.set(entry.workflowId, { ...entry })
+  }
+  for (const entry of next.byWorkflow || []) {
+    const existing = mergedWorkflows.get(entry.workflowId)
+    if (!existing) {
+      mergedWorkflows.set(entry.workflowId, { ...entry })
+      continue
+    }
+    mergedWorkflows.set(entry.workflowId, {
+      ...existing,
+      workflowName: entry.workflowName || existing.workflowName,
+      totalRuns: Math.max(existing.totalRuns || 0, entry.totalRuns || 0),
+      totalTokens: Math.max(existing.totalTokens || 0, entry.totalTokens || 0),
+      estimatedCostUsd: Math.max(existing.estimatedCostUsd || 0, entry.estimatedCostUsd || 0),
+      avgDurationMs: Math.max(existing.avgDurationMs || 0, entry.avgDurationMs || 0),
+      lastRun: [existing.lastRun, entry.lastRun].filter(Boolean).sort().slice(-1)[0] || '',
+    })
+  }
+
+  const dailyCost = Array.from(mergedDailyCost.values()).sort((a, b) => a.date.localeCompare(b.date))
+  const byAgent = Array.from(mergedAgents.values()).sort((a, b) => (b.estimatedCostUsd || 0) - (a.estimatedCostUsd || 0))
+  const byWorkflow = Array.from(mergedWorkflows.values()).sort((a, b) => (b.estimatedCostUsd || 0) - (a.estimatedCostUsd || 0))
+
+  return {
+    totalTraces: Math.max(previous.totalTraces || 0, next.totalTraces || 0),
+    totalInputTokens: Math.max(previous.totalInputTokens || 0, next.totalInputTokens || 0),
+    totalOutputTokens: Math.max(previous.totalOutputTokens || 0, next.totalOutputTokens || 0),
+    totalTokens: Math.max(previous.totalTokens || 0, next.totalTokens || 0),
+    estimatedCostUsd: Math.max(previous.estimatedCostUsd || 0, next.estimatedCostUsd || 0),
+    dailyCost,
+    costSummary: summarizeCostWindows(dailyCost),
+    byAgent,
+    byWorkflow,
+    period: next.period || previous.period || 'all',
+  }
+}
+
 function isLocalDashboardInstanceId(value: string): boolean {
   if (!value) return false
   try {
@@ -317,6 +421,7 @@ export function recordMeteringFetchFailure(message: string, now: number = Date.n
 
 export function resetMeteringFetchFailureStateForTests() {
   clearMeteringFetchFailureState()
+  meteringCache.clear()
 }
 
 function fetchOpikTraces(projectName: string, size: number = 100): Promise<TraceData[]> {
@@ -377,35 +482,58 @@ export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): b
 }
 
 export async function getWorkspaceMetering(workspaceId?: string, viewer?: MeteringViewer): Promise<WorkspaceMetering> {
-  const config = getOpikConfig()
-  const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
-  const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
-  const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
-    if (!traceMatchesViewer(trace, viewer)) {
+  const cacheKey = getMeteringCacheKey(workspaceId, viewer)
+  const cached = meteringCache.get(cacheKey)
+  const now = Date.now()
+
+  const fetchFresh = async (): Promise<WorkspaceMetering> => {
+    const config = getOpikConfig()
+    const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
+    const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
+    const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
+      if (!traceMatchesViewer(trace, viewer)) {
+        return false
+      }
+      const traceWorkspaceId = trace.metadata?.workspace_id
+      if (traceWorkspaceId) {
+        return workspaceIds.has(String(traceWorkspaceId))
+      }
+
+      const meta = trace.metadata || {}
+      if (trace.name.startsWith('agent.chat.')) {
+        const agentId = String(meta.agent_id || trace.name.replace('agent.chat.', ''))
+        return agentIds.has(agentId)
+      }
+      if (trace.name.startsWith('workflow.')) {
+        const workflowId = String(meta.workflow_id || trace.name.replace('workflow.', ''))
+        return workflowIds.has(workflowId)
+      }
       return false
+    })
+    const fresh = {
+      ...aggregateWorkspaceMeteringFromTraces(traces),
+      period: 'all',
     }
-    const traceWorkspaceId = trace.metadata?.workspace_id
-    if (traceWorkspaceId) {
-      return workspaceIds.has(String(traceWorkspaceId))
-    }
-
-    // Older traces may lack workspace_id. Keep them only if they clearly map
-    // to an agent or workflow that exists in the workspace being viewed.
-    const meta = trace.metadata || {}
-    if (trace.name.startsWith('agent.chat.')) {
-      const agentId = String(meta.agent_id || trace.name.replace('agent.chat.', ''))
-      return agentIds.has(agentId)
-    }
-    if (trace.name.startsWith('workflow.')) {
-      const workflowId = String(meta.workflow_id || trace.name.replace('workflow.', ''))
-      return workflowIds.has(workflowId)
-    }
-    return false
-  })
-  const aggregated = aggregateWorkspaceMeteringFromTraces(traces)
-
-  return {
-    ...aggregated,
-    period: 'all',
+    const previous = meteringCache.get(cacheKey)?.data
+    const merged = previous ? mergeWorkspaceMetering(previous, fresh) : fresh
+    meteringCache.set(cacheKey, {
+      data: merged,
+      fetchedAt: Date.now(),
+    })
+    return merged
   }
+
+  if (cached?.data) {
+    if (!cached.refreshPromise && now - cached.fetchedAt >= METERING_CACHE_TTL_MS) {
+      cached.refreshPromise = fetchFresh()
+        .catch(() => cached.data)
+        .finally(() => {
+          const latest = meteringCache.get(cacheKey)
+          if (latest) delete latest.refreshPromise
+        })
+    }
+    return cached.data
+  }
+
+  return fetchFresh()
 }
