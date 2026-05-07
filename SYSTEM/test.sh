@@ -17,6 +17,7 @@
 
 # Ensure we're in the SYSTEM directory
 cd "$(dirname "$0")"
+SYSTEM_DIR="$(pwd)"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -485,7 +486,7 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
-sh dashboard/docker-entrypoint.test.sh > /tmp/clawmax-docker-entrypoint.out 2>&1 || true
+sh "$SYSTEM_DIR/dashboard/docker-entrypoint.test.sh" > /tmp/clawmax-docker-entrypoint.out 2>&1 || true
 if grep -q "docker-entrypoint gateway tests passed" /tmp/clawmax-docker-entrypoint.out; then
   pass "Docker entrypoint gateway tests"
 else
@@ -493,7 +494,7 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Dockerfile OpenClaw builder tests...${NC}"
-sh dockerfile-openclaw-builder.test.sh > /tmp/clawmax-dockerfile-openclaw-builder.out 2>&1 || true
+sh "$SYSTEM_DIR/dockerfile-openclaw-builder.test.sh" > /tmp/clawmax-dockerfile-openclaw-builder.out 2>&1 || true
 if grep -q "dockerfile openclaw builder tests passed" /tmp/clawmax-dockerfile-openclaw-builder.out; then
   pass "Dockerfile OpenClaw builder tests"
 else
