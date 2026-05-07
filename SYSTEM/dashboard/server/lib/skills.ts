@@ -37,6 +37,8 @@ export interface OpenClawSkill {
   bundled: boolean
   source: 'bundled' | 'managed' | 'workspace'
   dirty?: boolean
+  variantOf?: string
+  originalSource?: 'bundled' | 'managed' | 'workspace'
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string
@@ -98,6 +100,14 @@ const BUNDLED_SKILLS_DIR = findOpenClawSkillsDir()
 const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
 const REPO_CUSTOM_SKILLS_DIR = path.join(REPO_ROOT, 'SKILLS', 'custom')
 
+function slugifySkillName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'custom-skill'
+}
+
 /**
  * Get workspace custom skills directory
  */
@@ -109,14 +119,20 @@ export function getWorkspaceSkillsDir(): string {
  * Load all available skills from OpenClaw installation
  */
 export function listAvailableSkills(): OpenClawSkill[] {
-  const skills: OpenClawSkill[] = []
-  const seenNames = new Set<string>()
+  const skillsByName = new Map<string, OpenClawSkill>()
+
+  function getSkillPriority(skill: OpenClawSkill): number {
+    if (skill.source === 'workspace') return 3
+    if (skill.source === 'managed') return 2
+    return 1
+  }
 
   function pushSkill(skill: OpenClawSkill | null) {
     if (!skill) return
-    if (seenNames.has(skill.name)) return
-    seenNames.add(skill.name)
-    skills.push(skill)
+    const existing = skillsByName.get(skill.name)
+    if (!existing || getSkillPriority(skill) >= getSkillPriority(existing)) {
+      skillsByName.set(skill.name, skill)
+    }
   }
 
   // Load bundled skills from OpenClaw repo
@@ -202,7 +218,7 @@ export function listAvailableSkills(): OpenClawSkill[] {
     }
   }
 
-  return skills.sort((a, b) => a.name.localeCompare(b.name))
+  return Array.from(skillsByName.values()).sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -231,6 +247,8 @@ function parseSkillFile(
       bundled: source === 'bundled',
       source,
       dirty: !!openclawMeta.dirty,
+      variantOf: openclawMeta.variantOf,
+      originalSource: openclawMeta.originalSource,
       requires: openclawMeta.requires,
       install: openclawMeta.install,
       homepage: openclawMeta.homepage,
@@ -269,6 +287,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       bundled: false,
       source: 'workspace',
       dirty: !!openclawMeta.dirty,
+      variantOf: openclawMeta.variantOf,
+      originalSource: openclawMeta.originalSource,
       requires: data.requires || openclawMeta.requires,
       install: data.install || openclawMeta.install,
       homepage: data.homepage || openclawMeta.homepage,
@@ -312,7 +332,7 @@ export function getSkillContent(skillId: string): { skill: OpenClawSkill; conten
   if (!skill) return null
 
   const content = fs.readFileSync(skill.filePath, 'utf-8')
-  const editable = skill.source !== 'bundled'
+  const editable = true
   return { skill, content, editable }
 }
 
@@ -322,11 +342,27 @@ export function updateSkillContent(skillId: string, content: string): { skill: O
     throw new Error(`Skill "${skillId}" not found`)
   }
 
+  const parsed = matter(content)
+  let targetPath = skill.filePath
+
   if (skill.source === 'bundled') {
-    throw new Error('Bundled skills are read-only')
+    const workspaceSkillsDir = getWorkspaceSkillsDir()
+    fs.mkdirSync(workspaceSkillsDir, { recursive: true })
+    const targetDirName = skill.id || slugifySkillName(skill.name)
+    const workspaceSkillDir = path.join(workspaceSkillsDir, targetDirName)
+
+    if (!fs.existsSync(workspaceSkillDir)) {
+      copyDirectorySync(path.dirname(skill.filePath), workspaceSkillDir)
+    }
+
+    const skillMdUpper = path.join(workspaceSkillDir, 'SKILL.md')
+    const skillMdLower = path.join(workspaceSkillDir, 'skill.md')
+    if (!fs.existsSync(skillMdUpper) && fs.existsSync(skillMdLower)) {
+      fs.renameSync(skillMdLower, skillMdUpper)
+    }
+    targetPath = fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
   }
 
-  const parsed = matter(content)
   const updatedData = {
     ...parsed.data,
     metadata: {
@@ -335,13 +371,15 @@ export function updateSkillContent(skillId: string, content: string): { skill: O
         ...(parsed.data?.metadata?.openclaw || {}),
         dirty: true,
         dirtyEditedAt: new Date().toISOString(),
-        dirtyEditedBy: 'dashboard'
+        dirtyEditedBy: 'dashboard',
+        variantOf: skill.source === 'bundled' ? skill.name : (parsed.data?.metadata?.openclaw?.variantOf || skill.variantOf),
+        originalSource: skill.source === 'bundled' ? skill.source : (parsed.data?.metadata?.openclaw?.originalSource || skill.originalSource)
       }
     }
   }
 
   const nextContent = matter.stringify(parsed.content, updatedData)
-  fs.writeFileSync(skill.filePath, nextContent, 'utf-8')
+  fs.writeFileSync(targetPath, nextContent, 'utf-8')
 
   const refreshed = getSkillContent(skillId)
   if (!refreshed) {

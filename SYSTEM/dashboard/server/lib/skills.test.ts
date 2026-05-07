@@ -51,13 +51,15 @@ const testEnv = setupTestWorkspace()
 const {
   listAvailableSkills,
   getSkillById,
+  getSkillContent,
   getAgentSkills,
   setAgentSkills,
   validateSkills,
   createCustomSkill,
   importWorkspaceSkill,
   deleteWorkspaceSkill,
-  getWorkspaceSkillsDir
+  getWorkspaceSkillsDir,
+  updateSkillContent
 } = require('./skills')
 
 // ANSI color codes
@@ -146,6 +148,23 @@ test('getSkillById("workspace-ls") returns packaged ClawMax repo skill', () => {
   assert(skill !== null, 'Should find workspace-ls skill')
   assertEqual(skill!.name, 'workspace-ls', 'Name should be "workspace-ls"')
   assert(skill!.source === 'bundled' || skill!.source === 'workspace', 'workspace-ls should be discoverable in the catalog')
+})
+
+test('updateSkillContent() creates a workspace copy when editing a bundled skill', () => {
+  const bundledSkill = getSkillById('workspace-ls')
+  assert(bundledSkill, 'Expected bundled workspace-ls skill')
+  assertEqual(bundledSkill!.source, 'bundled', 'Expected packaged skill to appear as bundled before edit')
+
+  const original = getSkillContent('workspace-ls')
+  assert(original, 'Expected original content for workspace-ls')
+
+  const nextContent = `${original!.content}\n\n<!-- workspace copy test -->\n`
+  const updated = updateSkillContent('workspace-ls', nextContent)
+
+  assertEqual(updated.skill.source, 'workspace', 'Edited bundled skill should become a workspace variant')
+  assertEqual(updated.skill.variantOf, 'workspace-ls', 'Workspace copy should record original skill name')
+  assertEqual(updated.skill.originalSource, 'bundled', 'Workspace copy should record original source')
+  assert(updated.content.includes('workspace copy test'), 'Updated content should persist')
 })
 
 // Test 4: Get skill by ID - invalid skill

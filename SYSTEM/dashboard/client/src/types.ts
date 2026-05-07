@@ -26,6 +26,7 @@ export interface SecretRequirement {
 }
 
 export interface OpenClawSkill {
+  id?: string            // Directory/identifier for workspace variants
   name: string          // Unique ID (e.g., "github")
   description: string   // Short description
   emoji?: string        // Display emoji (e.g., "🐙")
@@ -33,6 +34,8 @@ export interface OpenClawSkill {
   bundled: boolean      // Is this a bundled skill?
   source: 'bundled' | 'managed' | 'workspace'
   dirty?: boolean       // Edited locally from original/default behavior
+  variantOf?: string
+  originalSource?: 'bundled' | 'managed' | 'workspace'
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL

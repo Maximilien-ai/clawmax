@@ -7,6 +7,7 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
+import { filterAssignableAgents, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -70,6 +71,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false)
+  const [selectedBulkAgentIds, setSelectedBulkAgentIds] = useState<Set<string>>(new Set())
+  const [bulkAgentSearchQuery, setBulkAgentSearchQuery] = useState('')
+  const [bulkAssigningSkills, setBulkAssigningSkills] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSkillActionsMenu, setShowSkillActionsMenu] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -563,7 +570,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setSkillContent(data.content || editingDraft)
       setEditingDraft(data.content || editingDraft)
       setEditingSkill(false)
-      showSuccess(`Saved ${viewingSkill.name} and marked it dirty`)
+      showSuccess(viewingSkill.source === 'bundled'
+        ? `Saved ${viewingSkill.name} as a workspace copy and marked it dirty`
+        : `Saved ${viewingSkill.name} and marked it dirty`)
       await loadSkills()
       setViewingSkill(data.skill || viewingSkill)
     } catch (err: any) {
@@ -641,6 +650,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   }, [agentSkillMap, availableAgents, viewingSkill])
   const filteredViewerAvailableAgents = viewingSkillAssignmentBuckets.unassignedAgentIds.filter((agent) =>
     agent.toLowerCase().includes(viewerAgentSearchQuery.trim().toLowerCase())
+  )
+  const filteredBulkAgents = useMemo(
+    () => filterAssignableAgents(availableAgents, bulkAgentSearchQuery),
+    [availableAgents, bulkAgentSearchQuery]
   )
 
   // Filter agents for searchable dropdown
@@ -755,6 +768,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             {/* Searchable Agent Selector */}
             {availableAgents.length > 0 && (
               <div className="relative">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Selected Agent
+                </label>
                 <input
                   type="text"
                   value={agentSearchQuery || agentId}
@@ -906,6 +922,23 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             {/* Filter buttons */}
             <div className="flex gap-2">
               <button
+                onClick={() => {
+                  setSelectionMode((current) => {
+                    if (current) {
+                      setSelectedSkillIds(new Set())
+                    }
+                    return !current
+                  })
+                }}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  selectionMode
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {selectionMode ? 'Done Selecting' : 'Select'}
+              </button>
+              <button
                 onClick={() => setFilterAssigned('all')}
                 className={`px-4 py-2 rounded-lg font-medium ${
                   filterAssigned === 'all'
@@ -938,10 +971,49 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             </div>
           </div>
 
-          <div className="mt-2 text-sm text-gray-600">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300">
+            <span>
             Showing {filteredSkills.length} of {allSkills.length} skills
+            </span>
+            {selectionMode && filteredSkills.length > 0 && (
+              <button
+                onClick={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, filteredSkills.map((skill) => skill.name)))}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="Toggle select all visible skills"
+              >
+                {filteredSkills.every((skill) => selectedSkillIds.has(skill.name)) ? 'Deselect All Visible' : 'Select All Visible'}
+              </button>
+            )}
           </div>
         </div>
+
+        {selectionMode && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 dark:border-purple-800 dark:bg-purple-900/20">
+            <div className="text-sm font-medium text-purple-900 dark:text-purple-200">
+              {selectedSkillIds.size} skill{selectedSkillIds.size !== 1 ? 's' : ''} selected
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
+                  setBulkAgentSearchQuery('')
+                  setShowBulkAssignModal(true)
+                }}
+                disabled={selectedSkillIds.size === 0 || availableAgents.length === 0}
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Add Selected Skills to Agents
+              </button>
+              <button
+                onClick={() => setSelectedSkillIds(new Set())}
+                disabled={selectedSkillIds.size === 0}
+                className="px-4 py-2 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-200 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Error display */}
         {error && (
@@ -1211,6 +1283,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     onView={() => openSkillViewer(skill)}
                     usageCount={users.length}
                     usedBy={users}
+                    selectionMode={selectionMode}
+                    isSelected={selectedSkillIds.has(skill.name)}
+                    onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                   />
                 )
               })}
@@ -1254,19 +1329,21 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
               <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
                   <div className="text-sm text-gray-600 dark:text-gray-300">
-                  View the raw `skill.md` or inspect the rendered markdown. Editing is only enabled for workspace and managed skills.
+                  View the raw `skill.md` or inspect the rendered markdown. Editing a built-in skill creates a workspace copy before saving.
                 </div>
                 <div className="flex items-center gap-2">
-                  {!editingSkill && viewingSkill.source !== 'bundled' && (
+                  {!editingSkill && (
                     <button
                       onClick={() => {
-                        showWarning('Editing this skill will mark it DIRTY so the divergence stays visible.')
+                        showWarning(viewingSkill.source === 'bundled'
+                          ? 'Editing this built-in skill will create a workspace copy and mark that copy DIRTY.'
+                          : 'Editing this skill will mark it DIRTY so the divergence stays visible.')
                         setEditingDraft(skillContent)
                         setEditingSkill(true)
                       }}
                       className="px-3 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-700 text-sm font-medium"
                     >
-                      Edit Skill
+                      {viewingSkill.source === 'bundled' ? 'Edit as Workspace Copy' : 'Edit Skill'}
                     </button>
                   )}
                   {editingSkill && (
@@ -1497,6 +1574,117 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBulkAssignModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add Selected Skills to Agents</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Add {selectedSkillIds.size} selected skill{selectedSkillIds.size !== 1 ? 's' : ''} to one or more agents from this workspace.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBulkAssignModal(false)}
+                  className="text-2xl leading-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-200">
+                  Skills: <span className="font-medium">{Array.from(selectedSkillIds).sort((a, b) => a.localeCompare(b)).join(', ')}</span>
+                </div>
+                <input
+                  type="text"
+                  value={bulkAgentSearchQuery}
+                  onChange={(e) => setBulkAgentSearchQuery(e.target.value)}
+                  placeholder="Search agents in this workspace..."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                />
+                <div className="max-h-72 space-y-2 overflow-auto rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  {filteredBulkAgents.map((candidateAgentId) => {
+                    const isSelected = selectedBulkAgentIds.has(candidateAgentId)
+                    return (
+                      <label
+                        key={candidateAgentId}
+                        className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/30'
+                            : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900/40'
+                        }`}
+                      >
+                        <span className="truncate text-gray-900 dark:text-gray-100">{candidateAgentId}</span>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => setSelectedBulkAgentIds((current) => toggleItemSelection(current, candidateAgentId))}
+                          className="h-4 w-4"
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>{selectedBulkAgentIds.size} agent{selectedBulkAgentIds.size !== 1 ? 's' : ''} selected</span>
+                  <button
+                    onClick={() => setSelectedBulkAgentIds(new Set(filteredBulkAgents))}
+                    className="font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Select Visible Agents
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button
+                  onClick={() => setShowBulkAssignModal(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setBulkAssigningSkills(true)
+                    setError(null)
+                    try {
+                      const response = await fetch(`${API_BASE}/api/skills/bulk-assign`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          agentIds: Array.from(selectedBulkAgentIds),
+                          addSkills: Array.from(selectedSkillIds),
+                        }),
+                      })
+                      const data = await response.json().catch(() => ({}))
+                      if (!response.ok) {
+                        throw new Error(data.error || 'Failed to bulk assign skills')
+                      }
+                      showSuccess(`Added ${selectedSkillIds.size} skill${selectedSkillIds.size !== 1 ? 's' : ''} to ${selectedBulkAgentIds.size} agent${selectedBulkAgentIds.size !== 1 ? 's' : ''}`)
+                      await loadAgents()
+                      if (agentId) {
+                        await loadSkills()
+                      }
+                      setShowBulkAssignModal(false)
+                      setSelectedSkillIds(new Set())
+                      setSelectionMode(false)
+                    } catch (err: any) {
+                      setError(err.message || 'Failed to bulk assign skills')
+                    } finally {
+                      setBulkAssigningSkills(false)
+                    }
+                  }}
+                  disabled={selectedBulkAgentIds.size === 0 || selectedSkillIds.size === 0 || bulkAssigningSkills}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                >
+                  {bulkAssigningSkills ? 'Assigning…' : 'Add Skills'}
+                </button>
               </div>
             </div>
           </div>

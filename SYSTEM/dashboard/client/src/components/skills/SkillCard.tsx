@@ -9,9 +9,19 @@ interface SkillCardProps {
   compact?: boolean
   usageCount?: number
   usedBy?: string[]
+  selectionMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, compact = false, usageCount, usedBy }: SkillCardProps) {
+function getSourceBadgeLabel(skill: OpenClawSkill): string {
+  if (skill.variantOf) return 'Workspace Copy'
+  if (skill.source === 'workspace') return 'Workspace'
+  if (skill.source === 'managed') return 'Managed'
+  return 'Built-in'
+}
+
+export function SkillCard({ skill, assigned, onToggle, onView, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -31,6 +41,9 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
             <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">
               {skill.name}
             </h3>
+            <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
+              {getSourceBadgeLabel(skill)}
+            </span>
             {skill.dirty && (
               <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 DIRTY
@@ -64,6 +77,19 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
 
         {/* Action Button */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          {selectionMode && onToggleSelect && (
+            <button
+              onClick={onToggleSelect}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors border ${
+                isSelected
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+              }`}
+              title={isSelected ? `Deselect ${skill.name}` : `Select ${skill.name}`}
+            >
+              {isSelected ? '✓ Selected' : 'Select'}
+            </button>
+          )}
           {onView && (
             <button
               onClick={onView}
