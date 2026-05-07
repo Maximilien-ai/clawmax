@@ -3,9 +3,9 @@
 > Last updated: May 7, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
-## 1.4.0 RC1 Release Focus
+## 1.4.x Follow-Through
 
-Target: finish RC1 validation today, then promote the same line to `1.4.0` once the manual release pass is clean.
+Target: keep the `1.4.0` line stable after tag/test, close out remaining customer verification, and batch any newly found regressions into `1.4.1` only if needed.
 
 Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 
@@ -15,13 +15,13 @@ Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 - [x] **Context-overflow regression stays fixed across fresh workflow runs** — customer verification passed on the restored runtime line.
 - [x] **Company delete / hierarchy / handoff / dashboard safety fixes landed** — the release line now includes the build-a-company follow-through that made company apply/delete/dashboard flows demo-safe again.
 - [x] **Workspace switcher/top bar handles long workspace names** — shipped in `cec97e4`.
-- [ ] **RC1 manual smoke checklist executed** — run the release-candidate manual checklist in `SYSTEM/docs/RELEASE_1_4_0_RC1.md`.
+- [ ] **1.4.0 manual smoke checklist fully executed** — run the release checklist in `SYSTEM/docs/RELEASE_1_4_0_RC1.md` against the tagged `1.4.0` line.
 - [ ] **Customer verification window for recent runtime fixes closes cleanly** — `#122`, `#123`, and `#124` are fixed and waiting only on external confirmation/reopen policy.
 
 ### Should Fix If Time Allows
 
 - [x] **Release docs/changelog pass** — README, changelog, status, known-issues, backlog, and RC1 checklist now reflect the release-candidate line.
-- [ ] **README/doc polish final sweep** — one more wording pass after the manual RC1 test run, especially around company dashboards, skill reverse assignment, and metering caching.
+- [ ] **README/doc polish final sweep** — one more wording pass after the tagged `1.4.0` manual test run, especially around company dashboards, skill reverse assignment, and metering caching.
 - [ ] **Customer follow-up / close loop** — if `p11n-com` does not reply within the verification window, post one more follow-up and close with reopen guidance.
 
 ### New Customer UX Follow-Through
@@ -69,6 +69,7 @@ Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 - [ ] **Cloud image must ship built OpenClaw runtime, not raw source or fixtures** — the original fixture-runtime blocker was identified in the CLI cloud build path, and the current follow-up blocker is that cloud now installs real OpenClaw source without built `dist/entry.(m)js` output. Canonical Docker fix pushed in commit `23aaf52`; keep this open until the rebuilt image is validated live.
 - [ ] **Replace ad hoc Docker OpenClaw packaging with a cleaner canonical install path** — current cloud stabilization uses an in-image build/package path for the pinned OpenClaw runtime. After cloud is healthy, replace that with a more explicit release artifact or canonical upstream distribution flow so runtime packaging is easier to reason about and less fragile.
 - [ ] **Plan and test OpenClaw upgrade to latest after cloud runtime stabilizes** — once the pinned runtime path is healthy in cloud, schedule a deliberate upgrade pass from the current tested OpenClaw ref to latest, with explicit validation for gateway startup, agent creation, skills loading, and workflow execution.
+- [ ] **Keep OpenClaw currency current after 1.4.0** — add a short recurring release-engineering pass to check the tested OpenClaw ref against current upstream, decide whether to pin newer, and validate gateway startup, agent creation, skills, BYOK execution, and workflow execution before the next tagged release.
 - [ ] **Audit additional runtime tool packaging for built-in skills** — after cloud runtime stabilizes, review whether the base image should also package `bash`, `zip`, `unzip`, `tar`, `gzip`, and `file`/`less` for common agent skill flows without over-expanding image size.
 - [ ] **Dangerous skill review and guardrails** — during security review, study known dangerous-skill patterns (for example [gricha/dangerous-skills](https://github.com/gricha/dangerous-skills)) and also review higher-quality public skill repos (for example `getsentry/skills`) to separate good patterns from risky ones; add guardrails so imported or AI-created skills cannot quietly introduce obviously dangerous behavior without explicit user review and warnings.
 - [ ] **Cloud agent runtime still needs live validation after image rebuild** — fixture responses should be gone, but cloud must still be rechecked end-to-end after the rebuilt image lands: one agent chat, Skills page, Doctor output, and `openclaw --version`.
@@ -83,7 +84,8 @@ Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 - [ ] **ClawMax Doctor: Restart Gateway action** — add an in-product `openclaw gateway restart` action when gateway is configured but not running, so users can recover skills/chat capability without leaving the UI
 - [ ] **Native gateway usage polling / scope cleanup** — dashboard `sessions.usage` polling is currently disabled in favor of Opik-backed metering because the gateway path requires scopes like `operator.read` and creates repeated log noise. Revisit only if we need native gateway usage stats again.
 - [ ] **Template apply tool readiness probes** — extend the new pre-apply readiness step with per-skill / per-tool checks so users can see whether assigned tools are actually usable before deploying a team
-- [ ] **Event planning template follow-through** — validate the new small/medium/large event templates with a real user, tighten the kickoff fields, and improve the medium/large speaker-capacity-follow-up flows based on customer feedback. GitHub: `#95`
+- [x] **Event planning template refinement follow-through** — shipped richer kickoff fields and more concrete downstream markdown deliverables for the event templates in `e32c7b4`. GitHub: `#95`
+- [ ] **Event planning template customer validation** — keep collecting real event-planning feedback on the refined templates and capture any further domain-specific tweaks separately from the shipped `#95` engineering pass.
 - [x] **Workflow result surfacing in notifications and workspace dashboards** — first pass shipped: workflow outputs/artifacts can surface in org pages, shared/company dashboards, and notifications with output-file affordances. Keep notification grouping and external-result types open separately.
 - [ ] **Notification burst grouping / deduplication** — collapse near-identical notification bursts (for example multiple agents updating the same file class during one workflow window) into grouped summaries like `4 agents updated MEMORY.md`, with optional drill-down into the underlying per-agent events. Prioritize workflow-result, workspace-artifact, and repeated agent-status notifications so the feed becomes a summary surface instead of a noisy event log.
 - [ ] **Senso and external artifact result notifications** — file artifacts and GitHub issue/PR links now surface into `Results`, but Senso outputs and other external result types still need first-class notification hooks plus dashboard surfacing so users can see all meaningful agent outputs in one place.

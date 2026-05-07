@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.4.0-rc1
+**Current Version**: v1.4.0
 **Last Updated**: May 7, 2026
-**Status**: `v1.4.0-rc1` is the current release candidate on `main`
+**Status**: `v1.4.0` is the latest tagged release on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.0` release-candidate line: company dashboards, richer company/workflow templates, timezone-correct scheduling, gateway fallback hardening, metering caching, and recent customer UX follow-through
+- `main` now carries the `1.4.0` release line: company dashboards, richer company/workflow templates, timezone-correct scheduling, gateway fallback hardening, metering caching, and recent customer UX follow-through
 - `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green on the current default-safe path, including the Docker smoke tests that were failing earlier this week
 - workflow scheduling now respects persisted workflow timezones in previews, node-cron execution, and gateway cron sync
 - local/hosted runtime compatibility improved across Gemini, Ollama, gateway fallback, and scheduled system-key execution paths

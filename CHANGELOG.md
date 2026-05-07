@@ -2,9 +2,9 @@
 
 All notable changes to ClawMax are documented here.
 
-## [v1.4.0-rc1] - 2026-05-07
+## [v1.4.0] - 2026-05-07
 
-### Release Candidate — Product, Runtime, and Release Hardening
+### Release — Product, Runtime, and Release Hardening
 - **Company and Dashboard Flows** — the `1.4.0` line now includes company-aware template/org/dashboard work from the build-a-company push, including richer company workflows, handoff-oriented outputs, and safer company dashboard rendering paths
 - **Workflow Scheduling Correctness** — workflow timezones now persist and drive next-run previews, in-process cron execution, AI cron generation context, and gateway cron sync with explicit timezone handling
 - **Gateway Runtime Reliability** — gateway fallback execution, token resolution, cron registration, and container startup paths were hardened so local and hosted flows use the intended execution path more consistently

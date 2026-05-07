@@ -5,13 +5,15 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.0--rc1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Release Candidate: v1.4.0-rc1
+## 🔥 Latest Release: v1.4.0
 
+- Templates now organized as Agents, Teams, and Company (teams of teams)
+- Organization tab now shows an org chart of agents inferred from tags and roles
 - Company and workflow orchestration are much stronger:
   - build-a-company templates now support company-aware org structure, workflow handoffs, company dashboards, and richer event/business template outputs
   - workflow scheduling now honors saved workflow timezones end to end, including next-run previews, in-process cron execution, and gateway cron sync

@@ -1,6 +1,6 @@
 # 1.4.0 RC1 Checklist
 
-Use this as the focused manual pass before promoting `v1.4.0-rc1` to `v1.4.0`.
+Use this as the focused manual pass for the tagged `v1.4.0` line.
 
 ## Scope
 
@@ -101,5 +101,5 @@ Expected:
 
 - Update README and changelog if manual RC1 testing finds wording gaps
 - Remind the reporting customer to verify `#122`, `#123`, and `#124`
-- If RC1 manual smoke is clean, notify the CLI team to build/test the `1.4.0-rc1` image
-- Promote `v1.4.0-rc1` to `v1.4.0` once image and manual validation are both clean
+- Notify the CLI team to build/test the `1.4.0` image from the tagged release commit
+- If image or manual validation finds issues, aggregate them into `1.4.1`
