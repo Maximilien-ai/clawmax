@@ -103,6 +103,27 @@ test('accepts valid github repo and optional placeholders', () => {
   assert(result.errors.length === 0, 'Expected no validation errors')
 })
 
+test('accepts chief-of-staff style optional daily-run placeholders', () => {
+  const result = validateOrganizationCustomization({
+    workflows: [
+      {
+        id: 'wf-chief-of-staff',
+        name: 'Daily Priorities Kickoff',
+        content: `
+- **Today’s top priorities (optional):** [e.g., investor calls, hiring, customer follow-up]
+- **Critical meetings (optional):** [e.g., 1:00 PM partner review, 4:00 PM team sync]
+- **Inbox focus (optional):** [e.g., clear urgent threads, draft replies, identify delegate items]
+- **Research needs (optional):** [e.g., people, companies, topics to brief before meetings]
+- **GitHub repo (optional):** [e.g., owner/repo]
+`,
+      },
+    ],
+  })
+
+  assert(result.valid === true, 'Expected optional day-of placeholders to pass')
+  assert(result.errors.length === 0, 'Expected no validation errors for optional day-of placeholders')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
