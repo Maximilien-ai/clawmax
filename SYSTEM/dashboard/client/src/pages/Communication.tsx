@@ -109,6 +109,11 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     consequences?: string[]
     onConfirm: () => Promise<void> | void
   } | null>(null)
+  const agentsRef = React.useRef<Agent[]>([])
+
+  useEffect(() => {
+    agentsRef.current = agents
+  }, [agents])
 
   const markChannelSeen = useCallback((channel: Channel) => {
     const key = `${channel.type}:${channel.name}`
@@ -179,6 +184,24 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const handleNavigateToDoc = useCallback((target: string) => {
     onNavigateToDoc?.(resolveDocPath(target))
   }, [onNavigateToDoc, resolveDocPath])
+
+  const closeChatPanel = useCallback(() => {
+    setChatPanelChannel(null)
+  }, [])
+
+  const handleChatMessageSent = useCallback((mentionedIds: string[]) => {
+    const offlineAgents = agentsRef.current.filter((agent) => mentionedIds.includes(agent.id) && agent.status === 'offline')
+    setTimeout(() => {
+      fetch('/api/agents')
+        .then((r) => r.json())
+        .then((data) => {
+          setAgents(data.agents || [])
+          window.dispatchEvent(new CustomEvent('agents-updated'))
+        })
+        .catch(() => {})
+      offlineAgents.forEach((agent) => showSuccess(`${agent.name} is now active`))
+    }, 2000)
+  }, [showSuccess])
 
   useEffect(() => {
     fetchAgents()
@@ -1035,26 +1058,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         <div className="w-full sm:w-[480px] h-full flex-shrink-0 border-l border-gray-200 dark:border-gray-700">
           <GroupChatPanel
             channel={chatPanelChannel}
-            onClose={() => setChatPanelChannel(null)}
+            onClose={closeChatPanel}
             mode="pane"
             onNavigateToDoc={handleNavigateToDoc}
-            onMessageSent={(mentionedIds, hasAll) => {
-              // Check which mentioned agents were offline
-              const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
-              // Wait for agents to process message, then refresh and show toast
-              setTimeout(() => {
-                fetch('/api/agents')
-                  .then(r => r.json())
-                  .then(data => {
-                    setAgents(data.agents || [])
-                    // Notify other components (like Agents page) to refresh
-                    window.dispatchEvent(new CustomEvent('agents-updated'))
-                  })
-                  .catch(() => {})
-                // Show toast for offline agents that were mentioned
-                offlineAgents.forEach(a => showSuccess(`${a.name} is now active`))
-              }, 2000)
-            }}
+            onMessageSent={handleChatMessageSent}
           />
         </div>
       )}
@@ -1064,26 +1071,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     {chatPanelChannel && viewMode === 'grid' && (
       <GroupChatPanel
         channel={chatPanelChannel}
-        onClose={() => setChatPanelChannel(null)}
+        onClose={closeChatPanel}
         mode="overlay"
         onNavigateToDoc={handleNavigateToDoc}
-        onMessageSent={(mentionedIds, hasAll) => {
-          // Check which mentioned agents were offline
-          const offlineAgents = agents.filter(a => mentionedIds.includes(a.id) && a.status === 'offline')
-          // Wait for agents to process message, then refresh and show toast
-          setTimeout(() => {
-            fetch('/api/agents')
-              .then(r => r.json())
-              .then(data => {
-                setAgents(data.agents || [])
-                // Notify other components (like Agents page) to refresh
-                window.dispatchEvent(new CustomEvent('agents-updated'))
-              })
-              .catch(() => {})
-            // Show toast for offline agents that were mentioned
-            offlineAgents.forEach(a => showSuccess(`${a.name} is now active`))
-          }, 2000)
-        }}
+        onMessageSent={handleChatMessageSent}
       />
     )}
 

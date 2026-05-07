@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { buildCommunicationCacheKey, shouldUpdateChannelMessages } from '../lib/communicationMessages'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -36,6 +37,9 @@ interface Props {
   onMessageSent?: (mentionedAgentIds: string[], hasAll: boolean) => void
   onNavigateToDoc?: (path: string) => void
 }
+
+const groupChatMessageCache = new Map<string, Message[]>()
+const groupChatArchiveCache = new Map<string, Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>()
 
 const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
@@ -105,12 +109,13 @@ function extractWorkspaceFileMentions(content: string): string[] {
   return Array.from(new Set(matches))
 }
 
-export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
+function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const chatEnabled = hasAiGenerationAccess(config)
-  const [messages, setMessages] = useState<Message[]>([])
+  const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
+  const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showMentions, setShowMentions] = useState(false)
@@ -121,7 +126,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
   const [typingAgents, setTypingAgents] = useState<Set<string>>(new Set())
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>([])
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>(
+    () => groupChatArchiveCache.get(cacheKey) || []
+  )
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -266,13 +273,12 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       const r = await fetch(endpoint)
       const data = await r.json()
       const newMessages = data.messages || []
+      groupChatMessageCache.set(cacheKey, newMessages)
 
       // Clear typing indicators for agents who have responded
       // Only update messages state if content actually changed (prevents flicker)
       setMessages(prevMessages => {
-        const changed = newMessages.length !== prevMessages.length ||
-          (newMessages.length > 0 && prevMessages.length > 0 &&
-            newMessages[newMessages.length - 1]?.id !== prevMessages[prevMessages.length - 1]?.id)
+        const changed = shouldUpdateChannelMessages(prevMessages, newMessages)
 
         if (changed) {
           setTypingAgents(currentTypingAgents => {
@@ -578,6 +584,7 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
       const r = await fetch(endpoint, { method: 'DELETE' })
       if (r.ok) {
         setMessages([])
+        groupChatMessageCache.set(cacheKey, [])
         setShowClearConfirm(false)
         setInputHistory([]) // Clear input history when chat is archived
         setHistoryIndex(-1)
@@ -588,7 +595,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
           : `/api/groups/${encodeURIComponent(channel.name)}/archives`
         const archivesR = await fetch(archivesEndpoint)
         const archivesData = await archivesR.json()
-        setArchives(archivesData.archives || [])
+        const nextArchives = archivesData.archives || []
+        groupChatArchiveCache.set(cacheKey, nextArchives)
+        setArchives(nextArchives)
       }
     } catch (err) {
       console.error('Failed to clear messages:', err)
@@ -603,7 +612,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
       const r = await fetch(endpoint)
       const data = await r.json()
-      setArchives(data.archives || [])
+      const nextArchives = data.archives || []
+      groupChatArchiveCache.set(cacheKey, nextArchives)
+      setArchives(nextArchives)
       setShowArchives(true)
     } catch (err) {
       console.error('Failed to fetch archives:', err)
@@ -618,7 +629,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
 
       const r = await fetch(endpoint)
       const data = await r.json()
-      setArchives(data.archives || [])
+      const nextArchives = data.archives || []
+      groupChatArchiveCache.set(cacheKey, nextArchives)
+      setArchives(nextArchives)
     } catch (err) {
       console.error('Failed to fetch archives list:', err)
     }
@@ -631,7 +644,9 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
         : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
 
       await fetch(endpoint, { method: 'DELETE' })
-      setArchives(archives.filter(a => a.filename !== filename))
+      const nextArchives = archives.filter(a => a.filename !== filename)
+      groupChatArchiveCache.set(cacheKey, nextArchives)
+      setArchives(nextArchives)
       setDeleteConfirm(null)
       if (viewingArchive?.filename === filename) {
         setViewingArchive(null)
@@ -1135,3 +1150,16 @@ export default function GroupChatPanel({ channel, onClose, mode = 'overlay', onE
     </div>
   )
 }
+
+function areChannelsEquivalent(previous: Channel, next: Channel) {
+  return previous.name === next.name && previous.type === next.type
+}
+
+export default React.memo(GroupChatPanel, (previousProps, nextProps) => (
+  areChannelsEquivalent(previousProps.channel, nextProps.channel) &&
+  previousProps.mode === nextProps.mode &&
+  previousProps.onExpand === nextProps.onExpand &&
+  previousProps.onClose === nextProps.onClose &&
+  previousProps.onMessageSent === nextProps.onMessageSent &&
+  previousProps.onNavigateToDoc === nextProps.onNavigateToDoc
+))

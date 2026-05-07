@@ -421,6 +421,15 @@ else
   fail "Communication bulk actions unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Communication message helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/communicationMessages.test.ts > /tmp/clawmax-communication-messages.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-communication-messages.out; then
+  communication_messages_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-communication-messages.out | head -1 | grep -o '[0-9]\+')
+  pass "Communication message helper unit tests (${communication_messages_count:-?} tests)"
+else
+  fail "Communication message helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/channelApi.test.ts > /tmp/clawmax-channel-api.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-channel-api.out; then
