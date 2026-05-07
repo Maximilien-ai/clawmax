@@ -228,7 +228,7 @@
           "event-director"
         ]
       },
-      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Run Inputs\n- **Event name and goal:** [event name and goal]\n- **Date, venue, and format:** [date, venue, and format]\n- **Expected attendees:** [expected attendees]\n- **Speaker count:** [speaker count]\n- **Key audience outcome:** [key audience outcome]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, and timing\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Set the initial event status and owner decisions in Status",
+      "content": "# Speaker Event Kickoff\n\nYou are the Event Director. The speaker event studio just came online.\n\n## Run Inputs\n- **Event name and goal:** [event name and goal]\n- **Date, venue, and format:** [date, venue, and format]\n- **Expected attendees:** [expected attendees]\n- **Speaker count:** [speaker count]\n- **Key audience outcome:** [key audience outcome]\n- **Budget or operating constraints:** [budget or operating constraints]\n- **Must-have moments or sponsor commitments:** [must-have moments or sponsor commitments]\n- **Output artifact:** [run-of-show, speaker packet, ops plan, recap]\n\n## Your Tasks\n1. Restate the event goal, audience, venue, timing, and top constraints\n2. Ask Program Manager for the first agenda draft\n3. Ask Speaker Coordinator for the speaker outreach and prep plan\n4. Ask Operations Manager for the venue and check-in readiness plan\n5. Produce a concrete markdown kickoff brief with sections for `Goal`, `Audience`, `Constraints`, `Initial Workstreams`, and `Next Decisions`\n6. Post the kickoff brief to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -255,7 +255,7 @@
           "speaker-coordinator"
         ]
       },
-      "content": "# Speaker Readiness Review\n\n1. Review speaker confirmations, bios, assets, and talk status\n2. Identify who still needs briefing, timing guidance, or reminders\n3. Flag missing slides, headshots, approvals, or travel details\n4. Post the speaker readiness update to Speakers and any risks to Status",
+      "content": "# Speaker Readiness Review\n\n1. Review speaker confirmations, bios, assets, and talk status\n2. Identify who still needs briefing, timing guidance, or reminders\n3. Flag missing slides, headshots, approvals, or travel details\n4. Produce a concrete markdown speaker readiness update with sections for `Confirmed`, `At Risk`, `Missing Assets`, and `Next Actions`\n5. Post the speaker readiness update to Speakers and any risks to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -285,7 +285,7 @@
           "program-manager"
         ]
       },
-      "content": "# Run Of Show Build\n\n1. Build the agenda with session timing, transitions, and owner handoffs\n2. Balance speaker time, attendee energy, and buffer windows\n3. Call out the top pacing, sequencing, or content risks\n4. Post the run-of-show draft to Program and the key dependencies to Status",
+      "content": "# Run Of Show Build\n\n1. Build the agenda with session timing, transitions, and owner handoffs\n2. Balance speaker time, attendee energy, and buffer windows\n3. Call out the top pacing, sequencing, or content risks\n4. Produce a concrete markdown run-of-show with sections for `Agenda`, `Owner Handoffs`, `Buffers`, and `Risks`\n5. Post the run-of-show draft to Program and the key dependencies to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -315,7 +315,7 @@
           "operations-manager"
         ]
       },
-      "content": "# Event Day Ops Check\n\n1. Review venue readiness, AV, seating, signage, and check-in flow\n2. Confirm staffing, volunteer, or host responsibilities\n3. Identify the last operational blockers and contingency plans\n4. Post the event-day ops plan to Logistics and a go/no-go summary to Status",
+      "content": "# Event Day Ops Check\n\n1. Review venue readiness, AV, seating, signage, and check-in flow\n2. Confirm staffing, volunteer, or host responsibilities\n3. Identify the last operational blockers and contingency plans\n4. Produce a concrete markdown ops plan with sections for `Venue`, `AV`, `Staffing`, `Check-In`, `Contingencies`, and `Go/No-Go`\n5. Post the event-day ops plan to Logistics and a go/no-go summary to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -346,7 +346,7 @@
           "follow-up-manager"
         ]
       },
-      "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Produce a final host-facing artifact that clearly states the run-of-show, event-day operations view, and follow-up actions\n5. End with a short section titled `What the host should use now` that states exactly what was produced\n6. Post the follow-up plan and the full final artifact text to Follow-Up and the executive summary to Status",
+      "content": "# Speaker Event Follow Up\n\n1. Summarize what happened, what worked, and what needs action next\n2. Draft thank-you, recap, or attendee follow-up messages\n3. Capture leads, commitments, and outstanding owner actions\n4. Produce a final host-facing artifact that clearly states the run-of-show, event-day operations view, follow-up actions, and the top three next owner decisions\n5. End with a short section titled `What the host should use now` that states exactly what was produced\n6. Post the follow-up plan and the full final artifact text to Follow-Up and the executive summary to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [

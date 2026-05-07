@@ -175,7 +175,7 @@
           "event-lead"
         ]
       },
-      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Run Inputs\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [event date and time]\n- **Expected guests:** [expected guests]\n- **Venue or format:** [venue or format]\n- **Food and drink plan:** [food and drink plan]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, and guest count\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Choose the final planning artifact the host should receive\n5. Summarize the event plan in Status\n6. Flag the few decisions that the host must make next",
+      "content": "# Small Event Kickoff\n\nYou are the Event Lead. The small event planning desk just came online.\n\n## Run Inputs\n- **Event type:** [birthday, dinner, meetup, brunch, shower, custom]\n- **Event date and time:** [event date and time]\n- **Expected guests:** [expected guests]\n- **Venue or format:** [venue or format]\n- **Food and drink plan:** [food and drink plan]\n- **Budget or purchase constraints:** [budget or purchase constraints]\n- **Must-have moments:** [must-have moments]\n- **Output artifact:** [run-of-show, host checklist, guest plan]\n\n## Your Tasks\n1. Restate the host goal, date, venue, guest count, and top constraints\n2. Ask Guest Coordinator for the invitation and RSVP plan\n3. Ask Logistics Coordinator for the setup and supplies checklist\n4. Choose the final planning artifact the host should receive\n5. Produce a concrete markdown kickoff brief with sections for `Goal`, `Guest Plan`, `Logistics`, and `Next Decisions`\n6. Summarize the event plan in Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -202,7 +202,7 @@
           "guest-coordinator"
         ]
       },
-      "content": "# Guest List Check\n\n1. Draft or review the invite list and RSVP status\n2. Note any dietary, accessibility, timing, or seating needs\n3. Identify which guests still need follow-up\n4. Post the guest update to Guests and any risks to Status",
+      "content": "# Guest List Check\n\n1. Draft or review the invite list and RSVP status\n2. Note any dietary, accessibility, timing, or seating needs\n3. Identify which guests still need follow-up\n4. Produce a concrete markdown guest update with sections for `Confirmed`, `Pending`, `Special Needs`, and `Follow-Ups`\n5. Post the guest update to Guests and any risks to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -232,7 +232,7 @@
           "logistics-coordinator"
         ]
       },
-      "content": "# Event Day Readiness\n\n1. Review the venue, supplies, food, timing, and cleanup needs\n2. Build a short event-day checklist with sequence and owners\n3. Flag any missing items, reservations, or timing risks\n4. Post the readiness checklist to Logistics and a short summary to Status",
+      "content": "# Event Day Readiness\n\n1. Review the venue, supplies, food, timing, and cleanup needs\n2. Build a short event-day checklist with sequence and owners\n3. Flag any missing items, reservations, or timing risks\n4. Produce a concrete markdown readiness checklist with sections for `Supplies`, `Timing`, `Owners`, and `Open Risks`\n5. Post the readiness checklist to Logistics and a short summary to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [

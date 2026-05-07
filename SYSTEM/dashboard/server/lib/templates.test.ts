@@ -204,6 +204,28 @@ test('ClawMax System Test workflows use current workflow groups instead of separ
   assert(!/Post this to the Test Status group/i.test(report!.content), 'Report workflow should not require a separate post step')
 })
 
+test('Event planning templates require concrete planning artifacts and richer kickoff inputs', () => {
+  const eventTemplateSlugs = [
+    'small-event-planning-desk',
+    'speaker-event-studio',
+    'conference-ops-hub',
+  ]
+
+  for (const slug of eventTemplateSlugs) {
+    const template = getTemplate('organization', slug) as OrganizationTemplate | null
+    assert(template !== null, `${slug} should exist`)
+
+    const kickoff = template!.workflows?.find((workflow) => workflow.name.toLowerCase().includes('kickoff'))
+    assert(kickoff !== undefined, `${slug} should have a kickoff workflow`)
+    assert(kickoff!.content.includes('Budget') || kickoff!.content.includes('budget'), `${slug} kickoff should ask for budget or operating constraints`)
+    assert(kickoff!.content.includes('Produce a concrete markdown kickoff brief'), `${slug} kickoff should require a concrete markdown kickoff brief`)
+
+    const finalWorkflow = template!.workflows?.[template!.workflows!.length - 1]
+    assert(finalWorkflow !== undefined, `${slug} should have a final workflow`)
+    assert(finalWorkflow!.content.includes('What the host should use now') || finalWorkflow!.content.includes('What the organizer should use now'), `${slug} final workflow should end with a direct host-facing handoff section`)
+  }
+})
+
 test('ClawMax System Test prereqs do not hard-fail GitHub before GitHub is enabled', () => {
   const template = getTemplate('organization', 'clawmax-system-test') as OrganizationTemplate | null
   assert(template !== null, 'ClawMax System Test template should exist')

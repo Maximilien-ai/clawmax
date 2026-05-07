@@ -254,7 +254,7 @@
           "conference-director"
         ]
       },
-      "content": "# Conference Kickoff\n\nYou are the Conference Director. The conference ops hub just came online.\n\n## Run Inputs\n- **Conference name and goal:** [conference name and goal]\n- **Date, venue, and format:** [date, venue, and format]\n- **Expected attendees:** [expected attendees]\n- **Speaker and track count:** [speaker and track count]\n- **Sponsor or partner commitments:** [sponsor commitments]\n- **Output artifact:** [master runbook, conference plan, executive brief]\n\n## Your Tasks\n1. Restate the conference goal, scale, and critical constraints\n2. Ask Track Coordinators for the first track and session map\n3. Ask Speaker Operations Lead for the speaker readiness plan\n4. Ask Capacity Planner for attendee, room, and staffing assumptions\n5. Ask Sponsor Manager for partner readiness if applicable\n6. Post the first conference operating plan to Status",
+      "content": "# Conference Kickoff\n\nYou are the Conference Director. The conference ops hub just came online.\n\n## Run Inputs\n- **Conference name and goal:** [conference name and goal]\n- **Date, venue, and format:** [date, venue, and format]\n- **Expected attendees:** [expected attendees]\n- **Speaker and track count:** [speaker and track count]\n- **Sponsor or partner commitments:** [sponsor commitments]\n- **Budget, staffing, or venue constraints:** [budget, staffing, or venue constraints]\n- **Critical launch or approval deadlines:** [critical launch or approval deadlines]\n- **Output artifact:** [master runbook, conference plan, executive brief]\n\n## Your Tasks\n1. Restate the conference goal, scale, and critical constraints\n2. Ask Track Coordinators for the first track and session map\n3. Ask Speaker Operations Lead for the speaker readiness plan\n4. Ask Capacity Planner for attendee, room, and staffing assumptions\n5. Ask Sponsor Manager for partner readiness if applicable\n6. Produce a concrete markdown kickoff brief with sections for `Goal`, `Scale`, `Constraints`, `Workstreams`, and `Next Decisions`\n7. Post the first conference operating plan to Status",
       "enabled": true,
       "executionMode": "managed",
       "tags": [
@@ -283,7 +283,7 @@
           "track-coordinator"
         ]
       },
-      "content": "# Track Planning Review\n\n1. Build or review the track map, session timing, and room flow\n2. Identify gaps, overlaps, and risky transitions\n3. Flag any missing owners, assets, or moderation needs\n4. Post the track planning review to Program and the biggest risks to Status",
+      "content": "# Track Planning Review\n\n1. Build or review the track map, session timing, and room flow\n2. Identify gaps, overlaps, and risky transitions\n3. Flag any missing owners, assets, or moderation needs\n4. Produce a concrete markdown track review with sections for `Track Map`, `Session Dependencies`, `Owner Gaps`, and `Risks`\n5. Post the track planning review to Program and the biggest risks to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -315,7 +315,7 @@
           "speaker-operations-lead"
         ]
       },
-      "content": "# Speaker Ops Review\n\n1. Review each speaker's confirmation, talk readiness, and asset status\n2. Track travel, green-room, timing, and moderator dependencies\n3. Escalate missing materials, scheduling risk, or owner gaps\n4. Post the speaker ops review to Speakers and the top blockers to Status",
+      "content": "# Speaker Ops Review\n\n1. Review each speaker's confirmation, talk readiness, and asset status\n2. Track travel, green-room, timing, and moderator dependencies\n3. Escalate missing materials, scheduling risk, or owner gaps\n4. Produce a concrete markdown speaker ops review with sections for `Ready`, `Needs Follow-Up`, `Moderator Dependencies`, and `Blockers`\n5. Post the speaker ops review to Speakers and the top blockers to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -347,7 +347,7 @@
           "capacity-planner"
         ]
       },
-      "content": "# Capacity And Venue Plan\n\n1. Review attendance assumptions, room fit, staffing, registration, and line management\n2. Identify where capacity or flow could break down at peak volume\n3. Recommend contingency plans for overflow, delays, and staffing gaps\n4. Post the capacity plan to Capacity and the executive summary to Status",
+      "content": "# Capacity And Venue Plan\n\n1. Review attendance assumptions, room fit, staffing, registration, and line management\n2. Identify where capacity or flow could break down at peak volume\n3. Recommend contingency plans for overflow, delays, and staffing gaps\n4. Produce a concrete markdown capacity plan with sections for `Assumptions`, `Bottlenecks`, `Fallback Plans`, and `Executive Summary`\n5. Post the capacity plan to Capacity and the executive summary to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -379,7 +379,7 @@
           "sponsor-manager"
         ]
       },
-      "content": "# Sponsor Readiness Check\n\n1. Review sponsor commitments, deadlines, placements, and deliverables\n2. Identify missing assets, approvals, or event-day needs\n3. Clarify what the core event team still owes sponsors or partners\n4. Post the sponsor readiness check to Sponsors and any escalations to Status",
+      "content": "# Sponsor Readiness Check\n\n1. Review sponsor commitments, deadlines, placements, and deliverables\n2. Identify missing assets, approvals, or event-day needs\n3. Clarify what the core event team still owes sponsors or partners\n4. Produce a concrete markdown sponsor readiness check with sections for `Committed Deliverables`, `Missing Inputs`, `Owner Actions`, and `Escalations`\n5. Post the sponsor readiness check to Sponsors and any escalations to Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
@@ -411,7 +411,7 @@
           "event-follow-up-lead"
         ]
       },
-      "content": "# Conference Follow Up\n\n1. Summarize the event outcomes, feedback themes, and unresolved issues\n2. Draft sponsor, speaker, and attendee follow-up streams\n3. Capture leads, commitments, and the next conference improvements\n4. Produce the final host-facing artifact as a concrete markdown deliverable that includes the operating plan, major risks, and follow-up actions\n5. End with a short section titled `What the organizer should use now` that states exactly what was produced\n6. Post the follow-up plan, the full final artifact text, and the final summary to Follow-Up and Status",
+      "content": "# Conference Follow Up\n\n1. Summarize the event outcomes, feedback themes, and unresolved issues\n2. Draft sponsor, speaker, and attendee follow-up streams\n3. Capture leads, commitments, and the next conference improvements\n4. Produce the final host-facing artifact as a concrete markdown deliverable that includes the operating plan, major risks, follow-up actions, and the top conference improvements to make next time\n5. End with a short section titled `What the organizer should use now` that states exactly what was produced\n6. Post the follow-up plan, the full final artifact text, and the final summary to Follow-Up and Status",
       "enabled": true,
       "executionMode": "managed",
       "dependsOn": [
