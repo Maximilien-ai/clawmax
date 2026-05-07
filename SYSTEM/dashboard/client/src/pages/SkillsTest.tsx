@@ -1624,8 +1624,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       <div className="prose prose-sm max-w-none p-6 dark:prose-invert">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {stripFrontmatter(editingSkill ? editingDraft : skillContent)}
-                        </div>
-                      </ReactMarkdown>
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 </div>
