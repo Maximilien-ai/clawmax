@@ -27,12 +27,29 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
   return (
     <div
       className={`
-        border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow
+        relative border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow
+        ${isSelected ? 'ring-2 ring-blue-100 border-blue-400 dark:ring-blue-900/40 dark:border-blue-500' : ''}
         ${compact ? 'p-3' : 'p-4'}
       `}
     >
+      {selectionMode && onToggleSelect && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleSelect()
+          }}
+          className={`absolute top-3 right-3 h-7 min-w-7 px-1.5 rounded border text-sm font-semibold leading-none transition-colors ${
+            isSelected
+              ? 'border-blue-600 bg-blue-600 text-white'
+              : 'border-gray-300 bg-white text-gray-700 hover:border-blue-500 hover:text-blue-600 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-400 dark:hover:text-blue-300'
+          }`}
+          title={isSelected ? `Deselect ${skill.name}` : `Select ${skill.name}`}
+        >
+          {isSelected ? '✓' : '□'}
+        </button>
+      )}
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className={`flex items-start justify-between gap-3 ${selectionMode ? 'pr-10' : ''}`}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             {skill.emoji && (
@@ -77,19 +94,6 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
 
         {/* Action Button */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {selectionMode && onToggleSelect && (
-            <button
-              onClick={onToggleSelect}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors border ${
-                isSelected
-                  ? 'border-blue-600 bg-blue-600 text-white'
-                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-              }`}
-              title={isSelected ? `Deselect ${skill.name}` : `Select ${skill.name}`}
-            >
-              {isSelected ? '✓ Selected' : 'Select'}
-            </button>
-          )}
           {onView && (
             <button
               onClick={onView}

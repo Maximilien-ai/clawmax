@@ -7,7 +7,7 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
-import { filterAssignableAgents, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
+import { filterAssignableAgents, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -610,6 +610,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     if (!aAssigned && bAssigned) return 1
     return a.name.localeCompare(b.name)
   })
+
+  const { userSkills: sortedUserSkills, builtInSkills: sortedBuiltInSkills } = useMemo(
+    () => partitionSkillsBySource(sortedSkills),
+    [sortedSkills]
+  )
 
   const closeMatchSkills = useMemo(() => {
     if (!searchQuery.trim()) return []
@@ -1271,8 +1276,57 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 )}
               </div>
             )}
+            {sortedUserSkills.length > 0 && (
+              <div className="mb-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">User Skills</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Imported, managed, or workspace-copy skills created in this workspace.
+                    </p>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {sortedUserSkills.length} skill{sortedUserSkills.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sortedUserSkills.map(skill => {
+                    const users = skillUsage.get(skill.name) || []
+                    return (
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        assigned={assignedSkills.has(skill.name)}
+                        onToggle={() => toggleSkill(skill.name)}
+                        onView={() => openSkillViewer(skill)}
+                        usageCount={users.length}
+                        usedBy={users}
+                        selectionMode={selectionMode}
+                        isSelected={selectedSkillIds.has(skill.name)}
+                        onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {sortedUserSkills.length > 0 && sortedBuiltInSkills.length > 0 && (
+              <div className="pt-2">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Built-in Skills</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Core skills shipped with ClawMax and OpenClaw.
+                    </p>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {sortedBuiltInSkills.length} skill{sortedBuiltInSkills.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedSkills.map(skill => {
+              {sortedBuiltInSkills.map(skill => {
                 const users = skillUsage.get(skill.name) || []
                 return (
                   <SkillCard
@@ -1297,7 +1351,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
         {viewingSkill && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1369,207 +1423,208 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 </div>
               </div>
 
-              {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
-                <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
-                      <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                        Stored in this browser only. The central `Keys & Secrets` vault is the source of truth, and these skill values can be promoted there for reuse.
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          writeSharedSecrets(skillSecrets, { scope: 'workspace' })
-                          showSuccess('Saved skill secrets to workspace keys')
-                        }}
-                        className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
-                      >
-                        Save to Workspace Keys
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          writeSharedSecrets(skillSecrets, { scope: 'global' })
-                          showSuccess('Saved skill secrets to global keys')
-                        }}
-                        className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
-                      >
-                        Save to Global Keys
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {viewingSkill.secretRequirements.map((requirement) => {
-                      const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
-                        ? 'password'
-                        : requirement.kind === 'url'
-                          ? 'url'
-                          : 'text'
-                      const value = skillSecrets[requirement.key] || ''
-                      return (
-                        <div key={requirement.key} className="space-y-1.5">
-                          <label className="block text-sm font-medium text-amber-900 dark:text-amber-200">
-                            {requirement.label}
-                            {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
-                          </label>
-                          <input
-                            type={inputType}
-                            value={value}
-                            onChange={(e) => {
-                              const next = { ...skillSecrets, [requirement.key]: e.target.value }
-                              setSkillSecrets(next)
-                              writeLocalSecrets('skill', viewingSkill.name, next)
-                            }}
-                            placeholder={requirement.placeholder || requirement.key}
-                            className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
-                          />
-                          {requirement.help && (
-                            <div className="text-xs text-amber-800 dark:text-amber-200">{requirement.help}</div>
-                          )}
+              <div className="flex-1 min-h-0 overflow-auto">
+                {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
+                  <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          Stored in this browser only. The central `Keys & Secrets` vault is the source of truth, and these skill values can be promoted there for reuse.
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {editingSkill && (
-                <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-                  You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
-                </div>
-              )}
-
-              {viewingSkill && availableAgents.length > 0 && (
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assign Agents To This Skill</div>
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Manage who has <span className="font-medium text-gray-700 dark:text-gray-200">{viewingSkill.name}</span> directly from the skill view.
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            writeSharedSecrets(skillSecrets, { scope: 'workspace' })
+                            showSuccess('Saved skill secrets to workspace keys')
+                          }}
+                          className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                        >
+                          Save to Workspace Keys
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            writeSharedSecrets(skillSecrets, { scope: 'global' })
+                            showSuccess('Saved skill secrets to global keys')
+                          }}
+                          className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                        >
+                          Save to Global Keys
+                        </button>
                       </div>
                     </div>
-                    <div className="rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-                      {viewingSkillAssignmentBuckets.assignedAgentIds.length} assigned · {viewingSkillAssignmentBuckets.unassignedAgentIds.length} available
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-xl border border-emerald-200 bg-white p-4 dark:border-emerald-800 dark:bg-gray-800/80">
-                      <div className="mb-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Assigned Agents</div>
-                      {viewingSkillAssignmentBuckets.assignedAgentIds.length === 0 ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">No agents have this skill yet.</div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {viewingSkillAssignmentBuckets.assignedAgentIds.map((targetAgentId) => (
-                            <button
-                              key={`remove-${targetAgentId}`}
-                              type="button"
-                              disabled={savingSkillAssignmentAgentId === targetAgentId}
-                              onClick={async () => {
-                                setSavingSkillAssignmentAgentId(targetAgentId)
-                                setError(null)
-                                try {
-                                  const currentSkills = agentSkillMap.get(targetAgentId) || []
-                                  const nextSkills = currentSkills.filter((skill) => skill !== viewingSkill.name)
-                                  await persistAgentSkills(targetAgentId, nextSkills)
-                                  showSuccess(`Removed ${viewingSkill.name} from ${targetAgentId}`)
-                                } catch (err: any) {
-                                  setError(err.message || 'Failed to remove skill from agent')
-                                } finally {
-                                  setSavingSkillAssignmentAgentId(null)
-                                }
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {viewingSkill.secretRequirements.map((requirement) => {
+                        const inputType = requirement.sensitive || requirement.kind === 'api_key' || requirement.kind === 'token'
+                          ? 'password'
+                          : requirement.kind === 'url'
+                            ? 'url'
+                            : 'text'
+                        const value = skillSecrets[requirement.key] || ''
+                        return (
+                          <div key={requirement.key} className="space-y-1.5">
+                            <label className="block text-sm font-medium text-amber-900 dark:text-amber-200">
+                              {requirement.label}
+                              {requirement.required !== false && <span className="ml-1 text-red-500">*</span>}
+                            </label>
+                            <input
+                              type={inputType}
+                              value={value}
+                              onChange={(e) => {
+                                const next = { ...skillSecrets, [requirement.key]: e.target.value }
+                                setSkillSecrets(next)
+                                writeLocalSecrets('skill', viewingSkill.name, next)
                               }}
-                              className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
-                              title={`Remove ${viewingSkill.name} from ${targetAgentId}`}
-                            >
-                              <span>{targetAgentId}</span>
-                              <span className="text-xs">Remove</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                              placeholder={requirement.placeholder || requirement.key}
+                              className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                            />
+                            {requirement.help && (
+                              <div className="text-xs text-amber-800 dark:text-amber-200">{requirement.help}</div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
+                  </div>
+                )}
 
-                    <div className="rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-gray-800/80">
-                      <div className="mb-3 text-sm font-semibold text-blue-800 dark:text-blue-300">Add Agents</div>
-                      <input
-                        type="text"
-                        value={viewerAgentSearchQuery}
-                        onChange={(e) => setViewerAgentSearchQuery(e.target.value)}
-                        placeholder="Search agents to add..."
-                        className="mb-3 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                {editingSkill && (
+                  <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                    You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
+                  </div>
+                )}
+
+                {viewingSkill && availableAgents.length > 0 && (
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assign Agents To This Skill</div>
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Manage who has <span className="font-medium text-gray-700 dark:text-gray-200">{viewingSkill.name}</span> directly from the skill view.
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                        {viewingSkillAssignmentBuckets.assignedAgentIds.length} assigned · {viewingSkillAssignmentBuckets.unassignedAgentIds.length} available
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                      <div className="rounded-xl border border-emerald-200 bg-white p-4 dark:border-emerald-800 dark:bg-gray-800/80">
+                        <div className="mb-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Assigned Agents</div>
+                        {viewingSkillAssignmentBuckets.assignedAgentIds.length === 0 ? (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">No agents have this skill yet.</div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {viewingSkillAssignmentBuckets.assignedAgentIds.map((targetAgentId) => (
+                              <button
+                                key={`remove-${targetAgentId}`}
+                                type="button"
+                                disabled={savingSkillAssignmentAgentId === targetAgentId}
+                                onClick={async () => {
+                                  setSavingSkillAssignmentAgentId(targetAgentId)
+                                  setError(null)
+                                  try {
+                                    const currentSkills = agentSkillMap.get(targetAgentId) || []
+                                    const nextSkills = currentSkills.filter((skill) => skill !== viewingSkill.name)
+                                    await persistAgentSkills(targetAgentId, nextSkills)
+                                    showSuccess(`Removed ${viewingSkill.name} from ${targetAgentId}`)
+                                  } catch (err: any) {
+                                    setError(err.message || 'Failed to remove skill from agent')
+                                  } finally {
+                                    setSavingSkillAssignmentAgentId(null)
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                                title={`Remove ${viewingSkill.name} from ${targetAgentId}`}
+                              >
+                                <span>{targetAgentId}</span>
+                                <span className="text-xs">Remove</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-gray-800/80">
+                        <div className="mb-3 text-sm font-semibold text-blue-800 dark:text-blue-300">Add Agents</div>
+                        <input
+                          type="text"
+                          value={viewerAgentSearchQuery}
+                          onChange={(e) => setViewerAgentSearchQuery(e.target.value)}
+                          placeholder="Search agents to add..."
+                          className="mb-3 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {filteredViewerAvailableAgents.length === 0 ? (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {viewingSkillAssignmentBuckets.unassignedAgentIds.length === 0
+                              ? 'Every agent in this workspace already has this skill.'
+                              : 'No matching agents found.'}
+                          </div>
+                        ) : (
+                          <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                            {filteredViewerAvailableAgents.map((targetAgentId) => (
+                              <button
+                                key={`add-${targetAgentId}`}
+                                type="button"
+                                disabled={savingSkillAssignmentAgentId === targetAgentId}
+                                onClick={async () => {
+                                  setSavingSkillAssignmentAgentId(targetAgentId)
+                                  setError(null)
+                                  try {
+                                    const currentSkills = agentSkillMap.get(targetAgentId) || []
+                                    const nextSkills = Array.from(new Set([...currentSkills, viewingSkill.name])).sort((a, b) => a.localeCompare(b))
+                                    await persistAgentSkills(targetAgentId, nextSkills)
+                                    showSuccess(`Added ${viewingSkill.name} to ${targetAgentId}`)
+                                  } catch (err: any) {
+                                    setError(err.message || 'Failed to add skill to agent')
+                                  } finally {
+                                    setSavingSkillAssignmentAgentId(null)
+                                  }
+                                }}
+                                className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                              >
+                                <span className="truncate">{targetAgentId}</span>
+                                <span className="shrink-0 text-xs font-medium">Add</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 min-h-full lg:min-h-[28rem]">
+                  <div className="border-r border-gray-200 dark:border-gray-700 min-h-0 flex flex-col">
+                    <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      Raw skill.md
+                    </div>
+                    {loadingSkillContent ? (
+                      <div className="p-6 text-sm text-gray-500 dark:text-gray-400">Loading skill content...</div>
+                    ) : editingSkill ? (
+                      <textarea
+                        value={editingDraft}
+                        onChange={(e) => setEditingDraft(e.target.value)}
+                        className="flex-1 min-h-[24rem] w-full p-6 font-mono text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 outline-none resize-none overflow-auto"
+                        spellCheck={false}
                       />
-                      {filteredViewerAvailableAgents.length === 0 ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {viewingSkillAssignmentBuckets.unassignedAgentIds.length === 0
-                            ? 'Every agent in this workspace already has this skill.'
-                            : 'No matching agents found.'}
-                        </div>
-                      ) : (
-                        <div className="max-h-44 space-y-2 overflow-auto pr-1">
-                          {filteredViewerAvailableAgents.map((targetAgentId) => (
-                            <button
-                              key={`add-${targetAgentId}`}
-                              type="button"
-                              disabled={savingSkillAssignmentAgentId === targetAgentId}
-                              onClick={async () => {
-                                setSavingSkillAssignmentAgentId(targetAgentId)
-                                setError(null)
-                                try {
-                                  const currentSkills = agentSkillMap.get(targetAgentId) || []
-                                  const nextSkills = Array.from(new Set([...currentSkills, viewingSkill.name])).sort((a, b) => a.localeCompare(b))
-                                  await persistAgentSkills(targetAgentId, nextSkills)
-                                  showSuccess(`Added ${viewingSkill.name} to ${targetAgentId}`)
-                                } catch (err: any) {
-                                  setError(err.message || 'Failed to add skill to agent')
-                                } finally {
-                                  setSavingSkillAssignmentAgentId(null)
-                                }
-                              }}
-                              className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/40"
-                            >
-                              <span className="truncate">{targetAgentId}</span>
-                              <span className="shrink-0 text-xs font-medium">Add</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    ) : (
+                      <div className="flex-1 min-h-[24rem] overflow-auto">
+                        <pre className="p-6 text-sm whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{skillContent}</pre>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-900/40 min-h-0 flex flex-col">
+                    <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      Rendered View
                     </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 h-[calc(90vh-180px)] min-h-0">
-                <div className="border-r border-gray-200 dark:border-gray-700 min-h-0 flex flex-col">
-                  <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                    Raw skill.md
-                  </div>
-                  {loadingSkillContent ? (
-                    <div className="p-6 text-sm text-gray-500 dark:text-gray-400">Loading skill content...</div>
-                  ) : editingSkill ? (
-                    <textarea
-                      value={editingDraft}
-                      onChange={(e) => setEditingDraft(e.target.value)}
-                      className="flex-1 min-h-0 w-full p-6 font-mono text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 outline-none resize-none overflow-auto"
-                      spellCheck={false}
-                    />
-                  ) : (
-                    <div className="flex-1 min-h-0 overflow-auto">
-                      <pre className="p-6 text-sm whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{skillContent}</pre>
-                    </div>
-                  )}
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-900/40 min-h-0 flex flex-col">
-                  <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                    Rendered View
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-auto">
-                    <div className="prose prose-sm max-w-none p-6 dark:prose-invert">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {stripFrontmatter(editingSkill ? editingDraft : skillContent)}
+                    <div className="flex-1 min-h-[24rem] overflow-auto">
+                      <div className="prose prose-sm max-w-none p-6 dark:prose-invert">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {stripFrontmatter(editingSkill ? editingDraft : skillContent)}
+                        </div>
                       </ReactMarkdown>
                     </div>
                   </div>
