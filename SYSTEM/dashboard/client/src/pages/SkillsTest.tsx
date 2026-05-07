@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -60,6 +61,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
+  const [agentSkillMap, setAgentSkillMap] = useState<Map<string, string[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -116,6 +118,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
+  const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
+  const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -218,6 +222,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       const agents = Array.isArray(data.agents) ? data.agents : []
       const agentIds = agents.map((a: any) => a.id)
       setAvailableAgents(agentIds)
+      const skillsByAgent = new Map<string, string[]>()
 
       // Set default agent to first available, or reset if current agent isn't in this workspace
       if (agentIds.length > 0 && (!agentId || !agentIds.includes(agentId))) {
@@ -227,18 +232,22 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       // Compute skill usage across all agents
       const usage = new Map<string, string[]>()
       for (const agent of agents) {
-        if (agent.skills && Array.isArray(agent.skills)) {
-          for (const skill of agent.skills) {
+        const agentSkills = Array.isArray(agent.skills) ? agent.skills : []
+        skillsByAgent.set(agent.id, agentSkills)
+        if (agentSkills.length > 0) {
+          for (const skill of agentSkills) {
             const users = usage.get(skill) || []
             users.push(agent.id)
             usage.set(skill, users)
           }
         }
       }
+      setAgentSkillMap(skillsByAgent)
       setSkillUsage(usage)
     } catch (error) {
       console.error('Failed to load agents:', error)
       setAvailableAgents([])
+      setAgentSkillMap(new Map())
     }
   }
 
@@ -272,51 +281,67 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
+  function updateLocalAgentSkillState(targetAgentId: string, nextSkills: string[]) {
+    setAgentSkillMap((current) => {
+      const next = new Map(current)
+      next.set(targetAgentId, nextSkills)
+      return next
+    })
+    setSkillUsage((current) => {
+      const next = new Map<string, string[]>()
+      for (const [skillName, users] of current.entries()) {
+        const filtered = users.filter((id) => id !== targetAgentId)
+        if (filtered.length > 0) {
+          next.set(skillName, filtered)
+        }
+      }
+      for (const skillName of nextSkills) {
+        const users = next.get(skillName) || []
+        if (!users.includes(targetAgentId)) {
+          next.set(skillName, [...users, targetAgentId].sort((a, b) => a.localeCompare(b)))
+        }
+      }
+      return next
+    })
+    if (targetAgentId === agentId) {
+      setAssignedSkills(new Set(nextSkills))
+    }
+  }
+
+  async function persistAgentSkills(targetAgentId: string, skillsList: string[]) {
+    const response = await fetch(`${API_BASE}/api/skills/agent/${targetAgentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skills: skillsList })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to update skills')
+    }
+
+    await response.json().catch(() => ({}))
+    updateLocalAgentSkillState(targetAgentId, skillsList)
+  }
+
   async function toggleSkill(skillId: string) {
     console.log('Toggle skill:', skillId, 'for agent:', agentId)
 
-    const newAssigned = new Set(assignedSkills)
-    const wasAssigned = newAssigned.has(skillId)
-
-    if (wasAssigned) {
-      newAssigned.delete(skillId)
-    } else {
-      newAssigned.add(skillId)
-    }
+    const currentSkills = agentSkillMap.get(agentId) || Array.from(assignedSkills)
+    const nextSkills = currentSkills.includes(skillId)
+      ? currentSkills.filter((skill) => skill !== skillId)
+      : [...currentSkills, skillId]
 
     setError(null)
     setSaving(true)
 
     try {
-      const skillsList = Array.from(newAssigned)
-      console.log('Sending PUT request:', skillsList)
-
-      const response = await fetch(`${API_BASE}/api/skills/agent/${agentId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skills: skillsList })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to update skills')
-      }
-
-      const result = await response.json()
-      console.log('✓ Skills updated successfully:', result)
-
-      setAssignedSkills(newAssigned)
+      console.log('Sending PUT request:', nextSkills)
+      await persistAgentSkills(agentId, nextSkills)
       setError(null)
     } catch (error: any) {
       console.error('Failed to update skills:', error)
       setError(error.message || 'Failed to update skills')
-      // Revert the UI change
-      if (wasAssigned) {
-        newAssigned.add(skillId)
-      } else {
-        newAssigned.delete(skillId)
-      }
-      setAssignedSkills(new Set(assignedSkills))
     } finally {
       setSaving(false)
     }
@@ -501,6 +526,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     setViewingSkill(skill)
     setSkillSecrets(readLocalSecrets('skill', skill.name))
     setEditingSkill(false)
+    setViewerAgentSearchQuery('')
     setLoadingSkillContent(true)
     setError(null)
     try {
@@ -607,6 +633,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const missingGeneratedSkillSections = generatedSkillDraft
     ? SKILL_SPEC_SECTIONS.filter((section) => !generatedSkillDraft.content.includes(section))
     : []
+  const viewingSkillAssignmentBuckets = useMemo(() => {
+    if (!viewingSkill) {
+      return { assignedAgentIds: [], unassignedAgentIds: [] }
+    }
+    return getSkillAssignmentBuckets(viewingSkill.name, availableAgents, agentSkillMap)
+  }, [agentSkillMap, availableAgents, viewingSkill])
+  const filteredViewerAvailableAgents = viewingSkillAssignmentBuckets.unassignedAgentIds.filter((agent) =>
+    agent.toLowerCase().includes(viewerAgentSearchQuery.trim().toLowerCase())
+  )
 
   // Filter agents for searchable dropdown
   const filteredAgents = availableAgents.filter(agent =>
@@ -1327,6 +1362,106 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               {editingSkill && (
                 <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                   You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
+                </div>
+              )}
+
+              {viewingSkill && availableAgents.length > 0 && (
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assign Agents To This Skill</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Manage who has <span className="font-medium text-gray-700 dark:text-gray-200">{viewingSkill.name}</span> directly from the skill view.
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                      {viewingSkillAssignmentBuckets.assignedAgentIds.length} assigned · {viewingSkillAssignmentBuckets.unassignedAgentIds.length} available
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-emerald-200 bg-white p-4 dark:border-emerald-800 dark:bg-gray-800/80">
+                      <div className="mb-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300">Assigned Agents</div>
+                      {viewingSkillAssignmentBuckets.assignedAgentIds.length === 0 ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">No agents have this skill yet.</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {viewingSkillAssignmentBuckets.assignedAgentIds.map((targetAgentId) => (
+                            <button
+                              key={`remove-${targetAgentId}`}
+                              type="button"
+                              disabled={savingSkillAssignmentAgentId === targetAgentId}
+                              onClick={async () => {
+                                setSavingSkillAssignmentAgentId(targetAgentId)
+                                setError(null)
+                                try {
+                                  const currentSkills = agentSkillMap.get(targetAgentId) || []
+                                  const nextSkills = currentSkills.filter((skill) => skill !== viewingSkill.name)
+                                  await persistAgentSkills(targetAgentId, nextSkills)
+                                  showSuccess(`Removed ${viewingSkill.name} from ${targetAgentId}`)
+                                } catch (err: any) {
+                                  setError(err.message || 'Failed to remove skill from agent')
+                                } finally {
+                                  setSavingSkillAssignmentAgentId(null)
+                                }
+                              }}
+                              className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                              title={`Remove ${viewingSkill.name} from ${targetAgentId}`}
+                            >
+                              <span>{targetAgentId}</span>
+                              <span className="text-xs">Remove</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-gray-800/80">
+                      <div className="mb-3 text-sm font-semibold text-blue-800 dark:text-blue-300">Add Agents</div>
+                      <input
+                        type="text"
+                        value={viewerAgentSearchQuery}
+                        onChange={(e) => setViewerAgentSearchQuery(e.target.value)}
+                        placeholder="Search agents to add..."
+                        className="mb-3 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      {filteredViewerAvailableAgents.length === 0 ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {viewingSkillAssignmentBuckets.unassignedAgentIds.length === 0
+                            ? 'Every agent in this workspace already has this skill.'
+                            : 'No matching agents found.'}
+                        </div>
+                      ) : (
+                        <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                          {filteredViewerAvailableAgents.map((targetAgentId) => (
+                            <button
+                              key={`add-${targetAgentId}`}
+                              type="button"
+                              disabled={savingSkillAssignmentAgentId === targetAgentId}
+                              onClick={async () => {
+                                setSavingSkillAssignmentAgentId(targetAgentId)
+                                setError(null)
+                                try {
+                                  const currentSkills = agentSkillMap.get(targetAgentId) || []
+                                  const nextSkills = Array.from(new Set([...currentSkills, viewingSkill.name])).sort((a, b) => a.localeCompare(b))
+                                  await persistAgentSkills(targetAgentId, nextSkills)
+                                  showSuccess(`Added ${viewingSkill.name} to ${targetAgentId}`)
+                                } catch (err: any) {
+                                  setError(err.message || 'Failed to add skill to agent')
+                                } finally {
+                                  setSavingSkillAssignmentAgentId(null)
+                                }
+                              }}
+                              className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                            >
+                              <span className="truncate">{targetAgentId}</span>
+                              <span className="shrink-0 text-xs font-medium">Add</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

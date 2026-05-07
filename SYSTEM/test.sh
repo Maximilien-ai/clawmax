@@ -448,6 +448,15 @@ else
   fail "Agent label helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill assignment helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillAssignments.test.ts > /tmp/clawmax-skill-assignments.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-skill-assignments.out; then
+  skill_assignments_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-skill-assignments.out | head -1 | grep -o '[0-9]\+')
+  pass "Skill assignment helper unit tests (${skill_assignments_count:-?} tests)"
+else
+  fail "Skill assignment helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maintenanceBannerView.test.ts > /tmp/clawmax-maintenance-banner-view.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then
