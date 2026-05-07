@@ -312,8 +312,9 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1 || true
-if grep -q "All tests passed" /tmp/clawmax-templates.out; then
+npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1
+template_status=$?
+if [ "$template_status" -eq 0 ]; then
   template_count=$(grep "Passed:" /tmp/clawmax-templates.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
   pass "Templates API unit tests (${template_count:-?} tests)"
 else
@@ -602,8 +603,9 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Cron next-run unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/cron-next-run.test.ts > /tmp/clawmax-cron-next-run.out 2>&1 || true
-if grep -q "All tests passed" /tmp/clawmax-cron-next-run.out; then
+npx ts-node --transpileOnly server/lib/cron-next-run.test.ts > /tmp/clawmax-cron-next-run.out 2>&1
+cron_next_run_status=$?
+if [ "$cron_next_run_status" -eq 0 ]; then
   pass "Cron next-run unit tests (6 tests)"
 else
   fail "Cron next-run unit tests"
