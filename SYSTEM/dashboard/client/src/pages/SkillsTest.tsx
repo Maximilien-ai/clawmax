@@ -1423,9 +1423,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-auto">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
-                  <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                  <div className="shrink-0 px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">Browser-Local Secrets</div>
@@ -1492,13 +1492,13 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 )}
 
                 {editingSkill && (
-                  <div className="px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                  <div className="shrink-0 px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                     You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
                   </div>
                 )}
 
                 {viewingSkill && availableAgents.length > 0 && (
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                  <div className="shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assign Agents To This Skill</div>
@@ -1596,7 +1596,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 min-h-full lg:min-h-[28rem]">
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2">
                   <div className="border-r border-gray-200 dark:border-gray-700 min-h-0 flex flex-col">
                     <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                       Raw skill.md
@@ -1607,11 +1607,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       <textarea
                         value={editingDraft}
                         onChange={(e) => setEditingDraft(e.target.value)}
-                        className="flex-1 min-h-[24rem] w-full p-6 font-mono text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 outline-none resize-none overflow-auto"
+                        className="flex-1 min-h-0 w-full p-6 font-mono text-sm bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 outline-none resize-none overflow-auto"
                         spellCheck={false}
                       />
                     ) : (
-                      <div className="flex-1 min-h-[24rem] overflow-auto">
+                      <div className="flex-1 min-h-0 overflow-auto">
                         <pre className="p-6 text-sm whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{skillContent}</pre>
                       </div>
                     )}
@@ -1620,7 +1620,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                       Rendered View
                     </div>
-                    <div className="flex-1 min-h-[24rem] overflow-auto">
+                    <div className="flex-1 min-h-0 overflow-auto">
                       <div className="prose prose-sm max-w-none p-6 dark:prose-invert">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {stripFrontmatter(editingSkill ? editingDraft : skillContent)}
