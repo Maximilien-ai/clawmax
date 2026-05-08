@@ -5,6 +5,11 @@ type ComparableMessage = {
   timestamp: number
 }
 
+type ComparableMember = {
+  id: string
+  name: string
+}
+
 export function mergeTypingAgents(
   pendingReplyAgents: Set<string>,
   activeWorkflowAgents: Set<string>
@@ -15,7 +20,8 @@ export function mergeTypingAgents(
 export function removeRespondedAgentsFromPending(
   pendingReplyAgents: Set<string>,
   newMessages: ComparableMessage[],
-  previousMessageCount: number
+  previousMessageCount: number,
+  channelMembers: ComparableMember[] = []
 ): Set<string> {
   if (pendingReplyAgents.size === 0 || newMessages.length <= previousMessageCount) {
     return pendingReplyAgents
@@ -25,7 +31,16 @@ export function removeRespondedAgentsFromPending(
   const latestMessages = newMessages.slice(previousMessageCount)
   for (const message of latestMessages) {
     if (message.from && message.from !== 'User') {
-      nextPending.delete(message.from)
+      const normalizedFrom = message.from.trim().toLowerCase()
+      const matchingMember = channelMembers.find((member) =>
+        member.id.trim().toLowerCase() === normalizedFrom
+        || member.name.trim().toLowerCase() === normalizedFrom
+      )
+      if (matchingMember) {
+        nextPending.delete(matchingMember.id)
+      } else {
+        nextPending.delete(message.from)
+      }
     }
   }
   return nextPending

@@ -40,7 +40,21 @@ function run() {
   )
   assert.deepStrictEqual(Array.from(pendingAfterResponse).sort(), ['bob'])
 
-  console.log('communicationMessages.test.ts: 6 tests passed')
+  const pendingAfterNamedResponse = removeRespondedAgentsFromPending(
+    new Set(['agent-a', 'agent-b']),
+    [
+      { id: '1', from: 'User', content: 'hello', timestamp: 1 },
+      { id: '2', from: 'Briefing Writer', content: 'reply', timestamp: 2 },
+    ],
+    1,
+    [
+      { id: 'agent-a', name: 'Briefing Writer' },
+      { id: 'agent-b', name: 'Research Analyst' },
+    ]
+  )
+  assert.deepStrictEqual(Array.from(pendingAfterNamedResponse).sort(), ['agent-b'])
+
+  console.log('communicationMessages.test.ts: 7 tests passed')
 }
 
 run()

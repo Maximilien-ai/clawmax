@@ -297,7 +297,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           pendingReplyAgentsRef.current = removeRespondedAgentsFromPending(
             pendingReplyAgentsRef.current,
             newMessages,
-            prevMessages.length
+            prevMessages.length,
+            channel.members
           )
           syncTypingAgents()
           return newMessages
