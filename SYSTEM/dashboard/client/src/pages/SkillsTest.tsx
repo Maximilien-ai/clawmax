@@ -666,6 +666,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     .map((skill) => ({ ...skill, installName: skill.full_name || skill.name }))
     .filter((skill) => !registryInstalledNames.has(`shipables:${skill.installName}`))
     .slice(0, 5)
+  const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partnerInstallers.filter((partner) => {
@@ -2372,4 +2373,3 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     </div>
   )
 }
-  const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
