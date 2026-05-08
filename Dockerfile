@@ -17,7 +17,13 @@ RUN git clone https://github.com/openclaw/openclaw.git . \
   && git checkout "${OPENCLAW_GIT_REF}"
 
 RUN npm install -g pnpm
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
+# Some pinned OpenClaw transitive git-hosted dependencies currently fail in
+# their own `prepare` hooks during clean-room container builds (for example
+# @tloncorp/api via Tessl-related dependency chains). We only need a resolved
+# dependency tree plus built OpenClaw dist here, so skip dependency lifecycle
+# scripts in the builder stage and let the explicit top-level build produce the
+# artifact we package into the runtime image.
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts; elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps --ignore-scripts; else npm install --legacy-peer-deps --ignore-scripts; fi
 RUN npm run build
 RUN npm pack
 
