@@ -34,12 +34,15 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
     const extractQualifiedTileName = (item: any): string | undefined => {
       const directCandidates = [
         item?.full_name,
+        item?.fullName,
         item?.registry_name,
         item?.packageName,
         item?.package_name,
         item?.purl,
+        item?.source,
         item?.name,
         item?.tile,
+        item?.tileName,
         item?.id,
         item?.slug,
       ].filter(Boolean)
@@ -61,8 +64,8 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
         if (match) return match[1]
       }
 
-      if (item?.workspace && (item?.tile || item?.name)) {
-        return `${item.workspace}/${item.tile || item.name}`
+      if ((item?.workspace || item?.workspaceName) && (item?.tile || item?.tileName || item?.name)) {
+        return `${item.workspace || item.workspaceName}/${item.tile || item.tileName || item.name}`
       }
 
       return undefined
@@ -79,11 +82,11 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
             : []
 
     const normalized = results.map((item: any) => ({
-      name: item?.name || item?.tile || item?.id || item?.slug,
-      full_name: extractQualifiedTileName(item) || item?.name || item?.tile || item?.id || item?.slug,
+      name: item?.name || item?.tile || item?.tileName || item?.id || item?.slug,
+      full_name: extractQualifiedTileName(item) || item?.fullName || item?.name || item?.tile || item?.tileName || item?.id || item?.slug,
       install_name: extractQualifiedTileName(item),
       description: item?.description || item?.summary || '',
-      latest_version: item?.latest_version || item?.version,
+      latest_version: item?.latest_version || item?.latestVersion || item?.version,
       downloads_weekly: item?.downloads_weekly || item?.downloads || item?.installs,
       categories: item?.categories || item?.tags || [],
       raw: item,

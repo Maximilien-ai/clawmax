@@ -35,15 +35,22 @@ function run() {
 
   const normalizedTessl = normalizeSkillRegistrySearchResults('tessl', {
     results: [
+      { type: 'tile', fullName: 'odyssey4me/gmail', workspaceName: 'odyssey4me', tileName: 'gmail', description: 'Gmail tile', latestVersion: '0.1.2' },
       { workspace: 'acme', tile: 'review-skill', description: 'Review better', version: '1.0.0', tags: ['review'] },
       { name: 'gws-gmail', install_command: 'tessl install google-workspace/gws-gmail --agent openclaw --agent codex --yes' },
+      { type: 'tile-skill', name: 'gmail', source: 'odyssey4me/gmail', description: 'Tile skill projection' },
     ],
   })
-  assert.strictEqual(normalizedTessl.results.length, 2)
-  assert.strictEqual(normalizedTessl.results[0].full_name, 'acme/review-skill')
-  assert.strictEqual(normalizedTessl.results[0].install_name, 'acme/review-skill')
-  assert.strictEqual(normalizedTessl.results[0].categories[0], 'review')
-  assert.strictEqual(normalizedTessl.results[1].install_name, 'google-workspace/gws-gmail')
+  assert.strictEqual(normalizedTessl.results.length, 4)
+  assert.strictEqual(normalizedTessl.results[0].full_name, 'odyssey4me/gmail')
+  assert.strictEqual(normalizedTessl.results[0].install_name, 'odyssey4me/gmail')
+  assert.strictEqual(normalizedTessl.results[0].latest_version, '0.1.2')
+  assert.strictEqual(normalizedTessl.results[1].full_name, 'acme/review-skill')
+  assert.strictEqual(normalizedTessl.results[1].install_name, 'acme/review-skill')
+  assert.strictEqual(normalizedTessl.results[1].categories[0], 'review')
+  assert.strictEqual(normalizedTessl.results[2].install_name, 'google-workspace/gws-gmail')
+  assert.strictEqual(normalizedTessl.results[3].install_name, 'odyssey4me/gmail')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'gmail', normalizedTessl.results), 'odyssey4me/gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'google-workspace/gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
 
@@ -68,7 +75,7 @@ function run() {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 14 tests passed')
+  console.log('skill-registry.test.ts: 18 tests passed')
 }
 
 run()

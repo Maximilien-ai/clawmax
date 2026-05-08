@@ -1052,7 +1052,7 @@ export default function Templates() {
 
       </div>
 
-      {selectionMode && (
+      {selectionMode && selectedTemplateKeys.size > 0 && (
         <SelectionActionBar
           summary={
             <>
@@ -1063,32 +1063,23 @@ export default function Templates() {
           <button
             onClick={handleApplySelected}
             disabled={selectedTemplateKeys.size === 0}
-            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+            className="whitespace-nowrap rounded bg-emerald-600 px-3 py-1 text-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Apply Selected
           </button>
           <button
             onClick={handleBulkDelete}
             disabled={selectedTemplateKeys.size === 0}
-            className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            className="whitespace-nowrap rounded bg-red-600 px-3 py-1 text-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Delete Selected ({selectedTemplateKeys.size})
           </button>
           <button
             onClick={() => setSelectedTemplateKeys(new Set())}
             disabled={selectedTemplateKeys.size === 0}
-            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            className="whitespace-nowrap rounded bg-blue-700 px-3 py-1 text-sm transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear
-          </button>
-          <button
-            onClick={() => {
-              setSelectionMode(false)
-              setSelectedTemplateKeys(new Set())
-            }}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
-          >
-            Done
           </button>
         </SelectionActionBar>
       )}
