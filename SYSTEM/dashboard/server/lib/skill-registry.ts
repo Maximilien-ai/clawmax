@@ -81,7 +81,12 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
             ? parsed.skills
             : []
 
-    const normalized = results.map((item: any) => ({
+    const filteredResults = results.filter((item: any) => {
+      const type = String(item?.type || '').trim().toLowerCase()
+      return !type || type === 'tile' || type === 'tile-skill'
+    })
+
+    const normalized = filteredResults.map((item: any) => ({
       name: item?.name || item?.tile || item?.tileName || item?.id || item?.slug,
       full_name: extractQualifiedTileName(item) || item?.fullName || item?.name || item?.tile || item?.tileName || item?.id || item?.slug,
       install_name: extractQualifiedTileName(item),
@@ -167,12 +172,12 @@ export function buildSkillRegistryInstallCommands(provider: SkillRegistryProvide
     return [
       {
         command: 'npx',
-        args: ['@tessl/cli@latest', 'install', name, '--agent', 'openclaw', '--agent', 'codex', '--yes'],
+        args: ['@tessl/cli@latest', 'install', name, '--agent', 'openclaw', '--yes'],
         timeout: 45000,
       },
       {
         command: 'tessl',
-        args: ['install', name, '--agent', 'openclaw', '--agent', 'codex', '--yes'],
+        args: ['install', name, '--agent', 'openclaw', '--yes'],
         timeout: 45000,
       },
     ]
@@ -231,4 +236,21 @@ export function discoverInstalledRegistrySkillDirs(provider: SkillRegistryProvid
   }
 
   return skillDirs
+}
+
+export function parseRegistryJsonOutput(raw: string): any {
+  const trimmed = String(raw || '').trim()
+  if (!trimmed) return {}
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    const objectStart = trimmed.indexOf('{')
+    const arrayStart = trimmed.indexOf('[')
+    const start = [objectStart, arrayStart].filter((index) => index >= 0).sort((a, b) => a - b)[0]
+    if (start === undefined) {
+      throw new Error('Registry command did not return JSON')
+    }
+    return JSON.parse(trimmed.slice(start))
+  }
 }

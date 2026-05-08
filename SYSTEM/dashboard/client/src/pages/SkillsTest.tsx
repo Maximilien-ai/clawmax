@@ -1904,6 +1904,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           >
             <button
               onClick={() => {
+                setSelectedSkillIds((current) => toggleVisibleSelections(current, filteredSkills.map((skill) => skill.name)))
+              }}
+              disabled={filteredSkills.length === 0}
+              className="whitespace-nowrap rounded bg-blue-700 px-3 py-1 text-sm transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {filteredSkills.length > 0 && filteredSkills.every((skill) => selectedSkillIds.has(skill.name)) ? 'Deselect All Visible' : 'Select All Visible'}
+            </button>
+            <button
+              onClick={() => {
                 setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
                 setBulkAgentSearchQuery('')
                 setShowBulkAssignModal(true)
@@ -1933,6 +1942,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               className="whitespace-nowrap rounded bg-blue-700 px-3 py-1 text-sm transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear
+            </button>
+            <button
+              onClick={() => {
+                setSelectionMode(false)
+                setSelectedSkillIds(new Set())
+              }}
+              className="whitespace-nowrap rounded bg-blue-700 px-3 py-1 text-sm transition-colors hover:bg-blue-800"
+            >
+              Done Selecting
             </button>
           </SelectionActionBar>
         )}

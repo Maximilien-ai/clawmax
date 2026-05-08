@@ -21,6 +21,7 @@ import {
   getSkillRegistryProviderMeta,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
+  parseRegistryJsonOutput,
   selectBestRegistryInstallName,
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
@@ -541,7 +542,7 @@ router.get('/registry/search', async (req, res) => {
           env: safeEnv(),
           maxBuffer: 1024 * 1024 * 8,
         })
-        const parsed = JSON.parse(stdout)
+        const parsed = parseRegistryJsonOutput(stdout)
         const normalized = normalizeSkillRegistrySearchResults(provider, parsed)
         return res.json({ ok: true, provider, ...normalized, meta: getSkillRegistryProviderMeta(provider) })
       } catch (err: any) {
@@ -612,7 +613,7 @@ router.post('/registry/install', async (req, res) => {
               env: safeEnv(),
               maxBuffer: 1024 * 1024 * 8,
             })
-            const parsed = JSON.parse(stdout || '{}')
+            const parsed = parseRegistryJsonOutput(stdout || '{}')
             const normalized = normalizeSkillRegistrySearchResults(provider, parsed)
             searchResolved = selectBestRegistryInstallName(provider, name, normalized.results || [])
             break

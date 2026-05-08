@@ -9,6 +9,7 @@ import {
   getSkillRegistryProviderMeta,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
+  parseRegistryJsonOutput,
   selectBestRegistryInstallName,
 } from './skill-registry'
 
@@ -31,7 +32,7 @@ function run() {
   const tesslInstall = buildSkillRegistryInstallCommands('tessl', 'acme/briefing-skill')[0]
   assert(tesslInstall.args.includes('--agent'))
   assert(tesslInstall.args.includes('openclaw'))
-  assert(tesslInstall.args.includes('codex'))
+  assert(!tesslInstall.args.includes('codex'))
 
   const normalizedTessl = normalizeSkillRegistrySearchResults('tessl', {
     results: [
@@ -39,6 +40,7 @@ function run() {
       { workspace: 'acme', tile: 'review-skill', description: 'Review better', version: '1.0.0', tags: ['review'] },
       { name: 'gws-gmail', install_command: 'tessl install google-workspace/gws-gmail --agent openclaw --agent codex --yes' },
       { type: 'tile-skill', name: 'gmail', source: 'odyssey4me/gmail', description: 'Tile skill projection' },
+      { type: 'git-skill', name: 'gmail-automation', source: 'https://github.com/example/repo', description: 'Should be filtered out' },
     ],
   })
   assert.strictEqual(normalizedTessl.results.length, 4)
@@ -53,6 +55,8 @@ function run() {
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'gmail', normalizedTessl.results), 'odyssey4me/gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'google-workspace/gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
+  const noisyParsed = parseRegistryJsonOutput(`- Searching registry...\n${JSON.stringify({ results: [{ fullName: 'odyssey4me/gmail', workspaceName: 'odyssey4me', tileName: 'gmail' }] })}`)
+  assert.strictEqual(noisyParsed.results[0].fullName, 'odyssey4me/gmail')
 
   const normalizedShipables = normalizeSkillRegistrySearchResults('shipables', {
     skills: [{ name: 'github', description: 'GitHub skill' }],
@@ -75,7 +79,7 @@ function run() {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 18 tests passed')
+  console.log('skill-registry.test.ts: 21 tests passed')
 }
 
 run()
