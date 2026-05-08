@@ -1382,7 +1382,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     {inlineRegistryLoading ? (
                       <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
                     ) : (
-                      <div className="grid gap-3">
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                         {(['shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
                           const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
                           if (suggestions.length === 0) return null
