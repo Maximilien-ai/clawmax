@@ -403,19 +403,32 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     finally { setRegistrySearching(false) }
   }
 
-  async function installRegistrySkill(installName: string, providerOverride?: RegistryProvider) {
+  async function installRegistrySkill(installName: string, providerOverride?: RegistryProvider, overwrite = false) {
     const provider = providerOverride || registryProvider
     setRegistryInstalling(installName)
     try {
       const resp = await fetch('/api/skills/registry/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, name: installName }),
+        body: JSON.stringify({ provider, name: installName, overwrite }),
       })
       const data = await resp.json()
+      if (resp.status === 409 && data?.canOverwrite) {
+        const conflictList = Array.isArray(data.conflicts) && data.conflicts.length > 0
+          ? data.conflicts.join(', ')
+          : installName
+        const shouldOverwrite = window.confirm(
+          `The skill already exists in this workspace: ${conflictList}.\n\nReinstalling will replace the current user skill with the registry version.\n\nDo you want to continue?`
+        )
+        if (shouldOverwrite) {
+          await installRegistrySkill(installName, provider, true)
+        }
+        return
+      }
       if (data.ok) {
         const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)?.label || 'registry'
-        showSuccess(`Installed "${installName}" from ${providerLabel}`)
+        const replacedSuffix = data.replaced ? ` (${data.replaced} replaced)` : ''
+        showSuccess(`Installed "${installName}" from ${providerLabel}${replacedSuffix}`)
         setRegistryInstalledNames(prev => new Set([...prev, `${provider}:${installName}`]))
         await loadSkills()
       } else {

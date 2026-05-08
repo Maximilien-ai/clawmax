@@ -591,6 +591,7 @@ router.post('/registry/install', async (req, res) => {
   const provider = normalizeSkillRegistryProvider(req.body?.provider)
   try {
     let { name } = req.body
+    const overwrite = req.body?.overwrite === true
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Skill name is required' })
     }
@@ -672,7 +673,15 @@ router.post('/registry/install', async (req, res) => {
         const dirName = path.basename(skillDir)
         try {
           // Try standard import first
-          const result = importWorkspaceSkill(skillDir)
+          let result = importWorkspaceSkill(skillDir)
+          if (!result.success && /already exists/i.test(result.error || '') && overwrite) {
+            const deleted = deleteWorkspaceSkill(dirName)
+            if (!deleted.success) {
+              results.push({ name: dirName, ok: false, error: deleted.error || `Failed to replace existing skill "${dirName}"` })
+              continue
+            }
+            result = importWorkspaceSkill(skillDir)
+          }
           if (result.success) {
             annotateImportedRegistrySkill(path.join(customSkillsDir, result.skillId || dirName), provider, name)
             results.push({ name: dirName, ok: true })
@@ -682,8 +691,16 @@ router.post('/registry/install', async (req, res) => {
           // Fallback: direct copy for Shipables format (SKILL.md without index.ts)
           const targetDir = path.join(customSkillsDir, dirName)
           if (fs.existsSync(targetDir)) {
-            results.push({ name: dirName, ok: false, error: `Skill "${dirName}" already exists` })
-            continue
+            if (overwrite) {
+              const deleted = deleteWorkspaceSkill(dirName)
+              if (!deleted.success) {
+                results.push({ name: dirName, ok: false, error: deleted.error || `Failed to replace existing skill "${dirName}"` })
+                continue
+              }
+            } else {
+              results.push({ name: dirName, ok: false, error: `Skill "${dirName}" already exists` })
+              continue
+            }
           }
 
           // Copy entire directory recursively
@@ -703,10 +720,23 @@ router.post('/registry/install', async (req, res) => {
       }
 
       const succeeded = results.filter(r => r.ok).length
+      const conflicts = results.filter(r => !r.ok && /already exists/i.test(r.error || ''))
+
+      if (succeeded === 0 && conflicts.length > 0 && !overwrite) {
+        return res.status(409).json({
+          error: `Skill already exists: ${conflicts.map((item) => item.name).join(', ')}`,
+          canOverwrite: true,
+          conflicts: conflicts.map((item) => item.name),
+          source: provider,
+          meta: getSkillRegistryProviderMeta(provider),
+        })
+      }
+
       res.json({
         ok: succeeded > 0,
         installed: succeeded,
         total: results.length,
+        replaced: overwrite ? conflicts.length : 0,
         results,
         source: provider,
         meta: getSkillRegistryProviderMeta(provider),
