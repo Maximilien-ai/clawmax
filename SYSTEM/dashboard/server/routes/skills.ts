@@ -21,6 +21,7 @@ import {
   getSkillRegistryProviderMeta,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
+  selectBestRegistryInstallName,
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -586,7 +587,7 @@ router.get('/registry/info/:name', async (req, res) => {
 router.post('/registry/install', async (req, res) => {
   const provider = normalizeSkillRegistryProvider(req.body?.provider)
   try {
-    const { name } = req.body
+    let { name } = req.body
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Skill name is required' })
     }
@@ -600,6 +601,28 @@ router.post('/registry/install', async (req, res) => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${provider}-`))
 
     try {
+      if (provider === 'tessl' && !name.includes('/')) {
+        let searchResolved = name
+        const searchCommands = buildSkillRegistrySearchCommands(provider, name, 20)
+        for (const candidate of searchCommands) {
+          try {
+            const { stdout } = await execFileAsync(candidate.command, candidate.args, {
+              timeout: candidate.timeout,
+              cwd: tmpDir,
+              env: safeEnv(),
+              maxBuffer: 1024 * 1024 * 8,
+            })
+            const parsed = JSON.parse(stdout || '{}')
+            const normalized = normalizeSkillRegistrySearchResults(provider, parsed)
+            searchResolved = selectBestRegistryInstallName(provider, name, normalized.results || [])
+            break
+          } catch {
+            // Fall through to install with original name if search resolution fails.
+          }
+        }
+        name = searchResolved
+      }
+
       const commands = buildSkillRegistryInstallCommands(provider, name)
       let lastError: any = null
       for (const candidate of commands) {

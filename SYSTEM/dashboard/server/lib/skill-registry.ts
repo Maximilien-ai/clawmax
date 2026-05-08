@@ -104,6 +104,36 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
   }
 }
 
+export function selectBestRegistryInstallName(
+  provider: SkillRegistryProvider,
+  requestedName: string,
+  results: Array<{ name?: string; full_name?: string; install_name?: string }>
+): string {
+  if (provider !== 'tessl') return requestedName
+
+  if (/^[a-z0-9._-]+\/[a-z0-9._-]+(?:@[a-z0-9._.-]+)?$/i.test(requestedName)) {
+    return requestedName
+  }
+
+  const normalized = requestedName.trim().toLowerCase()
+  const exactMatch = results.find((item) => {
+    const candidates = [item.install_name, item.full_name, item.name]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase())
+    return candidates.includes(normalized)
+  })
+  if (exactMatch?.install_name) return exactMatch.install_name
+
+  const suffixMatch = results.find((item) => {
+    const installName = String(item.install_name || '').trim().toLowerCase()
+    const shortName = String(item.name || '').trim().toLowerCase()
+    return shortName === normalized || installName.endsWith(`/${normalized}`) || installName.endsWith(`/${normalized}@latest`)
+  })
+  if (suffixMatch?.install_name) return suffixMatch.install_name
+
+  return requestedName
+}
+
 export function buildSkillRegistrySearchCommands(provider: SkillRegistryProvider, query: string, limit: number) {
   if (provider === 'tessl') {
     return [

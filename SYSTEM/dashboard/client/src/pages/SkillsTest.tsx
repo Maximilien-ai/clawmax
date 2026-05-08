@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { SelectionActionBar } from '../components/SelectionActionBar'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
@@ -1894,63 +1895,60 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         )}
 
         {selectionMode && (
-          <div className="fixed inset-x-0 bottom-4 z-40 px-4">
-            <div className="mx-auto max-w-5xl rounded-2xl border border-purple-200 bg-white/95 px-4 py-3 shadow-xl backdrop-blur dark:border-purple-800 dark:bg-gray-900/95">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {selectedSkillIds.size} skill{selectedSkillIds.size !== 1 ? 's' : ''} selected
-                  {selectedSkillPartition.deletableSkills.length > 0 && (
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                      {selectedSkillPartition.deletableSkills.length} deletable
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
-                      setBulkAgentSearchQuery('')
-                      setShowBulkAssignModal(true)
-                    }}
-                    disabled={selectedSkillIds.size === 0 || availableAgents.length === 0}
-                    className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
-                  >
-                    Assign to Agents
-                  </button>
-                  <button
-                    onClick={() => {
-                    if (selectedSkillPartition.deletableSkills.length === 0) {
-                      showWarning('Only user-added skills can be deleted. The current selection contains built-in skills only.')
-                      return
-                    }
-                    setPendingDeleteSkillNames(selectedSkillPartition.selectedSkills.map((skill) => skill.name))
-                    setShowBulkDeleteConfirm(true)
-                  }}
-                    disabled={selectedSkillIds.size === 0}
-                    className="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                  >
-                    Delete User Skills
-                  </button>
-                  <button
-                    onClick={() => setSelectedSkillIds(new Set())}
-                    disabled={selectedSkillIds.size === 0}
-                    className="px-4 py-2 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-200 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectionMode(false)
-                      setSelectedSkillIds(new Set())
-                    }}
-                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 text-sm font-medium"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SelectionActionBar
+            summary={
+              <>
+                {selectedSkillIds.size} skill{selectedSkillIds.size !== 1 ? 's' : ''} selected
+                {selectedSkillPartition.deletableSkills.length > 0 && (
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                    {selectedSkillPartition.deletableSkills.length} deletable
+                  </span>
+                )}
+              </>
+            }
+          >
+            <button
+              onClick={() => {
+                setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
+                setBulkAgentSearchQuery('')
+                setShowBulkAssignModal(true)
+              }}
+              disabled={selectedSkillIds.size === 0 || availableAgents.length === 0}
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Assign to Agents
+            </button>
+            <button
+              onClick={() => {
+                if (selectedSkillPartition.deletableSkills.length === 0) {
+                  showWarning('Only user-added skills can be deleted. The current selection contains built-in skills only.')
+                  return
+                }
+                setPendingDeleteSkillNames(selectedSkillPartition.selectedSkills.map((skill) => skill.name))
+                setShowBulkDeleteConfirm(true)
+              }}
+              disabled={selectedSkillIds.size === 0}
+              className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Delete Selected ({selectedSkillIds.size})
+            </button>
+            <button
+              onClick={() => setSelectedSkillIds(new Set())}
+              disabled={selectedSkillIds.size === 0}
+              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Clear
+            </button>
+            <button
+              onClick={() => {
+                setSelectionMode(false)
+                setSelectedSkillIds(new Set())
+              }}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+            >
+              Done
+            </button>
+          </SelectionActionBar>
         )}
 
         {/* Import Skill Dialog */}

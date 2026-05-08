@@ -9,6 +9,7 @@ import {
   getSkillRegistryProviderMeta,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
+  selectBestRegistryInstallName,
 } from './skill-registry'
 
 function run() {
@@ -43,6 +44,8 @@ function run() {
   assert.strictEqual(normalizedTessl.results[0].install_name, 'acme/review-skill')
   assert.strictEqual(normalizedTessl.results[0].categories[0], 'review')
   assert.strictEqual(normalizedTessl.results[1].install_name, 'google-workspace/gws-gmail')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'google-workspace/gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
 
   const normalizedShipables = normalizeSkillRegistrySearchResults('shipables', {
     skills: [{ name: 'github', description: 'GitHub skill' }],
@@ -50,6 +53,7 @@ function run() {
   })
   assert.strictEqual(normalizedShipables.results.length, 1)
   assert.strictEqual(normalizedShipables.total, 1)
+  assert.strictEqual(selectBestRegistryInstallName('shipables', 'github', normalizedShipables.results), 'github')
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tessl-skill-registry-test-'))
   try {
@@ -64,7 +68,7 @@ function run() {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 11 tests passed')
+  console.log('skill-registry.test.ts: 14 tests passed')
 }
 
 run()

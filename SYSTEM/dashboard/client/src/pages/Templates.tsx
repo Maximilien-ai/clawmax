@@ -3,6 +3,7 @@ import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import { SelectionActionBar } from '../components/SelectionActionBar'
 import TemplateWizard from '../components/TemplateWizard'
 import AgentTemplateWizard from '../components/AgentTemplateWizard'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
@@ -1000,22 +1001,6 @@ export default function Templates() {
                 {selectedTemplateKeys.size === sortedTemplateRows.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
-            {selectionMode && selectedTemplateKeys.size > 0 && (
-              <button
-                onClick={handleApplySelected}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-              >
-                Apply Selected
-              </button>
-            )}
-            {selectionMode && selectedTemplateKeys.size > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                className="px-3 py-1.5 text-sm font-medium rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 transition-colors"
-              >
-                Delete Selected ({selectedTemplateKeys.size})
-              </button>
-            )}
             <div className="relative">
               <button
                 onClick={() => setShowActionsMenu((v) => !v)}
@@ -1066,6 +1051,47 @@ export default function Templates() {
         </div>
 
       </div>
+
+      {selectionMode && (
+        <SelectionActionBar
+          summary={
+            <>
+              {selectedTemplateKeys.size} template{selectedTemplateKeys.size !== 1 ? 's' : ''} selected
+            </>
+          }
+        >
+          <button
+            onClick={handleApplySelected}
+            disabled={selectedTemplateKeys.size === 0}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            Apply Selected
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedTemplateKeys.size === 0}
+            className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            Delete Selected ({selectedTemplateKeys.size})
+          </button>
+          <button
+            onClick={() => setSelectedTemplateKeys(new Set())}
+            disabled={selectedTemplateKeys.size === 0}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            Clear
+          </button>
+          <button
+            onClick={() => {
+              setSelectionMode(false)
+              setSelectedTemplateKeys(new Set())
+            }}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+          >
+            Done
+          </button>
+        </SelectionActionBar>
+      )}
 
       {/* Category filter */}
       <div className="flex gap-2 mb-4">
