@@ -83,7 +83,7 @@ const REGISTRY_PROVIDERS: Array<{
     icon: '🧩',
     linkLabel: 'Tessl',
     homepage: 'https://docs.tessl.io/use',
-    description: 'Discover and install Tessl registry skills for OpenClaw and Codex workspaces.',
+    description: 'Discover and install Tessl registry skills for OpenClaw workspaces.',
     searchPlaceholder: 'Search Tessl skills... (e.g., review, docs, research)',
   },
 ]

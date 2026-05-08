@@ -13,7 +13,7 @@ export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
       id: 'tessl' as const,
       label: 'Tessl',
       homepage: 'https://docs.tessl.io/use',
-      description: 'Search and install Tessl registry skills for OpenClaw/Codex workflows.',
+      description: 'Search and install Tessl registry skills for OpenClaw workflows.',
     }
   }
 
@@ -207,6 +207,20 @@ export function discoverInstalledRegistrySkillDirs(provider: SkillRegistryProvid
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
         .map((entry) => path.join(skillsDir, entry.name))
       discovered.push(...dirs)
+    }
+
+    const tesslTilesRoot = path.join(tmpDir, '.tessl', 'tiles')
+    if (fs.existsSync(tesslTilesRoot)) {
+      const workspaceDirs = fs.readdirSync(tesslTilesRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map((entry) => path.join(tesslTilesRoot, entry.name))
+
+      for (const workspaceDir of workspaceDirs) {
+        const tileDirs = fs.readdirSync(workspaceDir, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+          .map((entry) => path.join(workspaceDir, entry.name))
+        discovered.push(...tileDirs)
+      }
     }
 
     return Array.from(new Set(discovered))

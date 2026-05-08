@@ -72,14 +72,19 @@ function run() {
     fs.mkdirSync(tesslSkillDir, { recursive: true })
     fs.writeFileSync(path.join(tesslSkillDir, 'SKILL.md'), '# Review Skill\n', 'utf-8')
 
+    const tesslTileDir = path.join(tmpDir, '.tessl', 'tiles', 'odyssey4me', 'gmail')
+    fs.mkdirSync(tesslTileDir, { recursive: true })
+    fs.writeFileSync(path.join(tesslTileDir, 'SKILL.md'), '# Gmail Skill\n', 'utf-8')
+
     const discovered = discoverInstalledRegistrySkillDirs('tessl', tmpDir)
-    assert.strictEqual(discovered.length, 1)
+    assert.strictEqual(discovered.length, 2)
     assert(discovered[0].endsWith(path.join('.codex', 'skills', 'review-skill')))
+    assert(discovered[1].endsWith(path.join('.tessl', 'tiles', 'odyssey4me', 'gmail')))
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 21 tests passed')
+  console.log('skill-registry.test.ts: 23 tests passed')
 }
 
 run()
