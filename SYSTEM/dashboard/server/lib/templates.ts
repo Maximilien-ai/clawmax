@@ -80,6 +80,30 @@ function initializeTemplateCreatedAgent(agentId: string) {
   }
 }
 
+function ensureTemplateCreatedAgentRuntimeArtifacts(args: {
+  agentId: string
+  workspaceArg: string
+  agentDirArg: string
+  model?: string
+}) {
+  const { agentId, workspaceArg, agentDirArg, model } = args
+  const runtimeRoot = path.dirname(agentDirArg)
+
+  fs.mkdirSync(agentDirArg, { recursive: true })
+  fs.mkdirSync(path.join(runtimeRoot, 'sessions'), { recursive: true })
+
+  const configYamlPath = path.join(runtimeRoot, 'config.yaml')
+  if (!fs.existsSync(configYamlPath)) {
+    const configContent = [
+      `name: ${agentId}`,
+      `model: ${model || 'anthropic/claude-sonnet-4-20250514'}`,
+      `workspace: ${workspaceArg}`,
+      `created: ${new Date().toISOString()}`,
+    ].join('\n')
+    fs.writeFileSync(configYamlPath, configContent, 'utf-8')
+  }
+}
+
 function finalizeTemplateCreatedAgentRegistration(args: {
   agentId: string
   workspacePath: string
@@ -116,7 +140,12 @@ function finalizeTemplateCreatedAgentRegistration(args: {
     }
   }
 
-  fs.mkdirSync(agentDirArg, { recursive: true })
+  ensureTemplateCreatedAgentRuntimeArtifacts({
+    agentId,
+    workspaceArg,
+    agentDirArg,
+    model: appliedModel,
+  })
   const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
   if (!fs.existsSync(authProfilePath)) {
     const authProfile: Record<string, any> = { version: 1, profiles: {} }
@@ -677,7 +706,12 @@ function runOrganizationPostImportSetup(args: {
         }
       }
 
-      fs.mkdirSync(agentDirArg, { recursive: true })
+      ensureTemplateCreatedAgentRuntimeArtifacts({
+        agentId,
+        workspaceArg,
+        agentDirArg,
+        model: appliedModel,
+      })
       const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
       if (!fs.existsSync(authProfilePath)) {
         const authProfile: Record<string, any> = { version: 1, profiles: {} }

@@ -957,12 +957,15 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     const expectedWorkspace = path.join(tempWorkspace, 'AGENTS', targetAgentId)
     const expectedAgentDir = path.join(tempHome, '.openclaw', 'agents', targetAgentId, 'agent')
+    const expectedRuntimeRoot = path.join(tempHome, '.openclaw', 'agents', targetAgentId)
 
     assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
     assertEqual(registered.workspace, expectedWorkspace, 'Expected active workspace path to be persisted for imported agent')
     assertEqual(registered.agentDir, expectedAgentDir, 'Expected active agentDir path to be persisted for imported agent')
     assertEqual(registered.model, 'openai/gpt-4o-mini', 'Expected imported agent model to persist into openclaw.json')
     assert(fs.existsSync(path.join(expectedAgentDir, 'auth-profiles.json')), 'Expected imported agent auth profile to be created')
+    assert(fs.existsSync(path.join(expectedRuntimeRoot, 'config.yaml')), 'Expected imported agent runtime config.yaml to be created')
+    assert(fs.existsSync(path.join(expectedRuntimeRoot, 'sessions')), 'Expected imported agent sessions directory to be created')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
