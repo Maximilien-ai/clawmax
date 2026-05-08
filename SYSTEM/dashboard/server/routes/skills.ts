@@ -19,6 +19,7 @@ import {
   buildSkillRegistrySearchCommands,
   discoverInstalledRegistrySkillDirs,
   getSkillRegistryProviderMeta,
+  getTesslInstallBlockerMessage,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
   parseRegistryJsonOutput,
@@ -626,17 +627,20 @@ router.post('/registry/install', async (req, res) => {
 
       const commands = buildSkillRegistryInstallCommands(provider, name)
       let lastError: any = null
+      let lastOutput = ''
       for (const candidate of commands) {
         try {
-          await execFileAsync(candidate.command, candidate.args, {
+          const result = await execFileAsync(candidate.command, candidate.args, {
             timeout: candidate.timeout,
             cwd: tmpDir,
             env: safeEnv(),
             maxBuffer: 1024 * 1024 * 8,
           })
+          lastOutput = `${result.stdout || ''}\n${result.stderr || ''}`
           lastError = null
           break
         } catch (err: any) {
+          lastOutput = `${err?.stdout || ''}\n${err?.stderr || ''}`
           lastError = err
         }
       }
@@ -648,6 +652,12 @@ router.post('/registry/install', async (req, res) => {
       const skillDirs = discoverInstalledRegistrySkillDirs(provider, tmpDir)
 
       if (skillDirs.length === 0) {
+        if (provider === 'tessl') {
+          const blocker = getTesslInstallBlockerMessage(lastOutput)
+          if (blocker) {
+            return res.status(400).json({ error: blocker })
+          }
+        }
         return res.status(400).json({ error: 'No skill files found after install. The skill may use a format not yet supported.' })
       }
 

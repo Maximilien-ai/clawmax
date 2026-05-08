@@ -7,6 +7,7 @@ import {
   buildSkillRegistrySearchCommands,
   discoverInstalledRegistrySkillDirs,
   getSkillRegistryProviderMeta,
+  getTesslInstallBlockerMessage,
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
   parseRegistryJsonOutput,
@@ -43,7 +44,7 @@ function run() {
       { type: 'git-skill', name: 'gmail-automation', source: 'https://github.com/example/repo', description: 'Should be filtered out' },
     ],
   })
-  assert.strictEqual(normalizedTessl.results.length, 4)
+  assert.strictEqual(normalizedTessl.results.length, 3)
   assert.strictEqual(normalizedTessl.results[0].full_name, 'odyssey4me/gmail')
   assert.strictEqual(normalizedTessl.results[0].install_name, 'odyssey4me/gmail')
   assert.strictEqual(normalizedTessl.results[0].latest_version, '0.1.2')
@@ -51,12 +52,14 @@ function run() {
   assert.strictEqual(normalizedTessl.results[1].install_name, 'acme/review-skill')
   assert.strictEqual(normalizedTessl.results[1].categories[0], 'review')
   assert.strictEqual(normalizedTessl.results[2].install_name, 'google-workspace/gws-gmail')
-  assert.strictEqual(normalizedTessl.results[3].install_name, 'odyssey4me/gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'gmail', normalizedTessl.results), 'odyssey4me/gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
   assert.strictEqual(selectBestRegistryInstallName('tessl', 'google-workspace/gws-gmail', normalizedTessl.results), 'google-workspace/gws-gmail')
   const noisyParsed = parseRegistryJsonOutput(`- Searching registry...\n${JSON.stringify({ results: [{ fullName: 'odyssey4me/gmail', workspaceName: 'odyssey4me', tileName: 'gmail' }] })}`)
   assert.strictEqual(noisyParsed.results[0].fullName, 'odyssey4me/gmail')
+  assert(getTesslInstallBlockerMessage('Skipped odyssey4me/gmail due to security review.\n⚠ Use --dangerously-ignore-security to bypass.'))
+  assert(getTesslInstallBlockerMessage('✘ Security  Risky · Do not use without reviewing'))
+  assert.strictEqual(getTesslInstallBlockerMessage('All good'), null)
 
   const normalizedShipables = normalizeSkillRegistrySearchResults('shipables', {
     skills: [{ name: 'github', description: 'GitHub skill' }],
@@ -84,7 +87,7 @@ function run() {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 23 tests passed')
+  console.log('skill-registry.test.ts: 26 tests passed')
 }
 
 run()

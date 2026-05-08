@@ -94,12 +94,29 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
       latest_version: item?.latest_version || item?.latestVersion || item?.version,
       downloads_weekly: item?.downloads_weekly || item?.downloads || item?.installs,
       categories: item?.categories || item?.tags || [],
+      result_type: item?.type,
       raw: item,
     })).filter((item: any) => item.name)
 
+    const deduped = new Map<string, any>()
+    for (const item of normalized) {
+      const key = item.install_name || item.full_name || item.name
+      const current = deduped.get(key)
+      if (!current) {
+        deduped.set(key, item)
+        continue
+      }
+
+      const currentPriority = current.result_type === 'tile' ? 2 : current.result_type === 'tile-skill' ? 1 : 0
+      const nextPriority = item.result_type === 'tile' ? 2 : item.result_type === 'tile-skill' ? 1 : 0
+      if (nextPriority > currentPriority) {
+        deduped.set(key, item)
+      }
+    }
+
     return {
-      results: normalized,
-      total: parsed?.total || parsed?.pagination?.total || normalized.length,
+      results: Array.from(deduped.values()),
+      total: parsed?.total || parsed?.pagination?.total || deduped.size,
       pagination: parsed?.pagination,
     }
   }
@@ -267,4 +284,19 @@ export function parseRegistryJsonOutput(raw: string): any {
     }
     return JSON.parse(trimmed.slice(start))
   }
+}
+
+export function getTesslInstallBlockerMessage(raw: string): string | null {
+  const text = String(raw || '')
+  if (!text) return null
+
+  if (text.includes('Skipped ') && text.includes('due to security review')) {
+    return 'Tessl blocked this skill behind a security review. Review the skill in Tessl or rerun with an explicit security bypass if you trust it.'
+  }
+
+  if (text.includes('--dangerously-ignore-security') || text.includes('Security  Risky')) {
+    return 'Tessl requires an explicit security bypass before installing this skill. Review the tile and use Tessl security bypass only if you trust it.'
+  }
+
+  return null
 }
