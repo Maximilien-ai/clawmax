@@ -80,6 +80,58 @@ function initializeTemplateCreatedAgent(agentId: string) {
   }
 }
 
+function finalizeTemplateCreatedAgentRegistration(args: {
+  agentId: string
+  workspacePath: string
+  model?: string
+}) {
+  const { agentId, workspacePath, model } = args
+  const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
+  const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
+
+  const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, registrationEnv)
+  if (registration.status === 'created') {
+    console.log(`Registered agent ${agentId} in openclaw.json`)
+  } else if (registration.status === 'updated-existing') {
+    console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
+  } else {
+    console.log(`Agent ${agentId} already registered in openclaw.json`)
+  }
+
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const registered = Array.isArray(config?.agents?.list) && config.agents.list.some((agent: any) =>
+    agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
+  )
+  if (!registered) {
+    throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
+  }
+
+  const appliedModel = model?.trim()
+  if (appliedModel) {
+    const update = updateAgentModelInConfigFile(configPath, agentId, appliedModel, { workspacePath: workspaceArg })
+    if (!update.ok) {
+      throw new Error(update.error || `Failed to persist model ${appliedModel} for ${agentId}`)
+    }
+  }
+
+  fs.mkdirSync(agentDirArg, { recursive: true })
+  const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
+  if (!fs.existsSync(authProfilePath)) {
+    const authProfile: Record<string, any> = { version: 1, profiles: {} }
+    const systemKeys = getSystemProviderKeys()
+    if (systemKeys.openai) {
+      authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
+    }
+    if (systemKeys.anthropic) {
+      authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
+    }
+    fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
+    console.log(`Created auth profile for agent ${agentId}`)
+  }
+}
+
 function normalizeTagList(tags?: string[]): string[] {
   if (!Array.isArray(tags)) return []
   return Array.from(
@@ -1937,6 +1989,11 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       }
     }
 
+    finalizeTemplateCreatedAgentRegistration({
+      agentId: targetAgentId,
+      workspacePath: getWorkspacePath(),
+      model: options.model,
+    })
     initializeTemplateCreatedAgent(targetAgentId)
     recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 

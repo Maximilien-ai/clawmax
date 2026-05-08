@@ -8,6 +8,7 @@ import {
   listTemplates,
   getTemplate,
   importOrganizationTemplate,
+  importAgentFromTemplate,
   saveTemplate,
   validateTemplate,
   validateImportedTemplateMd,
@@ -916,6 +917,60 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
   assert(JSON.stringify(agent.skills) === JSON.stringify(['github']), 'Expected skills metadata to be preserved')
 
   fs.rmSync(home, { recursive: true, force: true })
+})
+
+test('importAgentFromTemplate registers created agents into the active OpenClaw workspace config', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-import-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+  const targetAgentId = 'briefing-writer'
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: targetAgentId,
+          name: targetAgentId,
+          workspace: '/old/workspace/AGENTS/briefing-writer',
+          agentDir: '/old/home/.openclaw/agents/briefing-writer/agent',
+        },
+      ],
+    },
+  }, null, 2), 'utf-8')
+
+  try {
+    const result = importAgentFromTemplate('briefing-writer-template', {
+      newAgentId: targetAgentId,
+      model: 'openai/gpt-4o-mini',
+    })
+
+    assert(result.ok === true, `Expected agent template import to succeed, got ${result.error || 'unknown error'}`)
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
+    const expectedWorkspace = path.join(tempWorkspace, 'AGENTS', targetAgentId)
+    const expectedAgentDir = path.join(tempHome, '.openclaw', 'agents', targetAgentId, 'agent')
+
+    assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
+    assertEqual(registered.workspace, expectedWorkspace, 'Expected active workspace path to be persisted for imported agent')
+    assertEqual(registered.agentDir, expectedAgentDir, 'Expected active agentDir path to be persisted for imported agent')
+    assertEqual(registered.model, 'openai/gpt-4o-mini', 'Expected imported agent model to persist into openclaw.json')
+    assert(fs.existsSync(path.join(expectedAgentDir, 'auth-profiles.json')), 'Expected imported agent auth profile to be created')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
 })
 
 // ============================================================================
