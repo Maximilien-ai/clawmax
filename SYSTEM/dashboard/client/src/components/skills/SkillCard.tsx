@@ -105,26 +105,30 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
           )}
         </div>
 
-        {/* Action Button */}
+        {/* Actions */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {onView && (
-            <button
-              onClick={onView}
-              className="px-3 py-1 rounded text-sm font-medium transition-colors border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-              title={`View ${skill.name} skill.md`}
-            >
-              📄 View
-            </button>
-          )}
-          {!selectionMode && canDelete && onDelete && (
-            <button
-              onClick={onDelete}
-              className="px-3 py-1 rounded text-sm font-medium transition-colors border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
-              title={`Delete ${skill.name}`}
-            >
-              🗑 Delete
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {onView && (
+              <button
+                onClick={onView}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                title={`View ${skill.name} skill.md`}
+                aria-label={`View ${skill.name} skill.md`}
+              >
+                📄
+              </button>
+            )}
+            {!selectionMode && canDelete && onDelete && (
+              <button
+                onClick={onDelete}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-300 dark:hover:bg-red-900/30 transition-colors"
+                title={`Delete ${skill.name}`}
+                aria-label={`Delete ${skill.name}`}
+              >
+                🗑
+              </button>
+            )}
+          </div>
           {onToggle && (
             <button
               onClick={onToggle}
