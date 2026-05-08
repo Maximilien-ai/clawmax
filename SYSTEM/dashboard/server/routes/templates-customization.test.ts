@@ -154,6 +154,33 @@ test('accepts recurring desk optional apply fields for personal ops templates', 
 - **Context (optional):** [meeting, outreach, diligence]
 `,
       },
+      {
+        id: 'wf-family-ops',
+        name: 'Family Week Kickoff',
+        content: `
+- **This week’s priorities (optional):** [school, appointments, travel]
+- **Key family members or roles (optional):** [names or roles]
+- **Known stress points (optional):** [time crunches, overloaded days]
+`,
+      },
+      {
+        id: 'wf-market-signal',
+        name: 'Market Attention Kickoff',
+        content: `
+- **Watchlist or sector (optional):** [tickers, themes, sector]
+- **Time horizon (optional):** [today, this week]
+- **Risk style (optional):** [conservative, balanced, aggressive]
+`,
+      },
+      {
+        id: 'wf-tax-planning',
+        name: 'Tax Kickoff',
+        content: `
+- **Tax year or period (optional):** [e.g., 2025 filing]
+- **Primary question (optional):** [e.g., readiness, deduction review]
+- **Known tax documents (optional):** [W-2, 1099, K-1]
+`,
+      },
     ],
   })
 
