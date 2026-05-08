@@ -2,6 +2,15 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.2] - 2026-05-08
+
+### Release — Container Packaging Fix
+- **OpenClaw Docker Builder Hardening** — the Docker OpenClaw builder stage now installs dependencies with lifecycle `prepare` hooks disabled, which avoids clean-room container build failures from transitive git-hosted packages such as `@tloncorp/api`
+- **CLI/Cloud Publish Unblock** — this keeps the pinned OpenClaw packaging path intact while unblocking `clawmax-cli` image publication from an immutable release tag for cloud/on-prem environments
+
+### Quality
+- **Validation Gate** — validated locally with the targeted Docker builder smoke check in `SYSTEM/dockerfile-openclaw-builder.test.sh`
+
 ## [v1.4.1] - 2026-05-08
 
 ### Release — Skills, Registry Discovery, and Template Friction Reduction

@@ -5,12 +5,21 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.1
+## 🔥 Latest Release: v1.4.2
+
+- Container/OpenClaw packaging is more reliable for published images:
+  - the Docker OpenClaw builder stage now skips dependency `prepare` hooks for transitive git-hosted packages during clean-room container builds
+  - this unblocks the pinned OpenClaw runtime packaging path used by the CLI team for cloud/on-prem dashboard image publishing
+- `v1.4.1` product work remains intact:
+  - Skills UX, registry discovery, recurring-template apply friction reduction, single-agent template registration, and multi-agent typing-indicator improvements all remain part of the current line
+  - Tessl registry support remains **exploratory/experimental**
+
+## 🔥 Previous Release: v1.4.1
 
 - Skills received a large usability pass:
   - reverse assignment from a skill is now fully usable, including clearer `Selected Agent` context, multi-select, bulk actions, and consistent selection footers
