@@ -43,6 +43,8 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string
   tags?: string[]
+  registryProvider?: 'shipables' | 'tessl'
+  registryName?: string
   secretRequirements?: Array<{
     key: string
     label: string
@@ -253,6 +255,8 @@ function parseSkillFile(
       install: openclawMeta.install,
       homepage: openclawMeta.homepage,
       tags: openclawMeta.tags || data.tags || [],
+      registryProvider: openclawMeta.registryProvider,
+      registryName: openclawMeta.registryName,
       secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || []
     }
   } catch (err) {
@@ -293,6 +297,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       install: data.install || openclawMeta.install,
       homepage: data.homepage || openclawMeta.homepage,
       tags: data.tags || openclawMeta.tags || [],
+      registryProvider: openclawMeta.registryProvider,
+      registryName: openclawMeta.registryName,
       secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || []
     }
   } catch (err) {

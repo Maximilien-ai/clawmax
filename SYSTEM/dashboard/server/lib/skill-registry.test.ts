@@ -34,7 +34,7 @@ function run() {
 
   const normalizedTessl = normalizeSkillRegistrySearchResults('tessl', {
     results: [
-      { name: 'acme/review-skill', description: 'Review better', version: '1.0.0', tags: ['review'] },
+      { workspace: 'acme', tile: 'review-skill', description: 'Review better', version: '1.0.0', tags: ['review'] },
     ],
   })
   assert.strictEqual(normalizedTessl.results.length, 1)

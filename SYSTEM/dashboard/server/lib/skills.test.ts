@@ -167,6 +167,30 @@ test('updateSkillContent() creates a workspace copy when editing a bundled skill
   assert(updated.content.includes('workspace copy test'), 'Updated content should persist')
 })
 
+test('workspace skills expose registry provenance metadata when present', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const skillDir = path.join(workspaceSkillsDir, 'test-tessl-skill')
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: test-tessl-skill
+description: Skill imported from Tessl
+metadata:
+  openclaw:
+    registryProvider: tessl
+    registryName: acme/test-tessl-skill
+---
+
+# Test Tessl Skill
+`, 'utf-8')
+
+  const skill = getSkillById('test-tessl-skill')
+  assert(skill !== null, 'Expected imported registry skill to load')
+  assertEqual(skill!.registryProvider as any, 'tessl', 'Expected registry provider metadata')
+  assertEqual(skill!.registryName as any, 'acme/test-tessl-skill', 'Expected registry name metadata')
+
+  deleteWorkspaceSkill('test-tessl-skill')
+})
+
 // Test 4: Get skill by ID - invalid skill
 test('getSkillById("invalid-skill") returns null', () => {
   const skill = getSkillById('invalid-skill')

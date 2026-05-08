@@ -24,10 +24,35 @@ import {
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import matter from 'gray-matter'
+import fs from 'fs'
+import path from 'path'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
+
+function annotateImportedRegistrySkill(skillDir: string, provider: 'shipables' | 'tessl', registryName: string) {
+  const skillMdUpper = path.join(skillDir, 'SKILL.md')
+  const skillMdLower = path.join(skillDir, 'skill.md')
+  const skillPath = fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
+  if (!fs.existsSync(skillPath)) return
+
+  const raw = fs.readFileSync(skillPath, 'utf-8')
+  const parsed = matter(raw)
+  const next = {
+    ...parsed.data,
+    metadata: {
+      ...(parsed.data?.metadata || {}),
+      openclaw: {
+        ...(parsed.data?.metadata?.openclaw || {}),
+        registryProvider: provider,
+        registryName,
+      },
+    },
+  }
+  fs.writeFileSync(skillPath, matter.stringify(parsed.content, next), 'utf-8')
+}
 
 // GET /api/skills/browse-directory - Show native directory picker (macOS)
 router.get('/browse-directory', async (req, res) => {
@@ -572,8 +597,6 @@ router.post('/registry/install', async (req, res) => {
     }
 
     const os = require('os')
-    const path = require('path')
-    const fs = require('fs')
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${provider}-`))
 
     try {
@@ -615,6 +638,7 @@ router.post('/registry/install', async (req, res) => {
           // Try standard import first
           const result = importWorkspaceSkill(skillDir)
           if (result.success) {
+            annotateImportedRegistrySkill(path.join(customSkillsDir, result.skillId || dirName), provider, name)
             results.push({ name: dirName, ok: true })
             continue
           }
@@ -633,6 +657,8 @@ router.post('/registry/install', async (req, res) => {
           if (!fs.existsSync(path.join(targetDir, 'SKILL.md')) && fs.existsSync(path.join(targetDir, 'skill.md'))) {
             fs.renameSync(path.join(targetDir, 'skill.md'), path.join(targetDir, 'SKILL.md'))
           }
+
+          annotateImportedRegistrySkill(targetDir, provider, name)
 
           results.push({ name: dirName, ok: true })
         } catch (err: any) {

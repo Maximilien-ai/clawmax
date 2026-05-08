@@ -40,6 +40,8 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL
   tags?: string[]       // Searchable tags
+  registryProvider?: 'shipables' | 'tessl'
+  registryName?: string
   secretRequirements?: SecretRequirement[]
 }
 

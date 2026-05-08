@@ -43,7 +43,14 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
 
     const normalized = results.map((item: any) => ({
       name: item?.name || item?.tile || item?.id || item?.slug,
-      full_name: item?.full_name || item?.name || item?.tile || item?.id || item?.slug,
+      full_name:
+        item?.full_name
+        || item?.registry_name
+        || (item?.workspace && (item?.tile || item?.name) ? `${item.workspace}/${item.tile || item.name}` : undefined)
+        || item?.name
+        || item?.tile
+        || item?.id
+        || item?.slug,
       description: item?.description || item?.summary || '',
       latest_version: item?.latest_version || item?.version,
       downloads_weekly: item?.downloads_weekly || item?.downloads || item?.installs,

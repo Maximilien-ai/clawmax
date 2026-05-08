@@ -21,6 +21,12 @@ function getSourceBadgeLabel(skill: OpenClawSkill): string {
   return 'Built-in'
 }
 
+function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
+  if (skill.registryProvider === 'tessl') return 'Tessl'
+  if (skill.registryProvider === 'shipables') return 'Shipables'
+  return null
+}
+
 export function SkillCard({ skill, assigned, onToggle, onView, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
@@ -61,6 +67,11 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
             <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
               {getSourceBadgeLabel(skill)}
             </span>
+            {getRegistryBadgeLabel(skill) && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                {getRegistryBadgeLabel(skill)}
+              </span>
+            )}
             {skill.dirty && (
               <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 DIRTY

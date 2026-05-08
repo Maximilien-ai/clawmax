@@ -398,19 +398,20 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     finally { setRegistrySearching(false) }
   }
 
-  async function installRegistrySkill(installName: string) {
+  async function installRegistrySkill(installName: string, providerOverride?: RegistryProvider) {
+    const provider = providerOverride || registryProvider
     setRegistryInstalling(installName)
     try {
       const resp = await fetch('/api/skills/registry/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: registryProvider, name: installName }),
+        body: JSON.stringify({ provider, name: installName }),
       })
       const data = await resp.json()
       if (data.ok) {
-        const providerLabel = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider)?.label || 'registry'
+        const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)?.label || 'registry'
         showSuccess(`Installed "${installName}" from ${providerLabel}`)
-        setRegistryInstalledNames(prev => new Set([...prev, `${registryProvider}:${installName}`]))
+        setRegistryInstalledNames(prev => new Set([...prev, `${provider}:${installName}`]))
         await loadSkills()
       } else {
         showToastError(data.error || 'Install failed')
@@ -1234,7 +1235,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                               {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
                             </div>
                             <button
-                              onClick={() => installRegistrySkill(skill.installName)}
+                              onClick={() => installRegistrySkill(skill.installName, 'shipables')}
                               disabled={!!registryInstalling}
                               className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                             >
@@ -1299,7 +1300,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                               {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
                             </div>
                             <button
-                              onClick={() => installRegistrySkill(skill.installName)}
+                              onClick={() => installRegistrySkill(skill.installName, 'shipables')}
                               disabled={!!registryInstalling}
                               className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                             >
