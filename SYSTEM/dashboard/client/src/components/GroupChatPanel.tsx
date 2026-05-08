@@ -2,7 +2,12 @@ import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
-import { buildCommunicationCacheKey, shouldUpdateChannelMessages } from '../lib/communicationMessages'
+import {
+  buildCommunicationCacheKey,
+  mergeTypingAgents,
+  removeRespondedAgentsFromPending,
+  shouldUpdateChannelMessages,
+} from '../lib/communicationMessages'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -144,6 +149,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const prevMessageCount = useRef(0)
   const userJustSent = useRef(false)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingReplyAgentsRef = useRef<Set<string>>(new Set())
+  const activeWorkflowAgentsRef = useRef<Set<string>>(new Set())
+
+  function syncTypingAgents() {
+    setTypingAgents(mergeTypingAgents(pendingReplyAgentsRef.current, activeWorkflowAgentsRef.current))
+  }
 
   useEffect(() => {
     fetchMessages()
@@ -245,7 +256,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               }
 
               if (workingAgents.size > 0) {
-                setTypingAgents(workingAgents)
+                activeWorkflowAgentsRef.current = workingAgents
+                syncTypingAgents()
                 return // Found active workflow, stop checking others
               }
             }
@@ -253,8 +265,9 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         }
       }
 
-      // No active workflows, clear typing indicators
-      setTypingAgents(new Set())
+      // No active workflows. Keep any pending reply indicators until real replies land or timeout.
+      activeWorkflowAgentsRef.current = new Set()
+      syncTypingAgents()
     } catch (err) {
       console.error('[Typing Indicators] Failed to fetch active workflows:', err)
     }
@@ -281,22 +294,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         const changed = shouldUpdateChannelMessages(prevMessages, newMessages)
 
         if (changed) {
-          setTypingAgents(currentTypingAgents => {
-            if (currentTypingAgents.size > 0 && newMessages.length > prevMessages.length) {
-              const latestMessages = newMessages.slice(prevMessages.length)
-              const respondedAgentIds = new Set(
-                latestMessages
-                  .filter((m: any) => m.from !== 'User')
-                  .map((m: any) => m.from)
-              )
-              if (respondedAgentIds.size > 0) {
-                const updated = new Set(currentTypingAgents)
-                respondedAgentIds.forEach(id => updated.delete(id))
-                return updated
-              }
-            }
-            return currentTypingAgents
-          })
+          pendingReplyAgentsRef.current = removeRespondedAgentsFromPending(
+            pendingReplyAgentsRef.current,
+            newMessages,
+            prevMessages.length
+          )
+          syncTypingAgents()
           return newMessages
         }
         return prevMessages // Same reference — no re-render
@@ -369,11 +372,15 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       if (r.ok) {
         // Show typing indicators for mentioned agents
         if (mentionedAgents.length > 0) {
-          setTypingAgents(new Set(mentionedAgents.map(a => a.id)))
+          pendingReplyAgentsRef.current = new Set(mentionedAgents.map(a => a.id))
+          syncTypingAgents()
           // Clear any previous timeout
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
           // Auto-clear typing indicators after 30 seconds to prevent stuck state
-          typingTimeoutRef.current = setTimeout(() => setTypingAgents(new Set()), 30000)
+          typingTimeoutRef.current = setTimeout(() => {
+            pendingReplyAgentsRef.current = new Set()
+            syncTypingAgents()
+          }, 30000)
         }
         fetchMessages()
         // Focus back on input after sending

@@ -5,6 +5,32 @@ type ComparableMessage = {
   timestamp: number
 }
 
+export function mergeTypingAgents(
+  pendingReplyAgents: Set<string>,
+  activeWorkflowAgents: Set<string>
+): Set<string> {
+  return new Set([...pendingReplyAgents, ...activeWorkflowAgents])
+}
+
+export function removeRespondedAgentsFromPending(
+  pendingReplyAgents: Set<string>,
+  newMessages: ComparableMessage[],
+  previousMessageCount: number
+): Set<string> {
+  if (pendingReplyAgents.size === 0 || newMessages.length <= previousMessageCount) {
+    return pendingReplyAgents
+  }
+
+  const nextPending = new Set(pendingReplyAgents)
+  const latestMessages = newMessages.slice(previousMessageCount)
+  for (const message of latestMessages) {
+    if (message.from && message.from !== 'User') {
+      nextPending.delete(message.from)
+    }
+  }
+  return nextPending
+}
+
 export function buildCommunicationCacheKey(type: 'community' | 'group', name: string): string {
   return `${type}:${name}`
 }
