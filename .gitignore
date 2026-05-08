@@ -23,6 +23,10 @@ SYSTEM/dashboard/.dashboard-token
 SYSTEM/dashboard/server/.dashboard-token
 SYSTEM/dashboard/server/data/auth/otp-store.json
 .clawmax-otp-dev.json
+SYSTEM/dashboard/.codex/
+SYSTEM/dashboard/.mcp.json
+SYSTEM/dashboard/.vscode/
+SYSTEM/dashboard/tessl.json
 
 # Logs
 *.log
