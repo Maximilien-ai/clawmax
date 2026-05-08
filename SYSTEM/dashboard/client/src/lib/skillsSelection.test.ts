@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { filterAssignableAgents, isUserSkill, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from './skillsSelection'
+import { filterAssignableAgents, isDeletableUserSkill, isUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from './skillsSelection'
 
 function run() {
   const toggledOn = toggleItemSelection(new Set<string>(), 'github')
@@ -19,6 +19,9 @@ function run() {
 
   assert.strictEqual(isUserSkill({ name: 'workspace-copy', description: '', source: 'workspace', variantOf: 'github' } as any), true)
   assert.strictEqual(isUserSkill({ name: 'github', description: '', source: 'bundled' } as any), false)
+  assert.strictEqual(isDeletableUserSkill({ name: 'custom-tool', description: '', source: 'workspace' } as any), true)
+  assert.strictEqual(isDeletableUserSkill({ name: 'ai-skill', description: '', source: 'managed' } as any), true)
+  assert.strictEqual(isDeletableUserSkill({ name: 'github', description: '', source: 'bundled' } as any), false)
 
   const partitioned = partitionSkillsBySource([
     { name: 'github', description: '', source: 'bundled' } as any,
@@ -28,7 +31,15 @@ function run() {
   assert.deepStrictEqual(partitioned.userSkills.map((skill) => skill.name), ['custom-tool', 'github-copy'])
   assert.deepStrictEqual(partitioned.builtInSkills.map((skill) => skill.name), ['github'])
 
-  console.log('skillsSelection.test.ts: 8 tests passed')
+  const selectedPartition = partitionSelectedSkills([
+    { name: 'github', description: '', source: 'bundled' } as any,
+    { name: 'custom-tool', description: '', source: 'workspace' } as any,
+    { name: 'ai-skill', description: '', source: 'managed' } as any,
+  ], new Set(['github', 'custom-tool', 'ai-skill']))
+  assert.deepStrictEqual(selectedPartition.deletableSkills.map((skill) => skill.name), ['custom-tool', 'ai-skill'])
+  assert.deepStrictEqual(selectedPartition.nonDeletableSkills.map((skill) => skill.name), ['github'])
+
+  console.log('skillsSelection.test.ts: 13 tests passed')
 }
 
 run()

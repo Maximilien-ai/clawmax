@@ -167,6 +167,19 @@ test('updateSkillContent() creates a workspace copy when editing a bundled skill
   assert(updated.content.includes('workspace copy test'), 'Updated content should persist')
 })
 
+test('deleteWorkspaceSkill() removes managed custom skills too', () => {
+  const created = createCustomSkill({
+    name: 'test-managed-delete-skill',
+    description: 'Managed skill delete coverage',
+    content: '# Test Managed Delete Skill\n',
+  })
+  assert(created.source === 'managed', 'Expected managed custom skill to be created')
+
+  const deleted = deleteWorkspaceSkill('test-managed-delete-skill')
+  assertEqual(deleted.success, true, 'Expected managed custom skill delete to succeed')
+  assertEqual(getSkillById('test-managed-delete-skill'), null, 'Expected deleted managed skill to be gone')
+})
+
 test('workspace skills expose registry provenance metadata when present', () => {
   const workspaceSkillsDir = getWorkspaceSkillsDir()
   const skillDir = path.join(workspaceSkillsDir, 'test-tessl-skill')

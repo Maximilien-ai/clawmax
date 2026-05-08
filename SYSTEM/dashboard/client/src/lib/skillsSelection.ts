@@ -39,6 +39,24 @@ export function isUserSkill(skill: OpenClawSkill): boolean {
   return skill.source !== 'bundled' || Boolean(skill.variantOf)
 }
 
+export function isDeletableUserSkill(skill: OpenClawSkill): boolean {
+  return skill.source === 'workspace' || skill.source === 'managed'
+}
+
+export function partitionSelectedSkills(
+  skills: OpenClawSkill[],
+  selectedSkillIds: Set<string>
+): {
+  selectedSkills: OpenClawSkill[]
+  deletableSkills: OpenClawSkill[]
+  nonDeletableSkills: OpenClawSkill[]
+} {
+  const selectedSkills = skills.filter((skill) => selectedSkillIds.has(skill.name))
+  const deletableSkills = selectedSkills.filter((skill) => isDeletableUserSkill(skill))
+  const nonDeletableSkills = selectedSkills.filter((skill) => !isDeletableUserSkill(skill))
+  return { selectedSkills, deletableSkills, nonDeletableSkills }
+}
+
 export function partitionSkillsBySource(skills: OpenClawSkill[]): {
   userSkills: OpenClawSkill[]
   builtInSkills: OpenClawSkill[]

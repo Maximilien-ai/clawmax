@@ -822,31 +822,41 @@ export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { suc
 export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean; error?: string } {
   try {
     const workspaceSkillsDir = getWorkspaceSkillsDir()
+    let managedSkillPath = path.join(MANAGED_SKILLS_DIR, skillIdOrName)
 
     // First try direct directory match (skillId)
     let skillPath = path.join(workspaceSkillsDir, skillIdOrName)
 
     // If not found, try to find by skill name
     if (!fs.existsSync(skillPath)) {
-      const skills = listAvailableSkills().filter(s => s.source === 'workspace')
+      const skills = listAvailableSkills().filter(s => s.source === 'workspace' || s.source === 'managed')
       const skill = skills.find(s => s.name === skillIdOrName || s.id === skillIdOrName)
 
-      if (!skill || !skill.id) {
+      if (!skill) {
         return { success: false, error: 'Skill not found' }
       }
 
-      skillPath = path.join(workspaceSkillsDir, skill.id)
+      if (skill.source === 'managed') {
+        managedSkillPath = path.join(MANAGED_SKILLS_DIR, skill.name)
+      } else if (skill.id) {
+        skillPath = path.join(workspaceSkillsDir, skill.id)
+      }
     }
 
-    // Validate it exists
-    if (!fs.existsSync(skillPath)) {
+    const existingWorkspacePath = fs.existsSync(skillPath) ? skillPath : null
+    const existingManagedPath = fs.existsSync(managedSkillPath) ? managedSkillPath : null
+
+    if (!existingWorkspacePath && !existingManagedPath) {
       return { success: false, error: 'Skill not found' }
     }
 
-    // Delete directory recursively
-    fs.rmSync(skillPath, { recursive: true, force: true })
+    if (existingWorkspacePath) {
+      fs.rmSync(existingWorkspacePath, { recursive: true, force: true })
+    } else if (existingManagedPath) {
+      fs.rmSync(existingManagedPath, { recursive: true, force: true })
+    }
 
-    console.log(`✓ Deleted workspace skill: ${skillIdOrName}`)
+    console.log(`✓ Deleted user skill: ${skillIdOrName}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: String(err) }

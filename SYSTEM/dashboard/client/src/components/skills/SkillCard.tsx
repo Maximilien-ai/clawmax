@@ -6,6 +6,8 @@ interface SkillCardProps {
   assigned: boolean
   onToggle?: () => void
   onView?: () => void
+  onDelete?: () => void
+  canDelete?: boolean
   compact?: boolean
   usageCount?: number
   usedBy?: string[]
@@ -27,7 +29,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
   return null
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -112,6 +114,15 @@ export function SkillCard({ skill, assigned, onToggle, onView, compact = false, 
               title={`View ${skill.name} skill.md`}
             >
               📄 View
+            </button>
+          )}
+          {!selectionMode && canDelete && onDelete && (
+            <button
+              onClick={onDelete}
+              className="px-3 py-1 rounded text-sm font-medium transition-colors border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+              title={`Delete ${skill.name}`}
+            >
+              🗑 Delete
             </button>
           )}
           {onToggle && (

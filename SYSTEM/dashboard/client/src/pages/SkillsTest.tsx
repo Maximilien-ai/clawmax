@@ -7,7 +7,7 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
-import { filterAssignableAgents, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
+import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -105,9 +105,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false)
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [selectedBulkAgentIds, setSelectedBulkAgentIds] = useState<Set<string>>(new Set())
   const [bulkAgentSearchQuery, setBulkAgentSearchQuery] = useState('')
   const [bulkAssigningSkills, setBulkAssigningSkills] = useState(false)
+  const [deletingSkills, setDeletingSkills] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSkillActionsMenu, setShowSkillActionsMenu] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -696,6 +698,49 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     () => filterAssignableAgents(availableAgents, bulkAgentSearchQuery),
     [availableAgents, bulkAgentSearchQuery]
   )
+  const selectedSkillPartition = useMemo(
+    () => partitionSelectedSkills(allSkills, selectedSkillIds),
+    [allSkills, selectedSkillIds]
+  )
+
+  async function deleteSkillByName(skillName: string) {
+    const response = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}`, {
+      method: 'DELETE',
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to delete ${skillName}`)
+    }
+  }
+
+  async function handleDeleteSelectedSkills(skillNames: string[]) {
+    if (skillNames.length === 0) return
+    setDeletingSkills(true)
+    setError(null)
+    try {
+      for (const skillName of skillNames) {
+        await deleteSkillByName(skillName)
+      }
+      if (viewingSkill && skillNames.includes(viewingSkill.name)) {
+        setViewingSkill(null)
+        setEditingSkill(false)
+        setSkillContent('')
+        setEditingDraft('')
+      }
+      showSuccess(`Deleted ${skillNames.length} user skill${skillNames.length !== 1 ? 's' : ''}`)
+      await loadSkills()
+      setSelectedSkillIds((current) => {
+        const next = new Set(current)
+        skillNames.forEach((skillName) => next.delete(skillName))
+        return next
+      })
+      setShowBulkDeleteConfirm(false)
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete selected skills')
+    } finally {
+      setDeletingSkills(false)
+    }
+  }
 
   // Filter agents for searchable dropdown
   const filteredAgents = availableAgents.filter(agent =>
@@ -1028,34 +1073,6 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           </div>
         </div>
 
-        {selectionMode && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 dark:border-purple-800 dark:bg-purple-900/20">
-            <div className="text-sm font-medium text-purple-900 dark:text-purple-200">
-              {selectedSkillIds.size} skill{selectedSkillIds.size !== 1 ? 's' : ''} selected
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
-                  setBulkAgentSearchQuery('')
-                  setShowBulkAssignModal(true)
-                }}
-                disabled={selectedSkillIds.size === 0 || availableAgents.length === 0}
-                className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                Add Selected Skills to Agents
-              </button>
-              <button
-                onClick={() => setSelectedSkillIds(new Set())}
-                disabled={selectedSkillIds.size === 0}
-                className="px-4 py-2 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-200 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                Clear Selection
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Error display */}
         {error && (
           <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-2 rounded-lg mb-4 flex items-center justify-between">
@@ -1337,6 +1354,13 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         assigned={assignedSkills.has(skill.name)}
                         onToggle={() => toggleSkill(skill.name)}
                         onView={() => openSkillViewer(skill)}
+                        canDelete={isDeletableUserSkill(skill)}
+                        onDelete={async () => {
+                          setError(null)
+                          try {
+                            await handleDeleteSelectedSkills([skill.name])
+                          } catch {}
+                        }}
                         usageCount={users.length}
                         usedBy={users}
                         selectionMode={selectionMode}
@@ -1373,6 +1397,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     assigned={assignedSkills.has(skill.name)}
                     onToggle={() => toggleSkill(skill.name)}
                     onView={() => openSkillViewer(skill)}
+                    canDelete={false}
                     usageCount={users.length}
                     usedBy={users}
                     selectionMode={selectionMode}
@@ -1778,6 +1803,111 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 >
                   {bulkAssigningSkills ? 'Assigning…' : 'Add Skills'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBulkDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Delete Selected Skills</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Only user-added skills can be deleted. Built-in skills will be skipped.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="text-2xl leading-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                  Deleting: <span className="font-medium">{selectedSkillPartition.deletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ') || 'None'}</span>
+                </div>
+                {selectedSkillPartition.nonDeletableSkills.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                    Not deletable (built-in): <span className="font-medium">{selectedSkillPartition.nonDeletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ')}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteSelectedSkills(selectedSkillPartition.deletableSkills.map((skill) => skill.name))}
+                  disabled={selectedSkillPartition.deletableSkills.length === 0 || deletingSkills}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                >
+                  {deletingSkills ? 'Deleting…' : `Delete ${selectedSkillPartition.deletableSkills.length} User Skill${selectedSkillPartition.deletableSkills.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectionMode && (
+          <div className="fixed inset-x-0 bottom-4 z-40 px-4">
+            <div className="mx-auto max-w-5xl rounded-2xl border border-purple-200 bg-white/95 px-4 py-3 shadow-xl backdrop-blur dark:border-purple-800 dark:bg-gray-900/95">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {selectedSkillIds.size} skill{selectedSkillIds.size !== 1 ? 's' : ''} selected
+                  {selectedSkillPartition.deletableSkills.length > 0 && (
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                      {selectedSkillPartition.deletableSkills.length} deletable
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedBulkAgentIds(new Set(agentId ? [agentId] : []))
+                      setBulkAgentSearchQuery('')
+                      setShowBulkAssignModal(true)
+                    }}
+                    disabled={selectedSkillIds.size === 0 || availableAgents.length === 0}
+                    className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Assign to Agents
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedSkillPartition.deletableSkills.length === 0) {
+                        showWarning('Only user-added skills can be deleted. The current selection contains built-in skills only.')
+                        return
+                      }
+                      setShowBulkDeleteConfirm(true)
+                    }}
+                    disabled={selectedSkillIds.size === 0}
+                    className="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Delete User Skills
+                  </button>
+                  <button
+                    onClick={() => setSelectedSkillIds(new Set())}
+                    disabled={selectedSkillIds.size === 0}
+                    className="px-4 py-2 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-200 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectionMode(false)
+                      setSelectedSkillIds(new Set())
+                    }}
+                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 text-sm font-medium"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           </div>
