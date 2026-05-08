@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: March 29, 2026 (v1.1.20)
+> Last updated: May 8, 2026 (v1.4.1)
 
 ## Active Documents
 

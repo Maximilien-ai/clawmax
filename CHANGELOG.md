@@ -2,6 +2,22 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.1] - 2026-05-08
+
+### Release — Skills, Registry Discovery, and Template Friction Reduction
+- **Skills UX Overhaul** — the Skills page now supports clearer agent context, compact icon-only card actions, user-vs-built-in sections, bulk selection with workflow-style action bars, per-card and bulk deletion for user skills, and delete confirmations that explain assignment impact before removal
+- **Skill Editing and Ownership** — editing a built-in skill now creates a workspace copy instead of mutating the built-in source, and imported/modified skills surface clearer source labels such as `Workspace`, `Workspace Copy`, `Shipables`, and `Tessl`
+- **Skill Viewer and Layout Polish** — skill cards reclaim description space outside selection mode, the viewer/modal scroll behavior is fixed for long skills, and inline registry suggestions now use full available width when shown without a neighboring close-match card
+- **Registry Expansion** — the Skills registry now supports both Shipables and Tessl providers, inline search suggestions query both registries, registry installs can reinstall/override an existing user skill, and imported registry skills appear correctly under `User Skills`
+- **Tessl Registry (Experimental)** — Tessl support is now available as an exploratory/experimental feature for OpenClaw workspaces; the dashboard dedupes result shapes, resolves qualified tile names, imports nested tile skills, and surfaces Tessl security-review blockers more clearly, but some Tessl tiles still require manual Tessl-side approval or use formats that need further validation
+- **Recurring Template Apply Friction** — `chief-of-staff`, `email-calendar-manager`, `meeting-capture-follow-up`, `personal-research-desk`, `family-ops-hub`, `market-signal-desk`, and `tax-planning-desk` now avoid blocking apply on day-of/run-time inputs and use cleaner human-readable defaults instead of raw placeholder-style values
+- **Single-Agent Template Runtime Registration** — single-agent template apply now registers the created agent in active OpenClaw config and creates the expected auth/runtime profile so brand-new agent templates can chat immediately after deploy
+- **Multi-Agent Communication Feedback** — bulk chat and group chat typing indicators now persist per-agent until each responding agent actually replies, instead of disappearing for the whole group too early
+- **Visual Cleanup** — the login hero image was replaced with safer ClawMax artwork
+
+### Quality
+- **Validation Gate** — locally validated on the current line with green `SYSTEM/test-with-server.sh`, `npx tsc --noEmit`, and focused regressions across skill selection/deletion, communication indicators, template customization, registry import flows, and agent-template registration
+
 ## [v1.4.0] - 2026-05-07
 
 ### Release — Product, Runtime, and Release Hardening

@@ -13,7 +13,7 @@ export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
       id: 'tessl' as const,
       label: 'Tessl',
       homepage: 'https://docs.tessl.io/use',
-      description: 'Search and install Tessl registry skills for OpenClaw workflows.',
+      description: 'Experimental Tessl registry support for OpenClaw workspaces.',
     }
   }
 

@@ -5,12 +5,29 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.0
+## 🔥 Latest Release: v1.4.1
+
+- Skills received a large usability pass:
+  - reverse assignment from a skill is now fully usable, including clearer `Selected Agent` context, multi-select, bulk actions, and consistent selection footers
+  - built-in skills can be edited as workspace copies, user-added skills are separated from built-ins, and user skills can be deleted with assignment-impact warnings
+  - skill viewer scrolling, card density, and per-card actions were tightened so the page uses space more efficiently
+- Registry discovery is broader and more visible:
+  - inline discovery now searches both Shipables and Tessl and surfaces them side by side
+  - the full registry browser supports provider tabs, reinstall/override flows, and registry provenance pills on imported skills
+  - Tessl registry support is **exploratory/experimental** for now; some tiles require Tessl-side security review or use formats we have not yet validated broadly
+- Template/operator flows are smoother:
+  - recurring personal/ops templates like Chief of Staff, Email Calendar Manager, Meeting Capture Follow-Up, Personal Research Desk, Family Ops Hub, Market Signal Desk, and Tax Planning Desk now require less day-of data at apply time
+  - single-agent template apply now registers the created agent correctly in OpenClaw runtime config, so new agents can chat immediately after apply
+- Communication polish continued:
+  - multi-agent bulk chat and group chat now keep typing indicators visible until each responding agent actually replies
+  - the login hero image was replaced with safer artwork
+
+## 🔥 Previous Release: v1.4.0
 
 - Templates now organized as Agents, Teams, and Company (teams of teams)
 - Organization tab now shows an org chart of agents inferred from tags and roles
@@ -60,24 +77,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Safer banner resolution:
   - inactive maintenance state no longer renders a banner accidentally
   - lightweight server-side caching reduces repeated banner-source lookups
-
-## 🔥 Previous Release: v1.3.14
-
-- Workflow/operator reliability improved:
-  - workflow-created artifact notifications now attribute files to the actual agent when possible and suppress duplicate generic follow-up notifications
-  - agent status surfaces concrete gateway restart-loop and session-drift diagnostics instead of vague unavailable/auth wording
-- Dashboard day-to-day UX improved:
-  - `Activity & Budget` refreshes automatically when you switch back to it
-  - Communications supports bulk clear-history and now uses the current communities/groups API paths
-  - the maintenance banner is env-driven, renders correctly in dev, and dismisses only until refresh
-- Safer runtime behavior:
-  - production static serving is separated from local Vite dev serving
-  - `SYSTEM/start.sh --restart -f` now reliably restarts old frontend/backend processes before tailing logs
-
-Hosted/operator-managed runtime note:
-- The container image now expects persistent OpenClaw state under `~/.openclaw` in addition to workspace files.
-- If you deploy via Docker or Kubernetes, persist both the workspace path and the OpenClaw state path; agent registration and sessions will not survive otherwise.
-- For GitHub issue/PR workflows in non-interactive deployments, prefer a runtime `GITHUB_TOKEN`/`GH_TOKEN` plus a default repo in Workspaces Integrations. Keep `gh auth login` for local/dev and operator-managed environments.
 
 ---
 

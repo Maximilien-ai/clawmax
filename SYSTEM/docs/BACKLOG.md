@@ -1,28 +1,26 @@
 # Backlog
 
-> Last updated: May 7, 2026
+> Last updated: May 8, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
-## 1.4.x Follow-Through
+## 1.4.1 Follow-Through
 
-Target: keep the `1.4.0` line stable after tag/test, close out remaining customer verification, and batch any newly found regressions into `1.4.1` only if needed.
+Target: keep the `1.4.1` line stable after tag/test, close out remaining customer verification, and treat exploratory Tessl registry support as a hardening track rather than a promise of full tile compatibility.
 
-Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
+### Must Validate / Harden Next
 
-### Must Fix / Validate Before Release
-
-- [x] **Full `SYSTEM/test-with-server.sh` green on main** — default-safe suite is green after startup-wrapper, path, and Docker smoke-test fixes.
-- [x] **Context-overflow regression stays fixed across fresh workflow runs** — customer verification passed on the restored runtime line.
-- [x] **Company delete / hierarchy / handoff / dashboard safety fixes landed** — the release line now includes the build-a-company follow-through that made company apply/delete/dashboard flows demo-safe again.
-- [x] **Workspace switcher/top bar handles long workspace names** — shipped in `cec97e4`.
-- [ ] **1.4.0 manual smoke checklist fully executed** — run the release checklist in `SYSTEM/docs/RELEASE_1_4_0_RC1.md` against the tagged `1.4.0` line.
+- [x] **Full `SYSTEM/test-with-server.sh` green on main** — default-safe suite is green after startup-wrapper, path, Docker smoke-test, and newer skill/registry follow-through fixes.
+- [x] **Recent `1.4.0` regression reports resolved locally** — company/dashboard, scheduling, gateway fallback, metering, and recent customer UX issues are fixed on the current line.
 - [ ] **Customer verification window for recent runtime fixes closes cleanly** — `#122`, `#123`, and `#124` are fixed and waiting only on external confirmation/reopen policy.
+- [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental.
+- [ ] **Skill registry metadata follow-through** — preserve richer registry metadata where practical (emoji, provenance details, richer display copy), especially for imported Shipables/Tessl skills.
 
-### Should Fix If Time Allows
+### Completed In The `1.4.1` Line
 
-- [x] **Release docs/changelog pass** — README, changelog, status, known-issues, backlog, and RC1 checklist now reflect the release-candidate line.
-- [ ] **README/doc polish final sweep** — one more wording pass after the tagged `1.4.0` manual test run, especially around company dashboards, skill reverse assignment, and metering caching.
-- [ ] **Customer follow-up / close loop** — if `p11n-com` does not reply within the verification window, post one more follow-up and close with reopen guidance.
+- [x] **Release docs/changelog pass** — README, changelog, status, known-issues, and backlog now reflect the `1.4.1` release-prep line.
+- [x] **README/doc polish final sweep** — release docs now reflect the latest five releases, exploratory Tessl registry support, and current skills/template follow-through.
+- [x] **Recurring personal/ops template apply-friction pass** — `chief-of-staff`, `email-calendar-manager`, `meeting-capture-follow-up`, `personal-research-desk`, `family-ops-hub`, `market-signal-desk`, and `tax-planning-desk` now require less day-of/run-time data at apply time.
+- [x] **Skills UX pass** — reverse assignment polish, workspace-copy editing, user-skill deletion with impact warnings, multi-select/footer cleanup, inline dual-registry discovery, and viewer layout fixes are all shipped on the current line.
 
 ### New Customer UX Follow-Through
 
@@ -172,10 +170,10 @@ Execution plan: `SYSTEM/docs/planning/THREE_DAY_SPRINT_1_4_0_2026-05-01_03.md`
 ### Skills
 - [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page.
 - [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place.
-- [ ] **Browse Shipables catalog in Skills page** — embedded browsing without opening import dialog
-- [ ] **Imported Shipables skills emoji/metadata** — imported skills should preserve richer registry metadata
+- [x] **Browse skill registries in Skills page** — Skills now supports embedded discovery for Shipables plus exploratory Tessl registry suggestions and registry-browser entrypoints.
+- [ ] **Imported Shipables/Tessl skills emoji/metadata** — imported skills should preserve richer registry metadata beyond current provider/source pills.
 - [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page
-- [ ] **Skills select/select-all + bulk ops** — bulk add tags, bulk delete skills
+- [x] **Skills select/select-all + bulk ops** — selection mode now supports select-all-visible, workflow-style bulk action bar, bulk assign-to-agents, and bulk delete for user skills.
 - [ ] **Skill tag filtering** — filter skills by tag like agent tag filtering
 - [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 

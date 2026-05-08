@@ -1,7 +1,7 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-05-07
-**Current Version**: v1.4.0
+**Last Updated**: 2026-05-08
+**Current Version**: v1.4.1
 
 ---
 
@@ -127,6 +127,35 @@ Workaround:
 - compare the logged OTP provider key fingerprint between working and failing instances
 - verify `OTP_FROM_EMAIL` / `SIGNUP_FROM_EMAIL` sender-domain state for the account behind the current API key
 - use `OTP_DEV_MODE=log` for local/dev validation when you need to separate UI flow testing from live email delivery
+
+---
+
+### 8. Tessl registry support is exploratory and some tiles still require manual security review
+**Severity**: Medium
+**Status**: Experimental feature, improving
+
+The Skills page now supports searching and importing Tessl registry tiles for OpenClaw workspaces, but this path is still exploratory. Some Tessl tiles:
+
+- require Tessl-side security approval before install
+- produce tile layouts we have not fully validated yet
+- may need reinstall/override cleanup if an earlier exploratory import left stale workspace state behind
+
+Observed symptom:
+
+- install reports a Tessl security-review blocker
+- or the imported tile requires another pass before it appears cleanly under `User Skills`
+
+Current behavior:
+
+- qualified tile resolution is handled automatically where possible
+- duplicate Tessl result shapes are deduped
+- security-review blockers now surface more clearly instead of failing with a generic import error
+
+Workaround:
+
+- prefer known-safe tested Tessl tiles first
+- if Tessl blocks install for security review, complete that review in Tessl before retrying
+- if a previous exploratory import left stale workspace state, delete the user skill and reinstall
 
 ---
 

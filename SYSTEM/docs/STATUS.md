@@ -1,23 +1,23 @@
 # ClawMax Status
 
-**Current Version**: v1.4.0
-**Last Updated**: May 7, 2026
-**Status**: `v1.4.0` is the latest tagged release on `main`
+**Current Version**: v1.4.1
+**Last Updated**: May 8, 2026
+**Status**: `v1.4.1` is the current release-prep line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.0` release line: company dashboards, richer company/workflow templates, timezone-correct scheduling, gateway fallback hardening, metering caching, and recent customer UX follow-through
-- `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green on the current default-safe path, including the Docker smoke tests that were failing earlier this week
-- workflow scheduling now respects persisted workflow timezones in previews, node-cron execution, and gateway cron sync
-- local/hosted runtime compatibility improved across Gemini, Ollama, gateway fallback, and scheduled system-key execution paths
-- recent customer UX fixes shipped: visible agent-card actions, quick budget action, richer waiting-for-input context, communication flicker reduction, and skill-centric reverse assignment
-- issue `#95` event-template refinement follow-through is shipped in the current line; customer verification remains the main final gate for the remaining recent runtime reports
+- `main` now carries the `1.4.1` release-prep line: all `1.4.0` company/workflow/dashboard hardening plus a substantial Skills and template-friction follow-through
+- `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green locally on the current default-safe path, including the Docker smoke tests and newer skill/registry regressions
+- Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, registry provenance, and registry suggestions from both Shipables and Tessl
+- Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation
+- recurring personal/ops templates now require less apply-time context for day-of or run-time fields, making repeated deploy/use flows much smoother
+- single-agent template apply now registers created agents correctly into active OpenClaw config so fresh agent-template deploys can chat immediately
 
 ## Release References
 
 - changelog: [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md)
 - latest release notes: [README.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/README.md)
-- release candidate checklist: [RELEASE_1_4_0_RC1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_1_4_0_RC1.md)
+- testing guide: [TESTING_GUIDE.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/TESTING_GUIDE.md)
 - older release planning context: [RELEASE_1_3_0_PREP_2026-04-13.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RELEASE_1_3_0_PREP_2026-04-13.md)
