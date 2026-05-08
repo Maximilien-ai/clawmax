@@ -116,7 +116,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
   const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('shipables')
   const [registryQuery, setRegistryQuery] = useState('')
-  const [registryResults, setRegistryResults] = useState<Array<{ name: string; description?: string; version?: string; downloads?: number }>>([])
+  const [registryResults, setRegistryResults] = useState<Array<{ name: string; full_name?: string; install_name?: string; description?: string; version?: string; downloads?: number }>>([])
   const [registrySearching, setRegistrySearching] = useState(false)
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
   const [registryTotal, setRegistryTotal] = useState(0)
@@ -2037,12 +2037,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         </div>
                         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-80 overflow-y-auto">
                           {registryResults.map((skill: any, idx: number) => {
-                            const installName = skill.full_name || skill.name
+                            const installName = skill.install_name || skill.full_name || skill.name
                             const isInstalled = registryInstalledNames.has(`${registryProvider}:${installName}`)
                             return (
                               <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{installName}</div>
+                                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || installName}</div>
+                                  {skill.name && skill.full_name && skill.name !== skill.full_name && (
+                                    <div className="text-[11px] text-gray-400 dark:text-gray-500">{skill.name}</div>
+                                  )}
                                   {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
                                   <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
                                     {skill.latest_version && <span>v{skill.latest_version}</span>}

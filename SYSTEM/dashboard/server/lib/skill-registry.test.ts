@@ -35,11 +35,14 @@ function run() {
   const normalizedTessl = normalizeSkillRegistrySearchResults('tessl', {
     results: [
       { workspace: 'acme', tile: 'review-skill', description: 'Review better', version: '1.0.0', tags: ['review'] },
+      { name: 'gws-gmail', install_command: 'tessl install google-workspace/gws-gmail --agent openclaw --agent codex --yes' },
     ],
   })
-  assert.strictEqual(normalizedTessl.results.length, 1)
+  assert.strictEqual(normalizedTessl.results.length, 2)
   assert.strictEqual(normalizedTessl.results[0].full_name, 'acme/review-skill')
+  assert.strictEqual(normalizedTessl.results[0].install_name, 'acme/review-skill')
   assert.strictEqual(normalizedTessl.results[0].categories[0], 'review')
+  assert.strictEqual(normalizedTessl.results[1].install_name, 'google-workspace/gws-gmail')
 
   const normalizedShipables = normalizeSkillRegistrySearchResults('shipables', {
     skills: [{ name: 'github', description: 'GitHub skill' }],
@@ -61,7 +64,7 @@ function run() {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 9 tests passed')
+  console.log('skill-registry.test.ts: 11 tests passed')
 }
 
 run()

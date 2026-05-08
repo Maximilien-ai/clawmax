@@ -31,6 +31,43 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
   pagination?: any
 } {
   if (provider === 'tessl') {
+    const extractQualifiedTileName = (item: any): string | undefined => {
+      const directCandidates = [
+        item?.full_name,
+        item?.registry_name,
+        item?.packageName,
+        item?.package_name,
+        item?.purl,
+        item?.name,
+        item?.tile,
+        item?.id,
+        item?.slug,
+      ].filter(Boolean)
+
+      for (const candidate of directCandidates) {
+        const value = String(candidate).trim()
+        if (/^[a-z0-9._-]+\/[a-z0-9._-]+(?:@[a-z0-9._.-]+)?$/i.test(value)) {
+          return value
+        }
+      }
+
+      const commandCandidates = [
+        item?.installCommand,
+        item?.install_command,
+        item?.command,
+      ].filter(Boolean)
+      for (const candidate of commandCandidates) {
+        const match = String(candidate).match(/\b([a-z0-9._-]+\/[a-z0-9._-]+(?:@[a-z0-9._.-]+)?)\b/i)
+        if (match) return match[1]
+      }
+
+      if (item?.workspace && (item?.tile || item?.name)) {
+        return `${item.workspace}/${item.tile || item.name}`
+      }
+
+      return undefined
+    }
+
     const results = Array.isArray(parsed)
       ? parsed
       : Array.isArray(parsed?.results)
@@ -43,14 +80,8 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
 
     const normalized = results.map((item: any) => ({
       name: item?.name || item?.tile || item?.id || item?.slug,
-      full_name:
-        item?.full_name
-        || item?.registry_name
-        || (item?.workspace && (item?.tile || item?.name) ? `${item.workspace}/${item.tile || item.name}` : undefined)
-        || item?.name
-        || item?.tile
-        || item?.id
-        || item?.slug,
+      full_name: extractQualifiedTileName(item) || item?.name || item?.tile || item?.id || item?.slug,
+      install_name: extractQualifiedTileName(item),
       description: item?.description || item?.summary || '',
       latest_version: item?.latest_version || item?.version,
       downloads_weekly: item?.downloads_weekly || item?.downloads || item?.installs,
