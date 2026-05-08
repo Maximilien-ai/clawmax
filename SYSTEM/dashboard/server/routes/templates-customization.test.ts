@@ -124,6 +124,43 @@ test('accepts chief-of-staff style optional daily-run placeholders', () => {
   assert(result.errors.length === 0, 'Expected no validation errors for optional day-of placeholders')
 })
 
+test('accepts recurring desk optional apply fields for personal ops templates', () => {
+  const result = validateOrganizationCustomization({
+    workflows: [
+      {
+        id: 'wf-email-calendar',
+        name: 'Communications Kickoff',
+        content: `
+- **Inbox goals (optional):** [e.g., clear urgent items]
+- **Calendar goals (optional):** [e.g., reduce conflicts]
+- **Priority contacts or threads (optional):** [people, teams, customers]
+`,
+      },
+      {
+        id: 'wf-meeting-capture',
+        name: 'Meeting Capture Kickoff',
+        content: `
+- **Meeting name (optional):** [e.g., weekly staff sync]
+- **Participants (optional):** [people or teams involved]
+- **What to capture (optional):** [decisions, action items]
+`,
+      },
+      {
+        id: 'wf-personal-research',
+        name: 'Research Request Kickoff',
+        content: `
+- **Research target (optional):** [person, company, topic]
+- **Question to answer (optional):** [e.g., what matters most before the conversation?]
+- **Context (optional):** [meeting, outreach, diligence]
+`,
+      },
+    ],
+  })
+
+  assert(result.valid === true, 'Expected recurring-desk optional placeholders to pass')
+  assert(result.errors.length === 0, 'Expected no validation errors for recurring-desk optional placeholders')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
