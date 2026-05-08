@@ -269,6 +269,43 @@ export function discoverInstalledRegistrySkillDirs(provider: SkillRegistryProvid
   return skillDirs
 }
 
+export function resolveImportableRegistrySkillDirs(provider: SkillRegistryProvider, skillDirs: string[]): string[] {
+  if (provider !== 'tessl') {
+    return Array.from(new Set(skillDirs))
+  }
+
+  const resolved: string[] = []
+
+  for (const skillDir of skillDirs) {
+    const directSkillMd = ['SKILL.md', 'skill.md'].some((file) => fs.existsSync(path.join(skillDir, file)))
+    if (directSkillMd) {
+      resolved.push(skillDir)
+      continue
+    }
+
+    const tileJsonPath = path.join(skillDir, 'tile.json')
+    if (!fs.existsSync(tileJsonPath)) continue
+
+    try {
+      const tileJson = JSON.parse(fs.readFileSync(tileJsonPath, 'utf-8'))
+      const skills = tileJson?.skills && typeof tileJson.skills === 'object' ? Object.values(tileJson.skills) as Array<any> : []
+      for (const entry of skills) {
+        const relativeSkillPath = entry?.path
+        if (!relativeSkillPath || typeof relativeSkillPath !== 'string') continue
+        const nestedDir = path.dirname(path.join(skillDir, relativeSkillPath))
+        const nestedHasSkillMd = ['SKILL.md', 'skill.md'].some((file) => fs.existsSync(path.join(nestedDir, file)))
+        if (nestedHasSkillMd) {
+          resolved.push(nestedDir)
+        }
+      }
+    } catch {
+      // Ignore malformed tile manifests and let caller surface unsupported format if nothing usable is found.
+    }
+  }
+
+  return Array.from(new Set(resolved))
+}
+
 export function parseRegistryJsonOutput(raw: string): any {
   const trimmed = String(raw || '').trim()
   if (!trimmed) return {}

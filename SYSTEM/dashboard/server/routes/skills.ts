@@ -23,6 +23,7 @@ import {
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
   parseRegistryJsonOutput,
+  resolveImportableRegistrySkillDirs,
   selectBestRegistryInstallName,
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
@@ -649,7 +650,8 @@ router.post('/registry/install', async (req, res) => {
         throw lastError
       }
 
-      const skillDirs = discoverInstalledRegistrySkillDirs(provider, tmpDir)
+      const discoveredSkillDirs = discoverInstalledRegistrySkillDirs(provider, tmpDir)
+      const skillDirs = resolveImportableRegistrySkillDirs(provider, discoveredSkillDirs)
 
       if (skillDirs.length === 0) {
         if (provider === 'tessl') {

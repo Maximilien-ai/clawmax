@@ -11,6 +11,7 @@ import {
   normalizeSkillRegistryProvider,
   normalizeSkillRegistrySearchResults,
   parseRegistryJsonOutput,
+  resolveImportableRegistrySkillDirs,
   selectBestRegistryInstallName,
 } from './skill-registry'
 
@@ -83,11 +84,28 @@ function run() {
     assert.strictEqual(discovered.length, 2)
     assert(discovered[0].endsWith(path.join('.codex', 'skills', 'review-skill')))
     assert(discovered[1].endsWith(path.join('.tessl', 'tiles', 'odyssey4me', 'gmail')))
+
+    const tileContainerDir = path.join(tmpDir, '.tessl', 'tiles', 'maceytest', 'testytesty')
+    const nestedSkillDir = path.join(tileContainerDir, 'skills', 'testytesty')
+    fs.mkdirSync(nestedSkillDir, { recursive: true })
+    fs.writeFileSync(path.join(nestedSkillDir, 'SKILL.md'), '# Testy Skill\n', 'utf-8')
+    fs.writeFileSync(path.join(tileContainerDir, 'tile.json'), JSON.stringify({
+      name: 'maceytest/testytesty',
+      skills: {
+        testytesty: {
+          path: 'skills/testytesty/SKILL.md',
+        },
+      },
+    }), 'utf-8')
+
+    const importable = resolveImportableRegistrySkillDirs('tessl', [tileContainerDir, tesslSkillDir])
+    assert(importable.some((dir) => dir.endsWith(path.join('.tessl', 'tiles', 'maceytest', 'testytesty', 'skills', 'testytesty'))))
+    assert(importable.some((dir) => dir.endsWith(path.join('.codex', 'skills', 'review-skill'))))
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 26 tests passed')
+  console.log('skill-registry.test.ts: 28 tests passed')
 }
 
 run()
