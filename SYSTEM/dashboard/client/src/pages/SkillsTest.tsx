@@ -126,7 +126,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
   const [registryTotal, setRegistryTotal] = useState(0)
   const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
-  const [inlineRegistrySuggestions, setInlineRegistrySuggestions] = useState<Array<{ name: string; description?: string; latest_version?: string; downloads_weekly?: number; full_name?: string }>>([])
+  const [inlineRegistrySuggestions, setInlineRegistrySuggestions] = useState<Record<RegistryProvider, Array<{ name: string; description?: string; latest_version?: string; downloads_weekly?: number; full_name?: string; install_name?: string }>>>({
+    shipables: [],
+    tessl: [],
+  })
   const [inlineRegistryLoading, setInlineRegistryLoading] = useState(false)
   const [partnerInstallers, setPartnerInstallers] = useState<Array<{
     slug: string
@@ -217,7 +220,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-      setInlineRegistrySuggestions([])
+      setInlineRegistrySuggestions({ shipables: [], tessl: [] })
       setInlineRegistryLoading(false)
       return
     }
@@ -226,14 +229,25 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     const timeout = window.setTimeout(async () => {
       setInlineRegistryLoading(true)
       try {
-        const resp = await fetch(`/api/skills/registry/search?q=${encodeURIComponent(searchQuery.trim())}&limit=6`, {
-          signal: controller.signal,
+        const [shipablesResp, tesslResp] = await Promise.all([
+          fetch(`/api/skills/registry/search?provider=shipables&q=${encodeURIComponent(searchQuery.trim())}&limit=6`, {
+            signal: controller.signal,
+          }),
+          fetch(`/api/skills/registry/search?provider=tessl&q=${encodeURIComponent(searchQuery.trim())}&limit=6`, {
+            signal: controller.signal,
+          }),
+        ])
+        const [shipablesData, tesslData] = await Promise.all([
+          shipablesResp.json(),
+          tesslResp.json(),
+        ])
+        setInlineRegistrySuggestions({
+          shipables: Array.isArray(shipablesData.results) ? shipablesData.results : [],
+          tessl: Array.isArray(tesslData.results) ? tesslData.results : [],
         })
-        const data = await resp.json()
-        setInlineRegistrySuggestions(Array.isArray(data.results) ? data.results : [])
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
-          setInlineRegistrySuggestions([])
+          setInlineRegistrySuggestions({ shipables: [], tessl: [] })
         }
       } finally {
         setInlineRegistryLoading(false)
@@ -681,10 +695,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       .map((entry) => entry.skill)
   }, [allSkills, filteredSkills, searchQuery])
 
-  const visibleInlineRegistrySuggestions = inlineRegistrySuggestions
-    .map((skill) => ({ ...skill, installName: skill.full_name || skill.name }))
-    .filter((skill) => !registryInstalledNames.has(`shipables:${skill.installName}`))
-    .slice(0, 5)
+  const visibleInlineRegistrySuggestionsByProvider = useMemo(() => ({
+    shipables: inlineRegistrySuggestions.shipables
+      .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => !registryInstalledNames.has(`shipables:${skill.installName}`))
+      .slice(0, 5),
+    tessl: inlineRegistrySuggestions.tessl
+      .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => !registryInstalledNames.has(`tessl:${skill.installName}`))
+      .slice(0, 5),
+  }), [inlineRegistrySuggestions, registryInstalledNames])
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -1267,25 +1287,53 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                   {inlineRegistryLoading ? (
                     <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
-                  ) : visibleInlineRegistrySuggestions.length > 0 ? (
-                    <div className="space-y-2">
-                      {visibleInlineRegistrySuggestions.map((skill) => (
-                        <div key={skill.installName} className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{skill.installName}</div>
-                              {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
+                  ) : (visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {(['shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
+                        const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
+                        if (suggestions.length === 0) return null
+                        const providerMeta = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)!
+                        return (
+                          <div key={provider} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                {providerMeta.label}
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setShowImportDialog(true)
+                                  setImportSource('registry')
+                                  setRegistryProvider(provider)
+                                  setRegistryQuery(searchQuery.trim())
+                                  searchRegistry(searchQuery.trim(), 20, provider)
+                                }}
+                                className="text-xs font-medium text-purple-600 hover:text-purple-700"
+                              >
+                                Open
+                              </button>
                             </div>
-                            <button
-                              onClick={() => installRegistrySkill(skill.installName, 'shipables')}
-                              disabled={!!registryInstalling}
-                              className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-                            >
-                              {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
-                            </button>
+                            <div className="space-y-2">
+                              {suggestions.map((skill) => (
+                                <div key={`${provider}:${skill.installName}`} className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{skill.installName}</div>
+                                      {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
+                                    </div>
+                                    <button
+                                      onClick={() => installRegistrySkill(skill.installName, provider)}
+                                      disabled={!!registryInstalling}
+                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                    >
+                                      {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 dark:text-gray-400">No registry suggestions yet for “{searchQuery.trim()}”.</div>
@@ -1296,7 +1344,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
           </div>
         ) : (
           <div className="space-y-4">
-            {searchQuery.trim() && (closeMatchSkills.length > 0 || inlineRegistryLoading || visibleInlineRegistrySuggestions.length > 0) && (
+            {searchQuery.trim() && (closeMatchSkills.length > 0 || inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {closeMatchSkills.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
@@ -1314,7 +1362,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     </div>
                   </div>
                 )}
-                {(inlineRegistryLoading || visibleInlineRegistrySuggestions.length > 0) && (
+                {(inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Also discover in Registry</div>
@@ -1334,22 +1382,50 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     {inlineRegistryLoading ? (
                       <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
                     ) : (
-                      <div className="space-y-2">
-                        {visibleInlineRegistrySuggestions.map((skill) => (
-                          <div key={skill.installName} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{skill.installName}</div>
-                              {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
+                      <div className="grid gap-3">
+                        {(['shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
+                          const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
+                          if (suggestions.length === 0) return null
+                          const providerMeta = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)!
+                          return (
+                            <div key={provider} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                  {providerMeta.label}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setShowImportDialog(true)
+                                    setImportSource('registry')
+                                    setRegistryProvider(provider)
+                                    setRegistryQuery(searchQuery.trim())
+                                    searchRegistry(searchQuery.trim(), 20, provider)
+                                  }}
+                                  className="text-xs font-medium text-purple-600 hover:text-purple-700"
+                                >
+                                  Open
+                                </button>
+                              </div>
+                              <div className="space-y-2">
+                                {suggestions.map((skill) => (
+                                  <div key={`${provider}:${skill.installName}`} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{skill.installName}</div>
+                                      {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
+                                    </div>
+                                    <button
+                                      onClick={() => installRegistrySkill(skill.installName, provider)}
+                                      disabled={!!registryInstalling}
+                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                    >
+                                      {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <button
-                              onClick={() => installRegistrySkill(skill.installName, 'shipables')}
-                              disabled={!!registryInstalling}
-                              className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-                            >
-                              {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
-                            </button>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>

@@ -213,6 +213,25 @@ export function listAvailableSkills(): OpenClawSkill[] {
         if (fs.existsSync(skillPath)) {
           const skill = parseWorkspaceSkillFile(skillPath, dir.name)
           pushSkill(skill)
+          continue
+        }
+
+        const tileJsonPath = path.join(workspaceSkillsDir, dir.name, 'tile.json')
+        if (fs.existsSync(tileJsonPath)) {
+          try {
+            const tileJson = JSON.parse(fs.readFileSync(tileJsonPath, 'utf-8'))
+            const skills = tileJson?.skills && typeof tileJson.skills === 'object' ? Object.values(tileJson.skills) as Array<any> : []
+            for (const entry of skills) {
+              const relativeSkillPath = entry?.path
+              if (!relativeSkillPath || typeof relativeSkillPath !== 'string') continue
+              const nestedSkillPath = path.join(workspaceSkillsDir, dir.name, relativeSkillPath)
+              if (!fs.existsSync(nestedSkillPath)) continue
+              const skill = parseWorkspaceSkillFile(nestedSkillPath, dir.name)
+              pushSkill(skill)
+            }
+          } catch (err) {
+            console.error(`Error loading workspace tile skill container ${dir.name}:`, err)
+          }
         }
       }
     } catch (err) {
