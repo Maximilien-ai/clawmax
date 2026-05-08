@@ -1250,9 +1250,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             </div>
             {searchQuery.trim() && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border">
-                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Close matches in this workspace</div>
-                  {closeMatchSkills.length > 0 ? (
+                {closeMatchSkills.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Close matches in this workspace</div>
                     <div className="space-y-2">
                       {closeMatchSkills.map((skill) => (
                         <button
@@ -1265,11 +1265,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         </button>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">No close installed-skill matches yet.</div>
-                  )}
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border">
+                  </div>
+                )}
+                <div className={`bg-white dark:bg-gray-800 p-5 rounded-lg border ${closeMatchSkills.length === 0 ? 'lg:col-span-2' : ''}`}>
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Discover in Registry</div>
                     <button
@@ -1363,7 +1361,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
                 {(inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
-                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
+                  <div className={`bg-white dark:bg-gray-800 p-4 rounded-lg border ${closeMatchSkills.length === 0 ? 'lg:col-span-2' : ''}`}>
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Also discover in Registry</div>
                       <button
