@@ -2,6 +2,15 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.3] - 2026-05-08
+
+### Release — Template-Created Agent Runtime Fix
+- **Cloud Template-Agent Chat Fix** — agents created from agent templates now receive the full runtime scaffolding expected by OpenClaw chat execution, including `config.yaml` and `sessions/` under `~/.openclaw/agents/<id>/`, not just workspace files and auth profiles
+- **Template Path Parity** — single-agent and organization/template-created agents now use the same runtime-ready bootstrap shape as agents created through the normal dashboard creation paths
+
+### Quality
+- **Validation Gate** — validated locally with `server/lib/templates.test.ts` plus `npx tsc --noEmit`
+
 ## [v1.4.2] - 2026-05-08
 
 ### Release — Container Packaging Fix

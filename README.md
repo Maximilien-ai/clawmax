@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.2
+## 🔥 Latest Release: v1.4.3
+
+- Cloud template-created agents are now chat-ready immediately:
+  - agent-template apply now creates the full OpenClaw runtime scaffolding under `~/.openclaw/agents/<id>/`, including `config.yaml` and `sessions/`
+  - this fixes cloud chat failures where agents created from templates could not reach the active runtime even though gateway health was otherwise good
+- `v1.4.2` packaging hardening remains intact for published images
+
+## 🔥 Previous Release: v1.4.2
 
 - Container/OpenClaw packaging is more reliable for published images:
   - the Docker OpenClaw builder stage now skips dependency `prepare` hooks for transitive git-hosted packages during clean-room container builds
