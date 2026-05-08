@@ -311,6 +311,15 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-skill-registry.out; then
+  pass "Skill registry unit tests (9 tests)"
+else
+  fail "Skill registry unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1
 template_status=$?
