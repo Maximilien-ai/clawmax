@@ -7,6 +7,7 @@ import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../type
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
+import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -106,6 +107,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false)
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [pendingDeleteSkillNames, setPendingDeleteSkillNames] = useState<string[]>([])
   const [selectedBulkAgentIds, setSelectedBulkAgentIds] = useState<Set<string>>(new Set())
   const [bulkAgentSearchQuery, setBulkAgentSearchQuery] = useState('')
   const [bulkAssigningSkills, setBulkAssigningSkills] = useState(false)
@@ -702,6 +704,14 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     () => partitionSelectedSkills(allSkills, selectedSkillIds),
     [allSkills, selectedSkillIds]
   )
+  const pendingDeletePartition = useMemo(
+    () => partitionSelectedSkills(allSkills, new Set(pendingDeleteSkillNames)),
+    [allSkills, pendingDeleteSkillNames]
+  )
+  const pendingDeleteImpact = useMemo(
+    () => summarizeSkillDeleteImpact(pendingDeletePartition.deletableSkills, skillUsage),
+    [pendingDeletePartition.deletableSkills, skillUsage]
+  )
 
   async function deleteSkillByName(skillName: string) {
     const response = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}`, {
@@ -734,6 +744,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         skillNames.forEach((skillName) => next.delete(skillName))
         return next
       })
+      setPendingDeleteSkillNames([])
       setShowBulkDeleteConfirm(false)
     } catch (err: any) {
       setError(err.message || 'Failed to delete selected skills')
@@ -1355,11 +1366,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         onToggle={() => toggleSkill(skill.name)}
                         onView={() => openSkillViewer(skill)}
                         canDelete={isDeletableUserSkill(skill)}
-                        onDelete={async () => {
-                          setError(null)
-                          try {
-                            await handleDeleteSelectedSkills([skill.name])
-                          } catch {}
+                        onDelete={() => {
+                          setPendingDeleteSkillNames([skill.name])
+                          setShowBulkDeleteConfirm(true)
                         }}
                         usageCount={users.length}
                         usedBy={users}
@@ -1413,8 +1422,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         )}
 
         {viewingSkill && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 p-4 sm:py-6">
+            <div className="mx-auto flex min-h-full w-full items-start justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1486,7 +1496,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
                   <div className="shrink-0 px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -1659,7 +1669,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 )}
 
-                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2">
+                <div className="grid min-h-[28rem] h-[32rem] lg:h-[50vh] grid-cols-1 lg:grid-cols-2">
                   <div className="border-r border-gray-200 dark:border-gray-700 min-h-0 flex flex-col">
                     <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                       Raw skill.md
@@ -1693,6 +1703,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         )}
@@ -1813,13 +1824,18 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Delete Selected Skills</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    Delete {pendingDeleteSkillNames.length === 1 ? 'Skill' : 'Selected Skills'}
+                  </h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     Only user-added skills can be deleted. Built-in skills will be skipped.
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  onClick={() => {
+                    setShowBulkDeleteConfirm(false)
+                    setPendingDeleteSkillNames([])
+                  }}
                   className="text-2xl leading-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   ×
@@ -1827,27 +1843,50 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               </div>
               <div className="space-y-4 px-6 py-4">
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                  Deleting: <span className="font-medium">{selectedSkillPartition.deletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ') || 'None'}</span>
+                  Deleting: <span className="font-medium">{pendingDeletePartition.deletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ') || 'None'}</span>
                 </div>
-                {selectedSkillPartition.nonDeletableSkills.length > 0 && (
+                {pendingDeleteImpact.assignedSkillCount > 0 && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                    Not deletable (built-in): <span className="font-medium">{selectedSkillPartition.nonDeletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ')}</span>
+                    <div className="font-medium">
+                      {pendingDeleteImpact.assignedSkillCount} skill{pendingDeleteImpact.assignedSkillCount !== 1 ? 's are' : ' is'} currently assigned to {pendingDeleteImpact.affectedAgentCount} agent{pendingDeleteImpact.affectedAgentCount !== 1 ? 's' : ''}.
+                    </div>
+                    <div className="mt-1">
+                      Deleting a skill removes it from the workspace catalog, but does not automatically remove stale references from agents that already have it assigned. Those agents may need their skill lists updated afterward.
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {pendingDeleteImpact.rows.filter((row) => row.assignedAgents.length > 0).map((row) => (
+                        <div key={row.skillName}>
+                          <div className="font-medium">{row.skillName}</div>
+                          <div className="text-xs">
+                            Assigned to: {row.assignedAgents.join(', ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {pendingDeletePartition.nonDeletableSkills.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                    Not deletable (built-in): <span className="font-medium">{pendingDeletePartition.nonDeletableSkills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)).join(', ')}</span>
                   </div>
                 )}
               </div>
               <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
                 <button
-                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  onClick={() => {
+                    setShowBulkDeleteConfirm(false)
+                    setPendingDeleteSkillNames([])
+                  }}
                   className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteSelectedSkills(selectedSkillPartition.deletableSkills.map((skill) => skill.name))}
-                  disabled={selectedSkillPartition.deletableSkills.length === 0 || deletingSkills}
+                  onClick={() => handleDeleteSelectedSkills(pendingDeletePartition.deletableSkills.map((skill) => skill.name))}
+                  disabled={pendingDeletePartition.deletableSkills.length === 0 || deletingSkills}
                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
-                  {deletingSkills ? 'Deleting…' : `Delete ${selectedSkillPartition.deletableSkills.length} User Skill${selectedSkillPartition.deletableSkills.length !== 1 ? 's' : ''}`}
+                  {deletingSkills ? 'Deleting…' : `Delete ${pendingDeletePartition.deletableSkills.length} User Skill${pendingDeletePartition.deletableSkills.length !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </div>
@@ -1880,12 +1919,13 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   </button>
                   <button
                     onClick={() => {
-                      if (selectedSkillPartition.deletableSkills.length === 0) {
-                        showWarning('Only user-added skills can be deleted. The current selection contains built-in skills only.')
-                        return
-                      }
-                      setShowBulkDeleteConfirm(true)
-                    }}
+                    if (selectedSkillPartition.deletableSkills.length === 0) {
+                      showWarning('Only user-added skills can be deleted. The current selection contains built-in skills only.')
+                      return
+                    }
+                    setPendingDeleteSkillNames(selectedSkillPartition.selectedSkills.map((skill) => skill.name))
+                    setShowBulkDeleteConfirm(true)
+                  }}
                     disabled={selectedSkillIds.size === 0}
                     className="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                   >

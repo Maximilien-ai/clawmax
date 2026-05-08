@@ -486,6 +486,15 @@ else
   fail "Skill selection helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill deletion helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillsDeletion.test.ts > /tmp/clawmax-skill-deletion.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-skill-deletion.out; then
+  skill_deletion_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-skill-deletion.out | head -1 | grep -o '[0-9]\+')
+  pass "Skill deletion helper unit tests (${skill_deletion_count:-?} tests)"
+else
+  fail "Skill deletion helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maintenanceBannerView.test.ts > /tmp/clawmax-maintenance-banner-view.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then
