@@ -34,7 +34,7 @@ ARG CLAWMAX_VERSION
 WORKDIR /app/SYSTEM/dashboard
 
 COPY SYSTEM/dashboard/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
 
 COPY SYSTEM/dashboard ./
 RUN npm run build
@@ -58,7 +58,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY SYSTEM/dashboard/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev --legacy-peer-deps; else npm install --omit=dev --legacy-peer-deps; fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
 # not drift to fixtures or an unvalidated upstream revision. Install from a
 # packed artifact so dist output and production dependencies land exactly as

@@ -8,8 +8,9 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 BIN_DIR="$TMP_DIR/bin"
+NODE_ONLY_BIN_DIR="$TMP_DIR/node-only-bin"
 LOG_FILE="$TMP_DIR/openclaw.log"
-mkdir -p "$BIN_DIR" "$TMP_DIR/home" "$TMP_DIR/workspace"
+mkdir -p "$BIN_DIR" "$NODE_ONLY_BIN_DIR" "$TMP_DIR/home" "$TMP_DIR/workspace" "$TMP_DIR/fake-node"
 
 cat > "$BIN_DIR/openclaw" <<'EOF'
 #!/bin/sh
@@ -37,6 +38,8 @@ case "$1 ${2:-} ${3:-}" in
 esac
 EOF
 chmod +x "$BIN_DIR/openclaw"
+cp "$BIN_DIR/openclaw" "$NODE_ONLY_BIN_DIR/openclaw"
+chmod +x "$NODE_ONLY_BIN_DIR/openclaw"
 
 cat > "$BIN_DIR/ss" <<'EOF'
 #!/bin/sh
@@ -44,6 +47,15 @@ set -eu
 printf '%s\n' "${SS_OUTPUT:-}"
 EOF
 chmod +x "$BIN_DIR/ss"
+
+cat > "$TMP_DIR/fake-node/node" <<'EOF'
+#!/bin/sh
+set -eu
+exit "${NODE_EXIT_CODE:-1}"
+EOF
+chmod +x "$TMP_DIR/fake-node/node"
+cp "$TMP_DIR/fake-node/node" "$NODE_ONLY_BIN_DIR/node"
+chmod +x "$NODE_ONLY_BIN_DIR/node"
 
 assert_contains() {
   needle="$1"
@@ -85,6 +97,14 @@ assert_not_contains "gateway run --port 18789" "$LOG_FILE"
 : > "$LOG_FILE"
 export SS_OUTPUT=""
 gateway_watchdog_tick "18789"
+assert_contains "gateway run --port 18789" "$LOG_FILE"
+
+: > "$LOG_FILE"
+PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin" NODE_EXIT_CODE=0 gateway_watchdog_tick "18789"
+assert_not_contains "gateway run --port 18789" "$LOG_FILE"
+
+: > "$LOG_FILE"
+PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin" NODE_EXIT_CODE=1 gateway_watchdog_tick "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
 
 echo "docker-entrypoint gateway tests passed"

@@ -94,6 +94,10 @@ gateway_port_listening() {
     netstat -tln 2>/dev/null | grep -Eq ":${port}([[:space:]]|$)"
     return $?
   fi
+  if command -v node >/dev/null 2>&1; then
+    node -e "const net=require('net');const socket=net.createConnection(${port},'127.0.0.1');socket.on('connect',()=>{socket.end();process.exit(0)});socket.on('error',()=>process.exit(1));socket.setTimeout(1000,()=>{socket.destroy();process.exit(1)});" 2>/dev/null
+    return $?
+  fi
   return 1
 }
 

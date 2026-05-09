@@ -15,5 +15,7 @@ assert_contains() {
 assert_contains "RUN npm install -g pnpm"
 assert_contains "if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts;"
 assert_contains "elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps --ignore-scripts;"
+assert_contains "RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi"
+assert_contains "RUN if [ -f package-lock.json ]; then npm ci --omit=dev --legacy-peer-deps; else npm install --omit=dev --legacy-peer-deps; fi"
 
 echo "dockerfile openclaw builder tests passed"
