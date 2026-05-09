@@ -10,26 +10,17 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ---
 
-## 🔥 Latest Release: v1.4.4
+## 🔥 Latest Release Series: v1.4.2–v1.4.4
 
-- Container/runtime cleanup for the published image line:
+- Container/runtime hardening for the published image line:
+  - the Docker OpenClaw builder stage skips dependency `prepare` hooks for problematic transitive git-hosted packages during clean-room container builds
   - the dashboard Docker builder and runtime install steps now use `--legacy-peer-deps`, which fixes clean `docker compose build` failures at the dashboard stage after the earlier OpenClaw builder fix
   - the gateway watchdog in the slim runtime image now uses a Node-based localhost probe when `ss`/`netstat` are unavailable, so healthy containers stop spam-restarting the gateway every 30 seconds
-- Organization now defaults to the org-chart view:
-  - the Organization page opens in the org-chart view by default and shows that view first in the toggle, matching Workflows preferring DAG as the primary view
-
-## 🔥 Previous Release: v1.4.3
-
 - Cloud template-created agents are now chat-ready immediately:
   - agent-template apply now creates the full OpenClaw runtime scaffolding under `~/.openclaw/agents/<id>/`, including `config.yaml` and `sessions/`
   - this fixes cloud chat failures where agents created from templates could not reach the active runtime even though gateway health was otherwise good
-- `v1.4.2` packaging hardening remains intact for published images
-
-## 🔥 Previous Release: v1.4.2
-
-- Container/OpenClaw packaging is more reliable for published images:
-  - the Docker OpenClaw builder stage now skips dependency `prepare` hooks for transitive git-hosted packages during clean-room container builds
-  - this unblocks the pinned OpenClaw runtime packaging path used by the CLI team for cloud/on-prem dashboard image publishing
+- Organization now defaults to the org-chart view:
+  - the Organization page opens in the org-chart view by default and shows that view first in the toggle, matching Workflows preferring DAG as the primary view
 - `v1.4.1` product work remains intact:
   - Skills UX, registry discovery, recurring-template apply friction reduction, single-agent template registration, and multi-agent typing-indicator improvements all remain part of the current line
   - Tessl registry support remains **exploratory/experimental**
