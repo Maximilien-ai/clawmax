@@ -12,7 +12,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [x] **Full `SYSTEM/test-with-server.sh` green on main** — default-safe suite is green after startup-wrapper, path, Docker smoke-test, and newer skill/registry follow-through fixes.
 - [x] **Recent `1.4.0` regression reports resolved locally** — company/dashboard, scheduling, gateway fallback, metering, and recent customer UX issues are fixed on the current line.
 - [x] **Customer verification window for recent runtime fixes closed cleanly** — `#122`, `#123`, and `#124` were explicitly verified fixed by `@p11n-com`.
-- [ ] **Container image/runtime follow-through closes cleanly** — finish and verify `#129` (dashboard Docker build lockfile/peer-dep drift) and `#130` (gateway watchdog false negatives in the slim runtime image) so only cron/docs work remains open on the operational side.
+- [x] **Container image/runtime follow-through closed cleanly** — `#129` (dashboard Docker build lockfile/peer-dep drift) and `#130` (gateway watchdog false negatives in the slim runtime image) are fixed on `main`, regression-covered, and closed; the live issue tracker is now down to `#32`, `#109`, and `#111`.
 - [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental.
 - [ ] **Skill registry metadata follow-through** — preserve richer registry metadata where practical (emoji, provenance details, richer display copy), especially for imported Shipables/Tessl skills.
 

@@ -551,9 +551,9 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [teamsSectionCollapsed, setTeamsSectionCollapsed] = useState(false)
   const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<string>>(new Set())
   const [organizationViewMode, setOrganizationViewMode] = useState<OrganizationViewMode>(() => {
-    if (typeof window === 'undefined') return 'structure'
+    if (typeof window === 'undefined') return 'org-chart'
     const saved = localStorage.getItem('organizations-view-mode')
-    return saved === 'org-chart' ? 'org-chart' : 'structure'
+    return saved === 'structure' ? 'structure' : 'org-chart'
   })
   const [orgChartZoom, setOrgChartZoom] = useState(1)
   const [orgChartDensity, setOrgChartDensity] = useState<OrgChartDensity>(() => {
@@ -1521,19 +1521,8 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <button
-              onClick={() => setOrganizationViewMode('structure')}
-              className={`px-3 py-2 text-sm transition-colors ${
-                organizationViewMode === 'structure'
-                  ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
-                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
-              title="Structure view"
-            >
-              ☰
-            </button>
-            <button
               onClick={() => setOrganizationViewMode('org-chart')}
-              className={`px-3 py-2 text-sm border-l border-gray-200 dark:border-gray-700 transition-colors ${
+              className={`px-3 py-2 text-sm transition-colors ${
                 organizationViewMode === 'org-chart'
                   ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
                   : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -1541,6 +1530,17 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               title="Org chart view"
             >
               ◇
+            </button>
+            <button
+              onClick={() => setOrganizationViewMode('structure')}
+              className={`px-3 py-2 text-sm border-l border-gray-200 dark:border-gray-700 transition-colors ${
+                organizationViewMode === 'structure'
+                  ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              title="Structure view"
+            >
+              ☰
             </button>
           </div>
           <button
