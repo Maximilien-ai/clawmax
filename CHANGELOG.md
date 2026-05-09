@@ -2,6 +2,17 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.4] - 2026-05-09
+
+### Release — Container Runtime Cleanup and Organization View Consistency
+- **Container Build Hardening** — the dashboard Docker builder and runtime dependency install steps now use `--legacy-peer-deps`, matching the already-hardened OpenClaw builder path and unblocking clean `docker compose build` runs from a fresh checkout
+- **Gateway Watchdog Runtime Fix** — the container entrypoint now falls back to a Node-based localhost TCP probe when `ss` and `netstat` are unavailable in the slim runtime image, preventing false “gateway down” watchdog restart attempts every 30 seconds
+- **Organization View Default** — the Organization page now defaults to the org-chart view and places that view first in the toggle, aligning its primary visualization behavior with Workflows defaulting to DAG first
+
+### Quality
+- **Regression Coverage** — extended `SYSTEM/dashboard/docker-entrypoint.test.sh` to exercise the no-`ss`/no-`netstat` runtime path directly and extended `SYSTEM/dockerfile-openclaw-builder.test.sh` to cover the dashboard Docker install commands
+- **Validation Gate** — validated locally with `sh SYSTEM/dashboard/docker-entrypoint.test.sh`, `sh SYSTEM/dockerfile-openclaw-builder.test.sh`, `cd SYSTEM/dashboard && npx tsc --noEmit`, and `bash -n SYSTEM/test.sh`
+
 ## [v1.4.3] - 2026-05-08
 
 ### Release — Template-Created Agent Runtime Fix

@@ -5,12 +5,20 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.3
+## 🔥 Latest Release: v1.4.4
+
+- Container/runtime cleanup for the published image line:
+  - the dashboard Docker builder and runtime install steps now use `--legacy-peer-deps`, which fixes clean `docker compose build` failures at the dashboard stage after the earlier OpenClaw builder fix
+  - the gateway watchdog in the slim runtime image now uses a Node-based localhost probe when `ss`/`netstat` are unavailable, so healthy containers stop spam-restarting the gateway every 30 seconds
+- Organization now defaults to the org-chart view:
+  - the Organization page opens in the org-chart view by default and shows that view first in the toggle, matching Workflows preferring DAG as the primary view
+
+## 🔥 Previous Release: v1.4.3
 
 - Cloud template-created agents are now chat-ready immediately:
   - agent-template apply now creates the full OpenClaw runtime scaffolding under `~/.openclaw/agents/<id>/`, including `config.yaml` and `sessions/`
@@ -63,36 +71,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Release/test ergonomics improved:
   - `SYSTEM/test-with-server.sh` now starts the dashboard automatically and the default-safe suite is green at `72` tests
   - Docker smoke tests, startup `.env` parsing, and clean-room/test-wrapper paths were stabilized for repeatable release validation
-
-## 🔥 Previous Release: v1.3.17
-
-- Clean-room setup and release-gate reliability improved:
-  - `setup.sh` now aligns token placement, shell-safe `.env` generation, and non-default dashboard port/URL propagation with the actual dashboard/test contract
-  - `SYSTEM/start.sh` and `SYSTEM/test.sh` are more reliable in scripted fresh-start flows, reducing false negatives during setup validation
-- Same-agent runtime contention is harder to hit:
-  - workflow, chat, and channel execution now share the same agent-execution serialization and bounded retry behavior for OpenClaw `session file locked` failures
-  - this closes the remaining workflow session-lock follow-through path rather than leaving the mitigation limited to workflows alone
-- Clean-room validation is now repeatable:
-  - `SYSTEM/scripts/setup-contract-test.sh` provides a focused fresh-home contract check
-  - `SYSTEM/scripts/cleanroom-podman-setup-test.sh` provides a heavier isolation harness without making Podman part of the product/runtime path
-
-## 🔥 Previous Release: v1.3.16
-
-- Maintenance/status banner resolution is more robust:
-  - instance resolution now survives missing explicit instance-key configuration more reliably
-  - request-host fallback helps the dashboard keep resolving active maintenance state when one configuration path is absent
-- Safer banner mapping:
-  - active scheduled maintenance now reaches the banner path more reliably
-  - existing fallback behavior remains intact when the primary status source is unavailable
-
-## 🔥 Previous Release: v1.3.15
-
-- Maintenance banner behavior is more flexible:
-  - scheduled maintenance now renders before the maintenance window starts
-  - banner state can be sourced dynamically, while environment variables remain available as a fallback path
-- Safer banner resolution:
-  - inactive maintenance state no longer renders a banner accidentally
-  - lightweight server-side caching reduces repeated banner-source lookups
 
 ---
 
