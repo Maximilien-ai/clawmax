@@ -449,17 +449,23 @@ export function ByokWizard({
       return 'not configured'
     }
 
+    const resolveState = (provider: ProviderKey): 'missing' | 'configured' | 'verified' => {
+      const entry = validation[provider]
+      if (entry?.status === 'valid') return 'verified'
+      return resolveSource(provider) === 'not configured' ? 'missing' : 'configured'
+    }
+
     const checks = [
-      { id: 'openai', label: 'OpenAI', available: hasOpenAiAvailable, source: resolveSource('openai') },
-      { id: 'gemini', label: 'Gemini', available: hasGeminiAvailable, source: resolveSource('gemini') },
-      { id: 'anthropic', label: 'Anthropic', available: hasAnthropicAvailable, source: resolveSource('anthropic') },
+      { id: 'openai', label: 'OpenAI', state: resolveState('openai'), source: resolveSource('openai') },
+      { id: 'gemini', label: 'Gemini', state: resolveState('gemini'), source: resolveSource('gemini') },
+      { id: 'anthropic', label: 'Anthropic', state: resolveState('anthropic'), source: resolveSource('anthropic') },
     ]
 
     if (ollamaEnabled && ollamaDefaultModel.trim()) {
       checks.push({
         id: 'ollama',
         label: 'Ollama',
-        available: true,
+        state: validation.ollama?.status === 'valid' ? 'verified' : 'configured',
         source: `local runtime · ${ollamaDefaultModel.trim()}`,
       })
     }
@@ -478,6 +484,7 @@ export function ByokWizard({
     ollamaDefaultModel,
     ollamaEnabled,
     openaiKey,
+    validation,
   ])
 
   useEffect(() => {
@@ -1423,16 +1430,20 @@ export function ByokWizard({
                             ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
                             : ''
                         }${
-                          provider.available
+                          provider.state === 'verified'
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
-                            : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                            : provider.state === 'configured'
+                              ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
                         }`}
                         aria-pressed={modelTab === provider.id}
                         title={`Switch to ${provider.label} settings`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium">{provider.label}</span>
-                          <span className="text-xs uppercase tracking-wide opacity-80">{provider.available ? 'available' : 'missing'}</span>
+                          <span className="text-xs uppercase tracking-wide opacity-80">
+                            {provider.state === 'verified' ? 'verified' : provider.state === 'configured' ? 'configured' : 'missing'}
+                          </span>
                         </div>
                         <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
                       </button>
