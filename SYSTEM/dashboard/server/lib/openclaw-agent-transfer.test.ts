@@ -91,6 +91,19 @@ fs.writeFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), JSON.stringif
     ]
   }
 }, null, 2), 'utf-8')
+fs.writeFileSync(path.join(tmpHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+  version: '1.0.0',
+  activeWorkspaceId: 'default',
+  workspaces: [
+    {
+      id: 'default',
+      name: 'Personal',
+      path: workspace,
+      createdAt: new Date().toISOString(),
+      lastAccessedAt: new Date().toISOString(),
+    },
+  ],
+}, null, 2), 'utf-8')
 
 process.env.HOME = tmpHome
 process.env.OPENCLAW_WORKSPACE = workspace

@@ -100,11 +100,22 @@ gateway_watchdog_tick "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
 
 : > "$LOG_FILE"
-PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin" NODE_EXIT_CODE=0 gateway_watchdog_tick "18789"
+ORIGINAL_PATH="$PATH"
+PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin"
+export PATH
+NODE_EXIT_CODE=0
+export NODE_EXIT_CODE
+gateway_watchdog_tick "18789"
 assert_not_contains "gateway run --port 18789" "$LOG_FILE"
 
 : > "$LOG_FILE"
-PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin" NODE_EXIT_CODE=1 gateway_watchdog_tick "18789"
+NODE_EXIT_CODE=1
+export NODE_EXIT_CODE
+gateway_watchdog_tick "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
+
+PATH="$ORIGINAL_PATH"
+export PATH
+unset NODE_EXIT_CODE
 
 echo "docker-entrypoint gateway tests passed"

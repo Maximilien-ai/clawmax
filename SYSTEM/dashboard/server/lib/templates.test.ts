@@ -38,11 +38,11 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
-const pendingTests: Promise<void>[] = []
+let testChain: Promise<void> = Promise.resolve()
 
 function test(name: string, fn: () => void | Promise<void>) {
-  const run = Promise.resolve()
-    .then(fn)
+  testChain = testChain
+    .then(() => Promise.resolve().then(fn))
     .then(() => {
       console.log(`${GREEN}✓${RESET} ${name}`)
       testsPassed++
@@ -53,11 +53,10 @@ function test(name: string, fn: () => void | Promise<void>) {
       testsFailed++
     })
 
-  pendingTests.push(run)
 }
 
 async function printSummaryAndExit() {
-  await Promise.allSettled(pendingTests)
+  await testChain.catch(() => undefined)
 
   console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)
   console.log(`${GREEN}Passed: ${testsPassed}${RESET}`)
