@@ -5,12 +5,12 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release Series: v1.4.2–v1.4.4
+## 🔥 Latest Release Series: v1.4.2–v1.4.5
 
 - Container/runtime hardening for the published image line:
   - the Docker OpenClaw builder stage skips dependency `prepare` hooks for problematic transitive git-hosted packages during clean-room container builds
@@ -21,6 +21,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - this fixes cloud chat failures where agents created from templates could not reach the active runtime even though gateway health was otherwise good
 - Organization now defaults to the org-chart view:
   - the Organization page opens in the org-chart view by default and shows that view first in the toggle, matching Workflows preferring DAG as the primary view
+- On-prem runtime behavior is now more consistent:
+  - agent and organization template apply block early if the dashboard cannot resolve a viable execution path or default model
+  - healthy embedded gateway runtimes keep idle and newly created agents shown as online
+  - dashboard execution checks now honor the default non-managed Ollama contract on on-prem installs
 - `v1.4.1` product work remains intact:
   - Skills UX, registry discovery, recurring-template apply friction reduction, single-agent template registration, and multi-agent typing-indicator improvements all remain part of the current line
   - Tessl registry support remains **exploratory/experimental**

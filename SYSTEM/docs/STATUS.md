@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.4.4
-**Last Updated**: May 9, 2026
-**Status**: `v1.4.4` is the current patch release line on `main`
+**Current Version**: v1.4.5
+**Last Updated**: May 10, 2026
+**Status**: `v1.4.5` is the current patch release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.4` patch line: all `1.4.3` template-created-agent chat work plus the container runtime cleanup and organization default-view consistency update
+- `main` now carries the `1.4.5` patch line: all `1.4.4` runtime/container consistency work plus the on-prem template apply guardrails, embedded gateway health alignment, and dashboard-side Ollama contract fix
 - `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green locally on the current default-safe path, including the Docker smoke tests and newer skill/registry regressions
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, registry provenance, and registry suggestions from both Shipables and Tessl
 - Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation

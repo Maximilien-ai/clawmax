@@ -2,6 +2,17 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.5] - 2026-05-10
+
+### Release — On-Prem Runtime Contract and Template Apply Guardrails
+- **Template Apply Guardrails** — agent and organization template apply flows now block early when the dashboard cannot resolve a viable chat execution path or default model, instead of creating agents that will fail on first chat
+- **Embedded Gateway Health Alignment** — healthy on-prem embedded gateway runtimes now keep idle and freshly created agents marked `online`, avoiding misleading degraded/offline state when the runtime itself is healthy
+- **On-Prem Ollama Contract** — dashboard-side execution checks now honor the existing non-managed default Ollama contract, so on-prem installs no longer behave as if Ollama were disabled by default
+
+### Quality
+- **Regression Coverage** — added client-side BYOK coverage for on-prem default Ollama execution readiness and added a focused workspace-status regression for healthy embedded gateway + idle agent state
+- **Validation Gate** — validated locally with `client/src/lib/byok.test.ts`, `server/lib/workspace-status.test.ts`, `npx tsc --noEmit`, and `bash -n SYSTEM/test.sh`
+
 ## [v1.4.4] - 2026-05-09
 
 ### Release — Container Runtime Cleanup and Organization View Consistency
