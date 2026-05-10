@@ -755,16 +755,14 @@ export function ByokWizard({
         return entry.status === 'invalid' || entry.status === 'error'
       })
       if (failures.length > 0) {
-        const labels: Record<string, string> = {
-          openai: 'OpenAI',
-          anthropic: 'Anthropic',
-          gemini: 'Gemini',
-          ollama: 'Ollama',
-          opik: 'Opik',
-          senso: 'Senso',
-        }
-        showWarning(`Some integration checks failed: ${failures.map(([key]) => labels[key] || key).join(', ')}. Review the messages below. You can still save and complete optional integrations later.`)
-        return true
+        const [firstFailedKey, firstFailedEntry] = failures[0]
+        const failedLabels = failures.map(([key]) => labelsForSlug(key)).join(', ')
+        showWarning(
+          failures.length === 1
+            ? `${labelsForSlug(firstFailedKey)} check failed: ${firstFailedEntry.message}`
+            : `Some integration checks failed: ${failedLabels}. Review the messages below before saving.`
+        )
+        return false
       }
       showSuccess(scope === 'current-partner' && currentPartnerSlug ? `${labelsForSlug(currentPartnerSlug)} check completed` : 'Integration checks completed')
       return true
