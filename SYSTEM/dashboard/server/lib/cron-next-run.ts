@@ -117,10 +117,11 @@ function normalizeCronTimezone(timezone?: string): string {
 function getZonedDateParts(date: Date, timezone: string): ZonedDateParts {
   const parts = getDateFormatter(timezone).formatToParts(date)
   const weekday = parts.find((part) => part.type === 'weekday')?.value?.slice(0, 3).toLowerCase() || 'sun'
+  const rawHour = Number(parts.find((part) => part.type === 'hour')?.value || 0)
   return {
     year: Number(parts.find((part) => part.type === 'year')?.value || 1970),
     minute: Number(parts.find((part) => part.type === 'minute')?.value || 0),
-    hour: Number(parts.find((part) => part.type === 'hour')?.value || 0),
+    hour: rawHour === 24 ? 0 : rawHour,
     dayOfMonth: Number(parts.find((part) => part.type === 'day')?.value || 1),
     month: Number(parts.find((part) => part.type === 'month')?.value || 1),
     dayOfWeek: WEEKDAY_PARTS[weekday] ?? 0,

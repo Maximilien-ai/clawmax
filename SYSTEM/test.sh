@@ -327,6 +327,7 @@ if [ "$template_status" -eq 0 ]; then
   template_count=$(grep "Passed:" /tmp/clawmax-templates.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
   pass "Templates API unit tests (${template_count:-?} tests)"
 else
+  tail -n 40 /tmp/clawmax-templates.out
   fail "Templates API unit tests"
 fi
 
@@ -338,6 +339,7 @@ if [ "$agent_default_model_status" -eq 0 ]; then
   agent_default_model_count=$(grep "Tests passed:" /tmp/clawmax-agent-default-model.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Agent default-model unit tests (${agent_default_model_count:-?} tests)"
 else
+  tail -n 40 /tmp/clawmax-agent-default-model.out
   fail "Agent default-model unit tests"
 fi
 
@@ -539,6 +541,7 @@ docker_entrypoint_status=$?
 if [ "$docker_entrypoint_status" -eq 0 ]; then
   pass "Docker entrypoint gateway tests"
 else
+  cat /tmp/clawmax-docker-entrypoint.out
   fail "Docker entrypoint gateway tests"
 fi
 
@@ -647,6 +650,7 @@ cron_next_run_status=$?
 if [ "$cron_next_run_status" -eq 0 ]; then
   pass "Cron next-run unit tests (6 tests)"
 else
+  tail -n 40 /tmp/clawmax-cron-next-run.out
   fail "Cron next-run unit tests"
 fi
 
@@ -776,6 +780,7 @@ if [ "$openclaw_transfer_status" -eq 0 ]; then
   openclaw_transfer_count=$(grep "Tests passed:" /tmp/clawmax-openclaw-agent-transfer.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "OpenClaw agent transfer unit tests (${openclaw_transfer_count:-?} tests)"
 else
+  tail -n 60 /tmp/clawmax-openclaw-agent-transfer.out
   fail "OpenClaw agent transfer unit tests"
 fi
 

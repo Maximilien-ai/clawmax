@@ -38,27 +38,36 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+const pendingTests: Promise<void>[] = []
 
 function test(name: string, fn: () => void | Promise<void>) {
-  try {
-    const result = fn()
-    if (result instanceof Promise) {
-      result.then(() => {
-        console.log(`${GREEN}✓${RESET} ${name}`)
-        testsPassed++
-      }).catch(err => {
-        console.log(`${RED}✗${RESET} ${name}`)
-        console.error(`  Error: ${err.message}`)
-        testsFailed++
-      })
-    } else {
+  const run = Promise.resolve()
+    .then(fn)
+    .then(() => {
       console.log(`${GREEN}✓${RESET} ${name}`)
       testsPassed++
-    }
-  } catch (err: any) {
-    console.log(`${RED}✗${RESET} ${name}`)
-    console.error(`  Error: ${err.message}`)
-    testsFailed++
+    })
+    .catch((err: any) => {
+      console.log(`${RED}✗${RESET} ${name}`)
+      console.error(`  Error: ${err.message}`)
+      testsFailed++
+    })
+
+  pendingTests.push(run)
+}
+
+async function printSummaryAndExit() {
+  await Promise.allSettled(pendingTests)
+
+  console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)
+  console.log(`${GREEN}Passed: ${testsPassed}${RESET}`)
+
+  if (testsFailed > 0) {
+    console.log(`${RED}Failed: ${testsFailed}${RESET}`)
+    process.exit(1)
+  } else {
+    console.log(`\n${GREEN}All tests passed! ✓${RESET}\n`)
+    process.exit(0)
   }
 }
 
@@ -1544,15 +1553,4 @@ test('system organization templates do not contain raw mustache workflow placeho
 })
 
 // Summary
-setTimeout(() => {
-  console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)
-  console.log(`${GREEN}Passed: ${testsPassed}${RESET}`)
-
-  if (testsFailed > 0) {
-    console.log(`${RED}Failed: ${testsFailed}${RESET}`)
-    process.exit(1)
-  } else {
-    console.log(`\n${GREEN}All tests passed! ✓${RESET}\n`)
-    process.exit(0)
-  }
-}, 100)
+void printSummaryAndExit()

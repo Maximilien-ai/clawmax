@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
+import { execFileSync } from 'child_process'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -34,6 +35,15 @@ async function test(name: string, fn: () => void | Promise<void>) {
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
+}
+
+function createZipArchive(zipPath: string, folderName: string, cwd: string) {
+  try {
+    execFileSync('zip', ['-qr', zipPath, folderName], { cwd, stdio: 'ignore' })
+    return
+  } catch {}
+
+  execFileSync('python3', ['-m', 'zipfile', '-c', zipPath, folderName], { cwd, stdio: 'ignore' })
 }
 
 console.log(`\n${YELLOW}=== OpenClaw Agent Transfer Test Suite ===${RESET}\n`)
@@ -177,7 +187,7 @@ async function run() {
     }, null, 2), 'utf-8')
 
     const zipPath = path.join(tmpHome, 'zip-agent.zip')
-    require('child_process').execFileSync('zip', ['-qr', zipPath, 'zip-agent'], { cwd: zipSourceRoot })
+    createZipArchive(zipPath, 'zip-agent', zipSourceRoot)
 
     const result = importAgentFromZipArchive(zipPath)
     assert(result.importedId === 'zip-agent', 'Expected ZIP import to preserve bundle folder name')

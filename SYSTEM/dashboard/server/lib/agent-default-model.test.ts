@@ -29,7 +29,9 @@ async function main() {
 
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-default-model-'))
   const originalHome = process.env.HOME
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   process.env.HOME = tmpHome
+  process.env.OPENCLAW_WORKSPACE = path.join(tmpHome, '.openclaw', 'workspace')
 
   try {
     await test('workspace preferred model wins when available', () => {
@@ -70,6 +72,8 @@ async function main() {
   } finally {
     if (originalHome === undefined) delete process.env.HOME
     else process.env.HOME = originalHome
+    if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   }
 
   console.log('\n========================================')
